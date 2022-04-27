@@ -1,0 +1,21 @@
+{
+    "git.ignoreLimitWarning": true,
+    "search.exclude": {
+        "dist": true
+    },
+    "typescript.tsc.autoDetect": "off",
+    "eslint.options": {
+        "rulePaths": [
+            "./build/eslint"
+        ]
+    },
+    "mochaExplorer.files": "test/**/*.test.ts",
+    "mochaExplorer.require": "ts-node/register",
+    "mochaExplorer.env": {
+        "TS_NODE_PROJECT": "src/test/tsconfig.json"
+    },
+    "files.associations": {
+        "devcontainer-features.json": "jsonc"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib"
+}

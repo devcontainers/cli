@@ -1,0 +1,47 @@
+// See https://go.microsoft.com/fwlink/?LinkId=733558
+// for the documentation about the tasks.json format
+{
+    "version": "2.0.0",
+    "windows": {
+        "options": {
+            "shell": {
+                // Run Tests requires powershell on Windows.
+                "executable": "powershell.exe"
+            }
+        }
+    },
+    "tasks": [
+        {
+            "type": "npm",
+            "script": "watch",
+            "problemMatcher": "$tsc-watch",
+            "isBackground": true,
+            "label": "Build Dev Containers CLI",
+            "presentation": {
+                "reveal": "never"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "type": "npm",
+            "script": "lint",
+            "problemMatcher": [
+                "$eslint-stylish"
+            ],
+            "label": "npm: lint",
+        },
+        {
+            "type": "npm",
+            "script": "test",
+            "problemMatcher": [],
+            "label": "Run Tests",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        }
+    ]
+}

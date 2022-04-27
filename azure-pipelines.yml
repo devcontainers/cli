@@ -1,0 +1,41 @@
+pool:
+  vmImage: "ubuntu-latest"
+
+trigger:
+  branches:
+    include:
+      - 'main'
+      - 'release/*'
+      - 'spec-main'
+      - 'spec-release/*'
+pr: none
+
+steps:
+- task: ComponentGovernanceComponentDetection@0
+- task: notice@0
+  displayName: 'NOTICE File Generator'
+  inputs:
+    outputformat: 'text'
+- task: DownloadPipelineArtifact@2
+- script: |
+    PIPELINE_WORKSPACE="$(Pipeline.Workspace)"
+    if [ "$(sort "$PIPELINE_WORKSPACE/NOTICE.txt/NOTICE.txt" | tr -d '\015')" = "$(sort ThirdPartyNotices.txt | tr -d '\015')" ]
+    then
+      echo "3rd-party notices unchanged."
+    else
+      echo "3rd-party notices changed."
+      cp "$PIPELINE_WORKSPACE/NOTICE.txt/NOTICE.txt" ThirdPartyNotices.txt
+      git status
+      git add ThirdPartyNotices.txt
+      git config --global user.email "chrmarti@microsoft.com"
+      git config --global user.name "Christof Marti"
+      git commit -m "Auto-update ThirdPartyNotices.txt"
+      if [ "$(git log -1 --pretty=%B | head -n 1)" != "$(git log HEAD~2..HEAD~1 --pretty=%B | head -n 1)" ]
+      then
+        GIT_ASKPASS=scripts/gitAskPass.sh git push origin HEAD:$(Build.SourceBranch)
+      else
+        echo "Triggered by own commit, not pushing."
+      fi
+    fi
+  env:
+    GIT_TOKEN: $(GIT_TOKEN)

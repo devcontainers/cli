@@ -1,0 +1,20 @@
+{
+	"references": [
+		{
+			"path": "./src/spec-common"
+		},
+		{
+			"path": "./src/spec-configuration"
+		},
+		{
+			"path": "./src/spec-node"
+		},
+		{
+			"path": "./src/spec-shutdown"
+		},
+		{
+			"path": "./src/spec-utils"
+		}
+	],
+	"files": []
+}

@@ -1,0 +1,52 @@
+name: Dev Containers CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  cli:
+    name: CLI
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@microsoft'
+    - run: yarn
+    - run: yarn package
+    - run: yarn test --forbid-only
+    - name: TGZ name
+      run: |
+        VERSION=$(jq -r '.version' < package.json)
+        echo "TGZ=dev-containers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
+        echo "TGZ_UPLOAD=dev-containers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
+    - name: Store TGZ
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.TGZ_UPLOAD }}
+        path: ${{ env.TGZ }}
+  container-features:
+        name: Test container-features
+        runs-on: ubuntu-latest
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v2
+        - name: Setup Node.js
+          uses: actions/setup-node@v1
+          with:
+            node-version: '16.x'
+            registry-url: 'https://npm.pkg.github.com'
+            scope: '@microsoft'
+        - name: Install Dependencies
+          run: yarn
+        - name: Compile
+          run: yarn compile
+        - name: Run Offline Tests
+          run: yarn test-container-features-offline --forbid-only

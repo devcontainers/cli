@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"resolveJsonModule": true
+	},
+	"references": [
+		{
+			"path": "../spec-configuration"
+		},
+		{
+			"path": "../spec-utils"
+		}
+	]
+}

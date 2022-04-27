@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+{
+	"name": "Dev Containers CLI",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": { 
+			"VARIANT": "16-bullseye"
+		}
+	},
+
+	"extensions": [
+		"dbaeumer.vscode-eslint"
+	],
+
+	"postCreateCommand": "yarn install",
+
+	"remoteUser": "node",
+	
+	"features": {
+		"docker-in-docker": "latest"
+	}
+}
