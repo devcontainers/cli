@@ -240,7 +240,15 @@ function buildHandler(args: BuildArgs) {
 	(async () => build(args))().catch(console.error);
 }
 
-async function build({
+async function build(args: BuildArgs) {
+	const result = await doBuild(args);
+	const exitCode = result.outcome === 'error' ? 1 : 0;
+	console.log(JSON.stringify(result));
+	await result.dispose();
+	process.exit(exitCode);
+}
+
+async function doBuild({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
@@ -349,6 +357,27 @@ async function build({
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
 			}
 		}
+
+		return {
+			outcome: 'success' as 'success',
+			dispose,
+		};
+	} catch (originalError) {
+		const originalStack = originalError?.stack;
+		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+			description: 'An error occurred building the container.',
+			originalError
+		});
+		if (originalStack) {
+			console.error(originalStack);
+		}
+		return {
+			outcome: 'error' as 'error',
+			message: err.message,
+			description: err.description,
+			containerId: err.containerId,
+			dispose,
+		};
 	} finally {
 		await dispose();
 	}

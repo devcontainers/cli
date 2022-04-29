@@ -26,24 +26,50 @@ describe('Dev Containers CLI', function () {
 		assert.ok(res.stdout.indexOf('run-user-commands'), 'Help text is not mentioning run-user-commands.');
 	});
 
-	describe('Command up', () =>{
-
+	describe('Command build', () => {
 		it('should execute successfully with valid config', async () => {
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image`);
-			const containerId: string = JSON.parse(res.stdout).containerId;
-			assert.ok(containerId, 'Container id not found.');
-			await shellExec(`docker rm -f ${containerId}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/image`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
 		});
 		
 		it('should fail with "not found" error when config is not found', async () => {
+			let success = false;
 			try {
-				await shellExec(`${cli} up --workspace-folder path-that-does-not-exist`);
-				assert.fail('expect exception');
-			} catch(error){
+				await shellExec(`${cli} build --workspace-folder path-that-does-not-exist`);
+				success = true;
+			} catch (error) {
 				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
 				assert.match(res.message, /Dev container config \(.*\) not found./);
 			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+	});
+
+	describe('Command up', () => {
+		it('should execute successfully with valid config', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should fail with "not found" error when config is not found', async () => {
+			let success = false;
+			try {
+				await shellExec(`${cli} up --workspace-folder path-that-does-not-exist`);
+				success = true;
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /Dev container config \(.*\) not found./);
+			}
+			assert.equal(success, false, 'expect non-successful call');
 		});
 	});
 
