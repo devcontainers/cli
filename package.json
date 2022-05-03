@@ -72,7 +72,7 @@
 		"shell-quote": "^1.7.3",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.11",
-		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.233.0/vscode-dev-containers-0.233.0.tgz",
+		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.233.1/vscode-dev-containers-0.233.1.tgz",
 		"vscode-uri": "^3.0.3",
 		"yargs": "~17.0.1"
 	}
