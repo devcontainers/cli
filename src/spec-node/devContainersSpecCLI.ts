@@ -649,7 +649,15 @@ function execHandler(args: ExecArgs) {
 	(async () => exec(args))().catch(console.error);
 }
 
-async function exec({
+async function exec(args: ExecArgs) {
+	const result = await doExec(args);
+	const exitCode = result.outcome === 'error' ? 1 : 0;
+	console.log(JSON.stringify(result));
+	await result.dispose();
+	process.exit(exitCode);
+}
+
+async function doExec({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
@@ -728,15 +736,29 @@ async function exec({
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		const infoOutput = makeLog(output, LogLevel.Info);
 		await runRemoteCommand({ ...common, output: infoOutput }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });
-	} catch (err) {
-		if (!err?.code) {
-			console.error(err);
+
+		return {
+			outcome: 'success' as 'success',
+			dispose,
+		};
+
+	} catch (originalError) {
+		const originalStack = originalError?.stack;
+		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+			description: 'An error occurred building the container.',
+			originalError
+		});
+		if (originalStack) {
+			console.error(originalStack);
 		}
-		await dispose();
-		process.exit(err?.code || 1);
+		return {
+			outcome: 'error' as 'error',
+			message: err.message,
+			description: err.description,
+			containerId: err.containerId,
+			dispose,
+		};
 	}
-	await dispose();
-	process.exit(0);
 }
 
 function keyValuesToRecord(keyValues: string[]): Record<string, string> {
