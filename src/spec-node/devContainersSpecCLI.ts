@@ -375,7 +375,6 @@ async function doBuild({
 			outcome: 'error' as 'error',
 			message: err.message,
 			description: err.description,
-			containerId: err.containerId,
 			dispose,
 		};
 	}
