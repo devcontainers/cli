@@ -421,8 +421,15 @@ type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>>
 function runUserCommandsHandler(args: RunUserCommandsArgs) {
 	(async () => runUserCommands(args))().catch(console.error);
 }
+async function runUserCommands(args: RunUserCommandsArgs) {
+	const result = await doRunUserCommands(args);
+	const exitCode = result.outcome === 'error' ? 1 : 0;
+	console.log(JSON.stringify(result));
+	await result.dispose();
+	process.exit(exitCode);
+}
 
-async function runUserCommands({
+async function doRunUserCommands({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
@@ -501,17 +508,27 @@ async function runUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, config);
 		const result = await runPostCreateCommands(common, containerProperties, config, remoteEnv, stopForPersonalization);
-		console.log(JSON.stringify({
+		return {
 			outcome: 'success' as 'success',
 			result,
-		}));
-	} catch (err) {
-		console.error(err);
-		await dispose();
-		process.exit(1);
+			dispose,
+		};
+	} catch (originalError) {
+		const originalStack = originalError?.stack;
+		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+			description: 'An error occurred running user commands in the container.',
+			originalError
+		});
+		if (originalStack) {
+			console.error(originalStack);
+		}
+		return {
+			outcome: 'error' as 'error',
+			message: err.message,
+			description: err.description,
+			dispose,
+		};
 	}
-	await dispose();
-	process.exit(0);
 }
 
 
@@ -744,7 +761,7 @@ async function doExec({
 	} catch (originalError) {
 		const originalStack = originalError?.stack;
 		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
-			description: 'An error occurred building the container.',
+			description: 'An error occurred running a command in the container.',
 			originalError
 		});
 		if (originalStack) {
