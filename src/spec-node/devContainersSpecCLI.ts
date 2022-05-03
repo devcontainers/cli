@@ -378,8 +378,6 @@ async function doBuild({
 			containerId: err.containerId,
 			dispose,
 		};
-	} finally {
-		await dispose();
 	}
 }
 
