@@ -314,6 +314,7 @@ async function doBuild({
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
 		const { config } = configs;
+		let imageNameResult = '';
 
 		if (isDockerFileConfig(config)) {
 	
@@ -322,6 +323,9 @@ async function doBuild({
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				imageNameResult = argImageName;
+			} else {
+				imageNameResult = updatedImageName;
 			}
 		} else if ('dockerComposeFile' in config) {
 	
@@ -352,6 +356,9 @@ async function doBuild({
 			
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				imageNameResult = argImageName;
+			} else {
+				imageNameResult = updatedImageName;
 			}
 		} else {
 			
@@ -360,11 +367,15 @@ async function doBuild({
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				imageNameResult = argImageName;
+			} else {
+				imageNameResult = updatedImageName;
 			}
 		}
 
 		return {
 			outcome: 'success' as 'success',
+			imageName: imageNameResult,
 			dispose,
 		};
 	} catch (originalError) {
