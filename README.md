@@ -18,6 +18,22 @@ This CLI is in active development. Current status:
 - [ ] `dev-containers-cli stop` - Stops containers
 - [ ] `dev-containers-cli down` - Stops and deletes containers
 
+## Try it out
+
+Compile and get the help text:
+```sh
+yarn
+yarn compile
+node cli.js
+```
+
+Clone rust sample to parent folder, start a dev container and run some command:
+```sh
+( cd .. && git clone https://github.com/microsoft/vscode-remote-try-rust )
+node cli.js up --workspace-folder ../vscode-remote-try-rust
+node cli.js exec --workspace-folder ../vscode-remote-try-rust cargo run
+```
+
 ## Specification
 
 The dev container CLI is part of the [Development Containers Specification](https://github.com/microsoft/dev-container-spec). This spec seeks to find ways to enrich existing formats with common development specific settings, tools, and configuration while still providing a simplified, un-orchestrated single container option – so that they can be used as coding environments or for continuous integration and testing.
