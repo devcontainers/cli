@@ -5,20 +5,32 @@
 
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
-import * as semver from 'semver';
+//import * as semver from 'semver';
 import * as URL from 'url';
 import * as tar from 'tar';
 import { DevContainerConfig } from './configuration';
-import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile } from '../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
+import { DevContainerFeature } from './configuration';
+import { existsSync } from 'fs';
 
 const ASSET_NAME = 'devcontainer-features.tgz';
 
 export interface Feature {
 	id: string;
 	name: string;
+	description?: string;
+	filename?: string;
+	runApp?: string;
+	runParams?: string;
+	infoString?: string;
+	internalVersion?: string;
+	tempLocalPath?: string;
+	consecutiveId?: string;
+	install?: Record<string, string>;
 	documentationURL?: string;
+	licenseURL?: string;
 	options?: Record<string, FeatureOption>;
 	buildArg?: string; // old properties for temporary compatibility
 	containerEnv?: Record<string, string>;
@@ -99,6 +111,7 @@ export interface FilePathSourceInformation extends BaseSourceInformation {
 
 export interface FeatureSet {
 	features: Feature[];
+	internalVersion?: string;
 	sourceInformation: SourceInformation;
 }
 
@@ -145,6 +158,13 @@ export function collapseFeaturesConfig(original: FeaturesConfig | undefined): Co
 
 export const multiStageBuildExploration = false;
 
+// TODO: Cleanup
+let counter = 1;
+
+function getCounter() {
+	return counter++;
+}
+
 const isTsnode = path.basename(process.argv[0]) === 'ts-node' || process.argv.indexOf('ts-node/register') !== -1;
 
 export function getContainerFeaturesFolder(_extensionPath: string | { distFolder: string }) {
@@ -161,13 +181,13 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 	const { type } = srcInfo;
 	switch (type) {
 		case 'local-cache':
-			return 'local-cache';
+			return getCounter() + '-local-cache';
 		case 'direct-tarball':
-			return Buffer.from(srcInfo.tarballUri).toString('base64');
+			return getCounter() + '-' + srcInfo.tarballUri;
 		case 'github-repo':
-			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}`;
+			return `${getCounter()}-github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}`;
 		case 'file-path':
-			return Buffer.from(srcInfo.filePath).toString('base64');
+			return getCounter() + '-' + srcInfo.filePath;
 	}
 }
 
@@ -197,16 +217,49 @@ USER $IMAGE_USER
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	let result = '';
-	const folders = (featuresConfig.featureSets || []).map(x => getSourceInfoString(x.sourceInformation));
+
+	// Features version 1
+	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => getSourceInfoString(x.sourceInformation));
 	folders.forEach(folder => {
 		result += `RUN cd /tmp/build-features/${folder} \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
 `;
+	
+});
+	// Features version 2
+	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
+		featureSet.features.forEach(feature => {
+				result += generateContainerEnvs(feature);
+				result += `
+				
+RUN cd /tmp/build-features/${feature.consecutiveId} \\
+&& export $(cat devcontainer-features.env | xargs) \\
+&& echo $PATH \\
+&& chmod +x ./${feature.runParams} \\
+&& ./${feature.runParams}
+
+`;	
+		})
 	});
 	return result;
 }
+
+// Used for features version 2
+export function generateContainerEnvs(feature: Feature) {
+	let result = '';
+	if(!feature.containerEnv)
+	{
+		return result;
+	}
+	let keys = Object.keys(feature.containerEnv);
+	result = keys.map(k => `ENV ${k}=${feature.containerEnv![k]}`).join('\n');
+
+	return result;
+}
+
+const allowedFeatureIdRegex = new RegExp('^[a-zA-Z0-9_-]*$');
 
 // Parses a declared feature in user's devcontainer file into
 // a usable URI to download remote features.
@@ -216,158 +269,6 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 //  sourceInformation  <----- Source information (is this locally cached, a GitHub remote feature, etc..), including tarballUri if applicable.
 // }
 //
-export function parseFeatureIdentifier(input: string, output: Log): { id: string; sourceInformation: SourceInformation } | undefined {
-	// A identifier takes this form:
-	//      (0)  <feature>
-	//      (1)  <publisher>/<feature-set>/<feature>@version
-	//      (2)  https://<../URI/..>/devcontainer-features.tgz#<feature>
-	//      (3) ./<local-path>#<feature>  -or-  ../<local-path>#<feature>  -or-   /<local-path>#<feature>
-	// 
-	//  (0) This is a locally cached feature. The function should return `undefined` for tarballUrl
-	//
-	//  (1) Our "registry" is backed by GitHub public repositories (or repos visible with the environment's GITHUB_TOKEN).
-	//      Say organization 'octocat' has a repo titled 'myfeatures' with a set of feature definitions.
-	//      One of the [1..n] features in this repo has an id of 'helloworld'.
-	//
-	//      eg: octocat/myfeatures/helloworld
-	//
-	//      The above example assumes the 'latest' GitHub release, and internally will 
-	//      fetch the devcontainer-features.tgz artifact from that release.
-	//      To specify a certain release tag, append the tag with an @ symbol
-	//
-	//      eg: octocat/myfeatures/helloworld@v0.0.2
-	//
-	//  (2) A fully-qualified https URI to a devcontainer-features.tgz file can be provided instead
-	//      of a using the GitHub registry "shorthand". Note this is identified by a
-	//      s.StartsWith("https://" ||  "http://").
-	//
-	//      eg: https://example.com/../../devcontainer-features.tgz#helloworld
-	//
-	//  (3) This is a local path to a directory on disk following the expected file convention
-	//      The path can either be:
-	//          -  a relative file path to the .devcontainer file (prepended by a ./  or ../)
-	//          -  an absolute file path (prepended by a /)
-	//
-	//      No version can be provided, as the directory is copied 'as is' and is inherently taking the 'latest'
-
-	// Regexes
-	const allowedFeatureIdRegex = new RegExp('^[a-zA-Z0-9_-]*$');
-
-	// Case (0): Cached feature
-	if (!input.includes('/')) {
-		output.write(`[${input}] - No slash, must be locally cached feature.`, LogLevel.Trace);
-		return {
-			id: input,
-			sourceInformation: { type: 'local-cache' },
-		};
-	}
-
-	// Case (2): Direct URI to a tgz
-	if (input.startsWith('http://') || input.startsWith('https://')) {
-		output.write(`[${input}] - Direct URI`, LogLevel.Trace);
-
-		// Trim any trailing slash character to make parsing easier.
-		// A slash at the end of the direct tgz identifier is not important.
-		input = input.replace(/\/+$/, '');
-
-		// Parse out feature ID by splitting on final slash character.
-		const featureIdDelimiter = input.lastIndexOf('#');
-		const id = input.substring(featureIdDelimiter + 1);
-		// Ensure feature id only contains the expected set of characters.
-		if (id === '' || !allowedFeatureIdRegex.test(id)) {
-			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
-			return undefined;
-		}
-		const tarballUri =
-			new URL.URL(input.substring(0, featureIdDelimiter))
-				.toString();
-
-		output.write(`[${input}] - uri: ${tarballUri} , id: ${id}`, LogLevel.Trace);
-		return {
-			id,
-			sourceInformation: { 'type': 'direct-tarball', tarballUri }
-		};
-	}
-
-	// Case (3): Local disk relative/absolute path to directory
-	if (input.startsWith('/') || input.startsWith('./') || input.startsWith('../')) {
-		// Currently unimplemented.
-		return undefined;
-
-		// const splitOnHash = input.split('#');
-		// if (!splitOnHash || splitOnHash.length !== 2) {
-		// 	output.write(`Parse error. Relative or absolute path to directory should be of the form: <PATH>#<FEATURE>`, LogLevel.Error);
-		// 	return undefined;
-		// }
-		// const filePath = splitOnHash[0];
-		// const id = splitOnHash[1];
-		// if (!allowedFeatureIdRegex.test(id)) {
-		// 	output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
-		// 	return undefined;
-		// }
-		// return {
-		// 	id,
-		// 	sourceInformation: { 'type': 'file-path', filePath, isRelative: input.startsWith('./') }
-		// };
-	}
-
-	// Must be case (1) - GH
-	let version = 'latest';
-	let splitOnAt = input.split('@');
-	if (splitOnAt.length > 2) {
-		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
-		return undefined;
-	}
-	if (splitOnAt.length === 2) {
-		output.write(`[${input}] has version ${splitOnAt[1]}`, LogLevel.Trace);
-		version = splitOnAt[1];
-	}
-	// Remaining info must be in the first part of the split.
-	const featureBlob = splitOnAt[0];
-	const splitOnSlash = featureBlob.split('/');
-	// We expect all GitHub/registry features to follow the triple slash pattern at this point
-	//  eg: <publisher>/<feature-set>/<feature>
-	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
-		output.write(`Invalid parse for GitHub/registry feature identifier. Follow format: '<publisher>/<feature-set>/<feature>'`, LogLevel.Error);
-		return undefined;
-	}
-	const owner = splitOnSlash[0];
-	const repo = splitOnSlash[1];
-	const id = splitOnSlash[2];
-
-	// Return expected tarball URI for a latest release on the parsed repo.
-	const ghSrcInfo = createGitHubSourceInformation({ owner, repo, tag: version });
-	return {
-		id,
-		sourceInformation: ghSrcInfo
-	};
-}
-
-export function createGitHubSourceInformation(params: GithubSourceInformationInput): GithubSourceInformation {
-	const { owner, repo, tag } = params;
-	if (tag === 'latest') {
-		return {
-			type: 'github-repo',
-			apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-			unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download/${ASSET_NAME}`,
-			owner,
-			repo,
-			isLatest: true
-		};
-	} else {
-		// We must have a tag, return a tarball URI for the tagged version. 
-		return {
-			type: 'github-repo',
-			apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`,
-			unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${tag}/${ASSET_NAME}`,
-			owner,
-			repo,
-			tag,
-			isLatest: false
-		};
-	}
-}
-
 
 const cleanupIterationFetchAndMerge = async (tempTarballPath: string, output: Log) => {
 	// Non-fatal, will just get overwritten if we don't do the cleaned up.
@@ -399,175 +300,6 @@ function getRequestHeaders(sourceInformation: SourceInformation, env: NodeJS.Pro
    }
    return headers;
 }
-
-async function fetchAndMergeRemoteFeaturesAsync(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, config: DevContainerConfig) {
-
-	const { output, env } = params;
-	const { dstFolder } = featuresConfig;
-	let buildFoldersCreatedAlready: String[] = [];
-
-	// The requested features from the user's devcontainer
-	const features = config.features;
-	if (!features || !Object.keys(features).length) {
-		return undefined;
-	}
-
-	// We need a dstFolder to know where to download remote resources to
-	if (!dstFolder) {
-		return undefined;
-	}
-
-	const tempTarballPath = path.join(dstFolder, ASSET_NAME);
-
-	output.write(`Preparing to parse declared features and fetch remote features.`);
-
-	for await (const id of Object.keys(features)) {
-		const remoteFeatureParsed = parseFeatureIdentifier(id, output);
-
-		if (remoteFeatureParsed === undefined) {
-			output.write(`Failed to parse key: ${id}`, LogLevel.Error);
-			// Failed to parse.
-			// TODO: Should be more fatal.
-			continue;
-		}
-
-		// -- Next section handles each possible type of "SourceInformation"
-
-		const featureName = remoteFeatureParsed.id;
-		const sourceInformation = remoteFeatureParsed.sourceInformation;
-		const sourceType = sourceInformation.type;
-
-		if (sourceType === 'local-cache') {
-			output.write(`Detected local feature set. Continuing...`);
-			continue;
-		}
-
-		const buildFolderName = getSourceInfoString(remoteFeatureParsed.sourceInformation);
-		// Calculate some predictable caching paths.
-		// Don't create the folder on-disk until we need it.
-		const featCachePath = path.join(dstFolder, buildFolderName);
-
-		// Break out earlier if already copied over remote features to dstFolder
-		const alreadyExists = buildFoldersCreatedAlready.some(x => x === buildFolderName);
-		if (alreadyExists) {
-			output.write(`Already pulled remote resource for '${buildFolderName}'. No need to re-fetch.`); //TODO: not true, might have been updated on the repo since if we pulled `local`.  Should probably use commit SHA? 
-			continue;
-		}
-
-		output.write(`Fetching: featureSet = ${buildFolderName}, feature = ${featureName}, Type = ${sourceType}`);
-
-		if (sourceType === 'file-path') {
-			output.write(`Local file-path to features on disk is unimplemented. Continuing...`);
-			continue;
-		} else {
-			let tarballUri: string | undefined = undefined;
-			const headers = getRequestHeaders(sourceInformation, env, output);
-
-			// If this is 'github-repo', we need to do an API call to fetch the appropriate asset's tarballUri
-			if (sourceType === 'github-repo') {
-				output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
-				if (headers.Authorization && headers.Authorization !== '') {
-					output.write('Authenticated. Fetching from GH API.', LogLevel.Trace);
-					tarballUri = await askGitHubApiForTarballUri(sourceInformation, headers, output);
-					headers.Accept = 'Accept: application/octet-stream';
-				} else {
-					output.write('Not authenticated. Fetching from unauthenticated uri', LogLevel.Trace);
-					tarballUri = sourceInformation.unauthenticatedUri;
-				}
-			} else if (sourceType === 'direct-tarball') {
-				tarballUri = sourceInformation.tarballUri;
-			} else {
-				output.write(`Unhandled source type: ${sourceType}`, LogLevel.Error);
-				continue;  // TODO: Should be more fatal?
-			}
-
-			// uri direct to the tarball either acquired at this point, or failed.
-			if (tarballUri !== undefined && tarballUri !== '') {
-				const options = {
-					type: 'GET',
-					url: tarballUri,
-					headers
-				};
-				output.write(`Fetching tarball at ${options.url}`);
-				output.write(`Headers: ${JSON.stringify(options)}`, LogLevel.Trace);
-				const tarball = await request(options, output);
-
-				if (!tarball || tarball.length === 0) {
-					output.write(`Did not receive a response from tarball download URI`, LogLevel.Error);
-					// Continue loop to the next remote feature.
-					// TODO: Should be more fatal.
-					await cleanupIterationFetchAndMerge(tempTarballPath, output);
-					continue;
-				}
-
-				// Filter what gets emitted from the tar.extract().
-				const filter = (file: string, _: tar.FileStat) => {
-					// Don't include .dotfiles or the archive itself.
-					if (file.startsWith('./.') || file === `./${ASSET_NAME}` || file === './.') {
-						return false;
-					}
-					return true;
-				};
-
-				output.write(`Preparing to unarchive received tgz.`, LogLevel.Trace);
-				// Create the directory to cache this feature-set in.
-				await mkdirpLocal(featCachePath);
-				await writeLocalFile(tempTarballPath, tarball);
-				await tar.x(
-					{
-						file: tempTarballPath,
-						cwd: featCachePath,
-						filter
-					}
-				);
-
-			} else {
-				output.write(`Could not fetch features from constructed tarball URL`, LogLevel.Error);
-				// Continue loop to the next remote feature.
-				// TODO: Should be more fatal.
-				await cleanupIterationFetchAndMerge(tempTarballPath, output);
-				continue;
-			}
-		}
-
-		// -- Whichever modality the feature-set was stored, at this point that process of retrieving and extracting a feature-set has completed successfully.
-		//    Now, load in the devcontainer-features.json from the `featureCachePath` and continue merging into the featuresConfig.
-
-		output.write('Attempting to load devcontainer-features.json', LogLevel.Trace);
-		let newFeaturesSet: FeatureSet | undefined = await loadFeaturesJsonFromDisk(featCachePath, output);
-
-		if (!newFeaturesSet || !newFeaturesSet.features || newFeaturesSet.features.length === 0) {
-			output.write(`Unable to parse received devcontainer-features.json.`, LogLevel.Error);
-			// TODO: Should be more fatal?
-			await cleanupIterationFetchAndMerge(tempTarballPath, output);
-			continue;
-		}
-		output.write(`Done loading FeatureSet ${buildFolderName} into from disk into memory`, LogLevel.Trace);
-
-		// Merge sourceInformation if the remote featureSet provides one.
-		// Priority is to maintain the values we had calculated previously.
-		if (newFeaturesSet.sourceInformation) {
-			newFeaturesSet = {
-				...newFeaturesSet,
-				sourceInformation: { ...newFeaturesSet.sourceInformation, ...sourceInformation },
-			};
-		}
-		output.write(`Merged sourceInfomation`, LogLevel.Trace);
-
-		// Add this new feature set to our featuresConfig
-		featuresConfig.featureSets.push(newFeaturesSet);
-		// Remember that we've succeeded in fetching this featureSet
-		buildFoldersCreatedAlready.push(buildFolderName);
-
-		// Clean-up
-		await cleanupIterationFetchAndMerge(tempTarballPath, output);
-		output.write(`Succeeded in fetching feature set ${buildFolderName}`, LogLevel.Trace);
-	}
-
-	// Return updated featuresConfig
-	return featuresConfig;
-}
-
 
 async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformation, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, output: Log) {
 	const options = {
@@ -643,11 +375,22 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabels: () => Promise<Record<string, string | undefined>>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string ;output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabels: () => Promise<Record<string, string | undefined>>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
-	const userDeclaredFeatures = config.features;
-	if (!userDeclaredFeatures || !Object.keys(userDeclaredFeatures).length) {
+	if (!config.features)
+	{
+		return undefined;
+	}
+
+	if (!imageLabels)
+	{
+		return undefined;
+	}
+
+	const userFeatures = convertOldFeatures(params, config);
+
+	if(!userFeatures) {
 		return undefined;
 	}
 
@@ -658,125 +401,335 @@ export async function generateFeaturesConfig(params: { extensionPath: string; ou
 		dstFolder
 	};
 
+	// load local cache of features;
+	// TODO: Update so that cached features are always version 2
 	let locallyCachedFeatureSet = await loadFeaturesJsonFromDisk(getLocalFolder(params.extensionPath), output); // TODO: Pass dist folder instead to also work with the devcontainer.json support package.
 	if (!locallyCachedFeatureSet) {
 		output.write('Failed to load locally cached features', LogLevel.Error);
 		return undefined;
 	}
 
-	// Add in the locally cached features
-	locallyCachedFeatureSet = {
-		...locallyCachedFeatureSet,
-		sourceInformation: { 'type': 'local-cache' },
-	};
+	// Read features and get the type.
+	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
 
-	// Push feature set to FeaturesConfig
-	featuresConfig.featureSets.push(locallyCachedFeatureSet);
-
-	// Parse, fetch, and merge information on remote features (if any).
-	// TODO: right now if anything fails in this method and we return `undefined`, we fallback to just the prior state of featureConfig (locally cached only). Is that what we want??
-	featuresConfig = await fetchAndMergeRemoteFeaturesAsync(params, featuresConfig, config) ?? featuresConfig;
-
-	// Run filtering and include user options into config.
-	featuresConfig = await doReadUserDeclaredFeatures(params, config, featuresConfig, imageLabels);
-	if (featuresConfig.featureSets.every(set =>
-		set.features.every(feature => feature.value === false))) {
-		return undefined;
-	}
+	// Fetch features and get version information
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder);
 
 	return featuresConfig;
 }
 
-const getUniqueFeatureId = (id: string, srcInfo: SourceInformation) => `${id}-${getSourceInfoString(srcInfo)}`;
+// Convert features from object sintax to array sintax
+function convertOldFeatures(params: { output: Log }, config: DevContainerConfig): DevContainerFeature[] | undefined 
+{
+	params.output.write('');
 
-// Given an existing featuresConfig, parse the user's features as they declared them in their devcontainer.
-export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabels: () => Promise<Record<string, string | undefined>>) {
+	let userFeatures: DevContainerFeature[] = [];
+	if (Array.isArray(config.features))
+	{
+		userFeatures = config.features;
+	}
+	else {
+		if (!config.features || !Object.keys(config.features).length) {
+			return undefined;
+		}
 
-	const { output } = params;
-	const labels = await imageLabels();
-	const definition = labels['com.visualstudio.code.devcontainers.id'];
-	const version = labels['version'];
+		for (const userFeatureKey of Object.keys(config.features)) {
+			const userFeatureValue = config.features[userFeatureKey];
+			if(userFeatureKey)
+			{
+				let feature : DevContainerFeature = {
+					id: userFeatureKey,
+					options: userFeatureValue
+				};
+				userFeatures.push(feature);
+			}
+		}
+	}
 
-	// Map user's declared features to its appropriate feature-set feature.
-	let configFeatures = config.features || {};
-	let userValues: Record<string, string | boolean | Record<string, string | boolean>> = {};
-	for (const feat of Object.keys(configFeatures)) {
-		const { id, sourceInformation } = parseFeatureIdentifier(feat, output) ?? {};
-		if (id && sourceInformation) {
-			const uniqueId = getUniqueFeatureId(id, sourceInformation);
-			userValues[uniqueId] = configFeatures[feat];
-		} else {
-			output.write(`Failed to read user declared feature ${feat}. Skipping.`, LogLevel.Error);
+	return userFeatures;
+}
+
+// Process features contained in devcontainer.json
+async function processUserFeatures(output: Log, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig) : Promise<FeaturesConfig>
+{
+	userFeatures.forEach(userFeature => {
+			const newFeatureSet = parseFeatureIdentifier(output, userFeature);
+			if(newFeatureSet) {
+				featuresConfig.featureSets.push(newFeatureSet);
+			}
+		}
+	);
+	return featuresConfig;
+}
+
+export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFeature) : FeatureSet | undefined {
+	output.write(`Processing feature: ${userFeature.id}`)
+			// cached feature
+			if (!userFeature.id.includes('/')) {
+				output.write(`Cached feature found.`);
+
+				let feat: Feature = {
+					id: userFeature.id,
+					name: userFeature.id,
+					value: userFeature.options,
+					included: true,
+				}
+
+				let newFeaturesSet: FeatureSet = {
+					sourceInformation: {
+						type: 'local-cache', 
+					},
+					features: [feat],
+				};
+				
+				return newFeaturesSet;
+			}
+
+			// remote tar file
+			if (userFeature.id.startsWith('http://') || userFeature.id.startsWith('https://'))
+			{
+				output.write(`Remote tar file found.`);
+				let input = userFeature.id.replace(/\/+$/, '');
+				const featureIdDelimiter = input.lastIndexOf('#');
+				const id = input.substring(featureIdDelimiter + 1);
+
+				const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
+				let feat: Feature = {
+					id: id,
+					name: userFeature.id,
+					value: userFeature.options,
+					included: true,
+				}
+
+				let newFeaturesSet: FeatureSet = {
+					sourceInformation: {
+						type: 'direct-tarball', 
+						tarballUri: tarballUri 
+					},
+					features: [feat],
+				};
+
+				return newFeaturesSet;
+			}
+
+			// local disk
+			if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || userFeature.id.startsWith('/')) {
+				output.write(`Local disk feature.`);
+				const filePath = userFeature.id;
+				const splitPath = userFeature.id.split('/');
+				const id = splitPath[splitPath.length - 1];
+				const isRelative = !userFeature.id.startsWith('/');
+				
+				let feat: Feature = {
+					id: id,
+					name: userFeature.id,
+					value: userFeature.options,
+					included: true,
+				}
+
+				let newFeaturesSet: FeatureSet = {
+					sourceInformation: {
+						type: 'file-path', 
+						filePath, 
+						isRelative: isRelative
+					},
+					features: [feat],
+				};
+
+				return newFeaturesSet;
+			}
+
+			output.write(`Github feature.`);
+			// Github repository source.
+			let version = 'latest';
+			let splitOnAt = userFeature.id.split('@');
+			if (splitOnAt.length > 2) {
+				output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
+				return undefined;
+			}
+			if (splitOnAt.length === 2) {
+				output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+				version = splitOnAt[1];
+			}
+
+			// Remaining info must be in the first part of the split.
+			const featureBlob = splitOnAt[0];
+			const splitOnSlash = featureBlob.split('/');
+			// We expect all GitHub/registry features to follow the triple slash pattern at this point
+			//  eg: <publisher>/<feature-set>/<feature>
+			if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
+				output.write(`Invalid parse for GitHub/registry feature identifier. Follow format: '<publisher>/<feature-set>/<feature>'`, LogLevel.Error);
+				return undefined;
+			}
+			const owner = splitOnSlash[0];
+			const repo = splitOnSlash[1];
+			const id = splitOnSlash[2];
+
+			let feat: Feature = {
+				id: owner + repo + id,
+				name: userFeature.id,
+				value: userFeature.options,
+				included: true,
+			};
+
+			if (version === 'latest') {
+				let newFeaturesSet: FeatureSet = {
+					sourceInformation : {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download/${ASSET_NAME}`,
+					owner,
+					repo,
+					isLatest: true
+					},
+					features: [feat],
+				};
+				return newFeaturesSet;
+			} else {
+				// We must have a tag, return a tarball URI for the tagged version. 
+				let newFeaturesSet: FeatureSet = {
+					sourceInformation : {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}/${ASSET_NAME}`,
+					owner,
+					repo,
+					tag: version,
+					isLatest: false
+					},
+					features: [feat],
+				};
+				return newFeaturesSet;
+			}
+}
+
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string) {
+	for(const featureSet of featuresConfig.featureSets)	{
+		try {
+			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
+			{
+				return;
+			}
+
+			if(!localFeatures)
+			{
+				return;
+			}
+
+			const consecutiveId = featureSet.features[0].id + '_' + getCounter();
+			// Calculate some predictable caching paths.
+			const featCachePath = path.join(dstFolder, consecutiveId);
+
+			featureSet.features[0].infoString = featCachePath;
+			featureSet.features[0].consecutiveId = consecutiveId;
+
+			if(featureSet.sourceInformation?.type === 'local-cache') {
+				params.output.write(`Detected local feature set. Continuing...`);
+
+				
+				return;
+			}
+		
+			if(featureSet.sourceInformation?.type === 'file-path') {
+				params.output.write(`Detected local file path`);
+				
+				const executionPath = path.join(params.cwd, featureSet.sourceInformation?.filePath);
+				const jsonPath = path.join(executionPath, 'feature.json');
+
+				const jsonString: Buffer = await readLocalFile(jsonPath);
+				const featureJson = jsonc.parse(jsonString.toString());
+
+				featureSet.features[0].runApp = featureJson.install.app ?? '';
+				featureSet.features[0].runParams = featureJson.install.file ?? 'install.sh';
+				featureSet.features[0].containerEnv = featureJson.containerEnv;
+
+				// We only support version 2 for local features.
+				featureSet.internalVersion = '2';
+
+				await mkdirpLocal(featCachePath);
+				await cpDirectoryLocal(executionPath, featCachePath);
+				continue;
+			}
+
+			
+			const tempTarballPath = path.join(dstFolder, ASSET_NAME);
+			params.output.write(`Detected tarball`);
+			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, params.output);
+			let tarballUri: string | undefined = undefined;
+			if (featureSet.sourceInformation.type === 'github-repo') {
+				params.output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
+				if (headers.Authorization && headers.Authorization !== '') {
+					params.output.write('Authenticated. Fetching from GH API.', LogLevel.Trace);
+					tarballUri = await askGitHubApiForTarballUri(featureSet.sourceInformation, headers, params.output);
+					headers.Accept = 'Accept: application/octet-stream';
+				} else {
+					params.output.write('Not authenticated. Fetching from unauthenticated uri', LogLevel.Trace);
+					tarballUri = featureSet.sourceInformation.unauthenticatedUri;
+				}
+			} else {
+				tarballUri = featureSet.sourceInformation.tarballUri;
+			}
+			
+			if(tarballUri) {
+				const options = {
+					type: 'GET',
+					url: tarballUri,
+					headers
+				};
+				params.output.write(`Fetching tarball at ${options.url}`);
+				params.output.write(`Headers: ${JSON.stringify(options)}`, LogLevel.Trace);
+				const tarball = await request(options, params.output);
+
+				if (!tarball || tarball.length === 0) {
+					params.output.write(`Did not receive a response from tarball download URI`, LogLevel.Error);
+					// Continue loop to the next remote feature.
+					// TODO: Should be more fatal.
+					await cleanupIterationFetchAndMerge(tempTarballPath, params.output);
+					continue;
+				}
+
+				// Filter what gets emitted from the tar.extract().
+				const filter = (file: string, _: tar.FileStat) => {
+					// Don't include .dotfiles or the archive itself.
+					if (file.startsWith('./.') || file === `./${ASSET_NAME}` || file === './.') {
+						return false;
+					}
+					return true;
+				};
+
+				params.output.write(`Preparing to unarchive received tgz.`, LogLevel.Trace);
+				// Create the directory to cache this feature-set in.
+				await mkdirpLocal(featCachePath);
+				await writeLocalFile(tempTarballPath, tarball);
+				await tar.x(
+					{
+						file: tempTarballPath,
+						cwd: featCachePath,
+						filter
+					}
+				);
+
+				// Read version information.
+				const jsonPath = path.join(featCachePath, 'feature.json');
+
+				if (existsSync(jsonPath)) {
+					const jsonString: Buffer = await readLocalFile(jsonPath);
+					const featureJson = jsonc.parse(jsonString.toString());
+					featureSet.features[0].runApp = featureJson.install.app ?? '';
+					featureSet.features[0].runParams = featureJson.install.file ?? 'install.sh';
+					featureSet.features[0].containerEnv = featureJson.containerEnv;
+					featureSet.internalVersion === '2';
+				} else {
+					featureSet.internalVersion === '1';
+				}
+
+			}
 			continue;
 		}
-	}
-
-	const included = {} as Record<string, boolean | undefined>;
-	for (const featureSet of featuresConfig.featureSets) {
-		for (const feature of featureSet.features) {
-			updateFeature(feature); // REMOVEME: Temporary migration.
-			const uniqueFeatureId = getUniqueFeatureId(feature.id, featureSet.sourceInformation);
-
-			// Compare the feature to the base definition.
-			if (definition && (feature.exclude || []).some(e => matches(e, definition, version))) {
-				// The feature explicitly excludes the detected base definition
-				feature.included = false;
-			} else if ('include' in feature) {
-				// The feature explicitly includes one or more base definitions
-				// Set the included flag to true IFF we have detected a base definition, and its in the feature's list of includes
-				feature.included = !!definition && (feature.include || []).some(e => matches(e, definition, version));
-			} else {
-				// The feature doesn't define any base definitions to "include" or "exclude" in which we can filter on.
-				// By default, include it.
-				feature.included = true;
-			}
-
-			// Mark feature as with its state of inclusion
-			included[uniqueFeatureId] = included[uniqueFeatureId] || feature.included;
-
-			// Set the user-defined values from the user's devcontainer onto the feature config.
-			feature.value = userValues[uniqueFeatureId] || false;
+		catch (e) {
+			params.output.write(`Exception: ${e?.Message} `, LogLevel.Trace);
 		}
 	}
-	params.output.write('Feature configuration:\n' + JSON.stringify({ ...featuresConfig, imageDetails: undefined }, undefined, '  '), LogLevel.Trace);
-
-	// Filter
-	for (const featureSet of featuresConfig.featureSets) {
-		featureSet.features = featureSet.features.filter(feature => {
-			const uniqueFeatureId = getUniqueFeatureId(feature.id, featureSet.sourceInformation);
-			// Ensure we are not including duplicate features.
-			// Note: Takes first feature even if f.included == false.
-			if (uniqueFeatureId in included && feature.included === included[uniqueFeatureId]) {  	// TODO: This logic should be revisited.
-				delete included[feature.id];
-				return true;
-			}
-			return false;
-		});
-	}
-	return featuresConfig;
-}
-
-function updateFeature(feature: Feature & { type?: 'option' | 'choice'; values?: string[]; customValues?: boolean; hint?: string }) {
-	// Update old to new properties for temporary compatiblity.
-	if (feature.values) {
-		const options = feature.options || (feature.options = {});
-		options.version = {
-			type: 'string',
-			[feature.customValues ? 'proposals' : 'enum']: feature.values,
-			default: feature.values[0],
-			description: feature.hint,
-		};
-	}
-	delete feature.type;
-	delete feature.values;
-	delete feature.customValues;
-	delete feature.hint;
-}
-
-function matches(spec: string, definition: string, version: string | undefined) {
-	const i = spec.indexOf('@');
-	const [specDefinition, specVersion] = i !== -1 ? [spec.slice(0, i), spec.slice(i + 1)] : [spec, undefined];
-	return definition === specDefinition && (!specVersion || !version || semver.satisfies(version, specVersion));
 }
 
 export function getFeatureMainProperty(feature: Feature) {

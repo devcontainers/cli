@@ -105,13 +105,18 @@ export type DevContainerConfigCommand = 'initializeCommand' | 'onCreateCommand' 
 
 const defaultWaitFor: DevContainerConfigCommand = 'updateContentCommand';
 
+export interface DevContainerFeature{
+	id: string;
+	options: boolean | string | Record<string, boolean | string | undefined>;
+}
+
 export interface CommonDevContainerConfig {
 	configFilePath?: URI;
 	remoteEnv?: Record<string, string | null>;
 	forwardPorts?: (number | string)[];
 	portsAttributes?: Record<string, PortAttributes>;
 	otherPortsAttributes?: PortAttributes;
-	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
 	onCreateCommand?: string | string[];
 	updateContentCommand?: string | string[];
 	postCreateCommand?: string | string[];

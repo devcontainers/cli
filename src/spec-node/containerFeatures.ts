@@ -30,11 +30,15 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
-		result += fSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-			.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
-				.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
-			.join('\n');
+		// We only need to generate this ENV references for the old features spec.
+		if(fSet.internalVersion !== '2')
+		{
+			result += fSet.features
+				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
+				.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
+					.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
+				.join('\n');
+		}
 	}
 	return result;
 }
@@ -117,28 +121,43 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 	await cliHost.writeFile(cliHost.path.join(dstFolder, 'Dockerfile'), Buffer.from(dockerfile));
 
 	// Build devcontainer-features.env file(s) for each features source folder
-	await Promise.all([...featuresConfig.featureSets].map(async (featureSet, i) => {
-		const featuresEnv = ([] as string[]).concat(
-			...featureSet.features
-				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
-				.map(getFeatureEnvVariables)
-		).join('\n');
-		const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'devcontainer-features.env'); // next to install.sh
-		await Promise.all([
-			cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
-			...featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => {
-					const featuresEnv = [
-						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getFeatureSafeId(f)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
-					]
-						.join('\n');
-					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
-					return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
-				})
-		]);
-	}));
+	for await (const fSet of featuresConfig.featureSets) {
+		let i = 0;
+		if(fSet.internalVersion === '2')
+		{
+			for await (const fe of fSet.features) {
+				if (fe.infoString)
+				{
+					fe.internalVersion = '2';
+					const envPath = cliHost.path.join(fe.infoString, 'devcontainer-features.env');
+					const variables = getFeatureEnvVariables(fe);
+					await cliHost.writeFile(envPath, Buffer.from(variables.join('\n')));
+				}
+			}
+		} else {
+			const featuresEnv = ([] as string[]).concat(
+				...fSet.features
+					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
+					.map(getFeatureEnvVariables)
+			).join('\n');
+			const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'devcontainer-features.env'); // next to install.sh
+			await Promise.all([
+				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
+				...fSet.features
+				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
+				.map(f => {
+						const featuresEnv = [
+							...getFeatureEnvVariables(f),
+							`_BUILD_ARG_${getFeatureSafeId(f)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation), f.id)}`
+						]
+							.join('\n');
+						const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
+						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
+					})
+			]);
+		}
+		i++;
+	}
 
 	const args = [
 		'build',
@@ -182,15 +201,28 @@ function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
 	const idSafe = getFeatureSafeId(f);
 	const variables = [];
-	if (values) {
-		variables.push(...Object.keys(values)
-			.map(name => `_BUILD_ARG_${idSafe}_${name.toUpperCase()}="${values[name]}"`));
-		variables.push(`_BUILD_ARG_${idSafe}=true`);
-	}
-	if (f.buildArg) {
-		variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
-	}
-	return variables;
+	
+	if(f.internalVersion !== '2')
+	{
+		if (values) {
+			variables.push(...Object.keys(values)
+				.map(name => `_BUILD_ARG_${idSafe}_${name.toUpperCase()}="${values[name]}"`));
+			variables.push(`_BUILD_ARG_${idSafe}=true`);
+		}
+		if (f.buildArg) {
+			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+		}
+		return variables;
+	} else {
+		if (values) {
+			variables.push(...Object.keys(values)
+			.map(name => `${idSafe}_${name.toUpperCase()}="${values[name]}"`));
+		}
+		if (f.buildArg) {
+			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+		}
+		return variables;
+	}	
 }
 
 function getFeatureSafeId(f: Feature) {

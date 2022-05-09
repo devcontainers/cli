@@ -26,6 +26,11 @@ export interface HostRequirements {
 	storage?: string;
 }
 
+export interface DevContainerFeature{
+	id: string;
+	options: boolean | string | Record<string, boolean | string | undefined>;
+}
+
 export interface DevContainerFromImageConfig {
 	configFilePath: URI;
 	image: string;
@@ -54,7 +59,7 @@ export interface DevContainerFromImageConfig {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
 	hostRequirements?: HostRequirements;
 }
 
@@ -85,7 +90,7 @@ export type DevContainerFromDockerfileConfig = {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
 	hostRequirements?: HostRequirements;
 } & (
 	{
@@ -132,7 +137,7 @@ export interface DevContainerFromDockerComposeConfig {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
 	hostRequirements?: HostRequirements;
 }
 
