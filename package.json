@@ -63,6 +63,8 @@
 		"vinyl-fs": "^3.0.3"
 	},
 	"dependencies": {
+		"@types/ncp": "^2.0.5",
+		"ncp": "^2.0.0",
 		"follow-redirects": "^1.14.8",
 		"js-yaml": "^4.1.0",
 		"jsonc-parser": "^3.0.0",
