@@ -32,7 +32,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         return record;
     };
 
-    it('should correctly return a featuresConfig with just local features', async function () {
+   // it('should correctly return a featuresConfig with just local features', async function () {
 
         // TODO, rewrite
 //         const version = 'unittest';
@@ -91,7 +91,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
 
 // `;
 //         assert.strictEqual(actualLayers, expectedLayers);
-    });
+  //  });
 
 
 
