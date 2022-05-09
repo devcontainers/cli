@@ -43,6 +43,7 @@ export interface ProvisionOptions {
 	additionalMounts: Mount[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	remoteEnv: Record<string, string>;
+	additionalCacheFroms: string[];
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -133,6 +134,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalMounts,
 		userRepositoryConfigurationPaths: [],
 		updateRemoteUserUIDDefault,
+		additionalCacheFroms: options.additionalCacheFroms,
 	};
 }
 
