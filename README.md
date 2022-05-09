@@ -19,6 +19,7 @@ This CLI is in active development. Current status:
 - [ ] `dev-containers-cli down` - Stops and deletes containers
 
 ## Try it out
+You can try out the CLI in just a few steps. This repository has a [dev container configuration](https://github.com/devcontainers/cli/tree/main/.devcontainer), which you can use to ensure you have the right dependencies installed.
 
 Compile and get the help text:
 ```sh
