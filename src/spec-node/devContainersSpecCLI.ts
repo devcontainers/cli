@@ -38,6 +38,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 			'boolean-negation': false,
 			'halt-at-non-option': restArgs,
 		})
+		.scriptName('devcontainer')
 		.version((await getPackageConfig(path.join(__dirname, '..', '..'))).version)
 		.demandCommand()
 		.strict();

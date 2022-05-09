@@ -2,7 +2,9 @@
 	"name": "dev-containers-cli",
 	"description": "Dev Containers CLI",
 	"version": "0.1.0",
-	"bin": "cli.js",
+	"bin": {
+		"devcontainer": "cli.js"
+	},
 	"author": "Microsoft Corporation",
 	"repository": {
 		"type": "git",
