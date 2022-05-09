@@ -160,8 +160,8 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
-export async function buildImage(buildParams: DockerResolverParameters | DockerCLIParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
-	const { cliHost, output } = 'cliHost' in buildParams ? buildParams : buildParams.common;
+export async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
 	if (!cliHost.isFile(dockerfilePath)) {
@@ -185,6 +185,7 @@ export async function buildImage(buildParams: DockerResolverParameters | DockerC
 			}
 		}
 	}
+	buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
 	const buildArgs = config.build?.args;
 	if (buildArgs) {
 		for (const key in buildArgs) {

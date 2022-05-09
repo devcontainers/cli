@@ -82,6 +82,7 @@ function provisionOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
+		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -138,10 +139,12 @@ async function provision({
 	prebuild,
 	mount,
 	'remote-env': addRemoteEnv,
+	'cache-from': addCacheFrom,
 }: ProvisionArgs) {
-
+	
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
+	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -176,6 +179,7 @@ async function provision({
 		}) : [],
 		updateRemoteUserUIDDefault,
 		remoteEnv: keyValuesToRecord(addRemoteEnvs),
+		additionalCacheFroms: addCacheFroms,
 	};
 
 	const result = await doProvision(options);
@@ -231,6 +235,7 @@ function buildOptions(y: Argv) {
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
+		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache' },
 	});
 }
 
@@ -257,6 +262,7 @@ async function doBuild({
 	'log-format': logFormat,
 	'no-cache': buildNoCache,
 	'image-name': argImageName,
+	'cache-from': addCacheFrom,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () =>  {
@@ -266,6 +272,7 @@ async function doBuild({
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const configFile: URI | undefined = /* config ? URI.file(path.resolve(process.cwd(), config)) : */ undefined; // TODO
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
+		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -291,15 +298,16 @@ async function doBuild({
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: {},
+			additionalCacheFroms: addCacheFroms,
 		}, disposables);
-
+		
 		const { common, dockerCLI, dockerComposeCLI } = params;
 		const { cliHost, env, output } = common;
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : workspace
 		? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
-			|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
-			: overrideConfigFile;
+		|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
+		: overrideConfigFile;
 		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
@@ -339,7 +347,7 @@ async function doBuild({
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
 			}
 	
-			await buildDockerCompose(config, projectName, buildParams, composeFiles, composeGlobalArgs, [config.service], params.buildNoCache || false, undefined);
+			await buildDockerCompose(config, projectName, buildParams, composeFiles, composeGlobalArgs, [config.service], params.buildNoCache || false, undefined, addCacheFroms);
 	
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
@@ -486,6 +494,7 @@ async function doRunUserCommands({
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			additionalCacheFroms: [],
 		}, disposables);
 
 		const { common } = params;
@@ -728,6 +737,7 @@ async function doExec({
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			additionalCacheFroms: [],
 		}, disposables);
 
 		const { common } = params;

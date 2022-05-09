@@ -106,14 +106,17 @@ export function getRemoteWorkspaceFolder(config: DevContainerFromDockerComposeCo
 	return config.workspaceFolder || '/';
 }
 
-export async function buildDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, buildParams: DockerCLIParameters, localComposeFiles: string[], composeGlobalArgs: string[], runServices: string[], noCache: boolean, imageNameOverride?: string) {
+export async function buildDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, buildParams: DockerCLIParameters, localComposeFiles: string[], composeGlobalArgs: string[], runServices: string[], noCache: boolean, imageNameOverride?: string, additionalCacheFroms?: string[]) {
 	const { cliHost } = buildParams;
 	const args = ['--project-name', projectName, ...composeGlobalArgs];
-	if (imageNameOverride) {
+	if (imageNameOverride || (additionalCacheFroms && additionalCacheFroms.length > 0)) {
 		const composeOverrideFile = cliHost.path.join(await cliHost.tmpdir(), `docker-compose.devcontainer.build-${Date.now()}.yml`);
+		const imageNameOverrideContent = imageNameOverride ? `    image: ${imageNameOverride}` : '';
+		const cacheFromOverrideContent = (additionalCacheFroms && additionalCacheFroms.length > 0) ? `    cache_from: ${additionalCacheFroms.forEach(cacheFrom => `      - ${cacheFrom}`)}` : '';
 		const composeOverrideContent = `services:
   ${config.service}:
-    image: ${imageNameOverride}
+${imageNameOverrideContent}
+${cacheFromOverrideContent}
 `;
 		await cliHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
 		args.push('-f', composeOverrideFile);
@@ -163,7 +166,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	const { started } = await startEventSeen(params, { [projectLabel]: projectName, [serviceLabel]: config.service }, canceled, common.output, common.getLogLevel() === LogLevel.Trace); // await getEvents, but only assign started.
 
 	if (build) {
-		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, undefined);
+		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, undefined, params.additionalCacheFroms);
 	}
 
 	const service = composeConfig.services[config.service];
