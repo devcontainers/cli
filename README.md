@@ -28,7 +28,7 @@ yarn compile
 node cli.js
 ```
 
-Clone rust sample to parent folder, start a dev container and run some command:
+You can try out the dev container CLI with a sample project, like this [Rust sample](https://github.com/microsoft/vscode-remote-try-rust). Clone the Rust sample to the repo's parent folder, start a dev container, and run some command:
 ```sh
 ( cd .. && git clone https://github.com/microsoft/vscode-remote-try-rust )
 node cli.js up --workspace-folder ../vscode-remote-try-rust
