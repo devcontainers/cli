@@ -27,7 +27,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         }
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
-        assert.strictEqual(result?.features[0].id, 'helloworld');
+        assert.strictEqual(result?.features[0].id, 'octocatmyfeatureshelloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
                                                       owner: 'octocat', 
                                                       repo: 'myfeatures', 
@@ -45,7 +45,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
-        assert.strictEqual(result?.features[0].id, 'helloworld');
+        assert.strictEqual(result?.features[0].id, 'octocatmyfeatureshelloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
                                                       owner: 'octocat', 
                                                       repo: 'myfeatures', 
@@ -90,7 +90,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'file-path', filePath: '../some/long/path/to/features', isRelative: true });
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', filePath: '../some/long/path/to/helloworld', isRelative: true });
     });
 
     it('should parse when provided a local-filesystem absolute path', async function () {
@@ -101,7 +101,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'file-path', filePath: '/some/long/path/to/features', isRelative: false });
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', filePath: '/some/long/path/to/helloworld', isRelative: false });
     });
 
 
@@ -206,7 +206,7 @@ describe('validate function getSourceInfoString', function () {
             type : 'local-cache'
         };
         const output = getSourceInfoString(srcInfo);
-        assert.strictEqual(output, 'local-cache');
+        assert.include(output, 'local-cache');
     });
 
     it('should work for github-repo without a tag (implicit latest)', async function () {
@@ -219,7 +219,7 @@ describe('validate function getSourceInfoString', function () {
             unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download/devcontainer-features.tgz'
         };
         const output = getSourceInfoString(srcInfo);
-        assert.strictEqual(output, 'github-bob-mobileapp-latest');
+        assert.include(output, 'github-bob-mobileapp-latest');
     });
 
     it('should work for github-repo with a tag', async function () {
@@ -233,6 +233,6 @@ describe('validate function getSourceInfoString', function () {
             unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4/devcontainer-features.tgz'
         };
         const output = getSourceInfoString(srcInfo);
-        assert.strictEqual(output, 'github-bob-mobileapp-v0.0.4');
+        assert.include(output, 'github-bob-mobileapp-v0.0.4');
     });
 });

@@ -493,6 +493,11 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 				const featureIdDelimiter = input.lastIndexOf('#');
 				const id = input.substring(featureIdDelimiter + 1);
 
+				if (id === '' || !allowedFeatureIdRegex.test(id)) {
+					output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
+					return undefined;
+				}
+
 				const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
 				let feat: Feature = {
 					id: id,
