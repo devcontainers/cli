@@ -69,19 +69,26 @@ function featuresTestOptions(y: Argv) {
 
 export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
 
-function featuresTestHandler({
+function featuresTestHandler(args: FeaturesTestArgs) {
+	(async () => await featuresTest(args))().catch(console.error);
+}
+
+async function featuresTest({
 	'base-image': baseImage,
 	'path-to-collection': pathToCollection,
 	features
 }: FeaturesTestArgs) {
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule);
+
 	if (!features) {
-		process.stderr.write('Must supply comma separated list of features to test');
+		process.stderr.write('No features!');
 		process.exit(1);
 	}
 
-	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features))().catch(console.error);
-	process.exit(0);
+	doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features);
 }
+
 
 // -- End: 'features test' command
 
