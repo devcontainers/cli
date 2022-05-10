@@ -4,7 +4,8 @@ import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 
 
 export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string) {
-    process.stdout.write(`┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+    process.stdout.write(`
+┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
 │     Testing Tool v0.0.0     │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
@@ -44,7 +45,9 @@ const devcontainerTemplate = `{
         `;
 
 async function createTempDevcontainerFolder(): Promise<string> {
-    const tmpFolder: string = path.join(tmpdir(), 'vsch', 'container-features-test', `${Date.now()}`, '.devcontainer');
+    const systemTmpDir = tmpdir();
+    const tmpFolder = path.join(systemTmpDir, 'vsch', 'container-features-test', Date.now().toString(), '.devcontainer');
+    process.stderr.write(tmpFolder);
     await mkdirpLocal(tmpFolder);
     return tmpFolder;
 }
