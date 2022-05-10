@@ -3,7 +3,7 @@ import path from 'path';
 import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 
 
-export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string): Prim {
+export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string) {
 
     const features = commaSeparatedFeatures.split(',');
 
