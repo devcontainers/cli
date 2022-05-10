@@ -48,7 +48,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
-	y.command('features test [baseImage] [pathToCollection] <features..>', 'Test dev container features', featuresTestOptions, featuresTestHandler);
+	y.command('features-test [baseImage] [pathToCollection] <features..>', 'Test dev container features', featuresTestOptions, featuresTestHandler);
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
@@ -78,9 +78,8 @@ function featuresTestHandler({
 		process.stderr.write('Must supply comma separated list of features to test');
 		process.exit(1);
 	}
-	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features)());
+	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features))().catch(console.error);
 	process.exit(0);
-	
 }
 
 // -- End: 'features test' command
