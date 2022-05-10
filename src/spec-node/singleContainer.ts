@@ -100,7 +100,7 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	};
 }
 
-async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	if (isDockerFileConfig(config)) {
 		params.common.progress(ResolverProgress.BuildingImage);
@@ -160,7 +160,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
-export async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);

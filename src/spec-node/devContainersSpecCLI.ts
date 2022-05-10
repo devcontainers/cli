@@ -7,13 +7,13 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, getFolderImageName, getPackageConfig, isDockerFileConfig } from './utils';
+import { createContainerProperties, createFeaturesTempFolder, getPackageConfig, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { UnpackPromise } from '../spec-utils/types';
 import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe } from '../spec-common/injectHeadless';
-import { bailOut, buildImage, findDevContainer, findUserArg, hostFolderLabel } from './singleContainer';
+import { bailOut, buildNamedImage, findDevContainer, findUserArg, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
@@ -317,8 +317,7 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 	
 			// Build the base image
-			const baseImageName = getFolderImageName(params.common);
-			await buildImage(params, config, baseImageName, params.buildNoCache || false);
+			const baseImageName = await buildNamedImage(params, config);
 	
 			// Extend image with features, etc..
 			const { updatedImageName } = await extendImage(params, config, baseImageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
