@@ -53,6 +53,9 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
+
+	process.stdout.write(`provisioning options: ${JSON.stringify(options, null, 2)}\n`);
+
 	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;

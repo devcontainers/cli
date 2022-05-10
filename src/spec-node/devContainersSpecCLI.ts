@@ -86,10 +86,8 @@ async function featuresTest({
 		process.exit(1);
 	}
 
-	doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features);
+	await doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features);
 }
-
-
 // -- End: 'features test' command
 
 function provisionOptions(y: Argv) {

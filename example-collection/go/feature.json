@@ -1,0 +1,24 @@
+{
+    "id": "go",
+    "name": "Go",
+    "options": {
+        "version": {
+            "type": "string",
+            "proposals": ["latest", "1.18", "1.17"],
+            "default": "latest",
+            "description": "Select or enter a Go version to install"
+        }
+    },
+    "init": true,
+    "extensions": ["golang.Go"],
+    "containerEnv": {
+        "GOPATH": "/go",
+        "PATH": "${GOPATH}/bin:${GOROOT}/bin:${PATH}"
+    },
+    "capAdd": [ "SYS_PTRACE" ],
+    "securityOpt": [ "seccomp=unconfined" ],
+    "install": {
+        "app": "",
+        "file": "install.sh"
+    }
+}
