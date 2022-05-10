@@ -36,9 +36,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// };
 			await startExistingContainer(params, idLabels, container);
 		} else {
-			const imageName = await buildNamedImage(params, config);
-
-			const res = await extendImage(params, config, imageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
+			const res = await buildNamedImageAndExtend(params, config);
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
@@ -98,6 +96,11 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 		dockerParams: params,
 		dockerContainerId: container.Id,
 	};
+}
+
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+	const baseImageName = await buildNamedImage(params, config);
+	return await extendImage(params, config, baseImageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
 }
 
 export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {

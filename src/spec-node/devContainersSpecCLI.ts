@@ -13,7 +13,7 @@ import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { UnpackPromise } from '../spec-utils/types';
 import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe } from '../spec-common/injectHeadless';
-import { bailOut, buildNamedImage, findDevContainer, findUserArg, hostFolderLabel } from './singleContainer';
+import { bailOut, buildNamedImageAndExtend, findDevContainer, findUserArg, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
@@ -316,11 +316,8 @@ async function doBuild({
 
 		if (isDockerFileConfig(config)) {
 	
-			// Build the base image
-			const baseImageName = await buildNamedImage(params, config);
-	
-			// Extend image with features, etc..
-			const { updatedImageName } = await extendImage(params, config, baseImageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
+			// Build the base image and extend with features etc.
+			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
