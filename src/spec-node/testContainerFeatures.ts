@@ -3,6 +3,7 @@ import path from 'path';
 import { CLIHost } from '../spec-common/cliHost';
 import { LogLevel } from '../spec-utils/log';
 import { launch, ProvisionOptions } from './devContainers';
+import { doExec } from './devContainersSpecCLI';
 
 
 export async function doFeaturesTestCommand(
@@ -35,7 +36,7 @@ export async function doFeaturesTestCommand(
         pathToCollection,
         features
     );
-    process.stdout.write(`[+] workspaceFolder: ${workspaceFolder}`);
+    process.stdout.write(`[+] workspaceFolder: ${workspaceFolder}\n`);
 
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
@@ -71,13 +72,58 @@ export async function doFeaturesTestCommand(
         },
         terminalDimensions: undefined,
         persistedFolder: undefined
-    }
+    };
+
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const launchResult = await launch(options, disposables);
 
+    
+    const { containerId, remoteUser, remoteWorkspaceFolder } = launchResult;
+    process.stdout.write(`[+] launched container ${containerId} for user ${remoteUser} \n`);
+
+    if (!remoteWorkspaceFolder) {
+        process.stderr.write('[-] remoteWorkspaceFolder is undefined\n');
+        process.exit(1);
+    }
+
     process.stdout.write(JSON.stringify(launchResult, null, 2));
 
+    const cmd = 'go';
+    const args = [ 'version' ];
+
+    process.stdout.write(`[+] === Running ${cmd} ${args.join(' ')}\n`);
+
     // 3. devcontainer-cli exec <ALL SCRIPTS>
+    const execArgs = {
+        'user-data-folder': undefined,
+        'docker-path': undefined,
+        'docker-compose-path': undefined,
+        'container-data-folder': undefined,
+        'container-system-data-folder': undefined,
+        'id-label': undefined,
+        'config': undefined,
+        'override-config': undefined,
+        'terminal-rows': undefined,
+        'terminal-columns': undefined,
+        'remote-env': undefined,
+        'container-id': undefined,
+        'workspace-folder': workspaceFolder,
+        'mount-workspace-git-root': true,
+        'log-level': 'info' as 'info',
+        'log-format': 'text' as 'text',
+        'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
+        cmd,
+        args,
+        _ : [
+            'go',
+            'version'
+        ]
+    };
+
+
+    const result = await doExec(execArgs);
+
+    process.stdout.write(JSON.stringify(result, null, 2));
 
     // 4. Watch for non-zero exit codes.
 
