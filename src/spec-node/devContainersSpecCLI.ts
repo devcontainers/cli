@@ -48,7 +48,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
-	y.command('features-test [baseImage] [pathToCollection] <features..>', 'Test dev container features', featuresTestOptions, featuresTestHandler);
+	y.command('features-test', 'Test dev container features', featuresTestOptions, featuresTestHandler);
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
@@ -63,7 +63,7 @@ function featuresTestOptions(y: Argv) {
 	return y.options({
 		'base-image': { type: 'string', alias: 'b', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
 		'path-to-collection': { type: 'string', alias: 'c', default: '.', describe: 'Path to collections folder' },
-		'features': { type: 'string', describe: 'Feature(s) IDs to test, comma separated.', }
+		'features': { type: 'string', alias: 'f', describe: 'Feature(s) IDs to test, comma separated.', }
 	});
 }
 
