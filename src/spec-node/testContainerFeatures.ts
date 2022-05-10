@@ -1,9 +1,9 @@
-import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import {  writeLocalFile } from '../spec-utils/pfs';
+import { CLIHost } from '../spec-common/cliHost';
 
 export async function doFeaturesTestCommand(
+    cliHost: CLIHost,
     baseImage: string,
     pathToCollection: string,
     commaSeparatedFeatures: string
@@ -27,6 +27,7 @@ export async function doFeaturesTestCommand(
 
     // 1. Generate temporary project with 'baseImage' and all the 'features..'
     const tempProjectPath = await generateProject(
+        cliHost,
         baseImage,
         pathToCollection,
         features
@@ -52,21 +53,22 @@ const devcontainerTemplate = `
     }
 }`;
 
-async function createTempDevcontainerFolder(): Promise<string> {
+async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
     const systemTmpDir = tmpdir();
     const tmpFolder = path.join(systemTmpDir, 'vsch', 'container-features-test', Date.now().toString(), '.devcontainer');
     process.stderr.write(`${tmpFolder}\n`);
-    mkdirSync(tmpFolder)
+    await cliHost.mkdirp(tmpFolder);
     process.stderr.write('created tmp folder\n');
     return tmpFolder;
 }
 
 async function generateProject(
+    cliHost: CLIHost,
     baseImage: string,
     basePathToCollection: string,
     featuresToTest: string[]
 ): Promise<string> {
-    const tmpFolder = await createTempDevcontainerFolder();
+    const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
     const features = featuresToTest
         .map((x) => `"${basePathToCollection}/${x}": "latest"`)
@@ -76,7 +78,7 @@ async function generateProject(
         .replace('#{IMAGE}', baseImage)
         .replace('#{FEATURES}', features);
 
-    writeLocalFile(`${tmpFolder}/devcontainer.json`, template);
+    await cliHost.writeFile(`${tmpFolder}/devcontainer.json`, Buffer.from(template));
 
     return tmpFolder;
 }
