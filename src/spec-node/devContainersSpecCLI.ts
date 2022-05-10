@@ -78,7 +78,9 @@ function featuresTestHandler({
 		process.stderr.write('Must supply comma separated list of features to test');
 		process.exit(1);
 	}
-	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features)().catch(console.error));
+	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features)());
+	process.exit(0);
+	
 }
 
 // -- End: 'features test' command

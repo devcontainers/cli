@@ -3,15 +3,15 @@ import path from 'path';
 import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 
 
-export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string) {
+export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string): Prim {
 
     const features = commaSeparatedFeatures.split(',');
 
-    if (features.length === 0) {
-        console.log('No features specified');
-        process.exit(1);
+    // if (features.length === 0) {
+    //     console.log('No features specified');
+    //     process.exit(1);
 
-    }
+    // }
 
     // 1. Generate temporary project with 'baseImage' and all the 'features..'
     const tempProjectPath = await generateProject(baseImage, pathToCollection, features);
@@ -26,7 +26,6 @@ export async function doFeaturesTestCommand(baseImage: string, pathToCollection:
     // 4. Watch for non-zero exit codes.
 
     process.exit(0);
-
 }
 
 const devcontainerTemplate = `{
