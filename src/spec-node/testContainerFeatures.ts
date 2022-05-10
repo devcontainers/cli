@@ -4,18 +4,25 @@ import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 
 
 export async function doFeaturesTestCommand(baseImage: string, pathToCollection: string, commaSeparatedFeatures: string) {
+    process.stdout.write(`┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+|    dev container 'features' |   
+│     Testing Tool v0.0.0     │
+└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
+
+    process.stdout.write(`baseImage:         ${baseImage}\n`);
+    process.stdout.write(`pathToCollection:  ${pathToCollection}\n`);
+    process.stdout.write(`features:          ${commaSeparatedFeatures}\n\n\n`);
 
     const features = commaSeparatedFeatures.split(',');
 
-    // if (features.length === 0) {
-    //     console.log('No features specified');
-    //     process.exit(1);
-
-    // }
+    if (features.length === 0) {
+        process.stderr.write('No features specified\n');
+        process.exit(1);
+    }
 
     // 1. Generate temporary project with 'baseImage' and all the 'features..'
     const tempProjectPath = await generateProject(baseImage, pathToCollection, features);
-    console.log('[+] tempProjectPath:', tempProjectPath);
+    process.stdout.write(`[+] tempProjectPath: ${tempProjectPath}`);
 
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
@@ -31,10 +38,10 @@ export async function doFeaturesTestCommand(baseImage: string, pathToCollection:
 const devcontainerTemplate = `{
         "image": "#{IMAGE}",
         "features": {
-            #{FEATURES}
+            #{ FEATURES }
         }
     }
-`;
+        `;
 
 async function createTempDevcontainerFolder(): Promise<string> {
     const tmpFolder: string = path.join(tmpdir(), 'vsch', 'container-features-test', `${Date.now()}`, '.devcontainer');
@@ -54,7 +61,7 @@ async function generateProject(baseImage: string, basePathToCollection: string, 
             .replace('#{IMAGE}', baseImage)
             .replace('#{FEATURES}', features);
 
-    writeLocalFile(`${tmpFolder}/devcontainer.json`, template);
+    writeLocalFile(`${tmpFolder} / devcontainer.json`, template);
 
     return tmpFolder;
 }
