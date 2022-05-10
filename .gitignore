@@ -5,4 +5,4 @@ logs
 *.tgz
 tmp
 .DS_Store
-example_collection
+example-collection/*/**
