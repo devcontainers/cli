@@ -181,13 +181,13 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 	const { type } = srcInfo;
 	switch (type) {
 		case 'local-cache':
-			return getCounter() + '-local-cache';
+			return 'local-cache-' + getCounter();
 		case 'direct-tarball':
-			return getCounter() + '-' + srcInfo.tarballUri;
+			return srcInfo.tarballUri + getCounter();
 		case 'github-repo':
-			return `${getCounter()}-github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}`;
+			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
 		case 'file-path':
-			return getCounter() + '-' + srcInfo.filePath;
+			return srcInfo.filePath + '-' + getCounter();
 	}
 }
 
@@ -218,7 +218,7 @@ USER $IMAGE_USER
 export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	let result = '';
 
-	// Features version 1
+	// Features version 1  FIX
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => getSourceInfoString(x.sourceInformation));
 	folders.forEach(folder => {
 		result += `RUN cd /tmp/build-features/${folder} \\
@@ -236,7 +236,6 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && export $(cat devcontainer-features.env | xargs) \\
-&& echo $PATH \\
 && chmod +x ./${feature.runParams} \\
 && ./${feature.runParams}
 
@@ -418,7 +417,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	return featuresConfig;
 }
 
-// Convert features from object sintax to array sintax
+// Convert features from object syntax to array syntax
 function convertOldFeatures(params: { output: Log }, config: DevContainerConfig): DevContainerFeature[] | undefined 
 {
 	params.output.write('');
@@ -465,7 +464,7 @@ async function processUserFeatures(output: Log, userFeatures: DevContainerFeatur
 export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFeature) : FeatureSet | undefined {
 	output.write(`Processing feature: ${userFeature.id}`)
 			// cached feature
-			if (!userFeature.id.includes('/')) {
+			if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
 				output.write(`Cached feature found.`);
 
 				let feat: Feature = {
@@ -518,12 +517,12 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			}
 
 			// local disk
-			if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || userFeature.id.startsWith('/')) {
+			const userFeaturePath = path.parse(userFeature.id);
+			if (userFeaturePath) {
 				output.write(`Local disk feature.`);
 				const filePath = userFeature.id;
-				const splitPath = userFeature.id.split('/');
-				const id = splitPath[splitPath.length - 1];
-				const isRelative = !userFeature.id.startsWith('/');
+				const id = userFeaturePath.name;
+				const isRelative = !path.isAbsolute(userFeature.id);
 				
 				let feat: Feature = {
 					id: id,
@@ -613,12 +612,12 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
 			{
-				return;
+				continue;
 			}
 
 			if(!localFeatures)
 			{
-				return;
+				continue;
 			}
 
 			const consecutiveId = featureSet.features[0].id + '_' + getCounter();
@@ -630,15 +629,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			if(featureSet.sourceInformation?.type === 'local-cache') {
 				params.output.write(`Detected local feature set. Continuing...`);
-
-				
-				return;
+				continue;
 			}
 		
 			if(featureSet.sourceInformation?.type === 'file-path') {
 				params.output.write(`Detected local file path`);
 				
-				const executionPath = path.join(params.cwd, featureSet.sourceInformation?.filePath);
+				const executionPath = featureSet.sourceInformation.isRelative ? path.join(params.cwd, featureSet.sourceInformation.filePath) : featureSet.sourceInformation.filePath;
 				const jsonPath = path.join(executionPath, 'feature.json');
 
 				const jsonString: Buffer = await readLocalFile(jsonPath);
