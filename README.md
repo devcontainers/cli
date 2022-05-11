@@ -10,13 +10,13 @@ A development container allows you to use a container as a full-featured develop
 
 This CLI is in active development. Current status:
 
-- [x] `dev-containers-cli build` - Enables building/pre-building images
-- [x] `dev-containers-cli up` - Spins up containers with `devcontainer.json` settings applied
-- [x] `dev-containers-cli run-user-commands` - Runs lifecycle commands like `postCreateCommand`
-- [x] `dev-containers-cli read-configuration` - Outputs current configuration for workspace
-- [x] `dev-containers-cli exec` - Executes a command in a container with `userEnvProbe`, `remoteUser`, `remoteEnv`, and other properties applied
-- [ ] `dev-containers-cli stop` - Stops containers
-- [ ] `dev-containers-cli down` - Stops and deletes containers
+- [x] `devcontainer build` - Enables building/pre-building images
+- [x] `devcontainer up` - Spins up containers with `devcontainer.json` settings applied
+- [x] `devcontainer run-user-commands` - Runs lifecycle commands like `postCreateCommand`
+- [x] `devcontainer read-configuration` - Outputs current configuration for workspace
+- [x] `devcontainer exec` - Executes a command in a container with `userEnvProbe`, `remoteUser`, `remoteEnv`, and other properties applied
+- [ ] `devcontainer stop` - Stops containers
+- [ ] `devcontainer down` - Stops and deletes containers
 
 ## Try it out
 
@@ -30,7 +30,7 @@ yarn compile
 
 Verify you can run the CLI and see its help text:
 ```sh
-node cli.js --help
+node devcontainer.js --help
 ```
 
 Outputs:
@@ -52,7 +52,7 @@ Options:
 You can try out the dev container CLI with a sample project, like this [Rust sample](https://github.com/microsoft/vscode-remote-try-rust). Clone the Rust sample to the repo's parent folder and start a dev container:
 ```sh
 git clone https://github.com/microsoft/vscode-remote-try-rust ../vscode-remote-try-rust
-node cli.js up --workspace-folder ../vscode-remote-try-rust
+node devcontainer.js up --workspace-folder ../vscode-remote-try-rust
 ```
 
 This will download the container image from a container registry and start the container. Your Rust container should now be running:
@@ -79,7 +79,7 @@ Container started
 You can then run some command in this dev container:
 
 ```sh
-node cli.js exec --workspace-folder ../vscode-remote-try-rust cargo run
+node devcontainer.js exec --workspace-folder ../vscode-remote-try-rust cargo run
 ```
 
 This will compile and run the Rust sample:

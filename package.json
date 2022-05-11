@@ -3,7 +3,7 @@
 	"description": "Dev Containers CLI",
 	"version": "0.1.0",
 	"bin": {
-		"devcontainer": "cli.js"
+		"devcontainer": "devcontainer.js"
 	},
 	"author": "Microsoft Corporation",
 	"repository": {
