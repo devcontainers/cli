@@ -16,13 +16,12 @@ import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
 import { CLIHost } from '../spec-common/cliHost';
 
-export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean, runArgsUser: string | undefined) {
+export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
 	const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, pullImageOnError));
 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => (await imageDetails()).Config.Labels || {}, getContainerFeaturesFolder);
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
-	const updatedImageName0 = await addContainerFeatures(params, featuresConfig, imageName, imageDetails);
-	const updatedImageName = await updateRemoteUserUID(params, config, updatedImageName0, imageDetails, runArgsUser);
+	const updatedImageName = await addContainerFeatures(params, featuresConfig, imageName, imageDetails);
 	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
 }
 
@@ -199,7 +198,7 @@ function getFeatureSafeId(f: Feature) {
 		.toUpperCase();
 }
 
-async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
+export async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
 	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof config.updateRemoteUserUID === 'boolean' ? config.updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {

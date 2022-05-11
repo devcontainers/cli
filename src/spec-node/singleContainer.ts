@@ -10,7 +10,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
-import { extendImage } from './containerFeatures';
+import { extendImage, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 
@@ -37,10 +37,12 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			await startExistingContainer(params, idLabels, container);
 		} else {
 			const res = await buildNamedImageAndExtend(params, config);
+			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName, res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
+
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, res.collapsedFeaturesConfig, res.updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails);
+				await spawnDevContainer(params, config, res.collapsedFeaturesConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails);
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -100,7 +102,7 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 
 export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const baseImageName = await buildNamedImage(params, config);
-	return await extendImage(params, config, baseImageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
+	return await extendImage(params, config, baseImageName, 'image' in config);
 }
 
 export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {

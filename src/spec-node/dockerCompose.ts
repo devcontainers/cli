@@ -14,7 +14,7 @@ import { equalPaths, parseVersion, isEarlierVersion } from '../spec-common/commo
 import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
-import { extendImage } from './containerFeatures';
+import { extendImage, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 
@@ -207,7 +207,8 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	if (!didRestoreFromPersistedShare) {
 		output.write('Generating composeOverrideFile...');
 
-		const { updatedImageName, collapsedFeaturesConfig, imageDetails } = await extendImage(params, config, originalImageName, !service.build, service.user);
+		const { updatedImageName: updatedImageName0, collapsedFeaturesConfig, imageDetails } = await extendImage(params, config, originalImageName, !service.build);
+		const updatedImageName = await updateRemoteUserUID(params, config, updatedImageName0, imageDetails, service.user);
 		const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts);
 
 		const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
