@@ -24,7 +24,7 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
-import { doFeaturesTestCommand } from './testContainerFeatures';
+import { doFeaturesTestCommand } from './featuresCLI/testContainerFeatures';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -63,7 +63,8 @@ function featuresTestOptions(y: Argv) {
 	return y.options({
 		'base-image': { type: 'string', alias: 'b', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
 		'path-to-collection': { type: 'string', alias: 'c', default: '.', describe: 'Path to collections folder' },
-		'features': { type: 'string', alias: 'f', describe: 'Feature(s) IDs to test, comma separated.', }
+		'features': { type: 'string', alias: 'f', describe: 'Feature(s) IDs to test, comma separated.', },
+		'verbose': { type: 'boolean', alias: 'v', default: false, describe: 'Verbose output' },
 	});
 }
 
@@ -76,7 +77,8 @@ function featuresTestHandler(args: FeaturesTestArgs) {
 async function featuresTest({
 	'base-image': baseImage,
 	'path-to-collection': pathToCollection,
-	features
+	features,
+	verbose
 }: FeaturesTestArgs) {
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
@@ -86,7 +88,7 @@ async function featuresTest({
 		process.exit(1);
 	}
 
-	await doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features);
+	await doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features, verbose);
 }
 // -- End: 'features test' command
 

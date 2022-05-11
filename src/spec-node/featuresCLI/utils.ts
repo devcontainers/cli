@@ -1,0 +1,43 @@
+export const staticProvisionParams = {
+    workspaceMountConsistency: 'cached' as 'cached',
+    defaultUserEnvProbe: 'loginInteractiveShell' as 'loginInteractiveShell',
+    logFormat: 'text' as 'text',
+    removeExistingContainer: false,
+    buildNoCache: false,
+    expectExistingContainer: false,
+    postCreateEnabled: true,
+    skipNonBlocking: false,
+    prebuild: false,
+    additionalMounts: [],
+    updateRemoteUserUIDDefault: 'on' as 'on',
+    additionalCacheFroms: [],
+    dockerPath: undefined,
+    dockerComposePath: undefined,
+    containerDataFolder: undefined,
+    containerSystemDataFolder: undefined,
+    configFile: undefined,
+    overrideConfigFile: undefined,
+    persistedFolder: undefined,
+    terminalDimensions: undefined,
+};
+
+export const staticExecParams = {
+    'user-data-folder': undefined,
+    'docker-path': undefined,
+    'docker-compose-path': undefined,
+    'container-data-folder': undefined,
+    'container-system-data-folder': undefined,
+    'id-label': undefined,
+    'config': undefined,
+    'override-config': undefined,
+    'terminal-rows': undefined,
+    'terminal-columns': undefined,
+    'remote-env': undefined,
+    'container-id': undefined,
+    'mount-workspace-git-root': true,
+    'log-level': 'info' as 'info',
+    'log-format': 'text' as 'text',
+    'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
+};
+
+
