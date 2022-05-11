@@ -34,7 +34,7 @@ export async function doFeaturesTestCommand(
     baseImage: string,
     pathToCollection: string,
     commaSeparatedFeatures: string,
-    verbose: boolean
+    quiet: boolean
 ) {
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -66,7 +66,7 @@ export async function doFeaturesTestCommand(
 
     // 2. Use  'devcontainer-cli up'  to build and start a container
     log('\n>>> Building test container... <<<\n\n', { prefix: ' ', info: true });
-    await launchProject(workspaceFolder, verbose);
+    await launchProject(workspaceFolder, quiet);
 
     // 3. Exec test script for each feature, in the provided order.
     const testResults = [];
@@ -139,7 +139,7 @@ async function generateProject(
     return tmpFolder;
 }
 
-async function launchProject(workspaceFolder: string, verbose: boolean) {
+async function launchProject(workspaceFolder: string, quiet: boolean) {
 
     const options: ProvisionOptions = {
         ...staticProvisionParams,
@@ -150,14 +150,14 @@ async function launchProject(workspaceFolder: string, verbose: boolean) {
             `devcontainer.local_folder=${workspaceFolder}`
         ],
         remoteEnv: {},
-        log: ((_msg: string) => verbose ? process.stdout.write(_msg) : null)
+        log: ((_msg: string) => quiet ? null : process.stdout.write(_msg))
     };
 
     const disposables: (() => Promise<unknown> | undefined)[] = [];
 
     let containerId = '';
     let remoteUser = '';
-    if (!verbose) {
+    if (quiet) {
         let isResolved = false;
 
         const p = launch(options, disposables);
