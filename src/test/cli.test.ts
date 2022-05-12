@@ -13,7 +13,7 @@ describe('Dev Containers CLI', function () {
 	this.timeout(1 * 60 * 1000);
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} dev-containers-cli`;
+	const cli = `npx --prefix ${tmp} devcontainer`;
 	async function devContainerUp(workspaceFolder: string) {
 		const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}`);
 		const response = JSON.parse(res.stdout);
@@ -26,7 +26,7 @@ describe('Dev Containers CLI', function () {
 		if (containerId !== null) {
 			await shellExec(`docker rm -f ${containerId}`);
 		}
-	};
+	}
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
 		await shellExec(`mkdir -p ${tmp}`);
