@@ -149,8 +149,8 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 	const args = [
 		'build',
 		'-t', updatedImageName,
-		'--build-arg', `BASE_IMAGE=${imageName}`,
-		'--build-arg', `IMAGE_USER=${imageUser}`,
+		'--build-arg', `_DEV_CONTAINERS_BASE_IMAGE=${imageName}`,
+		'--build-arg', `_DEV_CONTAINERS_IMAGE_USER=${imageUser}`,
 		dstFolder,
 	];
 	const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };

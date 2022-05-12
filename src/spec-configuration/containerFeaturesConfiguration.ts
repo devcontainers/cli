@@ -174,11 +174,11 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 // TODO: Move to node layer.
 export function getContainerFeaturesBaseDockerFile() {
 	return `
-ARG BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
+ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
 
 #{featureBuildStages}
 
-FROM $BASE_IMAGE
+FROM $_DEV_CONTAINERS_BASE_IMAGE
 
 USER root
 
@@ -190,8 +190,8 @@ COPY . /tmp/build-features/
 
 #{containerEnv}
 
-ARG IMAGE_USER=root
-USER $IMAGE_USER
+ARG _DEV_CONTAINERS_IMAGE_USER=root
+USER $_DEV_CONTAINERS_IMAGE_USER
 `;
 }
 
