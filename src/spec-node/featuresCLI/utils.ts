@@ -40,10 +40,11 @@ export const staticExecParams = {
     'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
 };
 
-export const testScriptLibraryFunctions = `
+// dev-container-features-test-lib
+export const testLibraryScript = `
 #!/bin/bash
 SCRIPT_FOLDER="$(cd "$(dirname $0)" && pwd)"
-USERNAME=\${1:-vscode}
+USERNAME=\${1:-root}
 
 if [ -z $HOME ]; then
     HOME="/root"

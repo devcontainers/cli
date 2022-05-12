@@ -5,9 +5,9 @@ import { CLIHost } from '../../spec-common/cliHost';
 import { LogLevel } from '../../spec-utils/log';
 import { launch, ProvisionOptions } from '../devContainers';
 import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
-import { staticExecParams, staticProvisionParams, testScriptLibraryFunctions } from './utils';
+import { staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
 
-const TEST_LIBRARY_SCRIPT_NAME = 'featuresTest.library.sh';
+const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
 function fail(msg: string) {
     log(msg, { prefix: '[-]', stderr: true });
@@ -107,7 +107,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
         await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
 
         // Move the test library script into the workspaceFolder
-        await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testScriptLibraryFunctions));
+        await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
 
         // Execute Test
         const result = await execTest(remoteTestScriptName, workspaceFolder);
