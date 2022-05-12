@@ -7,13 +7,13 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, getFolderImageName, getPackageConfig, isDockerFileConfig } from './utils';
+import { createContainerProperties, createFeaturesTempFolder, getPackageConfig, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { UnpackPromise } from '../spec-utils/types';
 import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe } from '../spec-common/injectHeadless';
-import { bailOut, buildImage, findDevContainer, findUserArg, hostFolderLabel } from './singleContainer';
+import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
@@ -316,12 +316,8 @@ async function doBuild({
 
 		if (isDockerFileConfig(config)) {
 	
-			// Build the base image
-			const baseImageName = getFolderImageName(params.common);
-			await buildImage(params, config, baseImageName, params.buildNoCache || false);
-	
-			// Extend image with features, etc..
-			const { updatedImageName } = await extendImage(params, config, baseImageName, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
+			// Build the base image and extend with features etc.
+			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
@@ -351,7 +347,7 @@ async function doBuild({
 	
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
-			const { updatedImageName } = await extendImage(params, config, originalImageName, !service.build, service.user);
+			const { updatedImageName } = await extendImage(params, config, originalImageName, !service.build);
 			
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
@@ -359,7 +355,7 @@ async function doBuild({
 		} else {
 			
 			await dockerPtyCLI(params, 'pull', config.image);
-			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config, findUserArg(config.runArgs) || config.containerUser);
+			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config);
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
