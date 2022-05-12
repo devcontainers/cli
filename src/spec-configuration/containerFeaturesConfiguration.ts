@@ -550,7 +550,9 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 
 			// local disk
 			const userFeaturePath = path.parse(userFeature.id);
-			if (userFeaturePath) {
+			 // If its a valid path
+			 if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || (userFeaturePath && path.isAbsolute(userFeature.id))) {
+			 //if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
 				output.write(`Local disk feature.`);
 				const filePath = userFeature.id;
 				const id = userFeaturePath.name;
