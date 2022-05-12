@@ -101,17 +101,12 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 }
 
 export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
-	const baseImageName = await buildNamedImage(params, config);
-	return await extendImage(params, config, baseImageName, 'image' in config);
-}
-
-export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	if (isDockerFileConfig(config)) {
 		params.common.progress(ResolverProgress.BuildingImage);
 		await buildImage(params, config, imageName, params.buildNoCache ?? false);
 	}
-	return imageName;
+	return await extendImage(params, config, imageName, 'image' in config);
 }
 
 export function findUserArg(runArgs: string[] = []) {
