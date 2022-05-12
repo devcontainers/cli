@@ -40,4 +40,62 @@ export const staticExecParams = {
     'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
 };
 
+export const testScriptLibraryFunctions = `
+#!/bin/bash
+SCRIPT_FOLDER="$(cd "$(dirname $0)" && pwd)"
+USERNAME=\${1:-vscode}
 
+if [ -z $HOME ]; then
+    HOME="/root"
+fi
+
+FAILED=()
+
+echoStderr()
+{
+    echo "$@" 1>&2
+}
+
+check() {
+    LABEL=$1
+    shift
+    echo -e "\n🧪 Testing $LABEL"
+    if "$@"; then 
+        echo "✅  Passed!"
+        return 0
+    else
+        echoStderr "❌ $LABEL check failed."
+        FAILED+=("$LABEL")
+        return 1
+    fi
+}
+
+checkMultiple() {
+    PASSED=0
+    LABEL="$1"
+    echo -e "\n🧪 Testing $LABEL."
+    shift; MINIMUMPASSED=$1
+    shift; EXPRESSION="$1"
+    while [ "$EXPRESSION" != "" ]; do
+        if $EXPRESSION; then ((PASSED++)); fi
+        shift; EXPRESSION=$1
+    done
+    if [ $PASSED -ge $MINIMUMPASSED ]; then
+        echo "✅ Passed!"
+        return 0
+    else
+        echoStderr "❌ $LABEL check failed."
+        FAILED+=("$LABEL")
+        return 1
+    fi
+}
+
+reportResults() {
+    if [ \${#FAILED[@]} -ne 0 ]; then
+        echoStderr -e "\n💥  Failed tests: \${FAILED[@]}"
+        exit 1
+    else 
+        echo -e "\n💯  Test Passed.!"
+        exit 0
+    fi
+}`;
