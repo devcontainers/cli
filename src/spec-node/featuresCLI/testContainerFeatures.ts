@@ -4,8 +4,10 @@ import { tmpdir } from 'os';
 import { CLIHost } from '../../spec-common/cliHost';
 import { LogLevel } from '../../spec-utils/log';
 import { launch, ProvisionOptions } from '../devContainers';
-import { doExec } from '../devContainersSpecCLI';
-import { staticExecParams, staticProvisionParams } from './utils';
+import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
+import { staticExecParams, staticProvisionParams, testScriptLibraryFunctions } from './utils';
+
+const TEST_LIBRARY_SCRIPT_NAME = 'featuresTest.library.sh';
 
 function fail(msg: string) {
     log(msg, { prefix: '[-]', stderr: true });
@@ -29,13 +31,10 @@ function printFailedTest(feature: string) {
     log(`TEST FAILED:  ${feature}`, { prefix: '[-]', stderr: true });
 }
 
-export async function doFeaturesTestCommand(
-    cliHost: CLIHost,
-    baseImage: string,
-    pathToCollection: string,
-    commaSeparatedFeatures: string,
-    quiet: boolean
-) {
+
+export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTestCommandInput) {
+    const { baseImage, directory, features: commaSeparatedFeatures, remoteUser, quiet } = params;
+
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
@@ -43,7 +42,7 @@ export async function doFeaturesTestCommand(
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
     log(`baseImage:         ${baseImage}`);
-    log(`pathToCollection:  ${pathToCollection}`);
+    log(`Target Directory:  ${directory}`);
     log(`features:          ${commaSeparatedFeatures}`);
 
     const features = commaSeparatedFeatures.split(',');
@@ -56,8 +55,9 @@ export async function doFeaturesTestCommand(
     const workspaceFolder = await generateProject(
         cliHost,
         baseImage,
-        pathToCollection,
-        features
+        directory,
+        features,
+        remoteUser
     );
 
     log(`workspaceFolder:   ${workspaceFolder}`);
@@ -68,10 +68,12 @@ export async function doFeaturesTestCommand(
     log('\n>>> Building test container... <<<\n\n', { prefix: ' ', info: true });
     await launchProject(workspaceFolder, quiet);
 
+    log('>>> Executing test(s)... <<<\n\n', { prefix: ' ', info: true });
+
     // 3. Exec test script for each feature, in the provided order.
     const testResults = [];
     for (const feature of features) {
-        const testScriptPath = path.join(pathToCollection, feature, 'test.sh');
+        const testScriptPath = path.join(directory, 'test', feature, 'test.sh');
         if (!(await cliHost.isFile(testScriptPath))) {
             fail(`Feature ${feature} does not have a test script!`);
         }
@@ -81,8 +83,10 @@ export async function doFeaturesTestCommand(
         const remoteTestScriptName = `${feature}-test-${Date.now()}.sh`;
         await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
 
+        // Move the test library script into the workspaceFolder
+        await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testScriptLibraryFunctions));
+
         // Execute Test
-        log('>>> Executing test(s)... <<<\n\n', { prefix: ' ', info: true });
         const result = await execTest(remoteTestScriptName, workspaceFolder);
         testResults.push({
             feature,
@@ -90,14 +94,14 @@ export async function doFeaturesTestCommand(
         });
     }
 
-    // 4. Check for
+    // 4. Print results
     const allPassed = testResults.every((x) => x.result);
     if (!allPassed) {
         testResults.filter((x) => !x.result).forEach((x) => {
             printFailedTest(x.feature);
         });
     } else {
-        log('All tests passed!');
+        log(' ✅ All tests passed!');
     }
 
     process.exit(allPassed ? 0 : 1);
@@ -108,7 +112,8 @@ const devcontainerTemplate = `
     "image": "#{IMAGE}",
     "features": {
         #{FEATURES}
-    }
+    },
+    "remoteUser": "#{REMOTE_USER}"
 }`;
 
 async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
@@ -121,18 +126,20 @@ async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
 async function generateProject(
     cliHost: CLIHost,
     baseImage: string,
-    basePathToCollection: string,
-    featuresToTest: string[]
+    targetDirectory: string,
+    featuresToTest: string[],
+    remoteUser: string
 ): Promise<string> {
     const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
     const features = featuresToTest
-        .map((x) => `"${basePathToCollection}/${x}": "latest"`)
+        .map((x) => `"${targetDirectory}/src/${x}": "latest"`)
         .join(',\n');
 
     let template = devcontainerTemplate
         .replace('#{IMAGE}', baseImage)
-        .replace('#{FEATURES}', features);
+        .replace('#{FEATURES}', features)
+        .replace('#{REMOTE_USER}', remoteUser);
 
     await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(template));
 
@@ -158,8 +165,8 @@ async function launchProject(workspaceFolder: string, quiet: boolean) {
     let containerId = '';
     let remoteUser = '';
     if (quiet) {
+        // Launch container but don't await it to reduce output noise
         let isResolved = false;
-
         const p = launch(options, disposables);
         p.then(function (res) {
             isResolved = true;
@@ -180,12 +187,14 @@ async function launchProject(workspaceFolder: string, quiet: boolean) {
         remoteUser = launchResult.remoteUser;
 
     }
+
     log(`Launched container '${containerId}' as remote user ${remoteUser} \n`);
 }
 
 async function execTest(remoteTestScriptName: string, workspaceFolder: string) {
+
     let cmd = 'chmod';
-    let args = ['777', `./${remoteTestScriptName}`];
+    let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
     await exec(cmd, args, workspaceFolder);
 
     cmd = `./${remoteTestScriptName}`;

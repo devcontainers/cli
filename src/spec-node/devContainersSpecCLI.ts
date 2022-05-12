@@ -22,7 +22,7 @@ import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { getCLIHost } from '../spec-common/cliHost';
-import { loadNativeModule } from '../spec-common/commonUtils';
+import { CLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { doFeaturesTestCommand } from './featuresCLI/testContainerFeatures';
 
@@ -60,15 +60,25 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 
 // -- 'features test' command
 function featuresTestOptions(y: Argv) {
-	return y.options({
-		'base-image': { type: 'string', alias: 'b', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
-		'path-to-collection': { type: 'string', alias: 'c', default: '.', describe: 'Path to collections folder' },
-		'features': { type: 'string', alias: 'f', describe: 'Feature(s) IDs to test, comma separated.', },
-		'quiet': { type: 'boolean', alias: 'q', default: false, describe: 'Quiet output' },
-	});
+	return y
+		.options({
+			'base-image': { type: 'string', alias: 'i', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
+			'features': { type: 'string', alias: 'f', describe: 'Feature ID(s) to test in sequence (comma separated)', },
+			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
+			'directory': { type: 'string', alias: 'd', default: '.', description: 'Path to collection directory' },
+			'quiet': { type: 'boolean', alias: 'q', default: false, describe: 'Quiet output' },
+		});
 }
 
 export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
+export interface FeaturesTestCommandInput {
+	cliHost: CLIHost;
+	baseImage: string;
+	directory: string;
+	features: string;
+	remoteUser: string;
+	quiet: boolean;
+}
 
 function featuresTestHandler(args: FeaturesTestArgs) {
 	(async () => await featuresTest(args))().catch(console.error);
@@ -76,19 +86,31 @@ function featuresTestHandler(args: FeaturesTestArgs) {
 
 async function featuresTest({
 	'base-image': baseImage,
-	'path-to-collection': pathToCollection,
+	directory,
 	features,
+	'remote-user': remoteUser,
 	quiet
 }: FeaturesTestArgs) {
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
 
+	console.log(directory)
+
 	if (!features) {
-		process.stderr.write('No features!');
+		process.stderr.write('TODO: Support auto running against all features in ./test if none specified');
 		process.exit(1);
 	}
 
-	await doFeaturesTestCommand(cliHost, baseImage, pathToCollection, features, quiet);
+	const params: FeaturesTestCommandInput = {
+		cliHost,
+		baseImage,
+		directory,
+		features,
+		remoteUser,
+		quiet
+	};
+
+	await doFeaturesTestCommand(cliHost, params);
 }
 // -- End: 'features test' command
 
