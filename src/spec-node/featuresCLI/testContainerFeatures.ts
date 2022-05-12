@@ -95,6 +95,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
     // 3. Exec test script for each feature, in the provided order.
     const testResults = [];
     for (const feature of features) {
+        log(`>>> Executing '${feature}' test. <<<\n\n`, { prefix: ' ', info: true });
         const testScriptPath = path.join(directory, 'test', feature, 'test.sh');
         if (!(await cliHost.isFile(testScriptPath))) {
             fail(`Feature ${feature} does not have a test script!`);
