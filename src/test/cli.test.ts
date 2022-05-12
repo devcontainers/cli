@@ -14,8 +14,9 @@ describe('Dev Containers CLI', function () {
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
-	async function devContainerUp(workspaceFolder: string) {
-		const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}`);
+	async function devContainerUp(workspaceFolder: string, options?: { useBuildKit?: boolean}) {
+		const buildkitOption = (options?.useBuildKit ?? false) ? ' --use-buildkit' : '';
+		const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}`);
 		const response = JSON.parse(res.stdout);
 		assert.equal(response.outcome, 'success');
 		const containerId = response.containerId;
@@ -23,6 +24,9 @@ describe('Dev Containers CLI', function () {
 		return containerId;
 	}
 	async function devContainerDown(containerId: string | null) {
+		if (containerId === null) {
+			throw new Error('containerId not set');
+		}
 		if (containerId !== null) {
 			await shellExec(`docker rm -f ${containerId}`);
 		}
@@ -70,6 +74,15 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
+		it('should execute successfully with valid config with features', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-features`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
 		it('should fail with "not found" error when config is not found', async () => {
 			let success = false;
 			try {
@@ -88,7 +101,7 @@ describe('Dev Containers CLI', function () {
 	describe('Command run-user-commands', () => {
 		describe('with valid config', () => {
 			let containerId: string | null = null;
-			beforeEach(async () => await devContainerUp(`${__dirname}/configs/image`));
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/image`));
 			afterEach(async () => await devContainerDown(containerId));
 			it('should execute successfully', async () => {
 				const res = await shellExec(`${cli} run-user-commands --workspace-folder ${__dirname}/configs/image`);
@@ -113,14 +126,93 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command exec', () => {
-		describe('with valid config', () => {
+		describe('with valid (image) config', () => {
 			let containerId: string | null = null;
-			beforeEach(async () => await devContainerUp(`${__dirname}/configs/image`));
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/image`));
 			afterEach(async () => await devContainerDown(containerId));
 			it('should execute successfully', async () => {
 				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image echo hi`);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
+			});
+		});
+		describe('with valid (image) config containing features (non-BuildKit)', () => {
+			let containerId: string | null = null;
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/image-with-features`, {useBuildKit: false}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have access to installed features (docker)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-features docker --version`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /Docker version/);
+			});
+			it('should have access to installed features (hello)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-features hello`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /howdy, root/);
+			});
+		});
+
+		describe('with valid (image) config containing features (BuildKit)', () => {
+			let containerId: string | null = null;
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/image-with-features`, {useBuildKit: true}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have access to installed features (docker)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-features docker --version`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /Docker version/);
+			});
+			it('should have access to installed features (hello)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-features hello`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /howdy, root/);
+			});
+		});
+
+		describe('with valid (Dockerfile) config containing features (non-BuildKit)', () => {
+			let containerId: string | null = null;
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/dockerfile-with-features`, {useBuildKit: false}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have access to installed features (docker)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/dockerfile-with-features docker --version`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /Docker version/);
+			});
+			it('should have access to installed features (hello)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/dockerfile-with-features hello`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /howdy, root/);
+			});
+		});
+
+		describe('with valid (Dockerfile) config containing features (BuildKit)', () => {
+			let containerId: string | null = null;
+			beforeEach(async () => containerId = await devContainerUp(`${__dirname}/configs/dockerfile-with-features`, {useBuildKit: true}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have access to installed features (docker)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/dockerfile-with-features docker --version`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /Docker version/);
+			});
+			it('should have access to installed features (hello)', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/dockerfile-with-features hello`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /howdy, root/);
 			});
 		});
 
@@ -137,7 +229,9 @@ describe('Dev Containers CLI', function () {
 			}
 			assert.equal(success, false, 'expect non-successful call');
 		});
-	});
+
+	}).timeout('120s');
+
 
 });
 
