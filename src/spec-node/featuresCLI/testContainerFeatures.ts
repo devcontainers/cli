@@ -33,7 +33,7 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTestCommandInput) {
-    const { baseImage, directory, features: commaSeparatedFeatures, remoteUser, quiet } = params;
+    const { baseImage, directory, features: inputFeatures, remoteUser, quiet } = params;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -41,15 +41,37 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
 │     Testing Tool v0.0.0     │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
+    const srcDir = `${directory}/src`;
+    const testsDir = `${directory}/test`;
+
+    if (! await cliHost.isFolder(srcDir) || ! await cliHost.isFolder(testsDir)) {
+        fail(`Directory '${directory}' does not the required 'src' and 'test' folders.`);
+    }
+
+
     log(`baseImage:         ${baseImage}`);
     log(`Target Directory:  ${directory}`);
-    log(`features:          ${commaSeparatedFeatures}`);
 
-    const features = commaSeparatedFeatures.split(',');
+    // Parse comma separated list of features
+    // If '--features' isn't specified, run all features with a 'test' subfolder in random order.
+    let features: string[] = [];
+    if (!inputFeatures) {
+        features = await cliHost.readDir(testsDir);
+        if (features.length === 0) {
+            fail(`No features specified and no test folders found in '${testsDir}'`);
+        }
+    } else {
+        features = inputFeatures
+            .split(',')
+            .map((x) => x.trim());
 
-    if (features.length === 0) {
-        fail('No features specified\n');
+        if (features.length === 0) {
+            fail('Comma separated list of features could not be parsed');
+        }
     }
+
+    log(`features:          ${features.join(', ')}`);
+
 
     // 1. Generate temporary project with 'baseImage' and all the 'features..'
     const workspaceFolder = await generateProject(
