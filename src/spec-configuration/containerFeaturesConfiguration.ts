@@ -175,14 +175,18 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 export function getContainerFeaturesBaseDockerFile() {
 	return `
 ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
+ARG _DEV_CONTAINERS_FEATURE_CONTENT_SOURCE=
 
 #{featureBuildStages}
+
+# TODO omit the next line when adding buildkit support
+FROM $_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE as dev_containers_feature_content_source
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE
 
 USER root
 
-COPY . /tmp/build-features/
+COPY --from=dev_containers_feature_content_source /tmp/build-features/ /tmp/build-features/
 
 #{featureLayer}
 

@@ -120,7 +120,8 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 	;
 
-	await cliHost.writeFile(cliHost.path.join(dstFolder, 'Dockerfile'), Buffer.from(dockerfile));
+	const dockerfilePath = cliHost.path.join(dstFolder, 'Dockerfile');
+	await cliHost.writeFile(dockerfilePath, Buffer.from(dockerfile));
 
 	// Build devcontainer-features.env file(s) for each features source folder
 	await Promise.all([...featuresConfig.featureSets].map(async (featureSet, i) => {
@@ -146,12 +147,39 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 		]);
 	}));
 
+	// Build an image to hold the container-features content in a way
+	// that is accessible from the docker build for non-BuiltKit builds
+	// TODO generate an image name that is specific to this dev container?
+	const buildContentImageName = 'dev_container_feature_content_temp'; 
+	// TODO copy in sub-folders in separate steps to create cacheable layers?
+	// (e.g. copy local-cache folder first)
+	const buildContentDockerfile = `
+FROM scratch
+COPY . /tmp/build-features/
+`;
+	const buildContentDockerfilePath = cliHost.path.join(dstFolder, 'Dockerfile.buildContent');
+	await cliHost.writeFile(buildContentDockerfilePath, Buffer.from(buildContentDockerfile));
+	const buildContentArgs = [
+		'build',
+		'-t', buildContentImageName,
+		'-f', buildContentDockerfilePath,
+		dstFolder,
+	];
+	const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+	await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
+
+
 	const args = [
 		'build',
 		'-t', updatedImageName,
 		'--build-arg', `_DEV_CONTAINERS_BASE_IMAGE=${imageName}`,
 		'--build-arg', `_DEV_CONTAINERS_IMAGE_USER=${imageUser}`,
-		dstFolder,
+		'--build-arg', `_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE=${buildContentImageName}`,
+		'-f', dockerfilePath,
+		// Once this is step merged with the user Dockerfile (or working against the base image),
+		// the path will be the dev container context
+		// Set /tmp as the context for now to ensure we don't have dependencies on the features content
+		'/tmp/', 
 	];
 	const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 	await dockerPtyCLI(infoParams, ...args);
@@ -163,8 +191,8 @@ function getFeatureBuildStages(cliHost: CLIHost, featuresConfig: FeaturesConfig,
 		.map((featureSet, i) => featureSet.features
 			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
 			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY ${cliHost.path.join('.', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY ${cliHost.path.join('.', getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
+COPY --from=dev_containers_feature_content_source ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
+COPY --from=dev_containers_feature_content_source ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
 RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
 			)
 		)
