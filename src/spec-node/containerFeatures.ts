@@ -19,9 +19,16 @@ import { CLIHost } from '../spec-common/cliHost';
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
 	const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, pullImageOnError));
-	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => (await imageDetails()).Config.Labels || {}, getContainerFeaturesFolder);
+	const imageLabelDetails = async () => {
+		const labels = (await imageDetails()).Config.Labels  || {};
+		return {
+			definition : labels['com.visualstudio.code.devcontainers.id'],
+			version : labels['version'],
+		};
+	};
+	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
-	const updatedImageName = await addContainerFeatures(params, featuresConfig, imageName, imageDetails);
+	const updatedImageName = await addContainerFeatures(params, featuresConfig, imageName, async () => (await imageDetails()).Config.User || 'root');
 	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
 }
 
@@ -38,7 +45,7 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	return result;
 }
 
-async function addContainerFeatures(params: DockerResolverParameters, featuresConfig: FeaturesConfig | undefined, imageName: string, imageDetails: () => Promise<ImageDetails>) {
+async function addContainerFeatures(params: DockerResolverParameters, featuresConfig: FeaturesConfig | undefined, imageName: string, containerUser: () => Promise<string>) {
 	const { common } = params;
 	const { cliHost, output } = common;
 	if (!featuresConfig) {
@@ -54,7 +61,7 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 
 	// Calculate name of the build folder where localcache has been copied to.
 	const localCacheBuildFolderName = getSourceInfoString({ type : 'local-cache'});
-	const imageUser = (await imageDetails()).Config.User || 'root';
+	const imageUser = await containerUser();
 	const folderImageName = getFolderImageName(common);
 	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
 
