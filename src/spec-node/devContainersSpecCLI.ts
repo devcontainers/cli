@@ -94,10 +94,11 @@ async function featuresTest({
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
 
+
 	const params: FeaturesTestCommandInput = {
 		cliHost,
 		baseImage,
-		directory,
+		directory: cliHost.path.resolve(directory),
 		features,
 		remoteUser,
 		quiet
