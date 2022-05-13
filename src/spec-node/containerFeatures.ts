@@ -14,7 +14,6 @@ import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDoc
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
-import { CLIHost } from '../spec-common/cliHost';
 
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
@@ -113,8 +112,22 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 				return map;
 			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
 
+
+	// With Builtkit, we can supply an additional build context to provide access to
+	// the container-features content.
+	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
+	// that is accessible from the docker build for non-BuiltKit builds
+	// TODO generate an image name that is specific to this dev container?
+	const buildContentImageName = 'dev_container_feature_content_temp'; 
+
+	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
+	// When copying via temp image, the content is in '/tmp/build-features'
+	const contentSourceRootPath = params.useBuildKit ? '.' : '/tmp/build-features/';
 	const dockerfile = getContainerFeaturesBaseDockerFile()
-		.replace('#{featureBuildStages}', getFeatureBuildStages(cliHost, featuresConfig, buildStageScripts))
+		.replace('#{nonBuildKitFeatureContentFallback}', params.useBuildKit ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
+		.replace('#{dockerfileSyntax}', params.useBuildKit ? '# syntax=docker/dockerfile:1.4' : '')
+		.replace('{contentSourceRootPath}', contentSourceRootPath)
+		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
@@ -147,30 +160,38 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 		]);
 	}));
 
-	// Build an image to hold the container-features content in a way
-	// that is accessible from the docker build for non-BuiltKit builds
-	// TODO generate an image name that is specific to this dev container?
-	const buildContentImageName = 'dev_container_feature_content_temp'; 
-	// TODO copy in sub-folders in separate steps to create cacheable layers?
-	// (e.g. copy local-cache folder first)
-	const buildContentDockerfile = `
-FROM scratch
-COPY . /tmp/build-features/
-`;
-	const buildContentDockerfilePath = cliHost.path.join(dstFolder, 'Dockerfile.buildContent');
-	await cliHost.writeFile(buildContentDockerfilePath, Buffer.from(buildContentDockerfile));
-	const buildContentArgs = [
-		'build',
-		'-t', buildContentImageName,
-		'-f', buildContentDockerfilePath,
-		dstFolder,
-	];
-	const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
-	await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
-
-
-	const args = [
-		'build',
+	if (!params.useBuildKit) {
+		// TODO should we copy in the sub-folders in separate steps to create cacheable layers?
+		// (e.g. copy local-cache folder first)
+		const buildContentDockerfile = `
+	FROM scratch
+	COPY . /tmp/build-features/
+	`;
+		const buildContentDockerfilePath = cliHost.path.join(dstFolder, 'Dockerfile.buildContent');
+		await cliHost.writeFile(buildContentDockerfilePath, Buffer.from(buildContentDockerfile));
+		const buildContentArgs = [
+			'build',
+			'-t', buildContentImageName,
+			'-f', buildContentDockerfilePath,
+			dstFolder,
+		];
+		const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+		await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
+	}
+	
+	const args: string[] = [];
+	if (params.useBuildKit) {
+		args.push(
+			'buildx', 'build',
+			'--build-context', `dev_containers_feature_content_source=${dstFolder}`,
+			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)	
+		);
+	} else {
+		args.push(
+			'build',
+		);
+	}
+	args.push(
 		'-t', updatedImageName,
 		'--build-arg', `_DEV_CONTAINERS_BASE_IMAGE=${imageName}`,
 		'--build-arg', `_DEV_CONTAINERS_IMAGE_USER=${imageUser}`,
@@ -180,19 +201,19 @@ COPY . /tmp/build-features/
 		// the path will be the dev container context
 		// Set /tmp as the context for now to ensure we don't have dependencies on the features content
 		'/tmp/', 
-	];
+	);
 	const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 	await dockerPtyCLI(infoParams, ...args);
 	return updatedImageName;
 }
 
-function getFeatureBuildStages(cliHost: CLIHost, featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[]) {
+function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath : string) {
 	return ([] as string[]).concat(...featuresConfig.featureSets
 		.map((featureSet, i) => featureSet.features
 			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
 			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY --from=dev_containers_feature_content_source ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY --from=dev_containers_feature_content_source ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
+COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
+COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
 RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
 			)
 		)
