@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
-import { extendImage, updateRemoteUserUID } from './containerFeatures';
+import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
+import * as path from 'path';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -104,9 +105,134 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	if (isDockerFileConfig(config)) {
 		params.common.progress(ResolverProgress.BuildingImage);
-		await buildImage(params, config, imageName, params.buildNoCache ?? false);
+		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
 	}
+	// image-based dev container - extend
 	return await extendImage(params, config, imageName, 'image' in config);
+}
+async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+	const { cliHost, output } = buildParams.common;
+	const dockerfileUri = getDockerfilePath(cliHost, config);
+	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
+	if (!cliHost.isFile(dockerfilePath)) {
+		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
+	}
+
+	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+	let baseName = 'dev_container_auto_added_stage_label';
+	if (config.build?.target) {
+		// Explictly set build target for the dev container build features on that
+		baseName = config.build.target;
+	} else {
+		// Use the last stage in the Dockerfile
+		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseImageName);
+		baseName = lastStageName;
+		if (modifiedDockerfile) {
+			dockerfile = modifiedDockerfile;
+		}
+	}
+
+	const labelDetails = async() => {return {definition: undefined, version: undefined}};
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, config.remoteUser ?? 'root', labelDetails);
+
+	let finalDockerfilePath = dockerfilePath;
+	const additionalBuildArgs : string[] = [];
+	if (extendImageBuildInfo) {
+		const { featureBuildInfo } = extendImageBuildInfo;
+		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo?.dockerfileContent}`;
+		finalDockerfilePath = path.posix.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
+		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
+
+		// track additional build args to include below
+		for (const buildContext in featureBuildInfo.buildKitContexts) {
+			additionalBuildArgs.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
+		}
+		for (const buildArg in featureBuildInfo.buildArgs) {
+			additionalBuildArgs.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
+		}
+	}
+
+	const args : string[] = [];
+	if (buildParams.useBuildKit) {
+		args.push('buildx', 'build');
+	} else {
+		args.push('build');
+	}
+	args.push('-f', finalDockerfilePath, '-t', baseImageName);
+	const target = config.build?.target;
+	if (target) {
+		args.push('--target', target);
+	}
+	if (noCache) {
+		args.push('--no-cache', '--pull');
+	} else if (config.build && config.build.cacheFrom) {
+		buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		if (typeof config.build.cacheFrom === 'string') {
+			args.push('--cache-from', config.build.cacheFrom);
+		} else {
+			for (let index = 0; index < config.build.cacheFrom.length; index++) {
+				const cacheFrom = config.build.cacheFrom[index];
+				args.push('--cache-from', cacheFrom);
+			}
+		}
+	}
+	const buildArgs = config.build?.args;
+	if (buildArgs) {
+		for (const key in buildArgs) {
+			args.push('--build-arg', `${key}=${buildArgs[key]}`);
+		}
+	}
+	args.push(...additionalBuildArgs);
+	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
+	try {
+		const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
+		await dockerPtyCLI(infoParams, ...args);
+	} catch (err) {
+		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
+	}
+
+	const imageDetails = () => inspectDockerImage(buildParams, baseImageName, false);
+
+	return {
+		updatedImageName: baseImageName,
+		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
+		imageDetails
+	};
+}
+
+// not expected to be called externally (exposed for testing)
+export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string) : {lastStageName: string, modifiedDockerfile: string | undefined} {
+
+	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
+	const lastFromLineMatch = fromLines[fromLines.length-1];
+	const lastFromLine = lastFromLineMatch.groups?.line as string;
+	
+	// Test for "FROM [--platform=someplat] base [as label]"
+	// That is, match against optional platform and label
+	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
+	if (!fromMatch){
+		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
+	}
+	if (fromMatch.groups?.label){
+		return {
+			lastStageName: fromMatch.groups.label,
+			modifiedDockerfile:undefined,
+		};
+	}
+
+	// Last stage doesn't have a name, so modify the Dockerfile to set the name to defaultLastStageName
+	const lastLineStartIndex = (lastFromLineMatch.index as number) + (fromMatch.index as number);
+	const lastLineEndIndex = lastLineStartIndex + lastFromLine.length;
+	const matchedFromText = fromMatch[0];
+	let modifiedDockerfile = dockerfile.slice(0,lastLineStartIndex + matchedFromText.length);
+
+	modifiedDockerfile += ` AS ${defaultLastStageName}`;
+	const remainingFromLineLength = lastFromLine.length - matchedFromText.length;
+	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
+
+	return {lastStageName:defaultLastStageName, modifiedDockerfile: modifiedDockerfile};
 }
 
 export function findUserArg(runArgs: string[] = []) {
@@ -160,46 +286,6 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
-async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
-	const { cliHost, output } = buildParams.common;
-	const dockerfileUri = getDockerfilePath(cliHost, config);
-	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
-	if (!cliHost.isFile(dockerfilePath)) {
-		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
-	}
-
-	const args = ['build', '-f', dockerfilePath, '-t', baseImageName];
-	const target = config.build?.target;
-	if (target) {
-		args.push('--target', target);
-	}
-	if (noCache) {
-		args.push('--no-cache', '--pull');
-	} else if (config.build && config.build.cacheFrom) {
-		if (typeof config.build.cacheFrom === 'string') {
-			args.push('--cache-from', config.build.cacheFrom);
-		} else {
-			for (let index = 0; index < config.build.cacheFrom.length; index++) {
-				const cacheFrom = config.build.cacheFrom[index];
-				args.push('--cache-from', cacheFrom);
-			}
-		}
-	}
-	buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
-	const buildArgs = config.build?.args;
-	if (buildArgs) {
-		for (const key in buildArgs) {
-			args.push('--build-arg', `${key}=${buildArgs[key]}`);
-		}
-	}
-	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
-	try {
-		const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
-		await dockerPtyCLI(infoParams, ...args);
-	} catch (err) {
-		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
-	}
-}
 
 export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined) {
 	const { common } = params;

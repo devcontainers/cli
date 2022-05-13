@@ -129,12 +129,7 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
-export function collapseFeaturesConfig(original: FeaturesConfig | undefined): CollapsedFeaturesConfig | undefined {
-
-	if (!original) {
-		return undefined;
-	}
-
+export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
 	const collapsed = {
 		allFeatures: original.featureSets
 			.map(fSet => fSet.features)
@@ -173,10 +168,7 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 
 // TODO: Move to node layer.
 export function getContainerFeaturesBaseDockerFile() {
-	// NOTE - there must not be a newline before the dockerfileSyntax section
-	return `#{dockerfileSyntax}
-ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
-
+	return `
 #{featureBuildStages}
 
 #{nonBuildKitFeatureContentFallback}
