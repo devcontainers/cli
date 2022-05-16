@@ -155,7 +155,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	const args : string[] = [];
 	if (buildParams.useBuildKit) {
-		args.push('buildx', 'build');
+		args.push('buildx', 'build', '--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
 	}
