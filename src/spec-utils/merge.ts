@@ -25,6 +25,12 @@ export async function ApplyMergeStrategyToObjects(key: string, parentValue: obje
     return outputJSON;
 }
 
+export async function ApplyMergeStrategyToDocuments(parentDocument: object, childDocument: object): Promise<Object> 
+{
+    let UnionListOfDocumentKeys = [... new Set([...Object.keys(parentDocument), ...Object.keys(childDocument)])];
+
+}
+
 async function CheckValidityAndReturnUnionArray(obj1: object, obj2: object): Promise<Object> 
 {
     if (Array.isArray(obj1) && Array.isArray(obj2))
