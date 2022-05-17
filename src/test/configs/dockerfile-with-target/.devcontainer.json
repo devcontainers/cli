@@ -1,0 +1,9 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"target": "desired-image",
+		"args": { 
+			"VARIANT": "16-bullseye"
+		}
+	},
+}

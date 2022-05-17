@@ -244,6 +244,34 @@ describe('Dev Containers CLI', function () {
 			});
 		});
 
+		describe('with valid (Dockerfile) config with target (non-BuildKit)', () => {
+			let containerId: string | null = null;
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			beforeEach(async () => containerId = await devContainerUp(testFolder, {useBuildKit: false}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have marker content', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/test-marker`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /||test-content||/);
+			});
+		});
+
+		describe('with valid (Dockerfile) config with target (BuildKit)', () => {
+			let containerId: string | null = null;
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			beforeEach(async () => containerId = await devContainerUp(testFolder, {useBuildKit: true}));
+			afterEach(async () => await devContainerDown(containerId));
+			it('should have marker content', async() => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/test-marker`);
+				const response = JSON.parse(res.stdout);
+				console.log(res.stderr);
+				assert.equal(response.outcome, 'success');
+				assert.match(res.stderr, /||test-content||/);
+			});
+		});
+
 		it('should fail with "not found" error when config is not found', async () => {
 			let success = false;
 			try {
