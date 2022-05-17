@@ -19,11 +19,12 @@ import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shu
 import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
 import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
-import { readDevContainerConfigFile } from './configContainer';
+import { readDevContainerConfigFile, readSimpleConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { ApplyMergeStrategyToDocuments } from '../spec-utils/merge';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -48,6 +49,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
+	y.command('merge [args..]', 'Merge a parent and a child dev container config', mergeOptions, mergeHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
 })().catch(console.error);
@@ -793,6 +795,54 @@ async function doExec({
 			dispose,
 		};
 	}
+}
+
+function mergeOptions(y: Argv) {
+	return y.options({
+		'parent-devcontainer': { type: 'string', description: 'Parent devcontainer path.' },
+		'child-devcontainer': { type: 'string', description: 'Child devcontainer path.' },
+	});
+}
+
+type MergeArgs = UnpackArgv<ReturnType<typeof mergeOptions>>;
+
+function mergeHandler(args: MergeArgs) {
+	(async () => merge(args))().catch(console.error);
+}
+
+async function merge(args: MergeArgs) {
+	const result = await doMerge(args);
+	const exitCode = result.outcome === 'error' ? 1 : 0;
+	console.log(JSON.stringify(result));
+	await result.dispose();
+	process.exit(exitCode);
+}
+
+async function doMerge({
+	'parent-devcontainer': parentDevContainer,
+	'child-devcontainer': childDevContainer,
+}: MergeArgs): Promise<{ dispose: Function; outcome: 'success' | 'error' }> {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () =>  {
+		await Promise.all(disposables.map(d => d()));
+	};
+
+	console.log(`parent: ${parentDevContainer}`);
+	console.log(`child: ${childDevContainer}`);
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const parentConfigFile = parentDevContainer ? URI.file(path.resolve(process.cwd(), parentDevContainer)) : undefined;
+	const childConfigFile = childDevContainer ? URI.file(path.resolve(process.cwd(), childDevContainer)) : undefined;
+	const parentDocument = readSimpleConfigFile(cliHost, parentConfigFile!);
+	const childDocument = readSimpleConfigFile(cliHost, childConfigFile!);
+	const res = await ApplyMergeStrategyToDocuments(parentDocument, childDocument);
+	console.log('RESULT:');
+	console.log(res);
+
+	return {
+		outcome: 'success',
+		dispose,
+	};
 }
 
 function keyValuesToRecord(keyValues: string[]): Record<string, string> {

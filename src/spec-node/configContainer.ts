@@ -101,3 +101,13 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		workspaceConfig,
 	};
 }
+
+export async function readSimpleConfigFile(cliHost: CLIHost, configFile: URI): Promise<Partial<DevContainerConfig> | undefined> {
+	const documents = createDocuments(cliHost);
+	const content = await documents.readDocument(configFile);
+	if (!content) {
+		return undefined;
+	}
+	const raw = jsonc.parse(content) as Partial<DevContainerConfig> | undefined;
+	return raw;
+}
