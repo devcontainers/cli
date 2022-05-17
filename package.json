@@ -8,10 +8,10 @@
 	"author": "Microsoft Corporation",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/microsoft/vscode-remote-containers.git"
+		"url": "https://github.com/devcontainers/cli.git"
 	},
 	"bugs": {
-		"url": "https://github.com/microsoft/vscode-remote-release/issues"
+		"url": "https://github.com/devcontainers/cli/issues"
 	},
 	"license": "SEE LICENSE IN LICENSE.txt",
 	"engines": {
