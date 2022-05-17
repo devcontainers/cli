@@ -155,7 +155,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	const args : string[] = [];
 	if (buildParams.useBuildKit) {
-		args.push('buildx', 'build', '--build-arg', 'BUILDKIT_INLINE_CACHE=1');
+		args.push('buildx', 'build',
+			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
+			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
+		);
 	} else {
 		args.push('build');
 	}
