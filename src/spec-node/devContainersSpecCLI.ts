@@ -24,6 +24,7 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { debuglog } from 'util';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -237,7 +238,10 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache' },
-		'buildx' : {type: 'string', description: 'Multi-build images support.' },
+		'buildx' : { type: 'boolean', default: false, description: 'Enable to use buildx arguments.' },
+		'platform': { type: 'string', description: 'Set target platforms.' },
+		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'load': { type: 'boolean', default: false, description: 'Load builded image to images.' },
 	});
 }
 
@@ -255,6 +259,19 @@ async function build(args: BuildArgs) {
 	process.exit(exitCode);
 }
 
+function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
+	if (!buildx && !platform && !push && !load) {
+		return true;
+	}
+	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
+		return false;
+	}
+	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
+		return false;
+	}
+	return true;
+}
+
 async function doBuild({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
@@ -265,6 +282,10 @@ async function doBuild({
 	'no-cache': buildNoCache,
 	'image-name': argImageName,
 	'cache-from': addCacheFrom,
+	'buildx' : enableBuildx,
+	'platform': buildxPlatform,
+	'push': buildxPush,
+	'load': buildxLoad
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () =>  {
@@ -318,6 +339,12 @@ async function doBuild({
 		let imageNameResult = '';
 
 		if (isDockerFileConfig(config)) {
+			if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
+				const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
+				console.error(msg);
+				throw new ContainerError({ description: msg });
+			}
+		
 	
 			// Build the base image and extend with features etc.
 			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
@@ -327,6 +354,11 @@ async function doBuild({
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
+			}
+			if (enableBuildx === true) {
+				debuglog("JCZ buildxPlatform: " + buildxPlatform);
+				debuglog("JCZ Load: " + buildxLoad);
+				debuglog("JCZ Push: " + buildxPush);
 			}
 		} else if ('dockerComposeFile' in config) {
 	
