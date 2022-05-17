@@ -33,7 +33,8 @@
 		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.test.ts",
 		"test-container-features-offline": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.offline.test.ts",
-		"test-container-features-online": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.online.test.ts"
+		"test-container-features-online": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.online.test.ts",
+		"test-multi-platform-container": "env TS_NODE_PROJECT=test/tsconfig.json npx mocha -r ts-node/register --exit src/test/container-features/multiPlatformContainers.test.ts"
 	},
 	"devDependencies": {
 		"@types/chai": "^4.3.0",

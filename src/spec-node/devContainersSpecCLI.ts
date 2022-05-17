@@ -237,6 +237,7 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache' },
+		'buildx' : {type: 'string', description: 'Multi-build images support.' },
 	});
 }
 
