@@ -142,6 +142,14 @@ interface DevContainerVSCodeConfig {
 	devPort?: number;
 }
 
+const enum ExtendBehavior {
+	MERGE,
+	REPLACE,
+	SKIP
+}
+type DevContainerConfigKey = keyof DevContainerConfig;
+export type DevContainerExtendConfig = { [key in DevContainerConfigKey]: ExtendBehavior };
+
 export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: { vscode?: DevContainerVSCodeConfig } }>(original: T): T {
 	// https://github.com/microsoft/dev-container-spec/issues/1
 	if (!(original.extensions || original.settings || original.devPort !== undefined)) {
@@ -229,4 +237,35 @@ export async function getDockerComposeFilePaths(cliHost: FileHost, config: DevCo
 		return defaultFiles;
 	}
 	return [];
+}
+
+export function buildExtendBehaviorTable(customBehaviors?: Partial<DevContainerExtendConfig>): DevContainerExtendConfig {
+	const defaultBehaviors: DevContainerExtendConfig = {
+		configFilePath: ExtendBehavior.REPLACE,
+		name: ExtendBehavior.REPLACE,
+		forwardPorts: ExtendBehavior.REPLACE,
+		portsAttributes: ExtendBehavior.REPLACE,
+		otherPortsAttributes: ExtendBehavior.REPLACE,
+		shutdownAction: ExtendBehavior.REPLACE,
+		overrideCommand: ExtendBehavior.REPLACE,
+		initializeCommand: ExtendBehavior.REPLACE,
+		onCreateCommand: ExtendBehavior.REPLACE,
+		updateContentCommand: ExtendBehavior.REPLACE,
+		postCreateCommand: ExtendBehavior.REPLACE,
+		postStartCommand: ExtendBehavior.REPLACE,
+		postAttachCommand: ExtendBehavior.REPLACE,
+		waitFor: ExtendBehavior.REPLACE,
+		workspaceFolder: ExtendBehavior.REPLACE,
+		remoteEnv: ExtendBehavior.REPLACE,
+		remoteUser: ExtendBehavior.REPLACE,
+		updateRemoteUserUID: ExtendBehavior.REPLACE,
+		userEnvProbe: ExtendBehavior.REPLACE,
+		features: ExtendBehavior.REPLACE,
+		hostRequirements: ExtendBehavior.REPLACE
+	};
+	
+	return {
+		...defaultBehaviors,
+		...customBehaviors
+	};
 }
