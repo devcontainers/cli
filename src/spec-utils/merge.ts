@@ -20,7 +20,7 @@ export async function ApplyMergeStrategyToObjects(key: string, parentValue: obje
             break;
     }
 
-    let outputJSON = {key: outputValue};
+    let outputJSON = {[key]: outputValue};
 
     return outputJSON;
 }
