@@ -142,7 +142,7 @@ interface DevContainerVSCodeConfig {
 	devPort?: number;
 }
 
-const enum ExtendBehavior {
+export const enum ExtendBehavior {
 	MERGE,
 	REPLACE,
 	SKIP
