@@ -140,6 +140,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const additionalBuildArgs: string[] = [];
 	if (extendImageBuildInfo) {
 		const { featureBuildInfo } = extendImageBuildInfo;
+		// We add a '# syntax' line at the start, so strip out any existing line
+		const syntaxMatch = dockerfile.match(/^\s*#\s*syntax\s*=.*[\r\n]/g);
+		if (syntaxMatch) {
+			dockerfile = dockerfile.slice(syntaxMatch[0].length)
+		}
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo?.dockerfileContent}`;
 		finalDockerfilePath = path.posix.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
