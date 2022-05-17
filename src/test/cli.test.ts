@@ -15,7 +15,7 @@ const buildKitOptions = [
 ] as const;
 
 describe('Dev Containers CLI', function () {
-	this.timeout(1 * 60 * 1000);
+	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
@@ -236,7 +236,7 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-	}).timeout('120s');
+	});
 
 
 });
