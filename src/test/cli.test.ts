@@ -30,7 +30,7 @@ describe('Dev Containers CLI', function () {
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
 		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install dev-containers-cli-${pkg.version}.tgz`);
+		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
 	it('Global --help', async () => {
