@@ -219,8 +219,6 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 
 	// For non-BuildKit, build the temporary image for the container-features content
 	if (!params.useBuildKit) {
-		// TODO should we copy in the sub-folders in separate steps to create cacheable layers?
-		// (e.g. copy local-cache folder first)
 		const buildContentDockerfile = `
 	FROM scratch
 	COPY . /tmp/build-features/

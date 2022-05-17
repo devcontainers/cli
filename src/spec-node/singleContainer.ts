@@ -103,8 +103,8 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 
 export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
+	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		params.common.progress(ResolverProgress.BuildingImage);
 		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
 	}
 	// image-based dev container - extend
@@ -133,7 +133,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const labelDetails = async () => { return { definition: undefined, version: undefined } };
+	const labelDetails = async () => { return { definition: undefined, version: undefined }; };
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, config.remoteUser ?? 'root', labelDetails);
 
 	let finalDockerfilePath = dockerfilePath;
@@ -143,7 +143,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		// We add a '# syntax' line at the start, so strip out any existing line
 		const syntaxMatch = dockerfile.match(/^\s*#\s*syntax\s*=.*[\r\n]/g);
 		if (syntaxMatch) {
-			dockerfile = dockerfile.slice(syntaxMatch[0].length)
+			dockerfile = dockerfile.slice(syntaxMatch[0].length);
 		}
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo?.dockerfileContent}`;
 		finalDockerfilePath = path.posix.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
@@ -215,7 +215,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 }
 
 // not expected to be called externally (exposed for testing)
-export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string, modifiedDockerfile: string | undefined } {
+export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
 
 	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
 	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];

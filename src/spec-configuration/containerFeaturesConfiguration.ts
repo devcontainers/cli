@@ -638,7 +638,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{definition?: string, version?:string}>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
 	const userDeclaredFeatures = config.features;
@@ -685,7 +685,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; ou
 const getUniqueFeatureId = (id: string, srcInfo: SourceInformation) => `${id}-${getSourceInfoString(srcInfo)}`;
 
 // Given an existing featuresConfig, parse the user's features as they declared them in their devcontainer.
-export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabelDetails: () => Promise<{definition?: string, version?:string}>) {
+export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>) {
 
 	const { output } = params;
 	const {definition, version} = await imageLabelDetails();
