@@ -84,7 +84,7 @@ function provisionOptions(y: Argv) {
 		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache during image building' },
-		'use-buildkit' : {type: 'boolean', default: false, description: 'Use BuildKit features when building' },
+		'buildkit' : {choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -142,7 +142,7 @@ async function provision({
 	mount,
 	'remote-env': addRemoteEnv,
 	'cache-from': addCacheFrom,
-	'use-buildkit': useBuildKit,
+	'buildkit': buildkit,
 }: ProvisionArgs) {
 	
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -183,7 +183,7 @@ async function provision({
 		updateRemoteUserUIDDefault,
 		remoteEnv: keyValuesToRecord(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
-		useBuildKit,
+		useBuildKit: buildkit,
 	};
 
 	const result = await doProvision(options);
@@ -240,7 +240,7 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from' : {type: 'string', description: 'Additional image to use as potential layer cache' },
-		'use-buildkit' : {type: 'boolean', default: false, description: 'Use BuildKit features when building' },
+		'buildkit' : {choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 	});
 }
 
@@ -268,7 +268,7 @@ async function doBuild({
 	'no-cache': buildNoCache,
 	'image-name': argImageName,
 	'cache-from': addCacheFrom,
-	'use-buildkit': useBuildKit,
+	'buildkit': buildkit,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () =>  {
@@ -305,7 +305,7 @@ async function doBuild({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: {},
 			additionalCacheFroms: addCacheFroms,
-			useBuildKit,
+			useBuildKit: buildkit
 		}, disposables);
 		
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -509,7 +509,7 @@ async function doRunUserCommands({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: false
+			useBuildKit: 'auto'
 		}, disposables);
 
 		const { common } = params;
@@ -753,7 +753,7 @@ async function doExec({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: false
+			useBuildKit: 'auto'
 		}, disposables);
 
 		const { common } = params;

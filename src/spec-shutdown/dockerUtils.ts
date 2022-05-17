@@ -230,6 +230,15 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 	return p;
 }
 
+export async function dockerHasBuildKit(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters) {
+	try{
+		await dockerCLI(params, 'buildx', 'version');
+		return true;
+	} catch{
+		return false;
+	}	
+}
+
 export async function dockerCLI(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, ...args: string[]) {
 	const partial = toExecParameters(params);
 	return runCommandNoPty({

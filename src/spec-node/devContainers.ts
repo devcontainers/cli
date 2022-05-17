@@ -16,6 +16,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
+import { dockerHasBuildKit } from '../spec-shutdown/dockerUtils';
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -44,7 +45,7 @@ export interface ProvisionOptions {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
-	useBuildKit: boolean;
+	useBuildKit: 'auto' | 'never';
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -115,15 +116,23 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 
 	const dockerPath = options.dockerPath || 'docker';
 	const dockerComposePath = options.dockerComposePath || 'docker-compose';
+	const dockerComposeCLI = dockerComposeCLIConfig({
+		exec: cliHost.exec,
+		env: cliHost.env,
+		output: common.output,
+	}, dockerPath, dockerComposePath);
+	const useBuildKit = options.useBuildKit === 'never' ? false : (await dockerHasBuildKit({
+		cliHost,
+		dockerCLI: dockerPath,
+		dockerComposeCLI,
+		env: cliHost.env,
+		output
+	}));
 	return {
 		common,
 		parsedAuthority,
 		dockerCLI: dockerPath,
-		dockerComposeCLI: dockerComposeCLIConfig({
-			exec: cliHost.exec,
-			env: cliHost.env,
-			output: common.output,
-		}, dockerPath, dockerComposePath),
+		dockerComposeCLI: dockerComposeCLI,
 		dockerEnv: cliHost.env,
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
 		mountWorkspaceGitRoot,
@@ -136,7 +145,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		userRepositoryConfigurationPaths: [],
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
-		useBuildKit: options.useBuildKit,
+		useBuildKit,
 	};
 }
 

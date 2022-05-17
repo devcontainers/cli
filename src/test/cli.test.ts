@@ -20,7 +20,7 @@ describe('Dev Containers CLI', function () {
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
 	async function devContainerUp(workspaceFolder: string, options?: { useBuildKit?: boolean }) {
-		const buildkitOption = (options?.useBuildKit ?? false) ? ' --use-buildkit' : '';
+		const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 		const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}`);
 		const response = JSON.parse(res.stdout);
 		assert.equal(response.outcome, 'success');
