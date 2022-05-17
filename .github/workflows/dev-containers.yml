@@ -25,8 +25,8 @@ jobs:
     - name: TGZ name
       run: |
         VERSION=$(jq -r '.version' < package.json)
-        echo "TGZ=dev-containers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
-        echo "TGZ_UPLOAD=dev-containers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
+        echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
+        echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
     - name: Store TGZ
       uses: actions/upload-artifact@v2
       with:

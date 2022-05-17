@@ -1,5 +1,5 @@
 {
-	"name": "dev-containers-cli",
+	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
 	"version": "0.1.0",
 	"bin": {
