@@ -7,7 +7,7 @@
 import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -133,11 +133,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const labelDetails = async() => {return {definition: undefined, version: undefined}};
+	const labelDetails = async () => { return { definition: undefined, version: undefined } };
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, config.remoteUser ?? 'root', labelDetails);
 
 	let finalDockerfilePath = dockerfilePath;
-	const additionalBuildArgs : string[] = [];
+	const additionalBuildArgs: string[] = [];
 	if (extendImageBuildInfo) {
 		const { featureBuildInfo } = extendImageBuildInfo;
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo?.dockerfileContent}`;
@@ -153,7 +153,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const args : string[] = [];
+	const args: string[] = [];
 	if (buildParams.useBuildKit) {
 		args.push('buildx', 'build',
 			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -189,8 +189,13 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	args.push(...additionalBuildArgs);
 	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
 	try {
-		const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
-		await dockerPtyCLI(infoParams, ...args);
+		if (process.stdin.isTTY) {
+			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
+			await dockerPtyCLI(infoParams, ...args);
+		} else {
+			const infoParams = { ...toExecParameters(buildParams), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+			await dockerCLI(infoParams, ...args);
+		}
 	} catch (err) {
 		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
 	}
@@ -205,23 +210,23 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 }
 
 // not expected to be called externally (exposed for testing)
-export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string) : {lastStageName: string, modifiedDockerfile: string | undefined} {
+export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string, modifiedDockerfile: string | undefined } {
 
 	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
 	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
-	const lastFromLineMatch = fromLines[fromLines.length-1];
+	const lastFromLineMatch = fromLines[fromLines.length - 1];
 	const lastFromLine = lastFromLineMatch.groups?.line as string;
-	
+
 	// Test for "FROM [--platform=someplat] base [as label]"
 	// That is, match against optional platform and label
 	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
-	if (!fromMatch){
+	if (!fromMatch) {
 		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
 	}
-	if (fromMatch.groups?.label){
+	if (fromMatch.groups?.label) {
 		return {
 			lastStageName: fromMatch.groups.label,
-			modifiedDockerfile:undefined,
+			modifiedDockerfile: undefined,
 		};
 	}
 
@@ -229,13 +234,13 @@ export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLas
 	const lastLineStartIndex = (lastFromLineMatch.index as number) + (fromMatch.index as number);
 	const lastLineEndIndex = lastLineStartIndex + lastFromLine.length;
 	const matchedFromText = fromMatch[0];
-	let modifiedDockerfile = dockerfile.slice(0,lastLineStartIndex + matchedFromText.length);
+	let modifiedDockerfile = dockerfile.slice(0, lastLineStartIndex + matchedFromText.length);
 
 	modifiedDockerfile += ` AS ${defaultLastStageName}`;
 	const remainingFromLineLength = lastFromLine.length - matchedFromText.length;
 	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
 
-	return {lastStageName:defaultLastStageName, modifiedDockerfile: modifiedDockerfile};
+	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
 }
 
 export function findUserArg(runArgs: string[] = []) {

@@ -8,7 +8,7 @@ import { StringDecoder } from 'string_decoder';
 import * as tar from 'tar';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
-import { dockerPtyCLI, ImageDetails, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
+import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
@@ -71,8 +71,13 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		// Set /tmp as the context for now to ensure we don't have dependencies on the features content
 		'/tmp/', 
 	);
-	const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
-	await dockerPtyCLI(infoParams, ...args);
+	if (process.stdin.isTTY) {
+		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+		await dockerPtyCLI(infoParams, ...args);
+	} else {
+		const infoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+		await dockerCLI(infoParams, ...args);
+	}
 	return {updatedImageName, collapsedFeaturesConfig, imageDetails};
 }
 
@@ -84,7 +89,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	}
 	
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
-	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser, );
+	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
 	if (!featureBuildInfo) {
 		return null;
 	}
@@ -226,10 +231,16 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 			'build',
 			'-t', buildContentImageName,
 			'-f', buildContentDockerfilePath,
-			dstFolder,
 		];
-		const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
-		await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
+		buildContentArgs.push(dstFolder);
+
+		if (process.stdin.isTTY) {
+			const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+			await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
+		} else {
+			const buildContentInfoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+			await dockerCLI(buildContentInfoParams, ...buildContentArgs);
+		}
 	}
 	return {
 		dstFolder,
