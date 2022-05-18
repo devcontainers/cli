@@ -182,6 +182,10 @@ async function provision({
 		updateRemoteUserUIDDefault,
 		remoteEnv: keyValuesToRecord(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
+		enableBuildx: false,
+		buildxPlatform: undefined,
+		buildxPush: false,
+		buildxLoad: false
 	};
 
 	const result = await doProvision(options);
@@ -259,18 +263,18 @@ async function build(args: BuildArgs) {
 	process.exit(exitCode);
 }
 
-function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
-	if (!buildx && !platform && !push && !load) {
-		return true;
-	}
-	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
-		return false;
-	}
-	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
-		return false;
-	}
-	return true;
-}
+// function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
+// 	if (!buildx && !platform && !push && !load) {
+// 		return true;
+// 	}
+// 	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
+// 		return false;
+// 	}
+// 	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
+// 		return false;
+// 	}
+// 	return true;
+// }
 
 async function doBuild({
 	'user-data-folder': persistedFolder,
@@ -322,6 +326,10 @@ async function doBuild({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: {},
 			additionalCacheFroms: addCacheFroms,
+			enableBuildx,
+			buildxPlatform,
+			buildxPush,
+			buildxLoad,
 		}, disposables);
 		
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -338,12 +346,14 @@ async function doBuild({
 		const { config } = configs;
 		let imageNameResult = '';
 
+		debuglog('JCZ testing');
 		if (isDockerFileConfig(config)) {
-			if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
-				const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
-				console.error(msg);
-				throw new ContainerError({ description: msg });
-			}
+			// JCZ todo enable it
+			// if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
+			// 	const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
+			// 	console.error(msg);
+			// 	throw new ContainerError({ description: msg });
+			// }
 		
 	
 			// Build the base image and extend with features etc.
@@ -536,6 +546,10 @@ async function doRunUserCommands({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
+			enableBuildx: false,
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxLoad: false,
 		}, disposables);
 
 		const { common } = params;
@@ -779,6 +793,10 @@ async function doExec({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
+			enableBuildx: false,
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxLoad: false,
 		}, disposables);
 
 		const { common } = params;

@@ -13,6 +13,7 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
+import { debuglog } from 'util';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -171,6 +172,11 @@ async function buildImage(buildParams: DockerResolverParameters, config: DevCont
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
 	if (!cliHost.isFile(dockerfilePath)) {
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
+	}
+	// JCZ check for buildx and expand DockerResolverParameters
+	if (buildParams.enableBuildx === true) {
+		debuglog('JCZ enable buildx');
+		return;
 	}
 
 	const args = ['build', '-f', dockerfilePath, '-t', baseImageName];
