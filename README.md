@@ -20,21 +20,19 @@ This CLI is in active development. Current status:
 
 ## Try it out
 
-You can try out the CLI in just a few steps. This repository has a [dev container configuration](https://github.com/devcontainers/cli/tree/main/.devcontainer), which you can use to ensure you have the right dependencies installed.
+We'd love for you to try out the dev container CLI and let us know what you think. You can quickly try it out in just a few simple steps, either by installing its npm package or building the CLI repo from sources (see "[Build from sources](#build-from-sources)").
 
-Compile the CLI with yarn:
-```sh
-yarn
-yarn compile
+To install the npm package you will need Python and C/C++ installed to build one of the dependencies (see, e.g., [here](https://github.com/microsoft/vscode/wiki/How-to-Contribute) for instructions).
+
+### npm install
+
+```bash
+npm install -g @devcontainers/cli
 ```
 
 Verify you can run the CLI and see its help text:
-```sh
-node devcontainer.js --help
-```
 
-Outputs:
-```
+```bash
 devcontainer <command>
 
 Commands:
@@ -49,18 +47,23 @@ Options:
   --version  Show version number                                       [boolean]
 ```
 
-You can try out the dev container CLI with a sample project, like this [Rust sample](https://github.com/microsoft/vscode-remote-try-rust). Clone the Rust sample to the repo's parent folder and start a dev container:
-```sh
-git clone https://github.com/microsoft/vscode-remote-try-rust ../vscode-remote-try-rust
-node devcontainer.js up --workspace-folder ../vscode-remote-try-rust
+### Try out the CLI
+
+Once you have the CLI, you can try it out with a sample project, like this [Rust sample](https://github.com/microsoft/vscode-remote-try-rust).
+
+Clone the Rust sample to your machine, and start a dev container with the CLI's `up` command:
+
+```bash
+git clone https://github.com/microsoft/vscode-remote-try-rust
+devcontainer up --workspace-folder <path-to-vscode-remote-try-rust>
 ```
 
 This will download the container image from a container registry and start the container. Your Rust container should now be running:
 
-```
+```bash
 [88 ms] dev-containers-cli 0.1.0.
 [165 ms] Start: Run: docker build -f /home/node/vscode-remote-try-rust/.devcontainer/Dockerfile -t vsc-vscode-remote-try-rust-89420ad7399ba74f55921e49cc3ecfd2 --build-arg VARIANT=bullseye /home/node/vscode-remote-try-rust/.devcontainer
-[+] Building 0.5s (5/5) FINISHED                                                
+[+] Building 0.5s (5/5) FINISHED
  => [internal] load build definition from Dockerfile                       0.0s
  => => transferring dockerfile: 38B                                        0.0s
  => [internal] load .dockerignore                                          0.0s
@@ -76,21 +79,38 @@ Container started
 {"outcome":"success","containerId":"f0a055ff056c1c1bb99cc09930efbf3a0437c54d9b4644695aa23c1d57b4bd11","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/vscode-remote-try-rust"}
 ```
 
-You can then run some command in this dev container:
+You can then run commands in this dev container:
 
-```sh
-node devcontainer.js exec --workspace-folder ../vscode-remote-try-rust cargo run
+```bash
+devcontainer exec --workspace-folder <path-to-vscode-remote-try-rust> cargo run
 ```
 
-This will compile and run the Rust sample:
+This will compile and run the Rust sample, outputting:
 
-```
+```bash
 [33 ms] dev-containers-cli 0.1.0.
    Compiling hello_remote_world v0.1.0 (/workspaces/vscode-remote-try-rust)
     Finished dev [unoptimized + debuginfo] target(s) in 1.06s
      Running `target/debug/hello_remote_world`
 Hello, VS Code Remote - Containers!
 {"outcome":"success"}
+```
+
+Congrats, you've just run the dev container CLI and seen it in action!
+
+## Build from sources
+
+This repository has a [dev container configuration](https://github.com/devcontainers/cli/tree/main/.devcontainer), which you can use to ensure you have the right dependencies installed.
+
+Compile the CLI with yarn:
+```sh
+yarn
+yarn compile
+```
+
+Verify you can run the CLI and see its help text:
+```sh
+node devcontainer.js --help
 ```
 
 ## Specification
