@@ -8,21 +8,96 @@ import { StringDecoder } from 'string_decoder';
 import * as tar from 'tar';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
-import { dockerPtyCLI, ImageDetails, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
+import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
-import { CLIHost } from '../spec-common/cliHost';
 
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
+	const { common } = params;
+	const { cliHost, output } = common;
 	const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, pullImageOnError));
-	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => (await imageDetails()).Config.Labels || {}, getContainerFeaturesFolder);
+	const imageLabelDetails = async () => {
+		const labels = (await imageDetails()).Config.Labels  || {};
+		return {
+			definition : labels['com.visualstudio.code.devcontainers.id'],
+			version : labels['version'],
+		};
+	};
+
+	const imageUser = (await imageDetails()).Config.User || 'root';
+	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageUser, imageLabelDetails);
+	if (!extendImageDetails || !extendImageDetails.featureBuildInfo){
+		// no feature extensions - return
+		return  {
+			updatedImageName: imageName, 
+			collapsedFeaturesConfig: undefined, 
+			imageDetails
+		};
+	}
+	const { featureBuildInfo, collapsedFeaturesConfig } = extendImageDetails;
+
+	// Got feature extensions -> build the image
+	const dockerfilePath = cliHost.path.join(featureBuildInfo.dstFolder, 'Dockerfile.extended');
+	await cliHost.writeFile(dockerfilePath, Buffer.from(featureBuildInfo.dockerfilePrefixContent + featureBuildInfo.dockerfileContent));
+	const folderImageName = getFolderImageName(common);
+	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
+
+	const args: string[] = [];
+	if (params.useBuildKit) {
+		args.push(
+			'buildx', 'build',
+			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)	
+		);
+		for (const buildContext in featureBuildInfo.buildKitContexts) {
+			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
+		}
+	} else {
+		args.push(
+			'build',
+		);
+	}
+	for (const buildArg in featureBuildInfo.buildArgs) {
+		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
+	}
+	// Once this is step merged with the user Dockerfile (or working against the base image),
+	// the path will be the dev container context
+	// Set empty dir under temp path as the context for now to ensure we don't have dependencies on the features content
+	const emptyTempDir = cliHost.path.join(await cliHost.tmpdir(), '__dev-containers-build-empty');
+	cliHost.mkdirp(emptyTempDir);
+	args.push(
+		'-t', updatedImageName,
+		'-f', dockerfilePath,
+		emptyTempDir
+	);
+
+	if (process.stdin.isTTY) {
+		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+		await dockerPtyCLI(infoParams, ...args);
+	} else {
+		const infoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+		await dockerCLI(infoParams, ...args);
+	}
+	return {updatedImageName, collapsedFeaturesConfig, imageDetails};
+}
+
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{definition:string| undefined; version: string| undefined}>) {
+
+	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
+	if (!featuresConfig){
+		return  null;
+	}
+	
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
-	const updatedImageName = await addContainerFeatures(params, featuresConfig, imageName, imageDetails);
-	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
+	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
+	if (!featureBuildInfo) {
+		return null;
+	}
+	return { featureBuildInfo, collapsedFeaturesConfig };
+
 }
 
 // NOTE: only exported to enable testing. Not meant to be called outside file.
@@ -38,25 +113,18 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	return result;
 }
 
-async function addContainerFeatures(params: DockerResolverParameters, featuresConfig: FeaturesConfig | undefined, imageName: string, imageDetails: () => Promise<ImageDetails>) {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string) : Promise<{dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string,string>; buildKitContexts: Record<string, string>} | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
-	if (!featuresConfig) {
-		return imageName;
-	}
-	
 	const { dstFolder } = featuresConfig;
 	
 	if (!dstFolder || dstFolder === '') {
 		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
-		return imageName;
+		return null;
 	}
 
 	// Calculate name of the build folder where localcache has been copied to.
 	const localCacheBuildFolderName = getSourceInfoString({ type : 'local-cache'});
-	const imageUser = (await imageDetails()).Config.User || 'root';
-	const folderImageName = getFolderImageName(common);
-	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
 
 	const srcFolder = getContainerFeaturesFolder(common.extensionPath);
 	output.write(`local container features stored at: ${srcFolder}`);
@@ -105,15 +173,28 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 				};
 				return map;
 			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
+	
+	// With Buildkit, we can supply an additional build context to provide access to
+	// the container-features content.
+	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
+	// that is accessible from the docker build for non-BuiltKit builds
+	// TODO generate an image name that is specific to this dev container?
+	const buildContentImageName = 'dev_container_feature_content_temp'; 
 
+	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
+	// When copying via temp image, the content is in '/tmp/build-features'
+	const contentSourceRootPath = params.useBuildKit ? '.' : '/tmp/build-features/';
 	const dockerfile = getContainerFeaturesBaseDockerFile()
-		.replace('#{featureBuildStages}', getFeatureBuildStages(cliHost, featuresConfig, buildStageScripts))
+		.replace('#{nonBuildKitFeatureContentFallback}', params.useBuildKit ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
+		.replace('{contentSourceRootPath}', contentSourceRootPath)
+		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 	;
-
-	await cliHost.writeFile(cliHost.path.join(dstFolder, 'Dockerfile'), Buffer.from(dockerfile));
+	const dockerfilePrefixContent = `${params.useBuildKit ? '# syntax=docker/dockerfile:1.4' : ''}
+ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
+`;
 
 	// Build devcontainer-features.env file(s) for each features source folder
 	await Promise.all([...featuresConfig.featureSets].map(async (featureSet, i) => {
@@ -139,25 +220,49 @@ async function addContainerFeatures(params: DockerResolverParameters, featuresCo
 		]);
 	}));
 
-	const args = [
-		'build',
-		'-t', updatedImageName,
-		'--build-arg', `BASE_IMAGE=${imageName}`,
-		'--build-arg', `IMAGE_USER=${imageUser}`,
+	// For non-BuildKit, build the temporary image for the container-features content
+	if (!params.useBuildKit) {
+		const buildContentDockerfile = `
+	FROM scratch
+	COPY . /tmp/build-features/
+	`;
+		const buildContentDockerfilePath = cliHost.path.join(dstFolder, 'Dockerfile.buildContent');
+		await cliHost.writeFile(buildContentDockerfilePath, Buffer.from(buildContentDockerfile));
+		const buildContentArgs = [
+			'build',
+			'-t', buildContentImageName,
+			'-f', buildContentDockerfilePath,
+		];
+		buildContentArgs.push(dstFolder);
+
+		if (process.stdin.isTTY) {
+			const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
+			await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
+		} else {
+			const buildContentInfoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+			await dockerCLI(buildContentInfoParams, ...buildContentArgs);
+		}
+	}
+	return {
 		dstFolder,
-	];
-	const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
-	await dockerPtyCLI(infoParams, ...args);
-	return updatedImageName;
+		dockerfileContent: dockerfile,
+		dockerfilePrefixContent,
+		buildArgs: {
+			_DEV_CONTAINERS_BASE_IMAGE: baseName,
+			_DEV_CONTAINERS_IMAGE_USER: imageUser,
+			_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE: buildContentImageName,
+		},
+		buildKitContexts: params.useBuildKit ? {dev_containers_feature_content_source: dstFolder} : {},
+	};
 }
 
-function getFeatureBuildStages(cliHost: CLIHost, featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[]) {
+function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath : string) {
 	return ([] as string[]).concat(...featuresConfig.featureSets
 		.map((featureSet, i) => featureSet.features
 			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
 			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY ${cliHost.path.join('.', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY ${cliHost.path.join('.', getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
+COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
+COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
 RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
 			)
 		)
