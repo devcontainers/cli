@@ -29,9 +29,6 @@ describe('Dev Containers CLI', function () {
 		return containerId;
 	}
 	async function devContainerDown(containerId: string | null) {
-		if (containerId === null) {
-			throw new Error('containerId not set');
-		}
 		if (containerId !== null) {
 			await shellExec(`docker rm -f ${containerId}`);
 		}
