@@ -346,7 +346,6 @@ async function doBuild({
 		const { config } = configs;
 		let imageNameResult = '';
 
-		debuglog('JCZ testing');
 		if (isDockerFileConfig(config)) {
 			// JCZ todo enable it
 			// if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
@@ -357,7 +356,7 @@ async function doBuild({
 		
 	
 			// Build the base image and extend with features etc.
-			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
+			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 	
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);

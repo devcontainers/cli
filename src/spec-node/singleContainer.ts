@@ -13,7 +13,6 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { debuglog } from 'util';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -101,16 +100,16 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	};
 }
 
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
-	const baseImageName = await buildNamedImage(params, config);
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
+	const baseImageName = await buildNamedImage(params, config, argImageName);
 	return await extendImage(params, config, baseImageName, 'image' in config);
 }
 
-export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+export async function buildNamedImage(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	if (isDockerFileConfig(config)) {
 		params.common.progress(ResolverProgress.BuildingImage);
-		await buildImage(params, config, imageName, params.buildNoCache ?? false);
+		await buildImage(params, config, imageName, params.buildNoCache ?? false, argImageName);
 	}
 	return imageName;
 }
@@ -166,20 +165,32 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
-async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean, argImageName?: string) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
 	if (!cliHost.isFile(dockerfilePath)) {
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 	}
-	// JCZ check for buildx and expand DockerResolverParameters
-	if (buildParams.enableBuildx === true) {
-		debuglog('JCZ enable buildx');
-		return;
+
+	let args = ['build', '-f', dockerfilePath, '-t', baseImageName];
+	if (buildParams.enableBuildx) {
+		console.debug('jcz enable buildx');
+		if (buildParams.enableBuildx && argImageName) {
+			args = ['buildx', 'build'];
+			if (buildParams?.buildxPlatform) {
+				args.push('--platform', buildParams.buildxPlatform);
+			}
+			if (buildParams?.buildxPush) {
+				args.push('--push');
+			}
+			if (buildParams?.buildxLoad) {
+				args.push('--load');
+			}
+			args.push('-f', dockerfilePath, '-t', argImageName);
+		}
 	}
 
-	const args = ['build', '-f', dockerfilePath, '-t', baseImageName];
 	const target = config.build?.target;
 	if (target) {
 		args.push('--target', target);
