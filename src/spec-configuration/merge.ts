@@ -53,7 +53,7 @@ export async function ApplyMergeStrategyToDocuments(parentDocument: any, childDo
 
 function GetBehaviorTypeOrDefault(behavior: ExtendBehavior):ExtendBehavior
 {
-    if (behavior === null)
+    if (behavior === undefined)
     {
         return ExtendBehavior.REPLACE;
     }
