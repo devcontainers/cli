@@ -174,21 +174,18 @@ async function buildImage(buildParams: DockerResolverParameters, config: DevCont
 	}
 
 	let args = ['build', '-f', dockerfilePath, '-t', baseImageName];
-	if (buildParams.enableBuildx) {
-		console.debug('jcz enable buildx');
-		if (buildParams.enableBuildx && argImageName) {
-			args = ['buildx', 'build'];
-			if (buildParams?.buildxPlatform) {
-				args.push('--platform', buildParams.buildxPlatform);
-			}
-			if (buildParams?.buildxPush) {
-				args.push('--push');
-			}
-			if (buildParams?.buildxLoad) {
-				args.push('--load');
-			}
-			args.push('-f', dockerfilePath, '-t', argImageName);
+	if (buildParams.enableBuildx && argImageName) {
+		args = ['buildx', 'build'];
+		if (buildParams.buildxPlatform) {
+			args.push('--platform', buildParams.buildxPlatform);
 		}
+		if (buildParams.buildxPush) {
+			args.push('--push');
+		}
+		if (buildParams.buildxLoad) {
+			args.push('--load');
+		}
+		args.push('-f', dockerfilePath, '-t', argImageName);
 	}
 
 	const target = config.build?.target;

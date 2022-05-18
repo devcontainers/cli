@@ -24,7 +24,6 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
-import { debuglog } from 'util';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -263,18 +262,18 @@ async function build(args: BuildArgs) {
 	process.exit(exitCode);
 }
 
-// function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
-// 	if (!buildx && !platform && !push && !load) {
-// 		return true;
-// 	}
-// 	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
-// 		return false;
-// 	}
-// 	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
-// 		return false;
-// 	}
-// 	return true;
-// }
+function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
+	if (!buildx && !platform && !push && !load) {
+		return true;
+	}
+	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
+		return false;
+	}
+	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
+		return false;
+	}
+	return true;
+}
 
 async function doBuild({
 	'user-data-folder': persistedFolder,
@@ -347,27 +346,21 @@ async function doBuild({
 		let imageNameResult = '';
 
 		if (isDockerFileConfig(config)) {
-			// JCZ todo enable it
-			// if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
-			// 	const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
-			// 	console.error(msg);
-			// 	throw new ContainerError({ description: msg });
-			// }
-		
-	
+			if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
+				const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
+				throw new ContainerError({ description: msg });
+			}
+
 			// Build the base image and extend with features etc.
 			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 	
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				if (!enableBuildx) {
+					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				}
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
-			}
-			if (enableBuildx === true) {
-				debuglog("JCZ buildxPlatform: " + buildxPlatform);
-				debuglog("JCZ Load: " + buildxLoad);
-				debuglog("JCZ Push: " + buildxPush);
 			}
 		} else if ('dockerComposeFile' in config) {
 	
