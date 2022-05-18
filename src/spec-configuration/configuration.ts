@@ -262,17 +262,17 @@ export function buildExtendBehaviorTable(customBehaviors?: Partial<DevContainerE
 		userEnvProbe: ExtendBehavior.REPLACE,
 		features: ExtendBehavior.REPLACE,
 		hostRequirements: ExtendBehavior.REPLACE,
-		image: ExtendBehavior.MERGE,
-		appPort: ExtendBehavior.MERGE,
-		runArgs: ExtendBehavior.MERGE,
-		workspaceMount: ExtendBehavior.MERGE,
-		mounts: ExtendBehavior.MERGE,
-		containerEnv: ExtendBehavior.MERGE,
-		containerUser: ExtendBehavior.MERGE,
-		build: ExtendBehavior.MERGE,
-		dockerComposeFile: ExtendBehavior.MERGE,
-		service: ExtendBehavior.MERGE,
-		runServices: ExtendBehavior.MERGE
+		image: ExtendBehavior.REPLACE,
+		appPort: ExtendBehavior.REPLACE,
+		runArgs: ExtendBehavior.REPLACE,
+		workspaceMount: ExtendBehavior.REPLACE,
+		mounts: ExtendBehavior.REPLACE,
+		containerEnv: ExtendBehavior.REPLACE,
+		containerUser: ExtendBehavior.REPLACE,
+		build: ExtendBehavior.REPLACE,
+		dockerComposeFile: ExtendBehavior.REPLACE,
+		service: ExtendBehavior.REPLACE,
+		runServices: ExtendBehavior.REPLACE
 	};
 	
 	return {
