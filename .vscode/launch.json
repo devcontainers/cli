@@ -7,10 +7,10 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Debug devcontainer.js merge command",
+            "name": "Debug devcontainer merge command",
             "skipFiles": ["<node_internals>/**"],
             "program": "${workspaceFolder}/devcontainer.js",
-            "args": ["merge", "--parent-devcontainer", "parent.json.log", "--child-devcontainer", "child.json.log"],
+            "args": ["merge", "--parent-devcontainer", "parent.json.log", "--child-devcontainer", "child.json.log"], // Placeholder files
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "resolveSourceMapLocations": [
               "${workspaceFolder}/**",

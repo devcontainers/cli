@@ -1,0 +1,9 @@
+{
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"features": {
+		"docker-in-docker": "latest",
+		"codspace/myfeatures/helloworld": {
+			"greeting": "howdy"
+		}
+	}
+}

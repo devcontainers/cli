@@ -68,6 +68,7 @@ export interface DockerResolverParameters {
 	additionalMounts: Mount[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
+	useBuildKit: boolean;
 }
 
 export interface ResolverResult {

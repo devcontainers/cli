@@ -129,12 +129,7 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
-export function collapseFeaturesConfig(original: FeaturesConfig | undefined): CollapsedFeaturesConfig | undefined {
-
-	if (!original) {
-		return undefined;
-	}
-
+export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
 	const collapsed = {
 		allFeatures: original.featureSets
 			.map(fSet => fSet.features)
@@ -174,15 +169,15 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 // TODO: Move to node layer.
 export function getContainerFeaturesBaseDockerFile() {
 	return `
-ARG BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
-
 #{featureBuildStages}
 
-FROM $BASE_IMAGE
+#{nonBuildKitFeatureContentFallback}
+
+FROM $_DEV_CONTAINERS_BASE_IMAGE
 
 USER root
 
-COPY . /tmp/build-features/
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
 
 #{featureLayer}
 
@@ -190,8 +185,8 @@ COPY . /tmp/build-features/
 
 #{containerEnv}
 
-ARG IMAGE_USER=root
-USER $IMAGE_USER
+ARG _DEV_CONTAINERS_IMAGE_USER=root
+USER $_DEV_CONTAINERS_IMAGE_USER
 `;
 }
 
@@ -643,7 +638,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabels: () => Promise<Record<string, string | undefined>>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
 	const userDeclaredFeatures = config.features;
@@ -678,7 +673,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; ou
 	featuresConfig = await fetchAndMergeRemoteFeaturesAsync(params, featuresConfig, config) ?? featuresConfig;
 
 	// Run filtering and include user options into config.
-	featuresConfig = await doReadUserDeclaredFeatures(params, config, featuresConfig, imageLabels);
+	featuresConfig = await doReadUserDeclaredFeatures(params, config, featuresConfig, imageLabelDetails);
 	if (featuresConfig.featureSets.every(set =>
 		set.features.every(feature => feature.value === false))) {
 		return undefined;
@@ -690,12 +685,10 @@ export async function generateFeaturesConfig(params: { extensionPath: string; ou
 const getUniqueFeatureId = (id: string, srcInfo: SourceInformation) => `${id}-${getSourceInfoString(srcInfo)}`;
 
 // Given an existing featuresConfig, parse the user's features as they declared them in their devcontainer.
-export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabels: () => Promise<Record<string, string | undefined>>) {
+export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>) {
 
 	const { output } = params;
-	const labels = await imageLabels();
-	const definition = labels['com.visualstudio.code.devcontainers.id'];
-	const version = labels['version'];
+	const {definition, version} = await imageLabelDetails();
 
 	// Map user's declared features to its appropriate feature-set feature.
 	let configFeatures = config.features || {};
