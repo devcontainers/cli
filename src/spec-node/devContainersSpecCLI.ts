@@ -24,7 +24,7 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
-import { ApplyMergeStrategyToDocuments } from '../spec-configuration/merge';
+import { applyMergeStrategyToDocuments } from '../spec-configuration/merge';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -835,7 +835,7 @@ async function doMerge({
 		const childConfigFile = childDevContainer ? URI.file(path.resolve(cwd, childDevContainer)) : undefined;
 		const parentDocument = await readSimpleConfigFile(cliHost, parentConfigFile!);
 		const childDocument = await readSimpleConfigFile(cliHost, childConfigFile!);
-		const res = await ApplyMergeStrategyToDocuments(parentDocument!, childDocument!);
+		const res = await applyMergeStrategyToDocuments(parentDocument!, childDocument!);
 		console.log('RESULT:');
 		console.log(res);
 		const mergedConfigFile = URI.file(path.join(cwd, 'merged.json'));
