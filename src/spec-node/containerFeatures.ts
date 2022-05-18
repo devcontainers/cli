@@ -63,14 +63,17 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 	}
+	// Once this is step merged with the user Dockerfile (or working against the base image),
+	// the path will be the dev container context
+	// Set empty dir under temp path as the context for now to ensure we don't have dependencies on the features content
+	const emptyTempDir = cliHost.path.join(await cliHost.tmpdir(), '__dev-containers-build-empty');
+	cliHost.mkdirp(emptyTempDir);
 	args.push(
 		'-t', updatedImageName,
 		'-f', dockerfilePath,
-		// Once this is step merged with the user Dockerfile (or working against the base image),
-		// the path will be the dev container context
-		// Set /tmp as the context for now to ensure we don't have dependencies on the features content
-		'/tmp/', 
+		emptyTempDir
 	);
+
 	if (process.stdin.isTTY) {
 		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 		await dockerPtyCLI(infoParams, ...args);
