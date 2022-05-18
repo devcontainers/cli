@@ -147,7 +147,7 @@ export const enum ExtendBehavior {
 	REPLACE,
 	SKIP
 }
-type DevContainerConfigKey = keyof (DevContainerFromImageConfig & DevContainerFromDockerfileConfig & DevContainerFromDockerComposeConfig);
+type DevContainerConfigKey = keyof (DevContainerFromImageConfig & DevContainerFromDockerfileConfig & DevContainerFromDockerComposeConfig & DevContainerVSCodeConfig);
 export type DevContainerExtendConfig = { [key in DevContainerConfigKey]: ExtendBehavior };
 
 export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: { vscode?: DevContainerVSCodeConfig } }>(original: T): T {
@@ -272,7 +272,10 @@ export function buildExtendBehaviorTable(customBehaviors?: Partial<DevContainerE
 		build: ExtendBehavior.REPLACE,
 		dockerComposeFile: ExtendBehavior.REPLACE,
 		service: ExtendBehavior.REPLACE,
-		runServices: ExtendBehavior.REPLACE
+		runServices: ExtendBehavior.REPLACE,
+		devPort:ExtendBehavior.REPLACE,
+		settings: ExtendBehavior.REPLACE,
+		extensions: ExtendBehavior.MERGE,
 	};
 	
 	return {
