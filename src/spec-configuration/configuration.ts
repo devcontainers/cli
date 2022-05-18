@@ -147,7 +147,7 @@ export const enum ExtendBehavior {
 	REPLACE,
 	SKIP
 }
-type DevContainerConfigKey = keyof DevContainerConfig;
+type DevContainerConfigKey = keyof (DevContainerFromImageConfig & DevContainerFromDockerfileConfig & DevContainerFromDockerComposeConfig);
 export type DevContainerExtendConfig = { [key in DevContainerConfigKey]: ExtendBehavior };
 
 export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: { vscode?: DevContainerVSCodeConfig } }>(original: T): T {
@@ -261,7 +261,18 @@ export function buildExtendBehaviorTable(customBehaviors?: Partial<DevContainerE
 		updateRemoteUserUID: ExtendBehavior.REPLACE,
 		userEnvProbe: ExtendBehavior.REPLACE,
 		features: ExtendBehavior.REPLACE,
-		hostRequirements: ExtendBehavior.REPLACE
+		hostRequirements: ExtendBehavior.REPLACE,
+		image: ExtendBehavior.MERGE,
+		appPort: ExtendBehavior.MERGE,
+		runArgs: ExtendBehavior.MERGE,
+		workspaceMount: ExtendBehavior.MERGE,
+		mounts: ExtendBehavior.MERGE,
+		containerEnv: ExtendBehavior.MERGE,
+		containerUser: ExtendBehavior.MERGE,
+		build: ExtendBehavior.MERGE,
+		dockerComposeFile: ExtendBehavior.MERGE,
+		service: ExtendBehavior.MERGE,
+		runServices: ExtendBehavior.MERGE
 	};
 	
 	return {
