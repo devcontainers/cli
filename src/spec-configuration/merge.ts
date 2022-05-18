@@ -33,12 +33,15 @@ export async function ApplyMergeStrategyToDocuments(parentDocument: any, childDo
 
     for (let key of UnionListOfDocumentKeys)
     {
-        /*
-        console.log("Evaluating key:" + key);
-        console.log("Parent value:" + parentDocument[key]);
-        console.log("Child value:" + childDocument[key]);
-        console.log("Extend Behavior:" + ExtendBehaviorTable[key]);
-        */
+        
+        console.log('Evaluating key:' + key);
+        console.log('Parent value:');
+        console.log(parentDocument[key]);
+        console.log('Child value:');
+        console.log(childDocument[key]);
+        console.log('Extend Behavior:');
+        console.log(ExtendBehaviorTable[key]);
+        
 
         ResultingJSONDocument[key] = await ApplyMergeStrategyToObjects(key, 
                                                                        parentDocument[key], 
