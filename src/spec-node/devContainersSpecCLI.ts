@@ -262,19 +262,6 @@ async function build(args: BuildArgs) {
 	process.exit(exitCode);
 }
 
-function checkBuildxArgs(buildx?: boolean, platform?: string, push?: boolean, load?: boolean, imageName?: string) {
-	if (!buildx && !platform && !push && !load) {
-		return true;
-	}
-	if (!buildx && ((platform || platform?.length === 0) || push || load)) {
-		return false;
-	}
-	if (buildx && ((platform && platform?.length > 0) || push || load) && !imageName) {
-		return false;
-	}
-	return true;
-}
-
 async function doBuild({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
@@ -346,11 +333,6 @@ async function doBuild({
 		let imageNameResult = '';
 
 		if (isDockerFileConfig(config)) {
-			if (!checkBuildxArgs(enableBuildx, buildxPlatform, buildxPush, buildxLoad, argImageName)) {
-				const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
-				throw new ContainerError({ description: msg });
-			}
-
 			// Build the base image and extend with features etc.
 			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 	

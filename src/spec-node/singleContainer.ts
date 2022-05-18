@@ -165,6 +165,24 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
+function checkBuildxArgs(buildParams: DockerResolverParameters, imageName?: string) {
+	if (buildParams.enableBuildx &&
+		!buildParams.buildxPlatform &&
+		!buildParams.buildxPush &&
+		!buildParams.buildxLoad) {
+		return true;
+	}
+	if (!buildParams.enableBuildx &&
+		((buildParams.buildxPlatform || buildParams.buildxPlatform?.length === 0) || buildParams.buildxPush || buildParams.buildxLoad)) {
+		return false;
+	}
+	if (buildParams.enableBuildx &&
+		((buildParams.buildxPlatform && buildParams.buildxPlatform?.length > 0) || buildParams.buildxPush || buildParams.buildxLoad) && !imageName) {
+		return false;
+	}
+	return true;
+}
+
 async function buildImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean, argImageName?: string) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -175,6 +193,10 @@ async function buildImage(buildParams: DockerResolverParameters, config: DevCont
 
 	let args = ['build', '-f', dockerfilePath, '-t', baseImageName];
 	if (buildParams.enableBuildx && argImageName) {
+		if (!checkBuildxArgs(buildParams, argImageName)) {
+			const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
+			throw new ContainerError({ description: msg });
+		}
 		args = ['buildx', 'build'];
 		if (buildParams.buildxPlatform) {
 			args.push('--platform', buildParams.buildxPlatform);
