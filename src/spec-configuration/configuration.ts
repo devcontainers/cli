@@ -147,7 +147,7 @@ export const enum ExtendBehavior {
 	REPLACE,
 	SKIP
 }
-type DevContainerConfigKey = keyof (DevContainerFromImageConfig & DevContainerFromDockerfileConfig & DevContainerFromDockerComposeConfig & DevContainerVSCodeConfig);
+export type DevContainerConfigKey = keyof (DevContainerFromImageConfig & DevContainerFromDockerfileConfig & DevContainerFromDockerComposeConfig & DevContainerVSCodeConfig);
 export type DevContainerExtendConfig = { [key in DevContainerConfigKey]: ExtendBehavior };
 
 export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: { vscode?: DevContainerVSCodeConfig } }>(original: T): T {
@@ -241,8 +241,8 @@ export async function getDockerComposeFilePaths(cliHost: FileHost, config: DevCo
 
 export function buildExtendBehaviorTable(customBehaviors?: Partial<DevContainerExtendConfig>): DevContainerExtendConfig {
 	const defaultBehaviors: DevContainerExtendConfig = {
+		name: ExtendBehavior.SKIP,
 		configFilePath: ExtendBehavior.REPLACE,
-		name: ExtendBehavior.REPLACE,
 		forwardPorts: ExtendBehavior.REPLACE,
 		portsAttributes: ExtendBehavior.REPLACE,
 		otherPortsAttributes: ExtendBehavior.REPLACE,

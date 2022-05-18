@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { buildExtendBehaviorTable, ExtendBehavior } from './configuration';
+import { buildExtendBehaviorTable, DevContainerConfigKey, ExtendBehavior } from './configuration';
 
-export async function ApplyMergeStrategyToObjects(key: string, parentValue: object, childValue: object, strategy: ExtendBehavior): Promise<Object>
+export async function ApplyMergeStrategyToObjects(parentValue: object, childValue: object, strategy: ExtendBehavior): Promise<Object>
 {
     let outputValue;
     switch(strategy) {
@@ -20,32 +20,28 @@ export async function ApplyMergeStrategyToObjects(key: string, parentValue: obje
             break;
     }
 
-    let outputJSON = {[key]: outputValue};
-
-    return outputJSON;
+    return outputValue;
 }
 
 export async function ApplyMergeStrategyToDocuments(parentDocument: any, childDocument: any): Promise<Object> 
 {
-    let UnionListOfDocumentKeys = [... new Set([...Object.keys(parentDocument), ...Object.keys(childDocument)])];
-    let ResultingJSONDocument:any = {};
-    let ExtendBehaviorTable:any = buildExtendBehaviorTable();
+    const UnionListOfDocumentKeys = [ ...new Set([...Object.keys(parentDocument), ...Object.keys(childDocument)]) ] as DevContainerConfigKey[];
+    const ExtendBehaviorTable: any = buildExtendBehaviorTable();
+    let ResultingJSONDocument: any = {};
 
     for (let key of UnionListOfDocumentKeys)
     {
         
         console.log('Evaluating key:' + key);
-        console.log('Parent value:');
-        console.log(parentDocument[key]);
-        console.log('Child value:');
-        console.log(childDocument[key]);
-        console.log('Extend Behavior:');
-        console.log(GetBehaviorTypeOrDefault(ExtendBehaviorTable[key]));
+        console.log('Parent value:', parentDocument[key]);
+        console.log('Child value:', childDocument[key]);
+        console.log('Extend Behavior:', GetBehaviorTypeOrDefault(ExtendBehaviorTable[key]));
         
-        ResultingJSONDocument[key] = await ApplyMergeStrategyToObjects(key, 
-                                                                       parentDocument[key], 
-                                                                       childDocument[key], 
-                                                                       GetBehaviorTypeOrDefault(ExtendBehaviorTable[key]));
+        ResultingJSONDocument[key] = await ApplyMergeStrategyToObjects(
+            parentDocument[key], 
+            childDocument[key], 
+            GetBehaviorTypeOrDefault(ExtendBehaviorTable[key])
+        );
     }
 
     return ResultingJSONDocument;

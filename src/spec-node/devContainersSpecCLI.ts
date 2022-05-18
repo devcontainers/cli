@@ -19,7 +19,7 @@ import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shu
 import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
 import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
-import { readDevContainerConfigFile, readSimpleConfigFile } from './configContainer';
+import { readDevContainerConfigFile, readSimpleConfigFile, writeSimpleConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
@@ -838,6 +838,8 @@ async function doMerge({
 		const res = await ApplyMergeStrategyToDocuments(parentDocument!, childDocument!);
 		console.log('RESULT:');
 		console.log(res);
+		const mergedConfigFile = URI.file(path.join(cwd, 'merged.json'));
+		await writeSimpleConfigFile(cliHost, mergedConfigFile, res);
 		return {
 			outcome: 'success' as 'success',
 			dispose,

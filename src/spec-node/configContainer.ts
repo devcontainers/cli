@@ -111,3 +111,9 @@ export async function readSimpleConfigFile(cliHost: CLIHost, configFile: URI): P
 	const raw = jsonc.parse(content) as Partial<DevContainerConfig> | undefined;
 	return raw;
 }
+
+export async function writeSimpleConfigFile(cliHost: CLIHost, configFile: URI, configData: any): Promise<void> {
+	const documents = createDocuments(cliHost);
+	await documents.applyEdits(configFile, [], JSON.stringify(configData));
+	return;
+}
