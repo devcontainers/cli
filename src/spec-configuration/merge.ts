@@ -40,16 +40,26 @@ export async function ApplyMergeStrategyToDocuments(parentDocument: any, childDo
         console.log('Child value:');
         console.log(childDocument[key]);
         console.log('Extend Behavior:');
-        console.log(ExtendBehaviorTable[key]);
+        console.log(GetBehaviorTypeOrDefault(ExtendBehaviorTable[key]));
         
-
         ResultingJSONDocument[key] = await ApplyMergeStrategyToObjects(key, 
                                                                        parentDocument[key], 
                                                                        childDocument[key], 
-                                                                       ExtendBehaviorTable[key]);
+                                                                       GetBehaviorTypeOrDefault(ExtendBehaviorTable[key]));
     }
 
     return ResultingJSONDocument;
+}
+
+function GetBehaviorTypeOrDefault(behavior: ExtendBehavior):ExtendBehavior
+{
+    if (behavior === null)
+    {
+        return ExtendBehavior.REPLACE;
+    }
+    else {
+        return behavior;
+    }
 }
 
 async function CheckValidityAndReturnUnionArray(obj1: object, obj2: object): Promise<Object> 
