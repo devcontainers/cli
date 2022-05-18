@@ -40,7 +40,7 @@ export async function ApplyMergeStrategyToDocuments(parentDocument: any, childDo
         console.log("Extend Behavior:" + ExtendBehaviorTable[key]);
         */
 
-        ResultingJSONDocument[key] = ApplyMergeStrategyToObjects(key, 
+        ResultingJSONDocument[key] = await ApplyMergeStrategyToObjects(key, 
                                                                        parentDocument[key], 
                                                                        childDocument[key], 
                                                                        ExtendBehaviorTable[key]);
