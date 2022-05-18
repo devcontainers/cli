@@ -826,20 +826,18 @@ async function doMerge({
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
-
 	try {
 		console.log(`parent: ${parentDevContainer}`);
 		console.log(`child: ${childDevContainer}`);
 		const cwd = process.cwd();
 		const cliHost = await getCLIHost(cwd, loadNativeModule);
-		const parentConfigFile = parentDevContainer ? URI.file(path.resolve(process.cwd(), parentDevContainer)) : undefined;
-		const childConfigFile = childDevContainer ? URI.file(path.resolve(process.cwd(), childDevContainer)) : undefined;
+		const parentConfigFile = parentDevContainer ? URI.file(path.resolve(cwd, parentDevContainer)) : undefined;
+		const childConfigFile = childDevContainer ? URI.file(path.resolve(cwd, childDevContainer)) : undefined;
 		const parentDocument = readSimpleConfigFile(cliHost, parentConfigFile!);
 		const childDocument = readSimpleConfigFile(cliHost, childConfigFile!);
 		const res = await ApplyMergeStrategyToDocuments(parentDocument, childDocument);
 		console.log('RESULT:');
 		console.log(res);
-
 		return {
 			outcome: 'success' as 'success',
 			dispose,
