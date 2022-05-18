@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { buildExtendBehaviorTable, ExtendBehavior } from '../spec-configuration/configuration';
+import { buildExtendBehaviorTable, ExtendBehavior } from './configuration';
 
 export async function ApplyMergeStrategyToObjects(key: string, parentValue: object, childValue: object, strategy: ExtendBehavior): Promise<Object>
 {

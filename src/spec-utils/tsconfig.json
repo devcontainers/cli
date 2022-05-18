@@ -1,8 +1,3 @@
 {
-	"extends": "../../tsconfig.base.json",
-	"references": [
-		{
-			"path": "../spec-configuration"
-		}
-	]
+	"extends": "../../tsconfig.base.json"
 }
