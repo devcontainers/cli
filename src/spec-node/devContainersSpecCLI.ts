@@ -846,7 +846,7 @@ async function doMerge({
 		const res = await applyMergeStrategyToDocuments(parentDocument!, childDocument!);
 		console.log('RESULT:');
 		console.log(res);
-		const mergedConfigFile = URI.file(path.join(cwd, 'merged.json'));
+		const mergedConfigFile = URI.file(path.join(cwd, 'test.merged.jsonc'));
 		await writeSimpleConfigFile(cliHost, mergedConfigFile, res);
 		return {
 			outcome: 'success' as 'success',

@@ -10,7 +10,7 @@ export async function applyMergeStrategyToObjects(parentValue: Object, childValu
     let outputValue;
     switch(strategy) {
         case ExtendBehavior.REPLACE:
-            outputValue = childValue;
+            outputValue = childValue ? childValue : parentValue;
             break;
         case ExtendBehavior.SKIP:
             outputValue = parentValue;
