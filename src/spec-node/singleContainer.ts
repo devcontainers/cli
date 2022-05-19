@@ -198,7 +198,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(infoParams, ...args);
 		} else {
-			const infoParams = { ...toExecParameters(buildParams), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+			const infoParams = { ...toExecParameters(buildParams), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
 			await dockerCLI(infoParams, ...args);
 		}
 	} catch (err) {

@@ -18,27 +18,29 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const result = parseFeatureIdentifier('octocat/myfeatures/helloworld', output);
         assert.exists(result);
         assert.strictEqual(result?.id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
-                                                      owner: 'octocat', 
-                                                      repo: 'myfeatures', 
-                                                      apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest', 
-                                                      unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download/devcontainer-features.tgz',
-                                                      isLatest: true 
-                                                    });
+        assert.deepEqual(result?.sourceInformation, {
+            type: 'github-repo',
+            owner: 'octocat',
+            repo: 'myfeatures',
+            apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest',
+            unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download/devcontainer-features.tgz',
+            isLatest: true
+        });
     });
 
     it('should parse gitHub with version', async function () {
         const result = parseFeatureIdentifier('octocat/myfeatures/helloworld@v0.0.4', output);
         assert.exists(result);
         assert.strictEqual(result?.id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
-                                                      owner: 'octocat', 
-                                                      repo: 'myfeatures', 
-                                                      tag: 'v0.0.4', 
-                                                      apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4', 
-                                                      unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4/devcontainer-features.tgz',
-                                                      isLatest: false 
-                                                    });
+        assert.deepEqual(result?.sourceInformation, {
+            type: 'github-repo',
+            owner: 'octocat',
+            repo: 'myfeatures',
+            tag: 'v0.0.4',
+            apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4',
+            unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4/devcontainer-features.tgz',
+            isLatest: false
+        });
     });
 
     it('should parse generic tar', async function () {
@@ -126,7 +128,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for local-cache', async function () {
         const srcInfo: SourceInformation = {
-            type : 'local-cache'
+            type: 'local-cache'
         };
         const output = getSourceInfoString(srcInfo);
         assert.strictEqual(output, 'local-cache');
@@ -134,7 +136,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for github-repo without a tag (implicit latest)', async function () {
         const srcInfo: SourceInformation = {
-            type : 'github-repo',
+            type: 'github-repo',
             owner: 'bob',
             repo: 'mobileapp',
             isLatest: true,
@@ -147,7 +149,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for github-repo with a tag', async function () {
         const srcInfo: SourceInformation = {
-            type : 'github-repo',
+            type: 'github-repo',
             owner: 'bob',
             repo: 'mobileapp',
             tag: 'v0.0.4',

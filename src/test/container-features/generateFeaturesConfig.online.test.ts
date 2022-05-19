@@ -32,7 +32,7 @@ describe('validate online functionality of generateFeaturesConfig() ', function 
         return record;
     };
 
-    it('should correct return a featuresConfig fetched from a remote tgz', async function() {
+    it('should correct return a featuresConfig fetched from a remote tgz', async function () {
         const version = 'unittest2';
         const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
@@ -98,13 +98,13 @@ describe('validate online functionality of generateFeaturesConfig() ', function 
         const localSet = featuresConfig?.featureSets.find(x => x.sourceInformation.type === 'local-cache');
         assert.exists(localSet);
         const myfeaturesSet = featuresConfig?.featureSets
-            .find(x => 
+            .find(x =>
                 x.sourceInformation.type === 'github-repo' &&
                 x.sourceInformation.repo === 'myfeatures');
         assert.exists(myfeaturesSet);
         const myotherFeaturesSet = featuresConfig?.featureSets
-            .find(x => 
-                x.sourceInformation.type === 'github-repo' && 
+            .find(x =>
+                x.sourceInformation.type === 'github-repo' &&
                 x.sourceInformation.repo === 'myotherfeatures');
         assert.exists(myotherFeaturesSet);
     });

@@ -96,7 +96,7 @@ export async function inspectContainers(params: DockerCLIParameters | PartialExe
 		result.Ports = [];
 		const rawPorts = result.NetworkSettings.Ports;
 		for (const privatePortAndType in rawPorts) {
-			const [ PrivatePort, Type ] = privatePortAndType.split('/');
+			const [PrivatePort, Type] = privatePortAndType.split('/');
 			for (const targetPort of rawPorts[privatePortAndType] || []) {
 				const { HostIp: IP, HostPort: PublicPort } = targetPort;
 				result.Ports.push({
@@ -231,12 +231,12 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 }
 
 export async function dockerHasBuildKit(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters) {
-	try{
+	try {
 		await dockerCLI(params, 'buildx', 'version');
 		return true;
-	} catch{
+	} catch {
 		return false;
-	}	
+	}
 }
 
 export async function dockerCLI(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, ...args: string[]) {
@@ -251,12 +251,11 @@ export async function dockerContext(params: DockerCLIParameters) {
 	try {
 		// 'docker context show' is only available as an addon from the 'compose-cli'. 'docker context inspect' connects to the daemon making it slow. Using 'docker context ls' instead.
 		const { stdout } = await dockerCLI(params, 'context', 'ls', '--format', '{{json .}}');
-		const json = `[${
-			stdout.toString()
+		const json = `[${stdout.toString()
 				.trim()
 				.split(/\r?\n/)
 				.join(',')
-		}]`;
+			}]`;
 		const contexts = JSON.parse(json) as { Current: boolean; Name: string }[];
 		const current = contexts.find(c => c.Current)?.Name;
 		return current;
@@ -421,5 +420,5 @@ export function toDockerImageName(name: string) {
 	return name
 		.toLowerCase()
 		.replace(/[^a-z0-9\._-]+/g, '')
-		.replace(/(\.[\._-]|_[\.-]|__[\._-]|-+[\._])[\._-]*/g, (_, a) => a.substr(0, a.length -1));
+		.replace(/(\.[\._-]|_[\.-]|__[\._-]|-+[\._])[\._-]*/g, (_, a) => a.substr(0, a.length - 1));
 }

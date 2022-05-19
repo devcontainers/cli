@@ -58,11 +58,11 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		if (!container || container.State.Status !== 'running') {
 			const res = await startContainer(params, buildParams, config, projectName, composeFiles, envFile, container, idLabels);
 			container = await inspectContainer(params, res.containerId);
-		// 	collapsedFeaturesConfig = res.collapsedFeaturesConfig;
-		// } else {
-		// 	const labels = container.Config.Labels || {};
-		// 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => labels, getContainerFeaturesFolder);
-		// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
+			// 	collapsedFeaturesConfig = res.collapsedFeaturesConfig;
+			// } else {
+			// 	const labels = container.Config.Labels || {};
+			// 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => labels, getContainerFeaturesFolder);
+			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, config.remoteUser);
@@ -180,27 +180,27 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	output.write(`PersistedPath=${persistedFolder}, ContainerHasLabels=${!!labels}`);
 
 	if (persistedFolder && labels) {
-			const configFiles = labels['com.docker.compose.project.config_files'];
-			output.write(`Container was created with these config files: ${configFiles}`);
+		const configFiles = labels['com.docker.compose.project.config_files'];
+		output.write(`Container was created with these config files: ${configFiles}`);
 
-			// Parse out the full name of the 'containerFeatures' configFile
-			const files = configFiles?.split(',') ?? [];
-			const containerFeaturesConfigFile = files.find((f) => f.indexOf(overrideFilePrefix) > -1);
-			if (containerFeaturesConfigFile) {
-				const composeFileExists = await buildCLIHost.isFile(containerFeaturesConfigFile);
-	
-				if (composeFileExists) {
-					output.write(`Restoring ${containerFeaturesConfigFile} from persisted storage`);
-					didRestoreFromPersistedShare = true;
-	
-					// Push path to compose arguments
-					composeGlobalArgs.push('-f', containerFeaturesConfigFile);
-				} else {
-					output.write(`Expected ${containerFeaturesConfigFile} to exist, but it did not`, LogLevel.Error);
-				}
+		// Parse out the full name of the 'containerFeatures' configFile
+		const files = configFiles?.split(',') ?? [];
+		const containerFeaturesConfigFile = files.find((f) => f.indexOf(overrideFilePrefix) > -1);
+		if (containerFeaturesConfigFile) {
+			const composeFileExists = await buildCLIHost.isFile(containerFeaturesConfigFile);
+
+			if (composeFileExists) {
+				output.write(`Restoring ${containerFeaturesConfigFile} from persisted storage`);
+				didRestoreFromPersistedShare = true;
+
+				// Push path to compose arguments
+				composeGlobalArgs.push('-f', containerFeaturesConfigFile);
 			} else {
-				output.write(`Expected to find a docker-compose file prefixed with ${overrideFilePrefix}, but did not.`, LogLevel.Error);
+				output.write(`Expected ${containerFeaturesConfigFile} to exist, but it did not`, LogLevel.Error);
 			}
+		} else {
+			output.write(`Expected to find a docker-compose file prefixed with ${overrideFilePrefix}, but did not.`, LogLevel.Error);
+		}
 	}
 
 	// If features/override docker-compose file hasn't been created yet or a cached version could not be found, generate the file now.
@@ -215,7 +215,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 		if (overrideFileHasContents) {
 			output.write(`Docker Compose override file:\n${composeOverrideContent}`, LogLevel.Trace);
-			
+
 			// Save override docker-compose file to disk.
 			// Persisted folder is a path that will be maintained between sessions
 			// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
@@ -260,11 +260,11 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 }
 
 async function generateFeaturesComposeOverrideContent(
-	updatedImageName: string, 
-	originalImageName: string, 
-	collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined, 
-	config: DevContainerFromDockerComposeConfig, 
-	buildParams: DockerCLIParameters, 
+	updatedImageName: string,
+	originalImageName: string,
+	collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined,
+	config: DevContainerFromDockerComposeConfig,
+	buildParams: DockerCLIParameters,
 	composeFiles: string[],
 	imageDetails: () => Promise<ImageDetails>,
 	service: any,
@@ -274,7 +274,7 @@ async function generateFeaturesComposeOverrideContent(
 
 	const { cliHost: buildCLIHost } = buildParams;
 	let composeOverrideContent: string = '';
-	
+
 	const overrideImage = updatedImageName !== originalImageName;
 
 	const featureCaps = [...new Set(([] as string[]).concat(...(collapsedFeaturesConfig?.allFeatures || [])
@@ -328,7 +328,7 @@ volumes:${volumeMounts.map(m => `
 		composeOverrideContent = `${version}
 
 ${composeOverrideContent}`;
-		}
+	}
 	return composeOverrideContent;
 }
 

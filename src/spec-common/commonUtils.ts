@@ -261,12 +261,12 @@ export async function plainPtyExec(defaultCwd: string | undefined, loadNativeMod
 		throw new Error('Missing node-pty');
 	}
 
-	return async function(params: PtyExecParameters): Promise<PtyExec> {
+	return async function (params: PtyExecParameters): Promise<PtyExec> {
 		const { cmd, args, output } = params;
-	
+
 		const text = `Run: ${cmd} ${(args || []).join(' ').replace(/\n.*/g, '')}`;
 		const start = output.start(text);
-	
+
 		const useConpty = false; // TODO: Investigate using a shell with ConPTY. https://github.com/Microsoft/vscode-remote/issues/1234#issuecomment-485501275
 		const cwd = params.cwd || defaultCwd;
 		const env = params.env ? { ...process.env, ...params.env } : process.env;
@@ -281,7 +281,7 @@ export async function plainPtyExec(defaultCwd: string | undefined, loadNativeMod
 		const subs = [
 			output.onDidChangeDimensions && output.onDidChangeDimensions(e => p.resize(e.columns, e.rows))
 		];
-	
+
 		return {
 			onData: p.onData.bind(p),
 			write: p.write.bind(p),

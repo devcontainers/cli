@@ -13,7 +13,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 describe('validate (offline) generateFeaturesConfig()', function () {
 
     // Setup
-    const env = { 'SOME_KEY': 'SOME_VAL'};
+    const env = { 'SOME_KEY': 'SOME_VAL' };
     const params = { extensionPath: '', output, env, persistedFolder: '' };
 
     // Mocha executes with the root of the project as the cwd.
@@ -75,12 +75,12 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         // -- Test containerFeatures.ts helper functions
 
         // generateContainerEnvs
-// TODO
-//         const actualEnvs = generateContainerEnvs(featuresConfig);
-//         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
-// ENV MYKEYTHREE=MYRESULTHREE`;
-//         assert.strictEqual(actualEnvs, expectedEnvs);
-    
+        // TODO
+        //         const actualEnvs = generateContainerEnvs(featuresConfig);
+        //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
+        // ENV MYKEYTHREE=MYRESULTHREE`;
+        //         assert.strictEqual(actualEnvs, expectedEnvs);
+
         // getFeatureLayers
         const actualLayers = await getFeatureLayers(featuresConfig);
         const expectedLayers = `RUN cd /tmp/build-features/local-cache \\

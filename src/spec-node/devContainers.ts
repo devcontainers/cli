@@ -80,7 +80,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const sessionStart = new Date();
 	const pkg = await getPackageConfig(extensionPath);
 	const output = createLog(options, pkg, sessionStart, disposables);
-	
+
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
@@ -100,7 +100,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		cwd,
 		isLocalContainer: false,
-		progress: () => {},
+		progress: () => { },
 		output,
 		allowSystemConfigChange: true,
 		defaultUserEnvProbe: options.defaultUserEnvProbe,
@@ -167,7 +167,7 @@ export function createLog(options: LogOptions, pkg: PackageConfiguration, sessio
 function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) : createTerminalLog(write, () => logLevel, sessionStart);
 	const log = {
-		...makeLog(createCombinedLog([ handler ], header)),
+		...makeLog(createCombinedLog([handler], header)),
 		join: async () => {
 			// TODO: wait for write() to finish.
 		},

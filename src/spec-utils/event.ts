@@ -13,7 +13,7 @@ export class NodeEventEmitter<T> {
 
 	private nodeEmitter = new EventEmitter();
 
-	constructor(private register?: { on: () => void; off: () => void }) {}
+	constructor(private register?: { on: () => void; off: () => void }) { }
 	event: Event<T> = (listener: (e: T) => void): Disposable => {
 		this.nodeEmitter.on('event', listener);
 		if (this.register && this.nodeEmitter.listenerCount('event') === 1) {
