@@ -17,5 +17,9 @@
     "files.associations": {
         "devcontainer-features.json": "jsonc"
     },
-    "typescript.tsdk": "node_modules/typescript/lib"
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "git.branchProtection": [
+        "main",
+        "release/*"
+    ]
 }
