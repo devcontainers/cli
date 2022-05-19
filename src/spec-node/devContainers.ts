@@ -46,6 +46,10 @@ export interface ProvisionOptions {
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
 	useBuildKit: 'auto' | 'never';
+	enableBuildx: boolean;
+	buildxPlatform: string | undefined;
+	buildxPush: boolean;
+	buildxLoad: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -112,6 +116,10 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await cliHost.tmpdir(), // Fallback to tmpDir(), even though that isn't 'persistent'
 		remoteEnv,
+		enableBuildx: options.enableBuildx,
+		buildxPlatform: options.buildxPlatform,
+		buildxPush: options.buildxPush,
+		buildxLoad: options.buildxLoad,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
@@ -146,6 +154,10 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		useBuildKit,
+		enableBuildx: common.enableBuildx,
+		buildxPlatform: common.buildxPlatform,
+		buildxPush: common.buildxPush,
+		buildxLoad: common.buildxLoad,
 	};
 }
 

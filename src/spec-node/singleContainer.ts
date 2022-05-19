@@ -101,16 +101,35 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	};
 }
 
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
 	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
+		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false, argImageName);
 	}
 	// image-based dev container - extend
 	return await extendImage(params, config, imageName, 'image' in config);
 }
-async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+
+function checkBuildxArgs(buildParams: DockerResolverParameters, imageName?: string) {
+	if (buildParams.enableBuildx &&
+		!buildParams.buildxPlatform &&
+		!buildParams.buildxPush &&
+		!buildParams.buildxLoad) {
+		return true;
+	}
+	if (!buildParams.enableBuildx &&
+		((buildParams.buildxPlatform || buildParams.buildxPlatform?.length === 0) || buildParams.buildxPush || buildParams.buildxLoad)) {
+		return false;
+	}
+	if (buildParams.enableBuildx &&
+		((buildParams.buildxPlatform && buildParams.buildxPlatform?.length > 0) || buildParams.buildxPush || buildParams.buildxLoad) && !imageName) {
+		return false;
+	}
+	return true;
+}
+
+async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean, argImageName?: string) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
@@ -159,15 +178,34 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
-	if (buildParams.useBuildKit) {
+	if (buildParams.useBuildKit && !buildParams.enableBuildx) {
 		args.push('buildx', 'build',
 			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
 		);
+	} else if (buildParams.enableBuildx && argImageName) {
+		if (!checkBuildxArgs(buildParams, argImageName)) {
+			const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
+			throw new ContainerError({ description: msg });
+		}
+		args.push('buildx', 'build');
+		if (buildParams.buildxPlatform) {
+			args.push('--platform', buildParams.buildxPlatform);
+		}
+		if (buildParams.buildxPush) {
+			args.push('--push');
+		}
+		if (buildParams.buildxLoad) {
+			args.push('--load');
+		}
+		args.push('-f', dockerfilePath, '-t', argImageName);
 	} else {
 		args.push('build');
 	}
-	args.push('-f', finalDockerfilePath, '-t', baseImageName);
+	if (!buildParams.enableBuildx) {
+		args.push('-f', finalDockerfilePath, '-t', baseImageName);
+	}
+
 	const target = config.build?.target;
 	if (target) {
 		args.push('--target', target);

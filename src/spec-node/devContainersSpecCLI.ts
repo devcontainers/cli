@@ -184,6 +184,10 @@ async function provision({
 		remoteEnv: keyValuesToRecord(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
+		enableBuildx: false,
+		buildxPlatform: undefined,
+		buildxPush: false,
+		buildxLoad: false
 	};
 
 	const result = await doProvision(options);
@@ -241,6 +245,10 @@ function buildOptions(y: Argv) {
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
+		'buildx': { type: 'boolean', default: false, description: 'Enable to use buildx arguments.' },
+		'platform': { type: 'string', description: 'Set target platforms.' },
+		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'load': { type: 'boolean', default: false, description: 'Load builded image to images.' },
 	});
 }
 
@@ -269,6 +277,10 @@ async function doBuild({
 	'image-name': argImageName,
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
+	'buildx': enableBuildx,
+	'platform': buildxPlatform,
+	'push': buildxPush,
+	'load': buildxLoad
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -305,7 +317,11 @@ async function doBuild({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: {},
 			additionalCacheFroms: addCacheFroms,
-			useBuildKit: buildkit
+			useBuildKit: buildkit,
+			enableBuildx,
+			buildxPlatform,
+			buildxPush,
+			buildxLoad,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -325,10 +341,12 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
+			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				if (!enableBuildx) {
+					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);	
+				}
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
@@ -509,7 +527,11 @@ async function doRunUserCommands({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: 'auto'
+			useBuildKit: 'auto',
+			enableBuildx: false,
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxLoad: false,
 		}, disposables);
 
 		const { common } = params;
@@ -753,7 +775,11 @@ async function doExec({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: 'auto'
+			useBuildKit: 'auto',
+			enableBuildx: false,
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxLoad: false,
 		}, disposables);
 
 		const { common } = params;
