@@ -383,16 +383,16 @@ function getRequestHeaders(sourceInformation: SourceInformation, env: NodeJS.Pro
 		return uri.startsWith('https://github.com') || uri.startsWith('https://api.github.com');
 	};
 
-   if (sourceInformation.type === 'github-repo' || (sourceInformation.type === 'direct-tarball' && isGitHubUri(sourceInformation))) {
-	   const githubToken = env['GITHUB_TOKEN'];
-	   if (githubToken) {
-		   output.write('Using environment GITHUB_TOKEN.');
-		   headers.Authorization = `Bearer ${githubToken}`;
-	   } else { 
-		   output.write('No environment GITHUB_TOKEN available.');
-	   }
-   }
-   return headers;
+	if (sourceInformation.type === 'github-repo' || (sourceInformation.type === 'direct-tarball' && isGitHubUri(sourceInformation))) {
+		const githubToken = env['GITHUB_TOKEN'];
+		if (githubToken) {
+			output.write('Using environment GITHUB_TOKEN.');
+			headers.Authorization = `Bearer ${githubToken}`;
+		} else {
+			output.write('No environment GITHUB_TOKEN available.');
+		}
+	}
+	return headers;
 }
 
 async function fetchAndMergeRemoteFeaturesAsync(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, config: DevContainerConfig) {
@@ -638,7 +638,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
 	const userDeclaredFeatures = config.features;
@@ -685,10 +685,10 @@ export async function generateFeaturesConfig(params: { extensionPath: string; ou
 const getUniqueFeatureId = (id: string, srcInfo: SourceInformation) => `${id}-${getSourceInfoString(srcInfo)}`;
 
 // Given an existing featuresConfig, parse the user's features as they declared them in their devcontainer.
-export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabelDetails: () => Promise<{definition?: string; version?:string}>) {
+export async function doReadUserDeclaredFeatures(params: { output: Log }, config: DevContainerConfig, featuresConfig: FeaturesConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>) {
 
 	const { output } = params;
-	const {definition, version} = await imageLabelDetails();
+	const { definition, version } = await imageLabelDetails();
 
 	// Map user's declared features to its appropriate feature-set feature.
 	let configFeatures = config.features || {};

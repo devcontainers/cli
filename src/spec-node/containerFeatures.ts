@@ -21,20 +21,20 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	const { cliHost, output } = common;
 	const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, pullImageOnError));
 	const imageLabelDetails = async () => {
-		const labels = (await imageDetails()).Config.Labels  || {};
+		const labels = (await imageDetails()).Config.Labels || {};
 		return {
-			definition : labels['com.visualstudio.code.devcontainers.id'],
-			version : labels['version'],
+			definition: labels['com.visualstudio.code.devcontainers.id'],
+			version: labels['version'],
 		};
 	};
 
 	const imageUser = (await imageDetails()).Config.User || 'root';
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageUser, imageLabelDetails);
-	if (!extendImageDetails || !extendImageDetails.featureBuildInfo){
+	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
 		// no feature extensions - return
-		return  {
-			updatedImageName: imageName, 
-			collapsedFeaturesConfig: undefined, 
+		return {
+			updatedImageName: imageName,
+			collapsedFeaturesConfig: undefined,
 			imageDetails
 		};
 	}
@@ -50,7 +50,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	if (params.useBuildKit) {
 		args.push(
 			'buildx', 'build',
-			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)	
+			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
 		);
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
@@ -78,19 +78,19 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 		await dockerPtyCLI(infoParams, ...args);
 	} else {
-		const infoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+		const infoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
 		await dockerCLI(infoParams, ...args);
 	}
-	return {updatedImageName, collapsedFeaturesConfig, imageDetails};
+	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{definition:string| undefined; version: string| undefined}>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
 
 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
-	if (!featuresConfig){
-		return  null;
+	if (!featuresConfig) {
+		return null;
 	}
-	
+
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
 	if (!featureBuildInfo) {
@@ -113,18 +113,18 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	return result;
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string) : Promise<{dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string,string>; buildKitContexts: Record<string, string>} | null> {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
-	
+
 	if (!dstFolder || dstFolder === '') {
 		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
 		return null;
 	}
 
 	// Calculate name of the build folder where localcache has been copied to.
-	const localCacheBuildFolderName = getSourceInfoString({ type : 'local-cache'});
+	const localCacheBuildFolderName = getSourceInfoString({ type: 'local-cache' });
 
 	const srcFolder = getContainerFeaturesFolder(common.extensionPath);
 	output.write(`local container features stored at: ${srcFolder}`);
@@ -173,13 +173,13 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 				};
 				return map;
 			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
-	
+
 	// With Buildkit, we can supply an additional build context to provide access to
 	// the container-features content.
 	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
 	// that is accessible from the docker build for non-BuiltKit builds
 	// TODO generate an image name that is specific to this dev container?
-	const buildContentImageName = 'dev_container_feature_content_temp'; 
+	const buildContentImageName = 'dev_container_feature_content_temp';
 
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
@@ -191,7 +191,7 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
-	;
+		;
 	const dockerfilePrefixContent = `${params.useBuildKit ? '# syntax=docker/dockerfile:1.4' : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
 `;
@@ -207,8 +207,8 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 		await Promise.all([
 			cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 			...featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => {
+				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
+				.map(f => {
 					const featuresEnv = [
 						...getFeatureEnvVariables(f),
 						`_BUILD_ARG_${getFeatureSafeId(f)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
@@ -239,7 +239,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 			const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
 		} else {
-			const buildContentInfoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous'as 'continuous' };
+			const buildContentInfoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
 			await dockerCLI(buildContentInfoParams, ...buildContentArgs);
 		}
 	}
@@ -252,11 +252,11 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 			_DEV_CONTAINERS_IMAGE_USER: imageUser,
 			_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE: buildContentImageName,
 		},
-		buildKitContexts: params.useBuildKit ? {dev_containers_feature_content_source: dstFolder} : {},
+		buildKitContexts: params.useBuildKit ? { dev_containers_feature_content_source: dstFolder } : {},
 	};
 }
 
-function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath : string) {
+function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath: string) {
 	return ([] as string[]).concat(...featuresConfig.featureSets
 		.map((featureSet, i) => featureSet.features
 			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)

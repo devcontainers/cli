@@ -25,7 +25,7 @@ export async function findProcesses(shellServer: ShellServer) {
 	const processes: Process[] = sections
 		.map(line => line.split('\n'))
 		.filter(parts => parts.length >= n)
-		.map(([ pid, cwd, mntNS, stat, env, cmd ]) => {
+		.map(([pid, cwd, mntNS, stat, env, cmd]) => {
 			const statM: (string | undefined)[] = /.*\) [^ ]* ([^ ]*) ([^ ]*)/.exec(stat) || [];
 			return {
 				pid,

@@ -132,7 +132,7 @@ function read(stream: NodeJS.ReadableStream, numberOfResults: number[], log: (st
 	});
 	const decoder = new StringDecoder('utf8');
 	const strings: string[] = [];
-	
+
 	let j = 0;
 	let results: string[] = [];
 	function data(chunk: Buffer) {
