@@ -230,12 +230,16 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 	return p;
 }
 
-export async function dockerHasBuildKit(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters) {
+export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<string | null> {
 	try {
-		await dockerCLI(params, 'buildx', 'version');
-		return true;
+		const result = await dockerCLI(params, 'buildx', 'version');
+		const versionMatch = result.stdout.toString().match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
+		if (!versionMatch) {
+			return null;
+		}
+		return versionMatch[0];
 	} catch {
-		return false;
+		return null;
 	}
 }
 
@@ -252,9 +256,9 @@ export async function dockerContext(params: DockerCLIParameters) {
 		// 'docker context show' is only available as an addon from the 'compose-cli'. 'docker context inspect' connects to the daemon making it slow. Using 'docker context ls' instead.
 		const { stdout } = await dockerCLI(params, 'context', 'ls', '--format', '{{json .}}');
 		const json = `[${stdout.toString()
-				.trim()
-				.split(/\r?\n/)
-				.join(',')
+			.trim()
+			.split(/\r?\n/)
+			.join(',')
 			}]`;
 		const contexts = JSON.parse(json) as { Current: boolean; Name: string }[];
 		const current = contexts.find(c => c.Current)?.Name;
