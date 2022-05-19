@@ -16,7 +16,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
-import { dockerHasBuildKit } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -121,7 +121,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
-	const useBuildKit = options.useBuildKit === 'never' ? false : (await dockerHasBuildKit({
+	const buildKitVersion = options.useBuildKit === 'never' ? null : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
 		dockerComposeCLI,
@@ -145,7 +145,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		userRepositoryConfigurationPaths: [],
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
-		useBuildKit,
+		buildKitVersion,
 	};
 }
 
