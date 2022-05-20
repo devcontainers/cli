@@ -63,9 +63,9 @@ function featuresTestOptions(y: Argv) {
 	return y
 		.options({
 			'base-image': { type: 'string', alias: 'i', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
-			'features': { type: 'string', alias: 'f', describe: 'Array of features Ids', },
+			'features': { type: 'string', alias: 'f', describe: 'Feature(s) to test. Can be supplied many times in desired sequence.', },
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
-			'directory': { type: 'string', alias: 'd', default: '.', description: 'Path to collection directory' },
+			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
 			'quiet': { type: 'boolean', alias: 'q', default: false, describe: 'Quiet output' },
 		});
 }
@@ -74,7 +74,7 @@ export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>
 export interface FeaturesTestCommandInput {
 	cliHost: CLIHost;
 	baseImage: string;
-	directory: string;
+	collectionFolder: string;
 	features?: string[];
 	remoteUser: string;
 	quiet: boolean;
@@ -86,7 +86,7 @@ function featuresTestHandler(args: FeaturesTestArgs) {
 
 async function featuresTest({
 	'base-image': baseImage,
-	directory,
+	'collection-folder': collectionFolder,
 	features,
 	'remote-user': remoteUser,
 	quiet
@@ -98,7 +98,7 @@ async function featuresTest({
 	const params: FeaturesTestCommandInput = {
 		cliHost,
 		baseImage,
-		directory: cliHost.path.resolve(directory),
+		collectionFolder: cliHost.path.resolve(collectionFolder),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
 		remoteUser,
 		quiet
