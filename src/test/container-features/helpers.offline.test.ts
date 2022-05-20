@@ -1,7 +1,21 @@
 import { assert } from 'chai';
 import { getSourceInfoString, parseFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+describe('getIdSafe should return safe environment variable name', function () {
+
+    it('should replace all "-" with "_"', function () {
+        const ex = 'option-name';
+        assert.strictEqual(getSafeId(ex), 'OPTION_NAME');
+    });
+
+    it('should replace all leading numbers', function () {
+        const ex = '12_option-name';
+        assert.strictEqual(getSafeId(ex), '___OPTION_NAME');
+    });
+});
 
 describe('validate function parseRemoteFeatureToDownloadUri', function () {
 
