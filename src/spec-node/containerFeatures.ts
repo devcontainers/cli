@@ -21,8 +21,8 @@ import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName,
 //	- alpha-numeric values, or
 //  - the '_' character, and
 // 	- a number cannot be the first character 
-export const getSafeId = (str) => str
-	.replace(/[^\\w_]/g, '_')
+export const getSafeId = (str: string) => str
+	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase(); 
 
@@ -222,7 +222,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 				.map(f => {
 					const featuresEnv = [
 						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getFeatureSafeId(f)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
+						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
 					]
 						.join('\n');
 					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
@@ -297,11 +297,10 @@ RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.s
 function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
 	const idSafe = getSafeId(f.id);
-	const nameSafe = getSafeId(name);
 	const variables = [];
 	if (values) {
 		variables.push(...Object.keys(values)
-			.map(name => `_BUILD_ARG_${idSafe}_${nameSafe}="${values[name]}"`));
+			.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
 		variables.push(`_BUILD_ARG_${idSafe}=true`);
 	}
 	if (f.buildArg) {
