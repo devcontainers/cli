@@ -63,7 +63,7 @@ function featuresTestOptions(y: Argv) {
 	return y
 		.options({
 			'base-image': { type: 'string', alias: 'i', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
-			'features': { type: 'string', alias: 'f', describe: 'Feature ID(s) to test in sequence (comma separated)', },
+			'features': { type: 'string', alias: 'f', describe: 'Array of features Ids', },
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
 			'directory': { type: 'string', alias: 'd', default: '.', description: 'Path to collection directory' },
 			'quiet': { type: 'boolean', alias: 'q', default: false, describe: 'Quiet output' },
@@ -75,7 +75,7 @@ export interface FeaturesTestCommandInput {
 	cliHost: CLIHost;
 	baseImage: string;
 	directory: string;
-	features?: string;
+	features?: string[];
 	remoteUser: string;
 	quiet: boolean;
 }
@@ -99,7 +99,7 @@ async function featuresTest({
 		cliHost,
 		baseImage,
 		directory: cliHost.path.resolve(directory),
-		features,
+		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
 		remoteUser,
 		quiet
 	};

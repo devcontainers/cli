@@ -33,7 +33,8 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTestCommandInput) {
-    const { baseImage, directory, features: inputFeatures, remoteUser, quiet } = params;
+    const { baseImage, directory, remoteUser, quiet } = params;
+    let { features } = params;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -45,7 +46,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
     const testsDir = `${directory}/test`;
 
     if (! await cliHost.isFolder(srcDir) || ! await cliHost.isFolder(testsDir)) {
-        fail(`Directory '${directory}' does not the required 'src' and 'test' folders.`);
+        fail(`Directory '${directory}' does not contain the required 'src' and 'test' folders.`);
     }
 
 
@@ -53,20 +54,11 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
     log(`Target Directory:  ${directory}`);
 
     // Parse comma separated list of features
-    // If '--features' isn't specified, run all features with a 'test' subfolder in random order.
-    let features: string[] = [];
-    if (!inputFeatures) {
+    // If a set of '--features' isn't specified, run all features with a 'test' subfolder in random order.
+    if (!features) {
         features = await cliHost.readDir(testsDir);
         if (features.length === 0) {
             fail(`No features specified and no test folders found in '${testsDir}'`);
-        }
-    } else {
-        features = inputFeatures
-            .split(',')
-            .map((x) => x.trim());
-
-        if (features.length === 0) {
-            fail('Comma separated list of features could not be parsed');
         }
     }
 
