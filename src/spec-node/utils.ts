@@ -69,6 +69,7 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	buildKitVersion: string | null;
+	isTTY: boolean;
 }
 
 export interface ResolverResult {

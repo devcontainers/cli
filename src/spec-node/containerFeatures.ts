@@ -75,7 +75,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		emptyTempDir
 	);
 
-	if (process.stdin.isTTY) {
+	if (params.isTTY) {
 		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 		await dockerPtyCLI(infoParams, ...args);
 	} else {
@@ -239,7 +239,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 		];
 		buildContentArgs.push(dstFolder);
 
-		if (process.stdin.isTTY) {
+		if (params.isTTY) {
 			const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
 		} else {

@@ -194,7 +194,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	args.push(...additionalBuildArgs);
 	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
 	try {
-		if (process.stdin.isTTY) {
+		if (buildParams.isTTY) {
 			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(infoParams, ...args);
 		} else {
