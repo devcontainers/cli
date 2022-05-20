@@ -18,9 +18,9 @@ import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName,
 // Escapes environment variable keys.
 //
 // Environment variables must contain:
-//	- alpha-numeric values, or
-//  - the '_' character, and
-// 	- a number cannot be the first character 
+//      - alpha-numeric values, or
+//      - the '_' character, and
+//      - a number cannot be the first character 
 export const getSafeId = (str: string) => str
 	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
