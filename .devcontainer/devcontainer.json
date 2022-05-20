@@ -11,15 +11,20 @@
 		}
 	},
 
-	"extensions": [
-		"dbaeumer.vscode-eslint"
-	],
-
 	"postCreateCommand": "yarn install",
 
 	"remoteUser": "node",
 	
 	"features": {
 		"docker-in-docker": "latest"
+	},
+	
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"GitHub.vscode-pull-request-github"
+			]
+		}
 	}
 }

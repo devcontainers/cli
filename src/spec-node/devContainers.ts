@@ -146,6 +146,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
+		isTTY: process.stdin.isTTY || options.logFormat === 'json',
 	};
 }
 
