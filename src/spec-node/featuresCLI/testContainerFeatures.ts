@@ -33,25 +33,25 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTestCommandInput) {
-    const { baseImage, directory, remoteUser, quiet } = params;
+    const { baseImage, collectionFolder, remoteUser, quiet } = params;
     let { features } = params;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│     Testing Tool v0.0.0     │
+│         Testing Tool        │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
-    const srcDir = `${directory}/src`;
-    const testsDir = `${directory}/test`;
+    const srcDir = `${collectionFolder}/src`;
+    const testsDir = `${collectionFolder}/test`;
 
     if (! await cliHost.isFolder(srcDir) || ! await cliHost.isFolder(testsDir)) {
-        fail(`Directory '${directory}' does not contain the required 'src' and 'test' folders.`);
+        fail(`Folder '${collectionFolder}' does not contain the required 'src' and 'test' folders.`);
     }
 
 
     log(`baseImage:         ${baseImage}`);
-    log(`Target Directory:  ${directory}`);
+    log(`Target Folder:     ${collectionFolder}`);
 
     // Parse comma separated list of features
     // If a set of '--features' isn't specified, run all features with a 'test' subfolder in random order.
@@ -69,7 +69,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
     const workspaceFolder = await generateProject(
         cliHost,
         baseImage,
-        directory,
+        collectionFolder,
         features,
         remoteUser
     );
@@ -88,7 +88,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
     const testResults = [];
     for (const feature of features) {
         log(`>>> Executing '${feature}' test. <<<\n\n`, { prefix: ' ', info: true });
-        const testScriptPath = path.join(directory, 'test', feature, 'test.sh');
+        const testScriptPath = path.join(collectionFolder, 'test', feature, 'test.sh');
         if (!(await cliHost.isFile(testScriptPath))) {
             fail(`Feature ${feature} does not have a test script!`);
         }
