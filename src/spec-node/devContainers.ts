@@ -55,9 +55,10 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const start = output.start(text);
 	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
 	output.stop(text, start);
-	const { dockerContainerId } = result;
+	const { dockerContainerId, composeProjectName } = result;
 	return {
 		containerId: dockerContainerId!,
+		composeProjectName,
 		remoteUser: result.properties.user,
 		remoteWorkspaceFolder: result.properties.remoteWorkspaceFolder,
 		finishBackgroundTasks: async () => {
