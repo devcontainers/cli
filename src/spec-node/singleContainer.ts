@@ -119,6 +119,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 	}
 
+	let imageName = argImageName ?? baseImageName;
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
 	let baseName = 'dev_container_auto_added_stage_label';
 	if (config.build?.target) {
@@ -127,7 +128,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	} else {
 		// Use the last stage in the Dockerfile
 		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseImageName);
+		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, imageName);
 		baseName = lastStageName;
 		if (modifiedDockerfile) {
 			dockerfile = modifiedDockerfile;
@@ -161,23 +162,18 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	const args: string[] = [];
 	if (buildParams.buildKitVersion) {
+		args.push('buildx', 'build');
 		if (buildParams.buildxPlatform && buildParams.buildxPush && argImageName) {
-			args.push('buildx', 'build');
 			args.push('--platform', buildParams.buildxPlatform);
 			args.push('--push');
-			args.push('-f', finalDockerfilePath, '-t', argImageName);
 		} else {
-			args.push('buildx', 'build',
-				'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
-				'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
-			);
+			args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
 		}
+		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
 	}
-	if (!argImageName) {
-		args.push('-f', finalDockerfilePath, '-t', baseImageName);
-	}
+	args.push('-f', finalDockerfilePath, '-t', imageName);
 
 	const target = config.build?.target;
 	if (target) {
@@ -219,7 +215,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const imageDetails = () => inspectDockerImage(buildParams, baseImageName, false);
 
 	return {
-		updatedImageName: baseImageName,
+		updatedImageName: imageName,
 		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
 		imageDetails
 	};
