@@ -81,6 +81,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			tunnelInformation: common.isLocalContainer ? getTunnelInformation(container) : {},
 			dockerParams: params,
 			dockerContainerId: container.Id,
+			composeProjectName: projectName,
 		};
 
 	} catch (originalError) {
