@@ -150,7 +150,6 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		userRepositoryConfigurationPaths: [],
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
-		useBuildKit,
 		buildKitVersion,
 		isTTY: process.stdin.isTTY || options.logFormat === 'json',
 		buildxPlatform: common.buildxPlatform,
