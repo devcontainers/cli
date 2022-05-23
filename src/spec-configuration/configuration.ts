@@ -93,26 +93,26 @@ export type DevContainerFromDockerfileConfig = {
 	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
 	hostRequirements?: HostRequirements;
 } & (
-	{
-		dockerFile: string;
-		context?: string;
-		build?: {
-			target?: string;
-			args?: Record<string, string>;
-			cacheFrom?: string | string[];
-		};
-	}
-	|
-	{
-		build: {
-			dockerfile: string;
+		{
+			dockerFile: string;
 			context?: string;
-			target?: string;
-			args?: Record<string, string>;
-			cacheFrom?: string | string[];
-		};
-	}
-);
+			build?: {
+				target?: string;
+				args?: Record<string, string>;
+				cacheFrom?: string | string[];
+			};
+		}
+		|
+		{
+			build: {
+				dockerfile: string;
+				context?: string;
+				target?: string;
+				args?: Record<string, string>;
+				cacheFrom?: string | string[];
+			};
+		}
+	);
 
 export interface DevContainerFromDockerComposeConfig {
 	configFilePath: URI;

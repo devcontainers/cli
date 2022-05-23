@@ -1,15 +1,17 @@
 {
-	"name": "dev-containers-cli",
+	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.1.0",
-	"bin": "cli.js",
+	"version": "0.3.0",
+	"bin": {
+		"devcontainer": "devcontainer.js"
+	},
 	"author": "Microsoft Corporation",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/microsoft/vscode-remote-containers.git"
+		"url": "https://github.com/devcontainers/cli.git"
 	},
 	"bugs": {
-		"url": "https://github.com/microsoft/vscode-remote-release/issues"
+		"url": "https://github.com/devcontainers/cli/issues"
 	},
 	"license": "SEE LICENSE IN LICENSE.txt",
 	"engines": {
@@ -74,7 +76,7 @@
 		"shell-quote": "^1.7.3",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.11",
-		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.234.0/vscode-dev-containers-0.234.0.tgz",
+		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.236.0/vscode-dev-containers-0.236.0.tgz",
 		"vscode-uri": "^3.0.3",
 		"yargs": "~17.0.1"
 	}

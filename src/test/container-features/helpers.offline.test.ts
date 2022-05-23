@@ -203,7 +203,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for local-cache', async function () {
         const srcInfo: SourceInformation = {
-            type : 'local-cache'
+            type: 'local-cache'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'local-cache');
@@ -211,7 +211,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for github-repo without a tag (implicit latest)', async function () {
         const srcInfo: SourceInformation = {
-            type : 'github-repo',
+            type: 'github-repo',
             owner: 'bob',
             repo: 'mobileapp',
             isLatest: true,
@@ -224,7 +224,7 @@ describe('validate function getSourceInfoString', function () {
 
     it('should work for github-repo with a tag', async function () {
         const srcInfo: SourceInformation = {
-            type : 'github-repo',
+            type: 'github-repo',
             owner: 'bob',
             repo: 'mobileapp',
             tag: 'v0.0.4',

@@ -33,7 +33,7 @@ export { getPackageConfig } from '../spec-utils/product';
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
 
 export async function uriToWSLFsPath(uri: URI, cliHost: CLIHost): Promise<string> {
-	if (uri.scheme === 'file' && cliHost.type === 'wsl'){
+	if (uri.scheme === 'file' && cliHost.type === 'wsl') {
 		// convert local path (e.g. repository-container Dockerfile) to WSL path
 		const { stdout } = await runCommandNoPty({
 			exec: cliHost.exec,
@@ -68,6 +68,8 @@ export interface DockerResolverParameters {
 	additionalMounts: Mount[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
+	buildKitVersion: string | null;
+	isTTY: boolean;
 }
 
 export interface ResolverResult {
@@ -79,6 +81,7 @@ export interface ResolverResult {
 	isTrusted?: boolean;
 	dockerParams: DockerResolverParameters | undefined;
 	dockerContainerId: string | undefined;
+	composeProjectName?: string;
 }
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
@@ -227,7 +230,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	const containerInfo = await inspectContainer(params, containerId);
 	common.output.stop(inspecting, start);
 	const containerUser = remoteUser || containerInfo.Config.User || 'root';
-	const [, user, , group ] = /([^:]*)(:(.*))?/.exec(containerUser) as (string | undefined)[];
+	const [, user, , group] = /([^:]*)(:(.*))?/.exec(containerUser) as (string | undefined)[];
 	const containerEnv = envListToObj(containerInfo.Config.Env);
 	const remoteExec = dockerExecFunction(params, containerId, containerUser);
 	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule);
@@ -267,7 +270,7 @@ export async function runUserCommand(params: DockerResolverParameters, command: 
 	const isWindows = cliHost.platform === 'win32';
 	const shell = isWindows ? [cliHost.env.ComSpec || 'cmd.exe', '/c'] : ['/bin/sh', '-c'];
 	const updatedCommand = isWindows && Array.isArray(command) && command.length ?
-		[ (command[0] || '').replace(/\//g, '\\'), ...command.slice(1) ] :
+		[(command[0] || '').replace(/\//g, '\\'), ...command.slice(1)] :
 		command;
 	const args = typeof updatedCommand === 'string' ? [...shell, updatedCommand] : updatedCommand;
 	if (!args.length) {
@@ -299,7 +302,7 @@ export async function runUserCommand(params: DockerResolverParameters, command: 
 }
 
 export function getFolderImageName(params: ResolverParameters | DockerCLIParameters) {
-	const {cwd} = 'cwd' in params ? params : params.cliHost;
+	const { cwd } = 'cwd' in params ? params : params.cliHost;
 	const folderHash = getFolderHash(cwd);
 	const baseName = path.basename(cwd);
 	return toDockerImageName(`vsc-${baseName}-${folderHash}`);
@@ -311,7 +314,7 @@ export function getFolderHash(fsPath: string): string {
 
 export async function createFeaturesTempFolder(params: { cliHost: CLIHost; package: PackageConfiguration }): Promise<string> {
 	const { cliHost } = params;
-	const { version } = params.package;	
+	const { version } = params.package;
 	// Create temp folder
 	const tmpFolder: string = cliHost.path.join(await cliHost.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
 	await cliHost.mkdirp(tmpFolder);

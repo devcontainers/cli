@@ -1,0 +1,46 @@
+name: Publish @devcontainers/cli
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '14.x'
+        registry-url: 'https://registry.npmjs.org'
+        scope: '@devcontainers'
+    - name: Verify Versions
+      run: |
+        node -e "
+          const packageRef = 'refs/tags/v' + require('./package.json').version;
+          const githubRef = '${{ github.ref }}';
+          if (packageRef !== githubRef && packageRef + '-pre-release' != githubRef) {
+            console.log('::error::' + 'Version Mismatch.', packageRef, githubRef);
+            throw Error('Version Mismatch');
+          }
+        "
+    - name: TGZ name
+      run: |
+        VERSION=$(jq -r '.version' < package.json)
+        echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
+        echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
+    - name: Download TGZ
+      uses: dawidd6/action-download-artifact@6f8f427fb41886a66b82ea11a5a15d1454c79415
+      with:
+        workflow: dev-containers.yml
+        workflow_conclusion: success
+        commit: ${{ github.sha }}
+        name: ${{ env.TGZ_UPLOAD }}
+        path: .
+    - name: Publish TGZ
+      run: npm publish ${TGZ} --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

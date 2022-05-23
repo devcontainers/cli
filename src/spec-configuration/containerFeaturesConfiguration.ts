@@ -142,12 +142,7 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
-export function collapseFeaturesConfig(original: FeaturesConfig | undefined): CollapsedFeaturesConfig | undefined {
-
-	if (!original) {
-		return undefined;
-	}
-
+export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
 	const collapsed = {
 		allFeatures: original.featureSets
 			.map(fSet => fSet.features)
@@ -194,15 +189,15 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 // TODO: Move to node layer.
 export function getContainerFeaturesBaseDockerFile() {
 	return `
-ARG BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
-
 #{featureBuildStages}
 
-FROM $BASE_IMAGE
+#{nonBuildKitFeatureContentFallback}
+
+FROM $_DEV_CONTAINERS_BASE_IMAGE
 
 USER root
 
-COPY . /tmp/build-features/
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
 
 #{featureLayer}
 
@@ -210,8 +205,8 @@ COPY . /tmp/build-features/
 
 #{containerEnv}
 
-ARG IMAGE_USER=root
-USER $IMAGE_USER
+ARG _DEV_CONTAINERS_IMAGE_USER=root
+USER $_DEV_CONTAINERS_IMAGE_USER
 `;
 }
 
@@ -287,16 +282,16 @@ function getRequestHeaders(sourceInformation: SourceInformation, env: NodeJS.Pro
 		return uri.startsWith('https://github.com') || uri.startsWith('https://api.github.com');
 	};
 
-   if (sourceInformation.type === 'github-repo' || (sourceInformation.type === 'direct-tarball' && isGitHubUri(sourceInformation))) {
-	   const githubToken = env['GITHUB_TOKEN'];
-	   if (githubToken) {
-		   output.write('Using environment GITHUB_TOKEN.');
-		   headers.Authorization = `Bearer ${githubToken}`;
-	   } else { 
-		   output.write('No environment GITHUB_TOKEN available.');
-	   }
-   }
-   return headers;
+	if (sourceInformation.type === 'github-repo' || (sourceInformation.type === 'direct-tarball' && isGitHubUri(sourceInformation))) {
+		const githubToken = env['GITHUB_TOKEN'];
+		if (githubToken) {
+			output.write('Using environment GITHUB_TOKEN.');
+			headers.Authorization = `Bearer ${githubToken}`;
+		} else {
+			output.write('No environment GITHUB_TOKEN available.');
+		}
+	}
+	return headers;
 }
 
 async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformation, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, output: Log) {
@@ -373,15 +368,10 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string ;output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabels: () => Promise<Record<string, string | undefined>>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string, output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
 	if (!config.features)
-	{
-		return undefined;
-	}
-
-	if (!imageLabels)
 	{
 		return undefined;
 	}
