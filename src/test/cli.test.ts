@@ -196,6 +196,28 @@ describe('Dev Containers CLI', function () {
 					assert.match(res.stderr, /||test-content||/);
 				});
 			});
+
+			describe(`with valid (docker-compose) config containing features [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/compose-with-features`;
+				beforeEach(async () => containerId = await devContainerUp(testFolder, options));
+				afterEach(async () => await devContainerDown(containerId));
+				it('should have access to installed features (docker)', async () => {
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+					const response = JSON.parse(res.stdout);
+					console.log(res.stderr);
+					assert.equal(response.outcome, 'success');
+					assert.match(res.stderr, /Docker version/);
+				});
+				it('should have access to installed features (hello)', async () => {
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
+					const response = JSON.parse(res.stdout);
+					console.log(res.stderr);
+					assert.equal(response.outcome, 'success');
+					assert.match(res.stderr, /howdy, node/);
+				});
+			});
+
 		});
 
 		describe('with valid (Dockerfile) config containing #syntax (BuildKit)', () => { // ensure existing '# syntax' lines are handled
