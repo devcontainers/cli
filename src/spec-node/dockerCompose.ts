@@ -6,16 +6,16 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, createFeaturesTempFolder, inspectDockerImage } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
-import { equalPaths, parseVersion, isEarlierVersion } from '../spec-common/commonUtils';
+import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-common/commonUtils';
 import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
-import { LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
+import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { extendImage, updateRemoteUserUID } from './containerFeatures';
-import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
+import { Mount, CollapsedFeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder, collapseFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 
 const projectLabel = 'com.docker.compose.project';
@@ -145,7 +145,6 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	const { cliHost: buildCLIHost } = buildParams;
 	const overrideFilePrefix = 'docker-compose.devcontainer.containerFeatures';
 
-	const build = !container;
 	common.progress(ResolverProgress.StartingContainer);
 
 	const localComposeFiles = composeFiles;
@@ -166,71 +165,71 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	const canceled = new Promise<void>((_, reject) => cancel = reject);
 	const { started } = await startEventSeen(params, { [projectLabel]: projectName, [serviceLabel]: config.service }, canceled, common.output, common.getLogLevel() === LogLevel.Trace); // await getEvents, but only assign started.
 
-	if (build) {
-		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, undefined, params.additionalCacheFroms);
-	}
-
 	const service = composeConfig.services[config.service];
 	const originalImageName = service.image || `${projectName}_${config.service}`;
 
 	// Try to restore the 'third' docker-compose file and featuresConfig from persisted storage.
 	// This file may have been generated upon a Codespace creation.
-	let didRestoreFromPersistedShare = false;
 	const labels = container?.Config?.Labels;
 	output.write(`PersistedPath=${persistedFolder}, ContainerHasLabels=${!!labels}`);
 
-	if (persistedFolder && labels) {
-		const configFiles = labels['com.docker.compose.project.config_files'];
-		output.write(`Container was created with these config files: ${configFiles}`);
+	if (container) {
+		let didRestoreFromPersistedShare = false;
+		if (labels) {
+			// update args for `docker-compose up` to use cached overrides
+			const configFiles = labels['com.docker.compose.project.config_files'];
+			output.write(`Container was created with these config files: ${configFiles}`);
 
-		// Parse out the full name of the 'containerFeatures' configFile
-		const files = configFiles?.split(',') ?? [];
-		const containerFeaturesConfigFile = files.find((f) => f.indexOf(overrideFilePrefix) > -1);
-		if (containerFeaturesConfigFile) {
-			const composeFileExists = await buildCLIHost.isFile(containerFeaturesConfigFile);
+			// Parse out the full name of the 'containerFeatures' configFile
+			const files = configFiles?.split(',') ?? [];
+			const containerFeaturesConfigFile = files.find((f) => f.indexOf(overrideFilePrefix) > -1);
+			if (containerFeaturesConfigFile) {
+				const composeFileExists = await buildCLIHost.isFile(containerFeaturesConfigFile);
 
-			if (composeFileExists) {
-				output.write(`Restoring ${containerFeaturesConfigFile} from persisted storage`);
-				didRestoreFromPersistedShare = true;
+				if (composeFileExists) {
+					output.write(`Restoring ${containerFeaturesConfigFile} from persisted storage`);
+					didRestoreFromPersistedShare = true;
 
-				// Push path to compose arguments
-				composeGlobalArgs.push('-f', containerFeaturesConfigFile);
+					// Push path to compose arguments
+					composeGlobalArgs.push('-f', containerFeaturesConfigFile);
+				} else {
+					output.write(`Expected ${containerFeaturesConfigFile} to exist, but it did not`, LogLevel.Error);
+				}
 			} else {
-				output.write(`Expected ${containerFeaturesConfigFile} to exist, but it did not`, LogLevel.Error);
+				output.write(`Expected to find a docker-compose file prefixed with ${overrideFilePrefix}, but did not.`, LogLevel.Error);
 			}
-		} else {
-			output.write(`Expected to find a docker-compose file prefixed with ${overrideFilePrefix}, but did not.`, LogLevel.Error);
 		}
-	}
-
-	// If features/override docker-compose file hasn't been created yet or a cached version could not be found, generate the file now.
-	if (!didRestoreFromPersistedShare) {
-		output.write('Generating composeOverrideFile...');
-
+		if (!didRestoreFromPersistedShare) {
+			const imageName = container.Config.Image;
+			let cache: Promise<ImageDetails> | undefined;
+			const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, false));
+			const labelDetails = async () => { return { definition: undefined, version: undefined }; };
+			const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, labelDetails, getContainerFeaturesFolder);
+			if (featuresConfig) {
+				const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
+				// Save override docker-compose file to disk.
+				// Persisted folder is a path that will be maintained between sessions
+				// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
+				const overrideFilePath = await writeFeaturesComposeOverrideFile(container.Config.Image, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, overrideFilePrefix, buildCLIHost, output);
+				if (overrideFilePath) {
+					// Add file path to override file as parameter
+					composeGlobalArgs.push('-f', overrideFilePath);
+				}
+			}
+		}
+	} else {
+		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, undefined, params.additionalCacheFroms);
 		const { updatedImageName: updatedImageName0, collapsedFeaturesConfig, imageDetails } = await extendImage(params, config, originalImageName, !service.build);
+
 		const updatedImageName = await updateRemoteUserUID(params, config, updatedImageName0, imageDetails, service.user);
-		const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts);
 
-		const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
-
-		if (overrideFileHasContents) {
-			output.write(`Docker Compose override file:\n${composeOverrideContent}`, LogLevel.Trace);
-
-			// Save override docker-compose file to disk.
-			// Persisted folder is a path that will be maintained between sessions
-			// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-
-			const fileName = `${overrideFilePrefix}-${Date.now()}.yml`;
-			const composeFolder = buildCLIHost.path.join(persistedFolder, 'docker-compose');
-			const composeOverrideFile = buildCLIHost.path.join(composeFolder, fileName);
-			output.write(`Writing ${fileName} to ${composeFolder}`);
-			await buildCLIHost.mkdirp(composeFolder);
-			await buildCLIHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
-
+		// Save override docker-compose file to disk.
+		// Persisted folder is a path that will be maintained between sessions
+		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, overrideFilePrefix, buildCLIHost, output);
+		if (overrideFilePath) {
 			// Add file path to override file as parameter
-			composeGlobalArgs.push('-f', composeOverrideFile);
-		} else {
-			output.write('Override file was generated, but was empty and thus not persisted or included in the docker-compose arguments.');
+			composeGlobalArgs.push('-f', overrideFilePath);
 		}
 	}
 
@@ -256,6 +255,41 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	return {
 		containerId: (await findComposeContainer(params, projectName, config.service))!,
 	};
+}
+
+async function writeFeaturesComposeOverrideFile(
+	updatedImageName: string,
+	originalImageName: string,
+	collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined,
+	config: DevContainerFromDockerComposeConfig,
+	buildParams: DockerCLIParameters,
+	composeFiles: string[],
+	imageDetails: () => Promise<ImageDetails>,
+	service: any,
+	additionalLabels: string[],
+	additionalMounts: Mount[],
+	overrideFilePath: string,
+	overrideFilePrefix: string,
+	buildCLIHost: CLIHost,
+	output: Log,
+) {
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
+	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
+	if (overrideFileHasContents) {
+		output.write(`Docker Compose override file:\n${composeOverrideContent}`, LogLevel.Trace);
+
+		const fileName = `${overrideFilePrefix}-${Date.now()}.yml`;
+		const composeFolder = buildCLIHost.path.join(overrideFilePath, 'docker-compose');
+		const composeOverrideFile = buildCLIHost.path.join(composeFolder, fileName);
+		output.write(`Writing ${fileName} to ${composeFolder}`);
+		await buildCLIHost.mkdirp(composeFolder);
+		await buildCLIHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
+
+		return composeOverrideFile;
+	} else {
+		output.write('Override file was generated, but was empty and thus not persisted or included in the docker-compose arguments.');
+		return undefined;
+	}
 }
 
 async function generateFeaturesComposeOverrideContent(
