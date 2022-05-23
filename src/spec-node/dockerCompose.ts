@@ -81,6 +81,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			tunnelInformation: common.isLocalContainer ? getTunnelInformation(container) : {},
 			dockerParams: params,
 			dockerContainerId: container.Id,
+			composeProjectName: projectName,
 		};
 
 	} catch (originalError) {
@@ -175,7 +176,6 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	// Try to restore the 'third' docker-compose file and featuresConfig from persisted storage.
 	// This file may have been generated upon a Codespace creation.
 	let didRestoreFromPersistedShare = false;
-	let collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined = undefined;
 	const labels = container?.Config?.Labels;
 	output.write(`PersistedPath=${persistedFolder}, ContainerHasLabels=${!!labels}`);
 
@@ -255,7 +255,6 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	await started;
 	return {
 		containerId: (await findComposeContainer(params, projectName, config.service))!,
-		collapsedFeaturesConfig,
 	};
 }
 

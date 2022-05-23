@@ -69,6 +69,8 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	useBuildKit: boolean;
+	buildKitVersion: string | null;
+	isTTY: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 }
@@ -82,6 +84,7 @@ export interface ResolverResult {
 	isTrusted?: boolean;
 	dockerParams: DockerResolverParameters | undefined;
 	dockerContainerId: string | undefined;
+	composeProjectName?: string;
 }
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {

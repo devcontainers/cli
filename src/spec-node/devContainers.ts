@@ -16,7 +16,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
-import { dockerHasBuildKit } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -57,9 +57,10 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const start = output.start(text);
 	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
 	output.stop(text, start);
-	const { dockerContainerId } = result;
+	const { dockerContainerId, composeProjectName } = result;
 	return {
 		containerId: dockerContainerId!,
+		composeProjectName,
 		remoteUser: result.properties.user,
 		remoteWorkspaceFolder: result.properties.remoteWorkspaceFolder,
 		finishBackgroundTasks: async () => {
@@ -125,7 +126,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
-	const useBuildKit = options.useBuildKit === 'never' ? false : (await dockerHasBuildKit({
+	const buildKitVersion = options.useBuildKit === 'never' ? null : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
 		dockerComposeCLI,
@@ -150,6 +151,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		useBuildKit,
+		buildKitVersion,
+		isTTY: process.stdin.isTTY || options.logFormat === 'json',
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 	};

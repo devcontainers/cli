@@ -14,6 +14,7 @@ import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDoc
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
+import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
@@ -47,7 +48,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
 
 	const args: string[] = [];
-	if (params.useBuildKit) {
+	if (params.buildKitVersion) {
 		args.push(
 			'buildx', 'build',
 			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -74,7 +75,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		emptyTempDir
 	);
 
-	if (process.stdin.isTTY) {
+	if (params.isTTY) {
 		const infoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 		await dockerPtyCLI(infoParams, ...args);
 	} else {
@@ -174,25 +175,28 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 				return map;
 			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
 
-	// With Buildkit, we can supply an additional build context to provide access to
+	// With Buildkit (0.8.0 or later), we can supply an additional build context to provide access to
 	// the container-features content.
 	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
 	// that is accessible from the docker build for non-BuiltKit builds
 	// TODO generate an image name that is specific to this dev container?
+	const buildKitVersionParsed = params.buildKitVersion ? parseVersion(params.buildKitVersion) : null;
+	const minRequiredVersion = [0, 8, 0];
+	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
-	const contentSourceRootPath = params.useBuildKit ? '.' : '/tmp/build-features/';
+	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
 	const dockerfile = getContainerFeaturesBaseDockerFile()
-		.replace('#{nonBuildKitFeatureContentFallback}', params.useBuildKit ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
+		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('{contentSourceRootPath}', contentSourceRootPath)
 		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		;
-	const dockerfilePrefixContent = `${params.useBuildKit ? '# syntax=docker/dockerfile:1.4' : ''}
+	const dockerfilePrefixContent = `${useBuildKitBuildContexts ? '# syntax=docker/dockerfile:1.4' : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
 `;
 
@@ -221,7 +225,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 	}));
 
 	// For non-BuildKit, build the temporary image for the container-features content
-	if (!params.useBuildKit) {
+	if (!useBuildKitBuildContexts) {
 		const buildContentDockerfile = `
 	FROM scratch
 	COPY . /tmp/build-features/
@@ -235,7 +239,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 		];
 		buildContentArgs.push(dstFolder);
 
-		if (process.stdin.isTTY) {
+		if (params.isTTY) {
 			const buildContentInfoParams = { ...toPtyExecParameters(params), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(buildContentInfoParams, ...buildContentArgs);
 		} else {
@@ -252,7 +256,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 			_DEV_CONTAINERS_IMAGE_USER: imageUser,
 			_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE: buildContentImageName,
 		},
-		buildKitContexts: params.useBuildKit ? { dev_containers_feature_content_source: dstFolder } : {},
+		buildKitContexts: useBuildKitBuildContexts ? { dev_containers_feature_content_source: dstFolder } : {},
 	};
 }
 

@@ -174,7 +174,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
-	if (buildParams.useBuildKit) {
+	if (buildParams.buildKitVersion) {
 		args.push('buildx', 'build',
 			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
@@ -225,7 +225,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	args.push(...additionalBuildArgs);
 	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
 	try {
-		if (process.stdin.isTTY) {
+		if (buildParams.isTTY) {
 			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
 			await dockerPtyCLI(infoParams, ...args);
 		} else {
