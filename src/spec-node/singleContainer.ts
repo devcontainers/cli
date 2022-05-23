@@ -165,7 +165,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			args.push('buildx', 'build');
 			args.push('--platform', buildParams.buildxPlatform);
 			args.push('--push');
-			args.push('-f', dockerfilePath, '-t', argImageName);
+			args.push('-f', finalDockerfilePath, '-t', argImageName);
 		} else {
 			args.push('buildx', 'build',
 				'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
