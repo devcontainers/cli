@@ -314,19 +314,35 @@ function getFeatureEnvVariables(f: Feature) {
 }
 
 
-export async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
+export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
 	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof config.updateRemoteUserUID === 'boolean' ? config.updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
-		return imageName;
+		return null;
 	}
 	const imageUser = (await imageDetails()).Config.User || 'root';
 	const remoteUser = config.remoteUser || runArgsUser || imageUser;
 	if (remoteUser === 'root' || /^\d+$/.test(remoteUser)) {
-		return imageName;
+		return null;
 	}
 	const folderImageName = getFolderImageName(common);
 	const fixedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-uid`;
+
+	return {
+		imageName: fixedImageName,
+		remoteUser,
+		imageUser,
+	};
+}
+export async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
+	const { common } = params;
+	const { cliHost } = common;
+
+	const updateDetails = await getRemoteUserUIDUpdateDetails(params, config, imageName, imageDetails, runArgsUser);
+	if (!updateDetails) {
+		return imageName;
+	}
+	const { imageName: fixedImageName, remoteUser, imageUser } = updateDetails;
 
 	const dockerfileName = 'updateUID.Dockerfile';
 	const srcDockerfile = path.join(common.extensionPath, 'scripts', dockerfileName);
