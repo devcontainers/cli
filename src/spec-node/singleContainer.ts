@@ -111,19 +111,15 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 	return await extendImage(params, config, imageName, 'image' in config);
 }
 
-function checkBuildxArgs(buildParams: DockerResolverParameters, imageName?: string) {
-	if (buildParams.enableBuildx &&
-		!buildParams.buildxPlatform &&
-		!buildParams.buildxPush &&
-		!buildParams.buildxLoad) {
+function checkMultiBuildArgs(buildParams: DockerResolverParameters, imageName?: string) {
+	if (!buildParams.buildxPlatform &&
+		!buildParams.buildxPush) {
 		return true;
 	}
-	if (!buildParams.enableBuildx &&
-		((buildParams.buildxPlatform || buildParams.buildxPlatform?.length === 0) || buildParams.buildxPush || buildParams.buildxLoad)) {
+	if ((buildParams.buildxPlatform || buildParams.buildxPlatform?.length === 0) || buildParams.buildxPush) {
 		return false;
 	}
-	if (buildParams.enableBuildx &&
-		((buildParams.buildxPlatform && buildParams.buildxPlatform?.length > 0) || buildParams.buildxPush || buildParams.buildxLoad) && !imageName) {
+	if ((buildParams.buildxPlatform && buildParams.buildxPlatform?.length > 0) || buildParams.buildxPush && !imageName) {
 		return false;
 	}
 	return true;
@@ -178,13 +174,13 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
-	if (buildParams.useBuildKit && !buildParams.enableBuildx) {
+	if (buildParams.useBuildKit) {
 		args.push('buildx', 'build',
 			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
 		);
-	} else if (buildParams.enableBuildx && argImageName) {
-		if (!checkBuildxArgs(buildParams, argImageName)) {
+	} else if (argImageName) {
+		if (!checkMultiBuildArgs(buildParams, argImageName)) {
 			const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
 			throw new ContainerError({ description: msg });
 		}
@@ -195,14 +191,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		}
-		if (buildParams.buildxLoad) {
-			args.push('--load');
-		}
 		args.push('-f', dockerfilePath, '-t', argImageName);
 	} else {
 		args.push('build');
 	}
-	if (!buildParams.enableBuildx) {
+	if (!argImageName) {
 		args.push('-f', finalDockerfilePath, '-t', baseImageName);
 	}
 

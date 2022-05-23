@@ -69,10 +69,8 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	useBuildKit: boolean;
-	enableBuildx: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	buildxLoad: boolean;
 }
 
 export interface ResolverResult {

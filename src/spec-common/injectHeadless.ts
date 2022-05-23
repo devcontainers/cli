@@ -56,10 +56,8 @@ export interface ResolverParameters {
 	backgroundTasks: (Promise<void> | (() => Promise<void>))[];
 	persistedFolder: string; // A path where config can be persisted and restored at a later time. Should default to tmpdir() folder if not provided.
 	remoteEnv: Record<string, string>;
-	enableBuildx: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	buildxLoad: boolean;
 }
 
 export interface PostCreate {
