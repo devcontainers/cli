@@ -10,6 +10,10 @@
 			"VARIANT": "16-bullseye"
 		}
 	},
+	"mounts": [
+		// Keep command history across instances
+		"source=dev-containers-cli-bashhistory,target=/home/node/commandhistory"
+	],
 
 	"postCreateCommand": "yarn install",
 
