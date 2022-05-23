@@ -214,7 +214,7 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	let result = '';
 
 	// Features version 1  FIX
-	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => getSourceInfoString(x.sourceInformation));
+	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
 		result += `RUN cd /tmp/build-features/${folder} \\
 && chmod +x ./install.sh \\
@@ -372,6 +372,11 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	const { output } = params;
 
 	if (!config.features)
+	{
+		return undefined;
+	}
+
+	if(!imageLabelDetails)
 	{
 		return undefined;
 	}
@@ -652,7 +657,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			featureSet.features[0].consecutiveId = consecutiveId;
 
 			if(featureSet.sourceInformation?.type === 'local-cache') {
-				params.output.write(`Detected local feature set. Continuing...`);
+				
+				await mkdirpLocal(featCachePath);
+				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
 				continue;
 			}
 		

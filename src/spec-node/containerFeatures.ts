@@ -87,10 +87,13 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 
 export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
 
-	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
+	const tempFolder = await createFeaturesTempFolder(params.common);
+	await createLocalFeatures(params, tempFolder);
+	const featuresConfig = await generateFeaturesConfig(params.common, tempFolder, config, imageLabelDetails, getContainerFeaturesFolder);
 	if (!featuresConfig) {
 		return null;
 	}
+
 
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
@@ -118,18 +121,13 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	return result;
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function createLocalFeatures(params: DockerResolverParameters, dstFolder: string)
+{
 	const { common } = params;
 	const { cliHost, output } = common;
-	const { dstFolder } = featuresConfig;
-
-	if (!dstFolder || dstFolder === '') {
-		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
-		return null;
-	}
 
 	// Calculate name of the build folder where localcache has been copied to.
-	const localCacheBuildFolderName = getSourceInfoString({ type: 'local-cache' });
+	const localCacheBuildFolderName = 'local-cache';
 
 	const srcFolder = getContainerFeaturesFolder(common.extensionPath);
 	output.write(`local container features stored at: ${srcFolder}`);
@@ -163,6 +161,17 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 	create.pipe(extract.stdin);
 	await extract.exit;
 	await createExit; // Allow errors to surface.
+}
+
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+	const { common } = params;
+	const { cliHost, output } = common;
+	const { dstFolder } = featuresConfig;
+
+	if (!dstFolder || dstFolder === '') {
+		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
+		return null;
+	}
 
 	const buildStageScripts = await Promise.all(featuresConfig.featureSets
 		.map(featureSet => multiStageBuildExploration ? featureSet.features
@@ -224,7 +233,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
 					.map(getFeatureEnvVariables)
 			).join('\n');
-			const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'devcontainer-features.env'); // next to install.sh
+			const envPath = cliHost.path.join(fSet.features[0].infoString!, 'devcontainer-features.env');
 			await Promise.all([
 				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 				...fSet.features
