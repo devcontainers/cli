@@ -111,20 +111,6 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 	return await extendImage(params, config, imageName, 'image' in config);
 }
 
-function checkMultiBuildArgs(buildParams: DockerResolverParameters, imageName?: string) {
-	if (!buildParams.buildxPlatform &&
-		!buildParams.buildxPush) {
-		return true;
-	}
-	if ((buildParams.buildxPlatform || buildParams.buildxPlatform?.length === 0) || buildParams.buildxPush) {
-		return false;
-	}
-	if ((buildParams.buildxPlatform && buildParams.buildxPlatform?.length > 0) || buildParams.buildxPush && !imageName) {
-		return false;
-	}
-	return true;
-}
-
 async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean, argImageName?: string) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -175,23 +161,17 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	const args: string[] = [];
 	if (buildParams.buildKitVersion) {
-		args.push('buildx', 'build',
-			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
-			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
-		);
-	} else if (argImageName) {
-		if (!checkMultiBuildArgs(buildParams, argImageName)) {
-			const msg = `'devcontainer build --buildx [--platform | --push | --load] --image-name`;
-			throw new ContainerError({ description: msg });
-		}
-		args.push('buildx', 'build');
-		if (buildParams.buildxPlatform) {
+		if (buildParams.buildxPlatform && buildParams.buildxPush && argImageName) {
+			args.push('buildx', 'build');
 			args.push('--platform', buildParams.buildxPlatform);
-		}
-		if (buildParams.buildxPush) {
 			args.push('--push');
+			args.push('-f', dockerfilePath, '-t', argImageName);
+		} else {
+			args.push('buildx', 'build',
+				'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
+				'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
+			);
 		}
-		args.push('-f', dockerfilePath, '-t', argImageName);
 	} else {
 		args.push('build');
 	}

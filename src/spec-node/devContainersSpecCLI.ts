@@ -336,7 +336,9 @@ async function doBuild({
 			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);	
+				if (!buildxPush) {
+					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				}
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
