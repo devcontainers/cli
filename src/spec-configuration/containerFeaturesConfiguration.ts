@@ -649,17 +649,23 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			const consecutiveId = featureSet.features[0].id + '_' + getCounter();
+			const feature = featureSet.features[0];
+			const consecutiveId = feature.id + '_' + getCounter();
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
 
-			featureSet.features[0].infoString = featCachePath;
-			featureSet.features[0].consecutiveId = consecutiveId;
+			feature.infoString = featCachePath;
+			feature.consecutiveId = consecutiveId;
 
 			if(featureSet.sourceInformation?.type === 'local-cache') {
 				
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
+
+				const local = localFeatures.features.find(x => x.id === feature.id);
+				feature.buildArg = local?.buildArg;
+				feature.options = local?.options;
+
 				continue;
 			}
 		
@@ -672,9 +678,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				const jsonString: Buffer = await readLocalFile(jsonPath);
 				const featureJson = jsonc.parse(jsonString.toString());
 
-				featureSet.features[0].runApp = featureJson.install.app ?? '';
-				featureSet.features[0].runParams = featureJson.install.file ?? 'install.sh';
-				featureSet.features[0].containerEnv = featureJson.containerEnv;
+				feature.runApp = featureJson.install.app ?? '';
+				feature.runParams = featureJson.install.file ?? 'install.sh';
+				feature.containerEnv = featureJson.containerEnv;
 
 				// We only support version 2 for local features.
 				featureSet.internalVersion = '2';
@@ -748,9 +754,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				if (existsSync(jsonPath)) {
 					const jsonString: Buffer = await readLocalFile(jsonPath);
 					const featureJson = jsonc.parse(jsonString.toString());
-					featureSet.features[0].runApp = featureJson.install.app ?? '';
-					featureSet.features[0].runParams = featureJson.install.file ?? 'install.sh';
-					featureSet.features[0].containerEnv = featureJson.containerEnv;
+					feature.runApp = featureJson.install.app ?? '';
+					feature.runParams = featureJson.install.file ?? 'install.sh';
+					feature.containerEnv = featureJson.containerEnv;
 					featureSet.internalVersion === '2';
 				} else {
 					featureSet.internalVersion === '1';
