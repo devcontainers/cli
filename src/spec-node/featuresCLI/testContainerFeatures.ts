@@ -4,13 +4,9 @@ import { tmpdir } from 'os';
 import { CLIHost } from '../../spec-common/cliHost';
 import { LogLevel } from '../../spec-utils/log';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
-import { FeaturesTestCommandInput } from '../devContainersSpecCLI';
-import { LaunchResult, staticProvisionParams, testLibraryScript } from './utils';
-import { getContainerProperties, runRemoteCommand } from '../../spec-common/injectHeadless';
+import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
+import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
 import { DockerResolverParameters } from '../utils';
-import { ContainerError } from '../../spec-common/errors';
-import { dockerExecFunction, dockerPtyExecFunction } from '../../spec-shutdown/dockerUtils';
-import { loadNativeModule } from '../../spec-common/commonUtils';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -21,17 +17,16 @@ function fail(msg: string) {
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
 
-    return chalk.gray(`${options?.prefix ?? ''}`), chalk.white(`${msg}`);
-    // const prefix = options?.prefix || '[+]';
-    // const output = `${prefix} ${msg}\n`;
+    const prefix = options?.prefix || '[+]';
+    const output = `${prefix} ${msg}\n`;
 
-    // if (options?.stderr) {
-    //     process.stderr.write(chalk.red(output));
-    // } else if (options?.info) {
-    //     process.stdout.write(chalk.bold.blue(output));
-    // } else {
-    //     process.stdout.write(chalk.green(output));
-    // }
+    if (options?.stderr) {
+        process.stderr.write(chalk.red(output));
+    } else if (options?.info) {
+        process.stdout.write(chalk.bold.blue(output));
+    } else {
+        process.stdout.write(chalk.green(output));
+    }
 }
 
 function printFailedTest(feature: string) {
@@ -120,7 +115,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
         await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
 
         // Execute Test
-        const result = await execTest(params, remoteTestScriptName, launchResult);
+        const result = await execTest(params, remoteTestScriptName, workspaceFolder, launchResult);
         testResults.push({
             feature,
             result,
@@ -134,7 +129,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
             printFailedTest(x.feature);
         });
     } else {
-        log(' ✅ All tests passed!');
+        log(' !!!!!! FIX ME ✅ All tests passed!');
     }
 
     return allPassed ? 0 : 1;
@@ -191,7 +186,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
             `devcontainer.local_folder=${workspaceFolder}`
         ],
         remoteEnv: common.remoteEnv,
-        log: (str) => common.output.write(str)
+        log: (str) => common.output.write(str),
     };
 
     if (quiet) {
@@ -221,78 +216,97 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
     return undefined;
 }
 
-async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, launchResult: LaunchResult) {
-    let cmd = 'chmod';
-    let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
-    await exec(params, cmd, args, launchResult);
+async function execTest(params: DockerResolverParameters, _remoteTestScriptName: string, workspaceFolder: string, launchResult: LaunchResult) {
+    // let cmd = 'chmod';
+    // let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
+    // await exec(params, cmd, args, workspaceFolder, launchResult);
 
-    cmd = `./${remoteTestScriptName}`;
-    args = [];
-    return await exec(params, cmd, args, launchResult);
+    // TODO: DEBUG ONLY
+    let cmd = 'go';
+    let args = ['version'];
+    return await exec(params, cmd, args, workspaceFolder, launchResult);
+
+    //     cmd = `./${remoteTestScriptName}`;
+    //     args = [];
+    //     return await exec(params, cmd, args, workspaceFolder, launchResult);
 }
 
-async function exec(params: DockerResolverParameters, cmd: string, args: string[], launchResult: LaunchResult) {
-    // const execArgs = {
-    //     ...staticExecParams,
-    //     'workspace-folder': workspaceFolder,
-    //     cmd,
-    //     args,
-    //     _: [
-    //         cmd,
-    //         ...args
-    //     ]
-    // };
-    // const result = await doExec(execArgs);
-    // return (result.outcome === 'success');
+async function exec(_params: DockerResolverParameters, cmd: string, args: string[], _workspaceFolder: string, _launchResult: LaunchResult) {
+    const execArgs = {
+        ...staticExecParams,
+        'workspace-folder': _workspaceFolder,
+        cmd,
+        args,
+        _: [
+            cmd,
+            ...args
+        ]
+    };
+    const result = await doExec(execArgs);
+    return (result.outcome === 'success');
 
-    const { common } = params;
-    const { remoteWorkspaceFolder, remoteUser, containerId } = launchResult;
+    // const { common } = params;
+    // const { remoteWorkspaceFolder, remoteUser, containerId } = launchResult;
 
-    const command = [cmd, ...args];
+    // log('remoteWorkspaceFolder: ' + remoteWorkspaceFolder + 'remoteUser' + remoteUser);
 
-    const remoteExec = dockerExecFunction(params, containerId, remoteUser);
-    const remotePtyExec = await dockerPtyExecFunction(params, containerId, remoteUser, loadNativeModule);
+    // const command = [cmd, ...args];
 
-    const containerProperties = await getContainerProperties({
-        params: common,
-        remoteWorkspaceFolder,
-        containerUser: remoteUser,
-        createdAt: undefined,
-        startedAt: undefined,
-        containerGroup: undefined,
-        containerEnv: undefined,
-        remoteExec,
-        remotePtyExec,
-        remoteExecAsRoot: undefined,
-        rootShellServer: undefined,
-    });
 
-    try {
-        const remoteCommandOutput = await runRemoteCommand(
-            { ...common, output: common.output },
-            containerProperties,
-            command,
-        );
-        return {
-            outcome: 'success',
-            output: remoteCommandOutput,
-        };
+    // const remoteExec = dockerExecFunction(params, containerId, undefined);
+    // const remotePtyExec = await dockerPtyExecFunction(params, containerId, undefined, loadNativeModule);
 
-    } catch (originalError) {
-        const originalStack = originalError?.stack;
-        const err = originalError instanceof ContainerError ? originalError : new ContainerError({
-            description: 'Failed to exec test',
-            originalError
-        });
-        if (originalStack) {
-            console.error(originalStack);
-        }
+    // const containerProperties = await getContainerProperties({
+    //     params: common,
+    //     remoteWorkspaceFolder,
+    //     containerUser: undefined,
+    //     createdAt: undefined,
+    //     startedAt: undefined,
+    //     containerGroup: undefined,
+    //     containerEnv: undefined,
+    //     remoteExec,
+    //     remotePtyExec,
+    //     remoteExecAsRoot: undefined,
+    //     rootShellServer: undefined,
+    // });
 
-        return {
-            outcome: 'error',
-            output: err.message,
-        };
-    }
+    // const configs = configPath && await readDevContainerConfigFile(common.cliHost, common.workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+    // if (!configs) {
+    //     throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
+    // }
+    // const { config, workspaceConfig } = configs;
+
+    // const remoteEnv = probeRemoteEnv(common, containerProperties, config);
+
+
+    // try {
+    //     const remoteCommandOutput = await runRemoteCommand(
+    //         { ...common, output: common.output },
+    //         containerProperties,
+    //         command,
+    //         remoteWorkspaceFolder,
+    //         { remoteEnv: await remoteEnv, print: 'continuous' }
+    //     );
+    //     return {
+    //         outcome: 'success',
+    //         output: remoteCommandOutput,
+    //     };
+
+    // } catch (originalError) {
+    //     const originalStack = originalError?.stack;
+    //     const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+    //         description: 'Failed to exec test',
+    //         originalError
+    //     });
+    //     if (originalStack) {
+    //         console.error(originalStack);
+    //     }
+
+    //     return {
+    //         outcome: 'error',
+    //         output: err.message,
+    //     };
+    // }
 }
 
 async function generateDockerParams(workspaceFolder: string, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
