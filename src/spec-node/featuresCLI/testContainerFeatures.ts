@@ -35,8 +35,10 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-    const { baseImage, collectionFolder, remoteUser, quiet, cliHost, pkg, disposables } = args;
+    const { baseImage, collectionFolder, remoteUser, quiet, cliHost, pkg, logLevel, disposables } = args;
     let { features } = args;
+
+
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -78,7 +80,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
     log(`workspaceFolder:   ${workspaceFolder}`);
 
-    const params = await generateDockerParams(workspaceFolder, disposables);
+    const params = await generateDockerParams(workspaceFolder, logLevel, disposables);
 
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
@@ -115,7 +117,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
         await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
 
         // Execute Test
-        const result = await execTest(params, remoteTestScriptName, workspaceFolder, launchResult);
+        const result = await execTest(params, remoteTestScriptName, workspaceFolder);
         testResults.push({
             feature,
             result,
@@ -216,25 +218,21 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
     return undefined;
 }
 
-async function execTest(params: DockerResolverParameters, _remoteTestScriptName: string, workspaceFolder: string, launchResult: LaunchResult) {
-    // let cmd = 'chmod';
-    // let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
-    // await exec(params, cmd, args, workspaceFolder, launchResult);
+async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, workspaceFolder: string) {
+    let cmd = 'chmod';
+    let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
+    await exec(params, cmd, args, workspaceFolder);
 
-    // TODO: DEBUG ONLY
-    let cmd = 'go';
-    let args = ['version'];
-    return await exec(params, cmd, args, workspaceFolder, launchResult);
 
-    //     cmd = `./${remoteTestScriptName}`;
-    //     args = [];
-    //     return await exec(params, cmd, args, workspaceFolder, launchResult);
+    cmd = `./${remoteTestScriptName}`;
+    args = [];
+    return await exec(params, cmd, args, workspaceFolder);
 }
 
-async function exec(_params: DockerResolverParameters, cmd: string, args: string[], _workspaceFolder: string, _launchResult: LaunchResult) {
+async function exec(_params: DockerResolverParameters, cmd: string, args: string[], workspaceFolder: string) {
     const execArgs = {
         ...staticExecParams,
-        'workspace-folder': _workspaceFolder,
+        'workspace-folder': workspaceFolder,
         cmd,
         args,
         _: [
@@ -244,72 +242,9 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
     };
     const result = await doExec(execArgs);
     return (result.outcome === 'success');
-
-    // const { common } = params;
-    // const { remoteWorkspaceFolder, remoteUser, containerId } = launchResult;
-
-    // log('remoteWorkspaceFolder: ' + remoteWorkspaceFolder + 'remoteUser' + remoteUser);
-
-    // const command = [cmd, ...args];
-
-
-    // const remoteExec = dockerExecFunction(params, containerId, undefined);
-    // const remotePtyExec = await dockerPtyExecFunction(params, containerId, undefined, loadNativeModule);
-
-    // const containerProperties = await getContainerProperties({
-    //     params: common,
-    //     remoteWorkspaceFolder,
-    //     containerUser: undefined,
-    //     createdAt: undefined,
-    //     startedAt: undefined,
-    //     containerGroup: undefined,
-    //     containerEnv: undefined,
-    //     remoteExec,
-    //     remotePtyExec,
-    //     remoteExecAsRoot: undefined,
-    //     rootShellServer: undefined,
-    // });
-
-    // const configs = configPath && await readDevContainerConfigFile(common.cliHost, common.workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
-    // if (!configs) {
-    //     throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
-    // }
-    // const { config, workspaceConfig } = configs;
-
-    // const remoteEnv = probeRemoteEnv(common, containerProperties, config);
-
-
-    // try {
-    //     const remoteCommandOutput = await runRemoteCommand(
-    //         { ...common, output: common.output },
-    //         containerProperties,
-    //         command,
-    //         remoteWorkspaceFolder,
-    //         { remoteEnv: await remoteEnv, print: 'continuous' }
-    //     );
-    //     return {
-    //         outcome: 'success',
-    //         output: remoteCommandOutput,
-    //     };
-
-    // } catch (originalError) {
-    //     const originalStack = originalError?.stack;
-    //     const err = originalError instanceof ContainerError ? originalError : new ContainerError({
-    //         description: 'Failed to exec test',
-    //         originalError
-    //     });
-    //     if (originalStack) {
-    //         console.error(originalStack);
-    //     }
-
-    //     return {
-    //         outcome: 'error',
-    //         output: err.message,
-    //     };
-    // }
 }
 
-async function generateDockerParams(workspaceFolder: string, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
+async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
     return await createDockerParams({
         workspaceFolder,
         dockerPath: undefined,
@@ -320,7 +255,7 @@ async function generateDockerParams(workspaceFolder: string, disposables: (() =>
         idLabels: [],
         configFile: undefined,
         overrideConfigFile: undefined,
-        logLevel: LogLevel.Trace,
+        logLevel,
         logFormat: 'text',
         log: function (text: string): void {
             process.stdout.write(text);
