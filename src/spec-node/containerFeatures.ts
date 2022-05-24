@@ -16,6 +16,17 @@ import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 
+// Escapes environment variable keys.
+//
+// Environment variables must contain:
+//      - alpha-numeric values, or
+//      - the '_' character, and
+//      - a number cannot be the first character 
+export const getSafeId = (str: string) => str
+	.replace(/[^\w_]/g, '_')
+	.replace(/^[\d_]+/g, '_')
+	.toUpperCase(); 
+
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
 	const { common } = params;
@@ -215,7 +226,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buste
 				.map(f => {
 					const featuresEnv = [
 						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getFeatureSafeId(f)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
+						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
 					]
 						.join('\n');
 					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
@@ -286,13 +297,14 @@ RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.s
 	).join('\n\n');
 }
 
+
 function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
-	const idSafe = getFeatureSafeId(f);
+	const idSafe = getSafeId(f.id);
 	const variables = [];
 	if (values) {
 		variables.push(...Object.keys(values)
-			.map(name => `_BUILD_ARG_${idSafe}_${name.toUpperCase()}="${values[name]}"`));
+			.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
 		variables.push(`_BUILD_ARG_${idSafe}=true`);
 	}
 	if (f.buildArg) {
@@ -301,11 +313,6 @@ function getFeatureEnvVariables(f: Feature) {
 	return variables;
 }
 
-function getFeatureSafeId(f: Feature) {
-	return f.id
-		.replace(/[/-]/g, '_') // Slashes and dashes are not allowed in an env. variable key
-		.toUpperCase();
-}
 
 export async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
