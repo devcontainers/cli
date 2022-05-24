@@ -658,14 +658,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			feature.consecutiveId = consecutiveId;
 
 			if(featureSet.sourceInformation?.type === 'local-cache') {
-				
+				// create copy of the local features to set the environment variables for them.
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
 
 				const local = localFeatures.features.find(x => x.id === feature.id);
 				feature.buildArg = local?.buildArg;
 				feature.options = local?.options;
-
 				continue;
 			}
 		
@@ -681,6 +680,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				feature.runApp = featureJson.install.app ?? '';
 				feature.runParams = featureJson.install.file ?? 'install.sh';
 				feature.containerEnv = featureJson.containerEnv;
+				feature.buildArg = featureJson.buildArg;
+				feature.options = featureJson.options;
 
 				// We only support version 2 for local features.
 				featureSet.internalVersion = '2';
@@ -758,6 +759,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					feature.runParams = featureJson.install.file ?? 'install.sh';
 					feature.containerEnv = featureJson.containerEnv;
 					featureSet.internalVersion === '2';
+					feature.buildArg = featureJson.buildArg;
+					feature.options = featureJson.options;
 				} else {
 					featureSet.internalVersion === '1';
 				}
