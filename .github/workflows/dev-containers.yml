@@ -11,7 +11,13 @@ on:
 jobs:
   cli:
     name: CLI
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            tgz: true
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v1
@@ -23,30 +29,35 @@ jobs:
     - run: yarn package
     - run: yarn test --forbid-only
     - name: TGZ name
+      if: ${{ matrix.tgz }}
       run: |
         VERSION=$(jq -r '.version' < package.json)
         echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
         echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
     - name: Store TGZ
+      if: ${{ matrix.tgz }}
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.TGZ_UPLOAD }}
         path: ${{ env.TGZ }}
   container-features:
-        name: Test container-features
-        runs-on: ubuntu-latest
-        steps:
-        - name: Checkout
-          uses: actions/checkout@v2
-        - name: Setup Node.js
-          uses: actions/setup-node@v1
-          with:
-            node-version: '16.x'
-            registry-url: 'https://npm.pkg.github.com'
-            scope: '@microsoft'
-        - name: Install Dependencies
-          run: yarn
-        - name: Compile
-          run: yarn compile
-        - name: Run Offline Tests
-          run: yarn test-container-features-offline --forbid-only
+    name: Test container-features
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@microsoft'
+    - name: Install Dependencies
+      run: yarn
+    - name: Compile
+      run: yarn compile
+    - name: Run Offline Tests
+      run: yarn test-container-features-offline --forbid-only
