@@ -3,9 +3,14 @@ import chalk from 'chalk';
 import { tmpdir } from 'os';
 import { CLIHost } from '../../spec-common/cliHost';
 import { LogLevel } from '../../spec-utils/log';
-import { launch, ProvisionOptions } from '../devContainers';
-import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
-import { staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
+import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
+import { FeaturesTestCommandInput } from '../devContainersSpecCLI';
+import { LaunchResult, staticProvisionParams, testLibraryScript } from './utils';
+import { getContainerProperties, runRemoteCommand } from '../../spec-common/injectHeadless';
+import { DockerResolverParameters } from '../utils';
+import { ContainerError } from '../../spec-common/errors';
+import { dockerExecFunction, dockerPtyExecFunction } from '../../spec-shutdown/dockerUtils';
+import { loadNativeModule } from '../../spec-common/commonUtils';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -15,16 +20,18 @@ function fail(msg: string) {
 }
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
-    const prefix = options?.prefix || '[+]';
-    const output = `${prefix} ${msg}\n`;
 
-    if (options?.stderr) {
-        process.stderr.write(chalk.red(output));
-    } else if (options?.info) {
-        process.stdout.write(chalk.bold.blue(output));
-    } else {
-        process.stdout.write(chalk.green(output));
-    }
+    return chalk.gray(`${options?.prefix ?? ''}`), chalk.white(`${msg}`);
+    // const prefix = options?.prefix || '[+]';
+    // const output = `${prefix} ${msg}\n`;
+
+    // if (options?.stderr) {
+    //     process.stderr.write(chalk.red(output));
+    // } else if (options?.info) {
+    //     process.stdout.write(chalk.bold.blue(output));
+    // } else {
+    //     process.stdout.write(chalk.green(output));
+    // }
 }
 
 function printFailedTest(feature: string) {
@@ -32,14 +39,14 @@ function printFailedTest(feature: string) {
 }
 
 
-export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTestCommandInput) {
-    const { baseImage, collectionFolder, remoteUser, quiet } = params;
-    let { features } = params;
+export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
+    const { baseImage, collectionFolder, remoteUser, quiet, cliHost, pkg, disposables } = args;
+    let { features } = args;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│         Testing Tool        │
+│     Testing v${pkg.version}          │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
     const srcDir = `${collectionFolder}/src`;
@@ -76,11 +83,22 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
 
     log(`workspaceFolder:   ${workspaceFolder}`);
 
+    const params = await generateDockerParams(workspaceFolder, disposables);
+
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
     // 2. Use  'devcontainer-cli up'  to build and start a container
     log('\n>>> Building test container... <<<\n\n', { prefix: ' ', info: true });
-    await launchProject(workspaceFolder, quiet);
+    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
+
+    if (!launchResult || !launchResult.containerId) {
+        fail('Failed to launch container');
+        return 2;
+    }
+
+    const { containerId } = launchResult;
+
+    log(`Launched container '${containerId}' as remote user ${remoteUser} \n`);
 
     log('>>> Executing test(s)... <<<\n\n', { prefix: ' ', info: true });
 
@@ -102,7 +120,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
         await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
 
         // Execute Test
-        const result = await execTest(remoteTestScriptName, workspaceFolder);
+        const result = await execTest(params, remoteTestScriptName, launchResult);
         testResults.push({
             feature,
             result,
@@ -119,7 +137,7 @@ export async function doFeaturesTestCommand(cliHost: CLIHost, params: FeaturesTe
         log(' ✅ All tests passed!');
     }
 
-    process.exit(allPassed ? 0 : 1);
+    return allPassed ? 0 : 1;
 }
 
 const devcontainerTemplate = `
@@ -161,73 +179,150 @@ async function generateProject(
     return tmpFolder;
 }
 
-async function launchProject(workspaceFolder: string, quiet: boolean) {
+async function launchProject(params: DockerResolverParameters, workspaceFolder: string, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult | undefined> {
+    const { common } = params;
 
     const options: ProvisionOptions = {
         ...staticProvisionParams,
         workspaceFolder,
-        logLevel: LogLevel.Info,
+        logLevel: common.getLogLevel(),
         mountWorkspaceGitRoot: true,
         idLabels: [
             `devcontainer.local_folder=${workspaceFolder}`
         ],
-        remoteEnv: {},
-        log: ((_msg: string) => quiet ? null : process.stdout.write(_msg))
+        remoteEnv: common.remoteEnv,
+        log: (str) => common.output.write(str)
     };
 
-    const disposables: (() => Promise<unknown> | undefined)[] = [];
-
-    let containerId = '';
-    let remoteUser = '';
     if (quiet) {
         // Launch container but don't await it to reduce output noise
         let isResolved = false;
         const p = launch(options, disposables);
         p.then(function (res) {
             isResolved = true;
-            containerId = res.containerId;
-            remoteUser = res.remoteUser;
+            return {
+                ...res,
+                disposables
+            };
         });
         while (!isResolved) {
             // Just so visual progress with dots
             process.stdout.write('.');
             await new Promise((resolve) => setTimeout(resolve, 500));
         }
-        process.stdout.write('\n');
-
     } else {
         // Stream all the container setup logs.
-        const launchResult = await launch(options, disposables);
-        containerId = launchResult.containerId;
-        remoteUser = launchResult.remoteUser;
-
+        return {
+            ...await launch(options, disposables),
+            disposables,
+        };
     }
 
-    log(`Launched container '${containerId}' as remote user ${remoteUser} \n`);
+    return undefined;
 }
 
-async function execTest(remoteTestScriptName: string, workspaceFolder: string) {
-
+async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, launchResult: LaunchResult) {
     let cmd = 'chmod';
     let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
-    await exec(cmd, args, workspaceFolder);
+    await exec(params, cmd, args, launchResult);
 
     cmd = `./${remoteTestScriptName}`;
     args = [];
-    return await exec(cmd, args, workspaceFolder);
+    return await exec(params, cmd, args, launchResult);
 }
 
-async function exec(cmd: string, args: string[], workspaceFolder: string) {
-    const execArgs = {
-        ...staticExecParams,
-        'workspace-folder': workspaceFolder,
-        cmd,
-        args,
-        _: [
-            cmd,
-            ...args
-        ]
-    };
-    const result = await doExec(execArgs);
-    return (result.outcome === 'success');
+async function exec(params: DockerResolverParameters, cmd: string, args: string[], launchResult: LaunchResult) {
+    // const execArgs = {
+    //     ...staticExecParams,
+    //     'workspace-folder': workspaceFolder,
+    //     cmd,
+    //     args,
+    //     _: [
+    //         cmd,
+    //         ...args
+    //     ]
+    // };
+    // const result = await doExec(execArgs);
+    // return (result.outcome === 'success');
+
+    const { common } = params;
+    const { remoteWorkspaceFolder, remoteUser, containerId } = launchResult;
+
+    const command = [cmd, ...args];
+
+    const remoteExec = dockerExecFunction(params, containerId, remoteUser);
+    const remotePtyExec = await dockerPtyExecFunction(params, containerId, remoteUser, loadNativeModule);
+
+    const containerProperties = await getContainerProperties({
+        params: common,
+        remoteWorkspaceFolder,
+        containerUser: remoteUser,
+        createdAt: undefined,
+        startedAt: undefined,
+        containerGroup: undefined,
+        containerEnv: undefined,
+        remoteExec,
+        remotePtyExec,
+        remoteExecAsRoot: undefined,
+        rootShellServer: undefined,
+    });
+
+    try {
+        const remoteCommandOutput = await runRemoteCommand(
+            { ...common, output: common.output },
+            containerProperties,
+            command,
+        );
+        return {
+            outcome: 'success',
+            output: remoteCommandOutput,
+        };
+
+    } catch (originalError) {
+        const originalStack = originalError?.stack;
+        const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+            description: 'Failed to exec test',
+            originalError
+        });
+        if (originalStack) {
+            console.error(originalStack);
+        }
+
+        return {
+            outcome: 'error',
+            output: err.message,
+        };
+    }
+}
+
+async function generateDockerParams(workspaceFolder: string, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
+    return await createDockerParams({
+        workspaceFolder,
+        dockerPath: undefined,
+        dockerComposePath: undefined,
+        containerDataFolder: undefined,
+        containerSystemDataFolder: undefined,
+        mountWorkspaceGitRoot: false,
+        idLabels: [],
+        configFile: undefined,
+        overrideConfigFile: undefined,
+        logLevel: LogLevel.Trace,
+        logFormat: 'text',
+        log: function (text: string): void {
+            process.stdout.write(text);
+        },
+        terminalDimensions: undefined,
+        defaultUserEnvProbe: 'loginInteractiveShell',
+        removeExistingContainer: false,
+        buildNoCache: false,
+        expectExistingContainer: false,
+        postCreateEnabled: false,
+        skipNonBlocking: false,
+        prebuild: false,
+        persistedFolder: undefined,
+        additionalMounts: [],
+        updateRemoteUserUIDDefault: 'never',
+        remoteEnv: {},
+        additionalCacheFroms: []
+    }, disposables);
 }

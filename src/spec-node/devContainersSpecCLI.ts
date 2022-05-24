@@ -21,10 +21,11 @@ import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { getCLIHost } from '../spec-common/cliHost';
-import { CLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
+import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { doFeaturesTestCommand } from './featuresCLI/testContainerFeatures';
+import { PackageConfiguration } from '../spec-utils/product';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -73,11 +74,13 @@ function featuresTestOptions(y: Argv) {
 export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
 export interface FeaturesTestCommandInput {
 	cliHost: CLIHost;
+	pkg: PackageConfiguration;
 	baseImage: string;
 	collectionFolder: string;
 	features?: string[];
 	remoteUser: string;
 	quiet: boolean;
+	disposables: (() => Promise<unknown> | undefined)[];
 }
 
 function featuresTestHandler(args: FeaturesTestArgs) {
@@ -91,20 +94,31 @@ async function featuresTest({
 	'remote-user': remoteUser,
 	quiet
 }: FeaturesTestArgs) {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const extensionPath = path.join(__dirname, '..', '..');
+	const pkg = await getPackageConfig(extensionPath);
 
-
-	const params: FeaturesTestCommandInput = {
-		cliHost,
+	const args: FeaturesTestCommandInput = {
 		baseImage,
+		cliHost,
+		pkg,
 		collectionFolder: cliHost.path.resolve(collectionFolder),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
 		remoteUser,
-		quiet
+		quiet,
+		disposables
 	};
 
-	await doFeaturesTestCommand(cliHost, params);
+	const exitCode = await doFeaturesTestCommand(args);
+
+	await dispose();
+	process.exit(exitCode);
 }
 // -- End: 'features test' command
 
