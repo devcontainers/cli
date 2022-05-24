@@ -107,16 +107,15 @@ export function getRemoteWorkspaceFolder(config: DevContainerFromDockerComposeCo
 	return config.workspaceFolder || '/';
 }
 
-export async function buildDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, buildParams: DockerCLIParameters, localComposeFiles: string[], composeGlobalArgs: string[], runServices: string[], noCache: boolean, imageNameOverride?: string, additionalCacheFroms?: string[]) {
+
+export async function buildDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, buildParams: DockerCLIParameters, localComposeFiles: string[], composeGlobalArgs: string[], runServices: string[], noCache: boolean, additionalCacheFroms?: string[]) {
 	const { cliHost } = buildParams;
 	const args = ['--project-name', projectName, ...composeGlobalArgs];
-	if (imageNameOverride || (additionalCacheFroms && additionalCacheFroms.length > 0)) {
+	if (additionalCacheFroms && additionalCacheFroms.length > 0) {
 		const composeOverrideFile = cliHost.path.join(await cliHost.tmpdir(), `docker-compose.devcontainer.build-${Date.now()}.yml`);
-		const imageNameOverrideContent = imageNameOverride ? `    image: ${imageNameOverride}` : '';
 		const cacheFromOverrideContent = (additionalCacheFroms && additionalCacheFroms.length > 0) ? `    cache_from: ${additionalCacheFroms.forEach(cacheFrom => `      - ${cacheFrom}`)}` : '';
 		const composeOverrideContent = `services:
   ${config.service}:
-${imageNameOverrideContent}
 ${cacheFromOverrideContent}
 `;
 		await cliHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
@@ -218,7 +217,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 			}
 		}
 	} else {
-		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, undefined, params.additionalCacheFroms);
+		await buildDockerCompose(config, projectName, { ...buildParams, output: infoOutput }, localComposeFiles, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, params.additionalCacheFroms);
 		const { updatedImageName: updatedImageName0, collapsedFeaturesConfig, imageDetails } = await extendImage(params, config, originalImageName, !service.build);
 
 		const updatedImageName = await updateRemoteUserUID(params, config, updatedImageName0, imageDetails, service.user);
