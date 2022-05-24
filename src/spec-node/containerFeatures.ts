@@ -98,14 +98,19 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 
 export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
 
+	// Creates the folder where the working files will be setup.
 	const tempFolder = await createFeaturesTempFolder(params.common);
+
+	// Extracts the local cache of features.
 	await createLocalFeatures(params, tempFolder);
+
+	// Processes the user's configuration.
 	const featuresConfig = await generateFeaturesConfig(params.common, tempFolder, config, imageLabelDetails, getContainerFeaturesFolder);
 	if (!featuresConfig) {
 		return null;
 	}
 
-
+	// Generates the end configuration.
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
 	if (!featureBuildInfo) {
@@ -119,7 +124,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
-		// We only need to generate this ENV references for the old features spec.
+		// We only need to generate this ENV references for the initial features specification.
 		if(fSet.internalVersion !== '2')
 		{
 			result += fSet.features
@@ -137,7 +142,7 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 	const { common } = params;
 	const { cliHost, output } = common;
 
-	// Calculate name of the build folder where localcache has been copied to.
+	// Name of the local cache folder inside the working directory
 	const localCacheBuildFolderName = 'local-cache';
 
 	const srcFolder = getContainerFeaturesFolder(common.extensionPath);

@@ -153,9 +153,8 @@ export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeatu
 
 export const multiStageBuildExploration = false;
 
-// TODO: Cleanup
+// Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
 let counter = 1;
-
 function getCounter() {
 	return counter++;
 }
@@ -213,7 +212,7 @@ USER $_DEV_CONTAINERS_IMAGE_USER
 export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	let result = '';
 
-	// Features version 1  FIX
+	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
 		result += `RUN cd /tmp/build-features/${folder} \\
@@ -239,7 +238,7 @@ RUN cd /tmp/build-features/${feature.consecutiveId} \\
 	return result;
 }
 
-// Used for features version 2
+// Features version two export their environment variables as part of the Dockerfile to make them available to subsequent features.
 export function generateContainerEnvs(feature: Feature) {
 	let result = '';
 	if(!feature.containerEnv)
@@ -381,6 +380,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 		return undefined;
 	}
 
+	// Converts from object notation to array notation.
 	const userFeatures = convertOldFeatures(params, config);
 
 	if(!userFeatures) {
@@ -443,6 +443,7 @@ function convertOldFeatures(params: { output: Log }, config: DevContainerConfig)
 }
 
 // Process features contained in devcontainer.json
+// Creates one feature set per feature to aid in support of the previous structure.
 async function processUserFeatures(output: Log, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig) : Promise<FeaturesConfig>
 {
 	userFeatures.forEach(userFeature => {
@@ -752,6 +753,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				// Read version information.
 				const jsonPath = path.join(featCachePath, 'feature.json');
 
+				// TODO: load features contained in a devcontainer-collection.json for version 2
 				if (existsSync(jsonPath)) {
 					const jsonString: Buffer = await readLocalFile(jsonPath);
 					const featureJson = jsonc.parse(jsonString.toString());
