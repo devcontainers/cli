@@ -600,7 +600,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			const id = splitOnSlash[2];
 
 			let feat: Feature = {
-				id: owner + repo + id,
+				id: id,
 				name: userFeature.id,
 				value: userFeature.options,
 				included: true,
