@@ -40,6 +40,16 @@ export const staticExecParams = {
     'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
 };
 
+export interface LaunchResult {
+    disposables?: (() => Promise<unknown> | undefined)[];
+    containerId: string;
+    remoteUser?: string;
+    remoteWorkspaceFolder?: string | undefined;
+    finishBackgroundTasks?: () => Promise<void>;
+    containerHost?: string;
+    containerPort?: any;
+}
+
 // dev-container-features-test-lib
 export const testLibraryScript = `
 #!/bin/bash
