@@ -13,7 +13,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 describe('validate (offline) generateFeaturesConfig()', function () {
 
     // Setup
-    const env = { 'SOME_KEY': 'SOME_VAL'};
+    const env = { 'SOME_KEY': 'SOME_VAL' };
     const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '' };
 
     // Mocha executes with the root of the project as the cwd.
@@ -32,66 +32,64 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         return record;
     };
 
-   // it('should correctly return a featuresConfig with just local features', async function () {
+    it('should correctly return a featuresConfig with just local features', async function () {
 
-        // TODO, rewrite
-//         const version = 'unittest';
-//         const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
-//         await mkdirpLocal(tmpFolder);
+        const version = 'unittest';
+        const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
+        await mkdirpLocal(tmpFolder);
 
-//         const config: DevContainerConfig = {
-//             configFilePath: URI.from({ 'scheme': 'https' }),
-//             dockerFile: '.',
-//             features: {
-//                 first: {
-//                     'version': 'latest',
-//                     'option1': true
-//                 },
-//                 second: 'latest',
-//                 third: 'latest'
-//             },
-//         };
+        const config: DevContainerConfig = {
+            configFilePath: URI.from({ 'scheme': 'https' }),
+            dockerFile: '.',
+            features: {
+                first: {
+                    'version': 'latest',
+                    'option1': true
+                },
+                third: 'latest'
+            },
+        };
 
-//         const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
-//         if (!featuresConfig) {
-//             assert.fail();
-//         }
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
+        if (!featuresConfig) {
+            assert.fail();
+        }
 
-//         const localFeatureSet = (featuresConfig?.featureSets.find(set => set.sourceInformation.type === 'local-cache'));
-//         assert.exists(localFeatureSet);
-//         assert.strictEqual(localFeatureSet?.features.length, 1);
+        const localFeatureSet = (featuresConfig?.featureSets.find(set => set.sourceInformation.type === 'local-cache'));
+        assert.exists(localFeatureSet);
+        assert.strictEqual(localFeatureSet?.features.length, 3);
 
-//         const first = localFeatureSet?.features.find((f) => f.id === 'first');
-//         assert.exists(first);
+        const first = localFeatureSet?.features.find((f) => f.id === 'first');
+        assert.exists(first);
 
-//         const second = localFeatureSet?.features.find((f) => f.id === 'second');
-//         assert.exists(second);
+        const second = localFeatureSet?.features.find((f) => f.id === 'second');
+        assert.exists(second);
 
-//         const third = localFeatureSet?.features.find((f) => f.id === 'third');
-//         assert.exists(third);
+        const third = localFeatureSet?.features.find((f) => f.id === 'third');
+        assert.exists(third);
 
-//         assert.isObject(first?.value);
-//         assert.isBoolean(second?.value);
-//         assert.isString(third?.value);
+        assert.isObject(first?.value);
+        assert.isBoolean(second?.value);
+        assert.isString(third?.value);
 
-//         // -- Test containerFeatures.ts helper functions
+        // -- Test containerFeatures.ts helper functions
 
-//         // generateContainerEnvs
-// // TODO
-// //         const actualEnvs = generateContainerEnvs(featuresConfig);
-// //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
-// // ENV MYKEYTHREE=MYRESULTHREE`;
-// //         assert.strictEqual(actualEnvs, expectedEnvs);
-    
-//         // getFeatureLayers
-//         const actualLayers = await getFeatureLayers(featuresConfig);
-//         const expectedLayers = `RUN cd /tmp/build-features/local-cache \\
-// && chmod +x ./install.sh \\
-// && ./install.sh
+        // generateContainerEnvs
+        // TODO
+        //         const actualEnvs = generateContainerEnvs(featuresConfig);
+        //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
+        // ENV MYKEYTHREE=MYRESULTHREE`;
+        //         assert.strictEqual(actualEnvs, expectedEnvs);
 
-// `;
-//         assert.strictEqual(actualLayers, expectedLayers);
-  //  });
+        // getFeatureLayers
+        const actualLayers = await getFeatureLayers(featuresConfig);
+        const expectedLayers = `RUN cd /tmp/build-features/local-cache \\
+&& chmod +x ./install.sh \\
+&& ./install.sh
+
+`;
+        assert.strictEqual(actualLayers, expectedLayers);
+    });
 
 
 
