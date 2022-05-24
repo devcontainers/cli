@@ -56,7 +56,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         }
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
-        assert.strictEqual(result?.features[0].id, 'octocatmyfeatureshelloworld');
+        assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
                                                       owner: 'octocat', 
                                                       repo: 'myfeatures', 
@@ -74,7 +74,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
-        assert.strictEqual(result?.features[0].id, 'octocatmyfeatureshelloworld');
+        assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'github-repo', 
                                                       owner: 'octocat', 
                                                       repo: 'myfeatures', 
