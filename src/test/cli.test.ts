@@ -68,6 +68,23 @@ describe('Dev Containers CLI', function () {
 			}
 			assert.equal(success, false, 'expect non-successful call');
 		});
+
+		it('should succeed with supported --platform', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --buildkit auto --platform linux/amd64`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+		});
+
+		it('should fail with unsupported --platform', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --buildkit auto --platform fake/platform`);
+			const response = JSON.parse(res.stdout);
+			console.log(res.stderr);
+			assert.equal(response.outcome, 'success');
+			assert.match(res.stderr, /no match for platform in manifest/);
+		});
+
 	});
 
 	describe('Command up', () => {

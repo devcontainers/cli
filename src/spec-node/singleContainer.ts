@@ -105,7 +105,6 @@ function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerF
 	return 'image' in config ? config.image : getFolderImageName(params.common);
 }
 export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
-	// const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
 	const imageName = argImageName ?? getDefaultName(config, params);
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
