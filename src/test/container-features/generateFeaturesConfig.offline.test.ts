@@ -73,8 +73,8 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         const second = featuresConfig.featureSets[1].features.find((f) => f.id === 'second');
         assert.exists(second);
 
-        assert.isString(first?.options?.version);
-        assert.isBoolean(second?.options?.value);
+        assert.isObject(first?.value);
+        assert.isObject(second?.value);
 
         // -- Test containerFeatures.ts helper functions
 
