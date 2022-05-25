@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug devcontainer merge command",
+            "skipFiles": ["<node_internals>/**"],
+            "program": "${workspaceFolder}/devcontainer.js",
+            "args": ["merge", "--parent-devcontainer", "parent.json.log", "--child-devcontainer", "child.json.log"], // Placeholder files
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "resolveSourceMapLocations": [
+              "${workspaceFolder}/**",
+              "!**/node_modules/**"
+            ],
+            "preLaunchTask": "npm: compile"
+          }
+    ]
+  }
