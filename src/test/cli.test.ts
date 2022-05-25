@@ -70,19 +70,25 @@ describe('Dev Containers CLI', function () {
 		});
 
 		it('should succeed with supported --platform', async () => {
-			const testFolder = `${__dirname}/configs/image`;
-			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --buildkit auto --platform linux/amd64`);
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --platform linux/amd64`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 		});
 
 		it('should fail with unsupported --platform', async () => {
-			const testFolder = `${__dirname}/configs/image`;
-			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --buildkit auto --platform fake/platform`);
-			const response = JSON.parse(res.stdout);
-			console.log(res.stderr);
-			assert.equal(response.outcome, 'success');
-			assert.match(res.stderr, /no match for platform in manifest/);
+			let success = false;
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --platform fake/platform`);
+				success = true;
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /Command failed/);
+			}
+			assert.equal(success, false, 'expect non-successful call');
 		});
 
 	});
