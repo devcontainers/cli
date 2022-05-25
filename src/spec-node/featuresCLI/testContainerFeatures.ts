@@ -217,7 +217,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
             disposables,
         };
     } catch (e: any) {
-        fail(`Failed to launch container: ${e.message}`);
+        fail(`Failed to launch container:\n\n${e?.message ?? 'Unknown error'}`);
         return response; // `fail` exits before we return this.
     }
 }
