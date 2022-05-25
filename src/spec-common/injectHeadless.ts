@@ -105,7 +105,7 @@ export type DevContainerConfigCommand = 'initializeCommand' | 'onCreateCommand' 
 
 const defaultWaitFor: DevContainerConfigCommand = 'updateContentCommand';
 
-export interface DevContainerFeature{
+export interface DevContainerFeature {
 	id: string;
 	options: boolean | string | Record<string, boolean | string | undefined>;
 }

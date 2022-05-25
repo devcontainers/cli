@@ -5,14 +5,12 @@
 
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
-//import * as semver from 'semver';
 import * as URL from 'url';
 import * as tar from 'tar';
 import { DevContainerConfig } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
-import { DevContainerFeature } from './configuration';
 import { existsSync } from 'fs';
 
 const ASSET_NAME = 'devcontainer-features.tgz';
@@ -25,7 +23,7 @@ export interface Feature {
 	runApp?: string;
 	runParams?: string;
 	infoString?: string;
-	internalVersion?: string;
+	internalVersion?: string; // set programmatically
 	tempLocalPath?: string;
 	consecutiveId?: string;
 	install?: Record<string, string>;

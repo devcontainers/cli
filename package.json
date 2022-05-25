@@ -41,6 +41,7 @@
 		"@types/js-yaml": "^4.0.5",
 		"@types/mocha": "^9.1.0",
 		"@types/node": "^16.11.7",
+		"@types/ncp": "^2.0.5",
 		"@types/pull-stream": "^3.6.2",
 		"@types/semver": "^7.3.9",
 		"@types/shell-quote": "^1.7.1",
@@ -65,7 +66,6 @@
 		"vinyl-fs": "^3.0.3"
 	},
 	"dependencies": {
-		"@types/ncp": "^2.0.5",
 		"ncp": "^2.0.0",
 		"follow-redirects": "^1.14.8",
 		"js-yaml": "^4.1.0",
