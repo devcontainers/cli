@@ -67,7 +67,8 @@ function featuresTestOptions(y: Argv) {
 			'features': { type: 'string', alias: 'f', describe: 'Feature(s) to test. Can be supplied many times in desired sequence.', },
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
 			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'trace' as 'trace', description: 'Log level.' },
+			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
+			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
 		});
 }
 
@@ -79,6 +80,7 @@ export interface FeaturesTestCommandInput {
 	collectionFolder: string;
 	features?: string[];
 	remoteUser: string;
+	quiet: boolean;
 	logLevel: LogLevel;
 	disposables: (() => Promise<unknown> | undefined)[];
 }
@@ -92,6 +94,7 @@ async function featuresTest({
 	'collection-folder': collectionFolder,
 	features,
 	'remote-user': remoteUser,
+	quiet,
 	'log-level': inputLogLevel,
 }: FeaturesTestArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -110,6 +113,7 @@ async function featuresTest({
 		baseImage,
 		cliHost,
 		logLevel,
+		quiet,
 		pkg,
 		collectionFolder: cliHost.path.resolve(collectionFolder),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
@@ -822,7 +826,8 @@ export async function doExec({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: 'auto'
+			useBuildKit: 'auto',
+			omitLoggerHeader: true
 		}, disposables);
 
 		const { common } = params;

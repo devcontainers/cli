@@ -35,7 +35,7 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-    const { baseImage, collectionFolder, remoteUser, cliHost, pkg, logLevel, disposables } = args;
+    const { baseImage, collectionFolder, remoteUser, cliHost, pkg, logLevel, quiet, disposables } = args;
     let { features } = args;
 
     process.stdout.write(`
@@ -78,13 +78,13 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
     log(`workspaceFolder:   ${workspaceFolder}`);
 
-    const params = await generateDockerParams(workspaceFolder, logLevel, disposables);
+    const params = await generateDockerParams(workspaceFolder, logLevel, quiet, disposables);
 
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
     // 2. Use  'devcontainer-cli up'  to build and start a container
     log('Building test container...\n', { prefix: '\n⏳', info: true });
-    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, logLevel, disposables);
+    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
     if (!launchResult || !launchResult.containerId) {
         fail('Failed to launch container');
         return 2;
@@ -102,7 +102,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     // 3. Exec test script for each feature, in the provided order.
     const testResults = [];
     for (const feature of features) {
-        log(`Executing '${feature}' test...\n`, { prefix: '🧪' });
+        log(`Executing '${feature}' test...`, { prefix: '🧪' });
         const testScriptPath = path.join(collectionFolder, 'test', feature, 'test.sh');
         if (!(await cliHost.isFile(testScriptPath))) {
             fail(`Feature ${feature} does not have a test script!`);
@@ -176,7 +176,7 @@ async function generateProject(
     return tmpFolder;
 }
 
-async function launchProject(params: DockerResolverParameters, workspaceFolder: string, logLevel: LogLevel, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult> {
+async function launchProject(params: DockerResolverParameters, workspaceFolder: string, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult> {
     const { common } = params;
     let response = {} as LaunchResult;
 
@@ -189,13 +189,14 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
             `devcontainer.local_folder=${workspaceFolder}`
         ],
         remoteEnv: common.remoteEnv,
-        log: (str) => common.output.write(str),
+        log: text => quiet ? null : process.stderr.write(text),
     };
-    if (logLevel === LogLevel.Info) {
+    if (quiet) {
         // Launch container but don't await it to reduce output noise
         let isResolved = false;
         const p = launch(options, disposables);
         p.then(function (res) {
+            process.stdout.write('\n');
             response = res;
             isResolved = true;
         });
@@ -242,7 +243,7 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
     return (result.outcome === 'success');
 }
 
-async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
+async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
     return await createDockerParams({
         workspaceFolder,
         dockerPath: undefined,
@@ -255,9 +256,7 @@ async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel,
         overrideConfigFile: undefined,
         logLevel,
         logFormat: 'text',
-        log: function (text: string): void {
-            process.stdout.write(text);
-        },
+        log: text => quiet ? null : process.stderr.write(text),
         terminalDimensions: undefined,
         defaultUserEnvProbe: 'loginInteractiveShell',
         removeExistingContainer: false,
