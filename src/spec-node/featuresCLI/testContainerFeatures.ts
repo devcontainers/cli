@@ -191,30 +191,35 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
         remoteEnv: common.remoteEnv,
         log: text => quiet ? null : process.stderr.write(text),
     };
-    if (quiet) {
-        // Launch container but don't await it to reduce output noise
-        let isResolved = false;
-        const p = launch(options, disposables);
-        p.then(function (res) {
-            process.stdout.write('\n');
-            response = res;
-            isResolved = true;
-        });
-        while (!isResolved) {
-            // Just so visual progress with dots
-            process.stdout.write('.');
-            await new Promise((resolve) => setTimeout(resolve, 500));
+
+    try {
+        if (quiet) {
+            // Launch container but don't await it to reduce output noise
+            let isResolved = false;
+            const p = launch(options, disposables);
+            p.then(function (res) {
+                process.stdout.write('\n');
+                response = res;
+                isResolved = true;
+            });
+            while (!isResolved) {
+                // Just so visual progress with dots
+                process.stdout.write('.');
+                await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+        } else {
+            // Stream all the container setup logs.
+            response = await launch(options, disposables);
         }
-    } else {
-        // Stream all the container setup logs.
-        response = await launch(options, disposables);
+
+        return {
+            ...response,
+            disposables,
+        };
+    } catch (e: any) {
+        fail(`Failed to launch container: ${e.message}`);
+        return response; // `fail` exits before we return this.
     }
-
-    return {
-        ...response,
-        disposables,
-    };
-
 }
 
 async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, workspaceFolder: string) {
