@@ -63,11 +63,11 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 function featuresTestOptions(y: Argv) {
 	return y
 		.options({
-			'base-image': { type: 'string', alias: 'i', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
+			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
 			'features': { type: 'string', alias: 'f', describe: 'Feature(s) to test. Can be supplied many times in desired sequence.', },
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
 			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
+			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'trace' as 'trace', description: 'Log level.' },
 		});
 }
 
