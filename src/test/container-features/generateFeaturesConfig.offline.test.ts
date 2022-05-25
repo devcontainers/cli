@@ -65,7 +65,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
             assert.fail();
         }
 
-        assert.strictEqual(featuresConfig?.featureSets.length, 3);
+        assert.strictEqual(featuresConfig?.featureSets.length, 2);
 
         const first = featuresConfig.featureSets[0].features.find((f) => f.id === 'first');
         assert.exists(first);
