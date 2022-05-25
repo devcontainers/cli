@@ -24,6 +24,7 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { doFeaturesTestCommand } from './testContainerFeatures';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -47,6 +48,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
+	y.command('features test [baseImage] [pathToCollection] <features..>', 'Test dev container features', featuresTestOptions, featuresTestHandler);
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
@@ -55,6 +57,31 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
+
+// -- 'features test' command
+function featuresTestOptions(y: Argv) {
+	return y.options({
+		'base-image': { type: 'string', alias: 'b', default: 'mcr.microsoft.com/vscode/devcontainers/base:focal', description: 'Base Image' },
+		'path-to-collection': { type: 'string', alias: 'c', default: '.', describe: 'Path to collections folder' },
+		'features': { type: 'string', describe: 'Feature(s) IDs to test, comma separated.', }
+	});
+}
+
+export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
+
+function featuresTestHandler({
+	'base-image': baseImage,
+	'path-to-collection': pathToCollection,
+	features
+}: FeaturesTestArgs) {
+	if (!features) {
+		process.stderr.write('Must supply comma separated list of features to test');
+		process.exit(1);
+	}
+	(async () => await doFeaturesTestCommand(baseImage, pathToCollection, features)().catch(console.error));
+}
+
+// -- End: 'features test' command
 
 function provisionOptions(y: Argv) {
 	return y.options({
@@ -619,7 +646,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd: process.cwd(), output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, async () => /* TODO: ? (await imageDetails()).Config.Labels || */ ({}), getContainerFeaturesFolder) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd: process.cwd(), output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, async () => /* TODO: ? (await imageDetails()).Config.Labels || */({}), getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configs.config,
