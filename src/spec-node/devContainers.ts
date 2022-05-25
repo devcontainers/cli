@@ -46,6 +46,7 @@ export interface ProvisionOptions {
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
 	useBuildKit: 'auto' | 'never';
+	omitLoggerHeader?: boolean | undefined;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -81,7 +82,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
 	const pkg = await getPackageConfig(extensionPath);
-	const output = createLog(options, pkg, sessionStart, disposables);
+	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
@@ -159,8 +160,8 @@ export interface LogOptions {
 	terminalDimensions: LogDimensions | undefined;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[]) {
-	const header = `${pkg.name} ${pkg.version}.`;
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
+	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
 	disposables.push(() => output.join());

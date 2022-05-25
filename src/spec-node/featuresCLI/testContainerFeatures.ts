@@ -17,7 +17,7 @@ function fail(msg: string) {
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
 
-    const prefix = options?.prefix || '[+]';
+    const prefix = options?.prefix || '> ';
     const output = `${prefix} ${msg}\n`;
 
     if (options?.stderr) {
@@ -25,7 +25,7 @@ function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: 
     } else if (options?.info) {
         process.stdout.write(chalk.bold.blue(output));
     } else {
-        process.stdout.write(chalk.green(output));
+        process.stdout.write(chalk.blue(output));
     }
 }
 
@@ -35,10 +35,8 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-    const { baseImage, collectionFolder, remoteUser, quiet, cliHost, pkg, logLevel, disposables } = args;
+    const { baseImage, collectionFolder, remoteUser, cliHost, pkg, logLevel, disposables } = args;
     let { features } = args;
-
-
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -85,9 +83,8 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
     // 2. Use  'devcontainer-cli up'  to build and start a container
-    log('\n>>> Building test container... <<<\n\n', { prefix: ' ', info: true });
-    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
-
+    log('Building test container...\n', { prefix: '\n⏳', info: true });
+    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, logLevel, disposables);
     if (!launchResult || !launchResult.containerId) {
         fail('Failed to launch container');
         return 2;
@@ -95,14 +92,17 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
     const { containerId } = launchResult;
 
-    log(`Launched container '${containerId}' as remote user ${remoteUser} \n`);
+    log(`Launched container.`, { prefix: '\n🚀', info: true });
+    log(`containerId:          ${containerId}`);
+    log(`remoteUser:           ${remoteUser}`);
 
-    log('>>> Executing test(s)... <<<\n\n', { prefix: ' ', info: true });
+
+    log('Starting test(s)...\n', { prefix: '\n🏃', info: true });
 
     // 3. Exec test script for each feature, in the provided order.
     const testResults = [];
     for (const feature of features) {
-        log(`>>> Executing '${feature}' test. <<<\n\n`, { prefix: ' ', info: true });
+        log(`Executing '${feature}' test...\n`, { prefix: '🧪' });
         const testScriptPath = path.join(collectionFolder, 'test', feature, 'test.sh');
         if (!(await cliHost.isFile(testScriptPath))) {
             fail(`Feature ${feature} does not have a test script!`);
@@ -131,7 +131,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
             printFailedTest(x.feature);
         });
     } else {
-        log(' !!!!!! FIX ME ✅ All tests passed!');
+        log('All tests passed!', { prefix: '\n✅', info: true });
     }
 
     return allPassed ? 0 : 1;
@@ -176,8 +176,9 @@ async function generateProject(
     return tmpFolder;
 }
 
-async function launchProject(params: DockerResolverParameters, workspaceFolder: string, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult | undefined> {
+async function launchProject(params: DockerResolverParameters, workspaceFolder: string, logLevel: LogLevel, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult> {
     const { common } = params;
+    let response = {} as LaunchResult;
 
     const options: ProvisionOptions = {
         ...staticProvisionParams,
@@ -190,17 +191,13 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
         remoteEnv: common.remoteEnv,
         log: (str) => common.output.write(str),
     };
-
-    if (quiet) {
+    if (logLevel === LogLevel.Info) {
         // Launch container but don't await it to reduce output noise
         let isResolved = false;
         const p = launch(options, disposables);
         p.then(function (res) {
+            response = res;
             isResolved = true;
-            return {
-                ...res,
-                disposables
-            };
         });
         while (!isResolved) {
             // Just so visual progress with dots
@@ -209,13 +206,14 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
         }
     } else {
         // Stream all the container setup logs.
-        return {
-            ...await launch(options, disposables),
-            disposables,
-        };
+        response = await launch(options, disposables);
     }
 
-    return undefined;
+    return {
+        ...response,
+        disposables,
+    };
+
 }
 
 async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, workspaceFolder: string) {
@@ -272,6 +270,7 @@ async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel,
         additionalMounts: [],
         updateRemoteUserUIDDefault: 'never',
         remoteEnv: {},
-        additionalCacheFroms: []
+        additionalCacheFroms: [],
+        omitLoggerHeader: true
     }, disposables);
 }
