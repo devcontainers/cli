@@ -87,7 +87,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
 
         // getFeatureLayers
         const actualLayers = await getFeatureLayers(featuresConfig);
-        const expectedLayers = `RUN cd /tmp/build-features/local-cache \\
+        const expectedLayers = `RUN cd /tmp/build-features/first_1\\
 && chmod +x ./install.sh \\
 && ./install.sh
 
