@@ -6,6 +6,7 @@ import * as path from 'path';
 import { mkdirpLocal } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
+import { DevContainerFeature } from '../../spec-common/injectHeadless';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -38,16 +39,25 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
 
+        const features: DevContainerFeature[] = [
+            {
+                id: 'first',
+                options: {
+                    'version': 'latest'
+                },
+            },
+            {
+                id: 'second',
+                options: {
+                    'value': true
+                },
+            }
+        ];
+
         const config: DevContainerConfig = {
             configFilePath: URI.from({ 'scheme': 'https' }),
             dockerFile: '.',
-            features: {
-                first: {
-                    'version': 'latest',
-                    'option1': true
-                },
-                third: 'latest'
-            },
+            features: features
         };
 
         const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
@@ -55,22 +65,16 @@ describe('validate (offline) generateFeaturesConfig()', function () {
             assert.fail();
         }
 
-        const localFeatureSet = (featuresConfig?.featureSets.find(set => set.sourceInformation.type === 'local-cache'));
-        assert.exists(localFeatureSet);
-        assert.strictEqual(localFeatureSet?.features.length, 3);
+        assert.strictEqual(featuresConfig?.featureSets.length, 3);
 
-        const first = localFeatureSet?.features.find((f) => f.id === 'first');
+        const first = featuresConfig.featureSets[0].features.find((f) => f.id === 'first');
         assert.exists(first);
 
-        const second = localFeatureSet?.features.find((f) => f.id === 'second');
+        const second = featuresConfig.featureSets[1].features.find((f) => f.id === 'second');
         assert.exists(second);
 
-        const third = localFeatureSet?.features.find((f) => f.id === 'third');
-        assert.exists(third);
-
-        assert.isObject(first?.value);
-        assert.isBoolean(second?.value);
-        assert.isString(third?.value);
+        assert.isString(first?.options?.version);
+        assert.isBoolean(second?.options?.value);
 
         // -- Test containerFeatures.ts helper functions
 
