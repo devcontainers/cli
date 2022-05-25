@@ -208,7 +208,7 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts ? '# syntax=docker/dockerfile:1.4' : ''}
-ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder # will be overridden by build args passed to CLI
 `;
 
 	// Build devcontainer-features.env file(s) for each features source folder
