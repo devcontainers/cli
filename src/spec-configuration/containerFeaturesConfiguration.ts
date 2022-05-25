@@ -663,9 +663,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
 
-				const local = localFeatures.features.find(x => x.id === feature.id);
-				feature.buildArg = local?.buildArg;
-				feature.options = local?.options;
+				await parseDevContainerFeature(featureSet, feature, featCachePath);
+
+				if (featureSet.internalVersion !== '2') {
+					const local = localFeatures.features.find(x => x.id === feature.id);
+					feature.buildArg = local?.buildArg;
+					feature.options = local?.options;
+				}
 				continue;
 			}
 		
@@ -673,26 +677,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				params.output.write(`Detected local file path`);
 				
 				const executionPath = featureSet.sourceInformation.isRelative ? path.join(params.cwd, featureSet.sourceInformation.filePath) : featureSet.sourceInformation.filePath;
-				const jsonPath = path.join(executionPath, 'feature.json');
 
-				const jsonString: Buffer = await readLocalFile(jsonPath);
-				const featureJson = jsonc.parse(jsonString.toString());
-
-				feature.runApp = featureJson.install.app ?? '';
-				feature.runParams = featureJson.install.file ?? 'install.sh';
-				feature.containerEnv = featureJson.containerEnv;
-				feature.buildArg = featureJson.buildArg;
-				feature.options = featureJson.options;
-
-				// We only support version 2 for local features.
-				featureSet.internalVersion = '2';
-
+				await parseDevContainerFeature(featureSet, feature, executionPath);
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(executionPath, featCachePath);
 				continue;
 			}
 
-			
 			const tempTarballPath = path.join(dstFolder, ASSET_NAME);
 			params.output.write(`Detected tarball`);
 			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, params.output);
@@ -750,29 +741,47 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					}
 				);
 
-				// Read version information.
-				const jsonPath = path.join(featCachePath, 'feature.json');
-
-				// TODO: load features contained in a devcontainer-collection.json for version 2
-				if (existsSync(jsonPath)) {
-					const jsonString: Buffer = await readLocalFile(jsonPath);
-					const featureJson = jsonc.parse(jsonString.toString());
-					feature.runApp = featureJson.install.app ?? '';
-					feature.runParams = featureJson.install.file ?? 'install.sh';
-					feature.containerEnv = featureJson.containerEnv;
-					featureSet.internalVersion === '2';
-					feature.buildArg = featureJson.buildArg;
-					feature.options = featureJson.options;
-				} else {
-					featureSet.internalVersion === '1';
-				}
-
+				await parseDevContainerFeature(featureSet, feature, featCachePath);
 			}
 			continue;
 		}
 		catch (e) {
 			params.output.write(`Exception: ${e?.Message} `, LogLevel.Trace);
 		}
+	}
+}
+
+async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature, featCachePath: string) {
+	// Read version information.
+	const jsonPath = path.join(featCachePath, 'devcontainer-feature.json');
+	const innerPath = path.join(featCachePath, feature.id);
+	const innerJsonPath = path.join(innerPath, 'devcontainer-feature.json');
+
+	let foundPath: string | undefined;
+
+	if (existsSync(jsonPath)) {
+		foundPath = jsonPath;
+	} else if (existsSync(innerJsonPath)) {
+		foundPath = innerJsonPath;
+		feature.infoString = innerPath;
+	}
+
+	if (foundPath) {
+		const jsonString: Buffer = await readLocalFile(foundPath);
+		const featureJson = jsonc.parse(jsonString.toString());
+		feature.runApp = '';
+		feature.runParams = 'install.sh';
+		if (featureJson.install) {
+			feature.runApp = featureJson.install!.app ?? '';
+			feature.runParams = featureJson.install!.file ?? 'install.sh';
+		}
+
+		feature.containerEnv = featureJson.containerEnv;
+		featureSet.internalVersion = '2';
+		feature.buildArg = featureJson.buildArg;
+		feature.options = featureJson.options;
+	} else {
+		featureSet.internalVersion = '1';
 	}
 }
 
