@@ -1,7 +1,36 @@
 import { assert } from 'chai';
 import { getSourceInfoString, parseFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+describe('getIdSafe should return safe environment variable name', function () {
+
+    it('should replace a "-" with "_"', function () {
+        const ex = 'option-name';
+        assert.strictEqual(getSafeId(ex), 'OPTION_NAME');
+    });
+
+    it('should replace all "-" with "_"', function () {
+        const ex = 'option1-name-with_dashes-';
+        assert.strictEqual(getSafeId(ex), 'OPTION1_NAME_WITH_DASHES_');
+    });
+
+    it('should only be capitalized if no special characters', function () {
+        const ex = 'myOptionName';
+        assert.strictEqual(getSafeId(ex), 'MYOPTIONNAME');
+    });
+
+    it('should delete a leading numbers and add a _', function () {
+        const ex = '1name';
+        assert.strictEqual(getSafeId(ex), '_NAME');
+    });
+
+    it('should delete all leading numbers and add a _', function () {
+        const ex = '12345_option-name';
+        assert.strictEqual(getSafeId(ex), '_OPTION_NAME');
+    });
+});
 
 describe('validate function parseRemoteFeatureToDownloadUri', function () {
 
