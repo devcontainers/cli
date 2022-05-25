@@ -7,7 +7,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
-import { DevContainerConfig } from './configuration';
+import { DevContainerConfig, DevContainerFeature } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
