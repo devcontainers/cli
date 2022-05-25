@@ -64,7 +64,7 @@ function featuresTestOptions(y: Argv) {
 	return y
 		.options({
 			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
-			'features': { type: 'string', alias: 'f', describe: 'Feature(s) to test. Can be supplied many times in desired sequence.', },
+			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. \nOmit to auto-detect all features in collection directory.', },
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
 			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
