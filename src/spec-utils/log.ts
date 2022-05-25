@@ -45,26 +45,26 @@ export type LogEvent = {
 	type: 'text' | 'raw' | 'start' | 'stop' | 'progress';
 	channel?: string;
 } & (
-		{
-			type: 'text' | 'raw' | 'start';
-			level: LogLevel; // TODO: Change to string for stringifycation.
-			timestamp: number;
-			text: string;
-		} |
-		{
-			type: 'stop';
-			level: LogLevel;
-			timestamp: number;
-			text: string;
-			startTimestamp: number;
-		} |
-		{
-			type: 'progress';
-			name: string;
-			status: 'running' | 'succeeded' | 'failed';
-			stepDetail?: string;
-		}
-	);
+	{
+		type: 'text' | 'raw' | 'start';
+		level: LogLevel; // TODO: Change to string for stringifycation.
+		timestamp: number;
+		text: string;
+	} |
+	{
+		type: 'stop';
+		level: LogLevel;
+		timestamp: number;
+		text: string;
+		startTimestamp: number;
+	} |
+	{
+		type: 'progress';
+		name: string;
+		status: 'running' | 'succeeded' | 'failed';
+		stepDetail?: string;
+	}
+);
 
 export interface LogHandler {
 	event(e: LogEvent): void;
