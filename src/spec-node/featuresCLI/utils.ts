@@ -19,6 +19,7 @@ export const staticProvisionParams = {
     overrideConfigFile: undefined,
     persistedFolder: undefined,
     terminalDimensions: undefined,
+    useBuildKit: 'auto' as 'auto',
 };
 
 export const staticExecParams = {
