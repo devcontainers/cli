@@ -320,3 +320,37 @@ export async function createFeaturesTempFolder(params: { cliHost: CLIHost; packa
 	await cliHost.mkdirp(tmpFolder);
 	return tmpFolder;
 }
+
+// not expected to be called externally (exposed for testing)
+export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
+
+	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
+	const lastFromLineMatch = fromLines[fromLines.length - 1];
+	const lastFromLine = lastFromLineMatch.groups?.line as string;
+
+	// Test for "FROM [--platform=someplat] base [as label]"
+	// That is, match against optional platform and label
+	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
+	if (!fromMatch) {
+		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
+	}
+	if (fromMatch.groups?.label) {
+		return {
+			lastStageName: fromMatch.groups.label,
+			modifiedDockerfile: undefined,
+		};
+	}
+
+	// Last stage doesn't have a name, so modify the Dockerfile to set the name to defaultLastStageName
+	const lastLineStartIndex = (lastFromLineMatch.index as number) + (fromMatch.index as number);
+	const lastLineEndIndex = lastLineStartIndex + lastFromLine.length;
+	const matchedFromText = fromMatch[0];
+	let modifiedDockerfile = dockerfile.slice(0, lastLineStartIndex + matchedFromText.length);
+
+	modifiedDockerfile += ` AS ${defaultLastStageName}`;
+	const remainingFromLineLength = lastFromLine.length - matchedFromText.length;
+	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
+
+	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
+}
