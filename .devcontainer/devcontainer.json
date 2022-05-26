@@ -33,8 +33,13 @@
 		"codespaces": {
 			"repositories": {
 				"devcontainers/*": {
-					"contents": {
-						"issues": "read"
+					"permissions": {
+						"contents": "read"
+					}
+				},
+				"devcontainers/features": {
+					"permissions": {
+						"contents": "write"
 					}
 				}
 			}
