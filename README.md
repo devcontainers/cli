@@ -17,6 +17,7 @@ This CLI is in active development. Current status:
 - [x] `devcontainer exec` - Executes a command in a container with `userEnvProbe`, `remoteUser`, `remoteEnv`, and other properties applied
 - [ ] `devcontainer stop` - Stops containers
 - [ ] `devcontainer down` - Stops and deletes containers
+- [ ] `devcontainer features <...>` - Tools to assist in authoring and testing [dev container 'features'](https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md)
 
 ## Try it out
 
@@ -40,6 +41,7 @@ Commands:
   devcontainer build [path]         Build a dev container image
   devcontainer run-user-commands    Run user commands
   devcontainer read-configuration   Read configuration
+  devcontainer features             Features commands
   devcontainer exec <cmd> [args..]  Execute a command on a running dev container
 
 Options:
