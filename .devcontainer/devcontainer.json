@@ -29,6 +29,15 @@
 				"dbaeumer.vscode-eslint",
 				"GitHub.vscode-pull-request-github"
 			]
+		},
+		"codespaces": {
+			"repositories": {
+				"devcontainers/*": {
+					"contents": {
+						"issues": "read"
+					}
+				}
+			}
 		}
 	}
 }
