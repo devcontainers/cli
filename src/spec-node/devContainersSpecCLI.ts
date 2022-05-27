@@ -50,7 +50,8 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('features', 'Features commands', (y: Argv) =>
-		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler)); y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
+		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler));
+	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
 })().catch(console.error);
@@ -58,75 +59,6 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
-
-// -- 'features test' command
-function featuresTestOptions(y: Argv) {
-	return y
-		.options({
-			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
-			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. \nOmit to auto-detect all features in collection directory.', },
-			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
-			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
-		});
-}
-
-export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
-export interface FeaturesTestCommandInput {
-	cliHost: CLIHost;
-	pkg: PackageConfiguration;
-	baseImage: string;
-	collectionFolder: string;
-	features?: string[];
-	remoteUser: string;
-	quiet: boolean;
-	logLevel: LogLevel;
-	disposables: (() => Promise<unknown> | undefined)[];
-}
-
-function featuresTestHandler(args: FeaturesTestArgs) {
-	(async () => await featuresTest(args))().catch(console.error);
-}
-
-async function featuresTest({
-	'base-image': baseImage,
-	'collection-folder': collectionFolder,
-	features,
-	'remote-user': remoteUser,
-	quiet,
-	'log-level': inputLogLevel,
-}: FeaturesTestArgs) {
-	const disposables: (() => Promise<unknown> | undefined)[] = [];
-	const dispose = async () => {
-		await Promise.all(disposables.map(d => d()));
-	};
-
-	const cwd = process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const extensionPath = path.join(__dirname, '..', '..');
-	const pkg = await getPackageConfig(extensionPath);
-
-	const logLevel = mapLogLevel(inputLogLevel);
-
-	const args: FeaturesTestCommandInput = {
-		baseImage,
-		cliHost,
-		logLevel,
-		quiet,
-		pkg,
-		collectionFolder: cliHost.path.resolve(collectionFolder),
-		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
-		remoteUser,
-		disposables
-	};
-
-	const exitCode = await doFeaturesTestCommand(args);
-
-	await dispose();
-	process.exit(exitCode);
-}
-// -- End: 'features test' command
 
 function provisionOptions(y: Argv) {
 	return y.options({
@@ -876,6 +808,75 @@ export async function doExec({
 		};
 	}
 }
+
+// -- 'features test' command
+function featuresTestOptions(y: Argv) {
+	return y
+		.options({
+			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
+			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. \nOmit to auto-detect all features in collection directory.', },
+			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
+			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
+			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
+			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
+		});
+}
+
+export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
+export interface FeaturesTestCommandInput {
+	cliHost: CLIHost;
+	pkg: PackageConfiguration;
+	baseImage: string;
+	collectionFolder: string;
+	features?: string[];
+	remoteUser: string;
+	quiet: boolean;
+	logLevel: LogLevel;
+	disposables: (() => Promise<unknown> | undefined)[];
+}
+
+function featuresTestHandler(args: FeaturesTestArgs) {
+	(async () => await featuresTest(args))().catch(console.error);
+}
+
+async function featuresTest({
+	'base-image': baseImage,
+	'collection-folder': collectionFolder,
+	features,
+	'remote-user': remoteUser,
+	quiet,
+	'log-level': inputLogLevel,
+}: FeaturesTestArgs) {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const extensionPath = path.join(__dirname, '..', '..');
+	const pkg = await getPackageConfig(extensionPath);
+
+	const logLevel = mapLogLevel(inputLogLevel);
+
+	const args: FeaturesTestCommandInput = {
+		baseImage,
+		cliHost,
+		logLevel,
+		quiet,
+		pkg,
+		collectionFolder: cliHost.path.resolve(collectionFolder),
+		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
+		remoteUser,
+		disposables
+	};
+
+	const exitCode = await doFeaturesTestCommand(args);
+
+	await dispose();
+	process.exit(exitCode);
+}
+// -- End: 'features test' command
 
 function keyValuesToRecord(keyValues: string[]): Record<string, string> {
 	return keyValues.reduce((envs, env) => {
