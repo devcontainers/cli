@@ -32,11 +32,6 @@
 		},
 		"codespaces": {
 			"repositories": {
-				"devcontainers/*": {
-					"permissions": {
-						"contents": "read"
-					}
-				},
 				"devcontainers/features": {
 					"permissions": {
 						"contents": "write",
