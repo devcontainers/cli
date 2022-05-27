@@ -39,7 +39,8 @@
 				},
 				"devcontainers/features": {
 					"permissions": {
-						"contents": "write"
+						"contents": "write",
+						"workflows": "write"
 					}
 				}
 			}
