@@ -25,7 +25,7 @@ import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 export const getSafeId = (str: string) => str
 	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
-	.toUpperCase(); 
+	.toUpperCase();
 
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
@@ -363,6 +363,10 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, conf
 		'--build-arg', `IMAGE_USER=${imageUser}`,
 		cliHost.path.dirname(destDockerfile)
 	];
-	await dockerPtyCLI(params, ...args);
+	if (params.isTTY) {
+		await dockerPtyCLI(params, ...args);
+	} else {
+		await dockerCLI(params, ...args);
+	}
 	return fixedImageName;
 }
