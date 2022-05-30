@@ -11,7 +11,7 @@ import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
 import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-common/commonUtils';
-import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -130,10 +130,10 @@ function getInfoForService(composeService: any) {
 
 export async function buildAndExtendDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, additionalCacheFroms?: string[]) {
 
-	const { common, dockerCLI, dockerComposeCLI } = params;
+	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
 
-	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output };
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
 	const composeService = composeConfig.services[config.service];
 
@@ -229,7 +229,13 @@ ${cacheFromOverrideContent}
 		}
 	}
 	try {
-		await dockerComposePtyCLI(params, ...args);
+		if (params.isTTY) {
+			const infoParams = { ...toPtyExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info) };
+			await dockerComposePtyCLI(infoParams, ...args);
+		} else {
+			const infoParams = { ...toExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
+			await dockerComposeCLI(infoParams, ...args);
+		}
 	} catch (err) {
 		throw err instanceof ContainerError ? err : new ContainerError({ description: 'An error occurred building the Docker Compose images.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
 	}
@@ -359,7 +365,11 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		}
 	}
 	try {
-		await dockerComposePtyCLI({ ...buildParams, output: infoOutput }, ...args);
+		if (params.isTTY) {
+			await dockerComposePtyCLI({ ...buildParams, output: infoOutput }, ...args);
+		} else {
+			await dockerComposeCLI({ ...buildParams, output: infoOutput }, ...args);
+		}
 	} catch (err) {
 		cancel!();
 		throw new ContainerError({ description: 'An error occurred starting Docker Compose up.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
