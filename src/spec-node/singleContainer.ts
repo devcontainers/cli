@@ -14,8 +14,6 @@ import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './con
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 
-export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
-
 export async function openDockerfileDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, workspaceConfig: WorkspaceConfiguration, idLabels: string[]): Promise<ResolverResult> {
 	const { common } = params;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;

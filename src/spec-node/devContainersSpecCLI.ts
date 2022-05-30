@@ -13,7 +13,7 @@ import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { UnpackPromise } from '../spec-utils/types';
 import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe } from '../spec-common/injectHeadless';
-import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
+import { bailOut, buildNamedImageAndExtend, findDevContainer } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
@@ -24,6 +24,10 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsP
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+
+const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
+const qualityLabel = 'devcontainer.quality';
+const qualityLabelValue = 'stable';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -814,5 +818,5 @@ function keyValuesToRecord(keyValues: string[]): Record<string, string> {
 }
 
 function getDefaultIdLabels(workspaceFolder: string) {
-	return [`${hostFolderLabel}=${workspaceFolder}`];
+	return [`${hostFolderLabel}=${workspaceFolder}`, `${qualityLabel}=${qualityLabelValue}`];
 }
