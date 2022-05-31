@@ -758,7 +758,8 @@ export async function doExec({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: 'auto'
+			useBuildKit: 'auto',
+			omitLoggerHeader: true,
 		}, disposables);
 
 		const { common } = params;
