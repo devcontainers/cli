@@ -269,7 +269,7 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 			output.write(`Expected ${file} to exist, but it did not`, LogLevel.Error);
 		}
 	} else {
-		output.write(`Expected to find a docker-compose file prefixed with ${prefix}, but did not.`, LogLevel.Error);
+		// output.write(`Expected to find a docker-compose file prefixed with ${prefix}, but did not.`, LogLevel.Error);
 	}
 	return undefined;
 }
@@ -351,7 +351,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		let cache: Promise<ImageDetails> | undefined;
-		const imageDetails = () => cache || (cache = inspectDockerImage(params, originalImageName, false));
+		const imageDetails = () => cache || (cache = inspectDockerImage(params, originalImageName, true));
 		const updatedImageName = await updateRemoteUserUID(params, config, originalImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
@@ -366,7 +366,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 	const args = ['--project-name', projectName, ...composeGlobalArgs];
 	args.push('up', '-d');
-	if (params.expectExistingContainer) {
+	if (container || params.expectExistingContainer) {
 		args.push('--no-recreate');
 	}
 	if (config.runServices && config.runServices.length) {
