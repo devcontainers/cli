@@ -690,7 +690,6 @@ function execOptions(y: Argv) {
 export type ExecArgs = UnpackArgv<ReturnType<typeof execOptions>>;
 
 function execHandler(args: ExecArgs) {
-	process.stdout.write(JSON.stringify(args));
 	(async () => exec(args))().catch(console.error);
 }
 
