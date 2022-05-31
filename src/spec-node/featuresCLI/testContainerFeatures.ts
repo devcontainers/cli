@@ -35,14 +35,35 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-    const { baseImage, collectionFolder, remoteUser, cliHost, pkg, logLevel, quiet, disposables } = args;
-    let { features } = args;
+    const { pkg, scenariosFolder } = args;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│     Testing v${pkg.version}          │
+│      Testing v${pkg.version}         │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
+
+    // There are two modes. 
+    // 1.  '--features ...'  - A user-provided set of features to test (we expect a parallel 'test' subfolder for each feature)
+    // 2.  '--scenarios ...' - A JSON file codifying a set of features to test (potentially with options & with its own test script)
+    if (!!scenariosFolder) {
+        return await runScenarioTests(args);
+    } else {
+        return await runDefaultFeaturesTests(args);
+    }
+}
+
+async function runScenarioTests(args: FeaturesTestCommandInput): Promise<number> {
+    const { scenariosFolder } = args;
+    log(`Running scenario:  ${scenariosFolder}`);
+
+    return 0;
+
+}
+
+async function runDefaultFeaturesTests(args: FeaturesTestCommandInput) {
+    const { baseImage, collectionFolder, remoteUser, cliHost, logLevel, quiet, disposables } = args;
+    let { features } = args;
 
     const srcDir = `${collectionFolder}/src`;
     const testsDir = `${collectionFolder}/test`;
@@ -50,7 +71,6 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     if (! await cliHost.isFolder(srcDir) || ! await cliHost.isFolder(testsDir)) {
         fail(`Folder '${collectionFolder}' does not contain the required 'src' and 'test' folders.`);
     }
-
 
     log(`baseImage:         ${baseImage}`);
     log(`Target Folder:     ${collectionFolder}`);
@@ -66,9 +86,8 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
     log(`features:          ${features.join(', ')}`);
 
-
-    // 1. Generate temporary project with 'baseImage' and all the 'features..'
-    const workspaceFolder = await generateProject(
+     // 1. Generate temporary project with 'baseImage' and all the 'features..'
+    const workspaceFolder = await generateProjectFromFeatures(
         cliHost,
         baseImage,
         collectionFolder,
@@ -79,8 +98,6 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     log(`workspaceFolder:   ${workspaceFolder}`);
 
     const params = await generateDockerParams(workspaceFolder, logLevel, quiet, disposables);
-
-    // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
 
     // 2. Use  'devcontainer-cli up'  to build and start a container
     log('Building test container...\n', { prefix: '\n⏳', info: true });
@@ -153,7 +170,7 @@ async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
     return tmpFolder;
 }
 
-async function generateProject(
+async function generateProjectFromFeatures(
     cliHost: CLIHost,
     baseImage: string,
     targetDirectory: string,
