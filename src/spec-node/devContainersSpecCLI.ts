@@ -16,7 +16,7 @@ import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe }
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
-import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
+import { buildAndExtendDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
 import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
@@ -364,17 +364,17 @@ async function doBuild({
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
 			}
 
-			await buildDockerCompose(config, projectName, buildParams, composeFiles, composeGlobalArgs, [config.service], params.buildNoCache || false, undefined, addCacheFroms);
+			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
+			await buildAndExtendDockerCompose(config, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
-			const { updatedImageName } = await extendImage(params, config, originalImageName, !service.build);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				await dockerPtyCLI(params, 'tag', originalImageName, argImageName);
 				imageNameResult = argImageName;
 			} else {
-				imageNameResult = updatedImageName;
+				imageNameResult = originalImageName;
 			}
 		} else {
 
