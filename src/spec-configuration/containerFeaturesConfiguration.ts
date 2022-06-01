@@ -140,6 +140,14 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
+// There are two ways to represent features in the user's devcontainer.json
+// v1 - Object Notation
+// v2 - Array Notation
+// This returns true if the v2 notation is used.
+export function isV2FeaturesConfigRepresentation(features: any): features is DevContainerFeature[] {
+	return Array.isArray(features) && !features.some(f => f as DevContainerFeature === undefined);
+}
+
 export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
 	const collapsed = {
 		allFeatures: original.featureSets
