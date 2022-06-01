@@ -16,7 +16,7 @@ function fail(msg: string) {
     process.exit(1);
 }
 
-type Scenario = { [key: string]: DevContainerConfig };
+type Scenarios = { [key: string]: DevContainerConfig };
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
 
@@ -43,7 +43,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│      Testing v${pkg.version}         │
+│           v${pkg.version}            │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
     // There are two modes. 
@@ -70,7 +70,7 @@ async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<
         return 1; // We never reach here, we exit via fail().
     }
 
-    log(`Scenarios:         ${scenariosFolder}`);
+    log(`Scenarios:         ${scenariosFolder}\n`, { prefix: '\n📊', info: true });
     const scenariosPath = path.join(scenariosFolder, 'scenarios.json');
 
     if (!cliHost.isFile(scenariosPath)) {
@@ -81,7 +81,7 @@ async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<
     // Read in scenarios.json
     const scenariosBuffer = await cliHost.readFile(scenariosPath);
     // Parse to json
-    let scenarios: Scenario = {};
+    let scenarios: Scenarios = {};
     try {
         scenarios = JSON.parse(scenariosBuffer.toString());
     } catch (e) {
@@ -89,16 +89,42 @@ async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<
         return 1; // We never reach here, we exit via fail().
     }
 
-    for (const [scenarioName, scenarioValue] of Object.entries(scenarios)) {
-        log(`Running scenario:  ${scenarioName}`);
-        const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioValue);
-        const params = await generateDockerParams(workspaceFolder, args);
+    const testResults: { testName: string; result: boolean }[] = [];
 
+    // For EACH scenario: Spin up a container and exec the scenario test script
+    for (const [scenarioName, scenarioConfig] of Object.entries(scenarios)) {
+        log(`Running scenario:  ${scenarioName}`);
+
+        // Check if we have a scenario test script, otherwise skip.
+        const scenarioTestScript = path.join(scenariosFolder, `${scenarioName}.sh`);
+        if (!cliHost.isFile(scenarioTestScript)) {
+            log(`No scenario test script found at path ${scenarioTestScript}, skipping scenario...`);
+            continue;
+        }
+
+        // Create Container
+        const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig);
+        const params = await generateDockerParams(workspaceFolder, args);
         await createContainerFromWorkingDirectory(params, workspaceFolder, args);
+
+        // Execute test script
+        // Move the test script into the workspaceFolder
+        const testScript = await cliHost.readFile(scenarioTestScript);
+        const remoteTestScriptName = `${scenarioName}-test-${Date.now()}.sh`;
+        await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
+
+        // Move the test library script into the workspaceFolder
+        await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
+
+        // Execute Test
+        testResults.push({
+            testName: scenarioName,
+            result: await execTest(params, remoteTestScriptName, workspaceFolder)
+        });
     }
 
-    return 0;
-
+    // Pretty-prints results and returns a status code to indicate success or failure.
+    return analyzeTestResults(testResults);
 }
 
 async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
@@ -160,16 +186,21 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
         // Execute Test
         const result = await execTest(params, remoteTestScriptName, workspaceFolder);
         testResults.push({
-            feature,
+            testName: feature,
             result,
         });
     }
 
+    // Pretty-prints results and returns a status code to indicate success or failure.
+    return analyzeTestResults(testResults);
+}
+
+function analyzeTestResults(testResults: { testName: string; result: boolean }[]): number {
     // 4. Print results
     const allPassed = testResults.every((x) => x.result);
     if (!allPassed) {
         testResults.filter((x) => !x.result).forEach((x) => {
-            printFailedTest(x.feature);
+            printFailedTest(x.testName);
         });
     } else {
         log('All tests passed!', { prefix: '\n✅', info: true });
