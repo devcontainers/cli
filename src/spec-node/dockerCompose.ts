@@ -351,7 +351,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		let cache: Promise<ImageDetails> | undefined;
-		const imageDetails = () => cache || (cache = inspectDockerImage(params, originalImageName, false));
+		const imageDetails = () => cache || (cache = inspectDockerImage(params, originalImageName, true));
 		const updatedImageName = await updateRemoteUserUID(params, config, originalImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
