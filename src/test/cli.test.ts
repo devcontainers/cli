@@ -264,8 +264,8 @@ describe('Dev Containers CLI', function () {
 				it('should succeed', () => {
 					assert.equal(upResult2?.outcome, 'success');
 				});
-				it('should not re-use stopped container', () => {
-					assert.notEqual(upResult2?.containerId, upResult1?.containerId);
+				it('should re-use stopped container', () => {
+					assert.equal(upResult2?.containerId, upResult1?.containerId);
 				});
 			});
 		});

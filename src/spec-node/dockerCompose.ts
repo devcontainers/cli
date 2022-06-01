@@ -366,7 +366,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 	const args = ['--project-name', projectName, ...composeGlobalArgs];
 	args.push('up', '-d');
-	if (params.expectExistingContainer) {
+	if (container || params.expectExistingContainer) {
 		args.push('--no-recreate');
 	}
 	if (config.runServices && config.runServices.length) {
