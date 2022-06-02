@@ -350,7 +350,7 @@ function getFeatureEnvVariables(f: Feature) {
 	} else {
 		if (values) {
 			variables.push(...Object.keys(values)
-			.map(name => `${idSafe}_${getSafeId(name)}="${values[name]}"`));
+				.map(name => `${getSafeId(name)}="${values[name]}"`));
 		}
 		if (f.buildArg) {
 			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
