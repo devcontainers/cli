@@ -61,7 +61,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
                                                       owner: 'octocat', 
                                                       repo: 'myfeatures', 
                                                       apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest', 
-                                                      unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download/devcontainer-features.tgz',
+            unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download',
                                                       isLatest: true 
                                                     });
     });
@@ -80,7 +80,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
                                                       repo: 'myfeatures', 
                                                       tag: 'v0.0.4', 
                                                       apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4', 
-                                                      unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4/devcontainer-features.tgz',
+                                                      unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4',
                                                       isLatest: false 
                                                     });
     });
@@ -245,7 +245,7 @@ describe('validate function getSourceInfoString', function () {
             repo: 'mobileapp',
             isLatest: true,
             apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/latest',
-            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download/devcontainer-features.tgz'
+            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'github-bob-mobileapp-latest');
@@ -259,7 +259,7 @@ describe('validate function getSourceInfoString', function () {
             tag: 'v0.0.4',
             isLatest: false,
             apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/tags/v0.0.4',
-            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4/devcontainer-features.tgz'
+            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'github-bob-mobileapp-v0.0.4');
