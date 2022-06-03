@@ -13,7 +13,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { existsSync } from 'fs';
 
-const ASSET_NAME = 'devcontainer-features.tgz';
+const V1_ASSET_NAME = 'devcontainer-features.tgz';
 
 export interface Feature {
 	id: string;
@@ -291,17 +291,22 @@ function getRequestHeaders(sourceInformation: SourceInformation, env: NodeJS.Pro
 	return headers;
 }
 
-async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformation, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, output: Log) {
+async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformation, feature: Feature, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, output: Log) {
 	const options = {
 		type: 'GET',
 		url: sourceInformation.apiUri,
 		headers
 	};
+
 	const apiInfo: GitHubApiReleaseInfo = JSON.parse(((await request(options, output)).toString()));
 	if (apiInfo) {
-		const asset = apiInfo.assets.find(a => a.name === ASSET_NAME);
+		const asset =
+			apiInfo.assets.find(a => a.name === `${feature.id}.tgz`)  // v2
+			|| apiInfo.assets.find(a => a.name === V1_ASSET_NAME) // v1
+			|| undefined;
+
 		if (asset && asset.url) {
-			output.write(`Found url to fetch release artifact ${asset.name}. Asset of size ${asset.size} has been downloaded ${asset.download_count} times and was last updated at ${asset.updated_at}`);
+			output.write(`Found url to fetch release artifact '${asset.name}'. Asset of size ${asset.size} has been downloaded ${asset.download_count} times and was last updated at ${asset.updated_at}`);
 			return asset.url;
 		} else {
 			output.write('Unable to fetch release artifact URI from GitHub API', LogLevel.Error);
@@ -311,7 +316,7 @@ async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformat
 	return undefined;
 }
 
-export async function loadFeaturesJson(jsonBuffer: Buffer, output: Log): Promise<FeatureSet | undefined> {
+export async function loadFeaturesJson(jsonBuffer: Buffer, filePath: string, output: Log): Promise<FeatureSet | undefined> {
 	if (jsonBuffer.length === 0) {
 		output.write('Parsed featureSet is empty.', LogLevel.Error);
 		return undefined;
@@ -322,15 +327,16 @@ export async function loadFeaturesJson(jsonBuffer: Buffer, output: Log): Promise
 		output.write('Parsed featureSet contains no features.', LogLevel.Error);
 		return undefined;
 	}
-	output.write(`Loaded devcontainer-features.json declares ${featureSet.features.length} features and ${(!!featureSet.sourceInformation) ? 'contains' : 'does not contain'} explicit source info.`,
+	output.write(`Loaded ${filePath}, which declares ${featureSet.features.length} features and ${(!!featureSet.sourceInformation) ? 'contains' : 'does not contain'} explicit source info.`,
 		LogLevel.Trace);
 
 	return updateFromOldProperties(featureSet);
 }
 
 export async function loadFeaturesJsonFromDisk(pathToDirectory: string, output: Log): Promise<FeatureSet | undefined> {
-	const jsonBuffer: Buffer = await readLocalFile(path.join(pathToDirectory, 'devcontainer-features.json'));
-	return loadFeaturesJson(jsonBuffer, output);
+	const filePath = path.join(pathToDirectory, 'devcontainer-features.json');
+	const jsonBuffer: Buffer = await readLocalFile(filePath);
+	return loadFeaturesJson(jsonBuffer, filePath, output);
 }
 
 function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: { vscode?: { extensions?: string[]; settings?: object } } })[] }>(original: T): T {
@@ -609,7 +615,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 					sourceInformation : {
 					type: 'github-repo',
 					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download/${ASSET_NAME}`,
+						unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
 					owner,
 					repo,
 					isLatest: true
@@ -623,7 +629,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 					sourceInformation : {
 					type: 'github-repo',
 					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
-					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}/${ASSET_NAME}`,
+						unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
 					owner,
 					repo,
 					tag: version,
@@ -636,12 +642,14 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string) {
-	for(const featureSet of featuresConfig.featureSets)	{
+	for (const featureSet of featuresConfig.featureSets) {
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
 			{
 				continue;
 			}
+
+			params.output.write(`* fetching feature...`, LogLevel.Trace);
 
 			if(!localFeatures)
 			{
@@ -682,72 +690,106 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			const tempTarballPath = path.join(dstFolder, ASSET_NAME);
 			params.output.write(`Detected tarball`);
 			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, params.output);
-			let tarballUri: string | undefined = undefined;
+
+			// Ordered list of tarballUris to attempt to fetch from.
+			let tarballUris: string[] = [];
+
 			if (featureSet.sourceInformation.type === 'github-repo') {
 				params.output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
 				if (headers.Authorization && headers.Authorization !== '') {
-					params.output.write('Authenticated. Fetching from GH API.', LogLevel.Trace);
-					tarballUri = await askGitHubApiForTarballUri(featureSet.sourceInformation, headers, params.output);
+					params.output.write('GITHUB_TOKEN available. Attempting to fetch via GH API.', LogLevel.Info);
+					const authenticatedGithubTarballUri = await askGitHubApiForTarballUri(featureSet.sourceInformation, feature, headers, params.output);
+
+					if (authenticatedGithubTarballUri) {
+						tarballUris.push(authenticatedGithubTarballUri);
+					} else {
+						params.output.write('Failed to generate autenticated tarball URI for provided feature, despite a GitHub token present', LogLevel.Warning);
+					}
 					headers.Accept = 'Accept: application/octet-stream';
-				} else {
-					params.output.write('Not authenticated. Fetching from unauthenticated uri', LogLevel.Trace);
-					tarballUri = featureSet.sourceInformation.unauthenticatedUri;
 				}
+
+				// Always add the unauthenticated URIs as fallback options.
+				params.output.write('Appending unauthenticated URIs for v2 and then v1', LogLevel.Trace);
+				tarballUris.push(`${featureSet.sourceInformation.unauthenticatedUri}/${feature.id}.tgz`);
+				tarballUris.push(`${featureSet.sourceInformation.unauthenticatedUri}/${V1_ASSET_NAME}`);
+
 			} else {
-				tarballUri = featureSet.sourceInformation.tarballUri;
+				// We have a plain ol' tarball URI, since we aren't in the github-repo case.
+				tarballUris.push(featureSet.sourceInformation.tarballUri);
 			}
-			
-			if(tarballUri) {
-				const options = {
-					type: 'GET',
-					url: tarballUri,
-					headers
-				};
-				params.output.write(`Fetching tarball at ${options.url}`);
-				params.output.write(`Headers: ${JSON.stringify(options)}`, LogLevel.Trace);
-				const tarball = await request(options, params.output);
 
-				if (!tarball || tarball.length === 0) {
-					params.output.write(`Did not receive a response from tarball download URI`, LogLevel.Error);
-					// Continue loop to the next remote feature.
-					// TODO: Should be more fatal.
-					await cleanupIterationFetchAndMerge(tempTarballPath, params.output);
-					continue;
+			// Attempt to fetch from 'tarballUris' in order, until one succeeds.
+			for (const tarballUri of tarballUris) {
+				const didSucceed = await fetchContentsAtTarballUri(tarballUri, featCachePath, headers, dstFolder, params.output);
+
+				if (didSucceed) {
+					params.output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace)
+					await parseDevContainerFeature(featureSet, feature, featCachePath);
+					break;
 				}
-
-				// Filter what gets emitted from the tar.extract().
-				const filter = (file: string, _: tar.FileStat) => {
-					// Don't include .dotfiles or the archive itself.
-					if (file.startsWith('./.') || file === `./${ASSET_NAME}` || file === './.') {
-						return false;
-					}
-					return true;
-				};
-
-				params.output.write(`Preparing to unarchive received tgz.`, LogLevel.Trace);
-				// Create the directory to cache this feature-set in.
-				await mkdirpLocal(featCachePath);
-				await writeLocalFile(tempTarballPath, tarball);
-				await tar.x(
-					{
-						file: tempTarballPath,
-						cwd: featCachePath,
-						filter
-					}
-				);
-
-				await parseDevContainerFeature(featureSet, feature, featCachePath);
 			}
-			continue;
+
+			const msg = `(!) Failed to fetch tarball after attempting ${tarballUris.length} possibilities.`;
+			params.output.write(msg, LogLevel.Error);
+			throw new Error(msg);
 		}
 		catch (e) {
-			params.output.write(`Exception: ${e?.Message} `, LogLevel.Trace);
+			params.output.write(`Failed to fetch feature. ${e?.Message ?? ''} `, LogLevel.Trace);
+			// TODO: Should this be more fatal?
 		}
 	}
 }
+
+async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, dstFolder: string, output: Log): Promise<boolean> {
+	const tempTarballPath = path.join(dstFolder, 'temp.tgz');
+	try {
+		const options = {
+			type: 'GET',
+			url: tarballUri,
+			headers
+		};
+		output.write(`Fetching tarball at ${options.url}`);
+		output.write(`Headers: ${JSON.stringify(options)}`, LogLevel.Trace);
+		const tarball = await request(options, output);
+
+		if (!tarball || tarball.length === 0) {
+			output.write(`Did not receive a response from tarball download URI: ${tarballUri}`, LogLevel.Trace);
+			return false;
+		}
+
+		// Filter what gets emitted from the tar.extract().
+		const filter = (file: string, _: tar.FileStat) => {
+				// Don't include .dotfiles or the archive itself.
+			if (file.startsWith('./.') || file === `./${V1_ASSET_NAME}` || file === './.') {
+				return false;
+			}
+			return true;
+		};
+
+		output.write(`Preparing to unarchive received tgz from ${tempTarballPath} -> ${featCachePath}.`, LogLevel.Trace);
+		// Create the directory to cache this feature-set in.
+		await mkdirpLocal(featCachePath);
+		await writeLocalFile(tempTarballPath, tarball);
+		await tar.x(
+			{
+				file: tempTarballPath,
+				cwd: featCachePath,
+				filter
+			}
+		);
+
+		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+
+		return true;
+	} catch (e) {
+		output.write(`Caught failure when fetching from URI '${tarballUri}': ${e}`, LogLevel.Trace);
+		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+		return false;
+	}
+}
+
 
 async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature, featCachePath: string) {
 	// Read version information.
