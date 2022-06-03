@@ -4,6 +4,10 @@ Notable changes.
 
 ## May 2022
 
+### [0.5.0]
+
+- Update to vscode-dev-containers 0.238.0.
+
 ### [0.4.0]
 
 - Merge user and features Dockerfile to simplify cache and multi-platform handling.

@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -74,7 +74,7 @@
 		"shell-quote": "^1.7.3",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.11",
-		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.236.0/vscode-dev-containers-0.236.0.tgz",
+		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.238.0/vscode-dev-containers-0.238.0.tgz",
 		"vscode-uri": "^3.0.3",
 		"yargs": "~17.0.1"
 	}
