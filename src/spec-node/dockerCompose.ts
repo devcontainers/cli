@@ -267,14 +267,25 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 
 		if (composeFileExists) {
 			output.write(`Restoring ${file} from persisted storage`);
-			return file;
+			return {
+				foundLabel: true,
+				fileExists: true,
+				file
+			};
 		} else {
 			output.write(`Expected ${file} to exist, but it did not`, LogLevel.Error);
+			return {
+				foundLabel: true,
+				fileExists: false,
+				file
+			};
 		}
 	} else {
 		output.write(`Expected to find a docker-compose file prefixed with ${prefix}, but did not.`, LogLevel.Error);
 	}
-	return undefined;
+	return {
+		foundLabel: false
+	};
 }
 async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, config: DevContainerFromDockerComposeConfig, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[]) {
 	const { common } = params;
@@ -322,12 +333,16 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 			const files = configFiles?.split(',') ?? [];
 			const persistedBuildFile = await checkForPersistedFile(buildCLIHost, output, files, featuresBuildOverrideFilePrefix);
 			const persistedStartFile = await checkForPersistedFile(buildCLIHost, output, files, featuresStartOverrideFilePrefix);
-			if (persistedBuildFile && persistedStartFile) {
+			if ((persistedBuildFile.foundLabel && persistedBuildFile.fileExists) // require build file if in label
+				&& persistedStartFile.fileExists // always require start file
+			) {
 				didRestoreFromPersistedShare = true;
-
-				// Push path to compose arguments
-				composeGlobalArgs.push('-f', persistedBuildFile);
-				composeGlobalArgs.push('-f', persistedStartFile);
+				if (persistedBuildFile.fileExists) {
+					composeGlobalArgs.push('-f', persistedBuildFile.file);
+				}
+				if (persistedStartFile.fileExists) {
+					composeGlobalArgs.push('-f', persistedStartFile.file);
+				}
 			}
 		}
 	}
