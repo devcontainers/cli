@@ -333,7 +333,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 			const files = configFiles?.split(',') ?? [];
 			const persistedBuildFile = await checkForPersistedFile(buildCLIHost, output, files, featuresBuildOverrideFilePrefix);
 			const persistedStartFile = await checkForPersistedFile(buildCLIHost, output, files, featuresStartOverrideFilePrefix);
-			if ((persistedBuildFile.foundLabel && persistedBuildFile.fileExists) // require build file if in label
+			if ((persistedBuildFile.fileExists || !persistedBuildFile.foundLabel) // require build file if in label
 				&& persistedStartFile.fileExists // always require start file
 			) {
 				didRestoreFromPersistedShare = true;
