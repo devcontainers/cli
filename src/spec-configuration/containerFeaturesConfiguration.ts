@@ -407,9 +407,11 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	}
 
 	// Read features and get the type.
+	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
 
 	// Fetch features and get version information
+	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder);
 
 	return featuresConfig;
@@ -494,151 +496,151 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//
 	//      No version can be provided, as the directory is copied 'as is' and is inherently taking the 'latest'
 	
-	output.write(`Processing feature: ${userFeature.id}`)
-			// cached feature
-			if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
-				output.write(`Cached feature found.`);
+	output.write(`* Processing feature: ${userFeature.id}`);
 
-				let feat: Feature = {
-					id: userFeature.id,
-					name: userFeature.id,
-					value: userFeature.options,
-					included: true,
-				}
+	// cached feature
+	if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
+		output.write(`Cached feature found.`);
 
-				let newFeaturesSet: FeatureSet = {
-					sourceInformation: {
-						type: 'local-cache', 
-					},
-					features: [feat],
-				};
-				
-				return newFeaturesSet;
-			}
+		let feat: Feature = {
+			id: userFeature.id,
+			name: userFeature.id,
+			value: userFeature.options,
+			included: true,
+		}
 
-			// remote tar file
-			if (userFeature.id.startsWith('http://') || userFeature.id.startsWith('https://'))
-			{
-				output.write(`Remote tar file found.`);
-				let input = userFeature.id.replace(/\/+$/, '');
-				const featureIdDelimiter = input.lastIndexOf('#');
-				const id = input.substring(featureIdDelimiter + 1);
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'local-cache',
+			},
+			features: [feat],
+		};
 
-				if (id === '' || !allowedFeatureIdRegex.test(id)) {
-					output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
-					return undefined;
-				}
+		return newFeaturesSet;
+	}
 
-				const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
-				let feat: Feature = {
-					id: id,
-					name: userFeature.id,
-					value: userFeature.options,
-					included: true,
-				}
+	// remote tar file
+	if (userFeature.id.startsWith('http://') || userFeature.id.startsWith('https://')) {
+		output.write(`Remote tar file found.`);
+		let input = userFeature.id.replace(/\/+$/, '');
+		const featureIdDelimiter = input.lastIndexOf('#');
+		const id = input.substring(featureIdDelimiter + 1);
 
-				let newFeaturesSet: FeatureSet = {
-					sourceInformation: {
-						type: 'direct-tarball', 
-						tarballUri: tarballUri 
-					},
-					features: [feat],
-				};
+		if (id === '' || !allowedFeatureIdRegex.test(id)) {
+			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
+			return undefined;
+		}
 
-				return newFeaturesSet;
-			}
+		const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
+		let feat: Feature = {
+			id: id,
+			name: userFeature.id,
+			value: userFeature.options,
+			included: true,
+		}
 
-			// local disk
-			const userFeaturePath = path.parse(userFeature.id);
-			 // If its a valid path
-			 if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || (userFeaturePath && path.isAbsolute(userFeature.id))) {
-			 //if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
-				output.write(`Local disk feature.`);
-				const filePath = userFeature.id;
-				const id = userFeaturePath.name;
-				const isRelative = !path.isAbsolute(userFeature.id);
-				
-				let feat: Feature = {
-					id: id,
-					name: userFeature.id,
-					value: userFeature.options,
-					included: true,
-				}
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'direct-tarball',
+				tarballUri: tarballUri
+			},
+			features: [feat],
+		};
 
-				let newFeaturesSet: FeatureSet = {
-					sourceInformation: {
-						type: 'file-path', 
-						filePath, 
-						isRelative: isRelative
-					},
-					features: [feat],
-				};
+		return newFeaturesSet;
+	}
 
-				return newFeaturesSet;
-			}
+	// local disk
+	const userFeaturePath = path.parse(userFeature.id);
+	// If its a valid path
+	if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || (userFeaturePath && path.isAbsolute(userFeature.id))) {
+		//if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
+		output.write(`Local disk feature.`);
+		const filePath = userFeature.id;
+		const id = userFeaturePath.name;
+		const isRelative = !path.isAbsolute(userFeature.id);
 
-			output.write(`Github feature.`);
-			// Github repository source.
-			let version = 'latest';
-			let splitOnAt = userFeature.id.split('@');
-			if (splitOnAt.length > 2) {
-				output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
-				return undefined;
-			}
-			if (splitOnAt.length === 2) {
-				output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
-				version = splitOnAt[1];
-			}
+		let feat: Feature = {
+			id: id,
+			name: userFeature.id,
+			value: userFeature.options,
+			included: true,
+		}
 
-			// Remaining info must be in the first part of the split.
-			const featureBlob = splitOnAt[0];
-			const splitOnSlash = featureBlob.split('/');
-			// We expect all GitHub/registry features to follow the triple slash pattern at this point
-			//  eg: <publisher>/<feature-set>/<feature>
-			if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
-				output.write(`Invalid parse for GitHub/registry feature identifier. Follow format: '<publisher>/<feature-set>/<feature>'`, LogLevel.Error);
-				return undefined;
-			}
-			const owner = splitOnSlash[0];
-			const repo = splitOnSlash[1];
-			const id = splitOnSlash[2];
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'file-path',
+				filePath,
+				isRelative: isRelative
+			},
+			features: [feat],
+		};
 
-			let feat: Feature = {
-				id: id,
-				name: userFeature.id,
-				value: userFeature.options,
-				included: true,
-			};
+		return newFeaturesSet;
+	}
 
-			if (version === 'latest') {
-				let newFeaturesSet: FeatureSet = {
-					sourceInformation : {
-					type: 'github-repo',
-					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-						unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
-					owner,
-					repo,
-					isLatest: true
-					},
-					features: [feat],
-				};
-				return newFeaturesSet;
-			} else {
-				// We must have a tag, return a tarball URI for the tagged version. 
-				let newFeaturesSet: FeatureSet = {
-					sourceInformation : {
-					type: 'github-repo',
-					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
-						unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
-					owner,
-					repo,
-					tag: version,
-					isLatest: false
-					},
-					features: [feat],
-				};
-				return newFeaturesSet;
-			}
+	output.write(`Github feature.`);
+	// Github repository source.
+	let version = 'latest';
+	let splitOnAt = userFeature.id.split('@');
+	if (splitOnAt.length > 2) {
+		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
+		return undefined;
+	}
+	if (splitOnAt.length === 2) {
+		output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+		version = splitOnAt[1];
+	}
+
+	// Remaining info must be in the first part of the split.
+	const featureBlob = splitOnAt[0];
+	const splitOnSlash = featureBlob.split('/');
+	// We expect all GitHub/registry features to follow the triple slash pattern at this point
+	//  eg: <publisher>/<feature-set>/<feature>
+	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
+		output.write(`Invalid parse for GitHub/registry feature identifier. Follow format: '<publisher>/<feature-set>/<feature>'`, LogLevel.Error);
+		return undefined;
+	}
+	const owner = splitOnSlash[0];
+	const repo = splitOnSlash[1];
+	const id = splitOnSlash[2];
+
+	let feat: Feature = {
+		id: id,
+		name: userFeature.id,
+		value: userFeature.options,
+		included: true,
+	};
+
+	if (version === 'latest') {
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'github-repo',
+				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
+				owner,
+				repo,
+				isLatest: true
+			},
+			features: [feat],
+		};
+		return newFeaturesSet;
+	} else {
+		// We must have a tag, return a tarball URI for the tagged version. 
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'github-repo',
+				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
+				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
+				owner,
+				repo,
+				tag: version,
+				isLatest: false
+			},
+			features: [feat],
+		};
+		return newFeaturesSet;
+	}
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string) {
@@ -649,10 +651,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			params.output.write(`* fetching feature...`, LogLevel.Trace);
-
-			if(!localFeatures)
-			{
+			if (!localFeatures) {
 				continue;
 			}
 
@@ -660,11 +659,15 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const consecutiveId = feature.id + '_' + getCounter();
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
+			const sourceInfoType = featureSet.sourceInformation?.type;
 
 			feature.infoString = featCachePath;
 			feature.consecutiveId = consecutiveId;
 
-			if(featureSet.sourceInformation?.type === 'local-cache') {
+			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
+			params.output.write(`* Fetching feature: ${featureDebugId}`);
+
+			if (sourceInfoType === 'local-cache') {
 				// create copy of the local features to set the environment variables for them.
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
@@ -679,8 +682,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 		
-			if(featureSet.sourceInformation?.type === 'file-path') {
-				params.output.write(`Detected local file path`);
+			if (sourceInfoType === 'file-path') {
+				params.output.write(`Detected local file path`, LogLevel.Trace);
 				
 				const executionPath = featureSet.sourceInformation.isRelative ? path.join(params.cwd, featureSet.sourceInformation.filePath) : featureSet.sourceInformation.filePath;
 
@@ -690,13 +693,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			params.output.write(`Detected tarball`);
+			params.output.write(`Detected tarball`, LogLevel.Trace);
 			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, params.output);
 
 			// Ordered list of tarballUris to attempt to fetch from.
 			let tarballUris: string[] = [];
 
-			if (featureSet.sourceInformation.type === 'github-repo') {
+			if (sourceInfoType === 'github-repo') {
 				params.output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
 				if (headers.Authorization && headers.Authorization !== '') {
 					params.output.write('GITHUB_TOKEN available. Attempting to fetch via GH API.', LogLevel.Info);
@@ -721,22 +724,25 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			}
 
 			// Attempt to fetch from 'tarballUris' in order, until one succeeds.
+			let didSucceed: boolean = false;
 			for (const tarballUri of tarballUris) {
-				const didSucceed = await fetchContentsAtTarballUri(tarballUri, featCachePath, headers, dstFolder, params.output);
+				didSucceed = await fetchContentsAtTarballUri(tarballUri, featCachePath, headers, dstFolder, params.output);
 
 				if (didSucceed) {
-					params.output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace)
+					params.output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
 					await parseDevContainerFeature(featureSet, feature, featCachePath);
 					break;
 				}
 			}
 
-			const msg = `(!) Failed to fetch tarball after attempting ${tarballUris.length} possibilities.`;
-			params.output.write(msg, LogLevel.Error);
-			throw new Error(msg);
+			if (!didSucceed) {
+				const msg = `(!) Failed to fetch tarball for ${featureDebugId} after attempting ${tarballUris.length} possibilities.`;
+				params.output.write(msg, LogLevel.Error);
+				throw new Error(msg);
+			}
 		}
 		catch (e) {
-			params.output.write(`Failed to fetch feature. ${e?.Message ?? ''} `, LogLevel.Trace);
+			params.output.write(`(!) ERR: Failed to fetch feature: ${e?.Message ?? ''} `, LogLevel.Error);
 			// TODO: Should this be more fatal?
 		}
 	}
