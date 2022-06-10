@@ -157,6 +157,33 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
+		it('should fail with BuildKit never and --platform', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --buildkit=never --platform linux/amd64`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /require BuildKit enabled/);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+
+		it('should fail with docker-compose and --platform not supported', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/compose-image-with-features`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --platform linux/amd64`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /not supported/);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
 	});
 
 	describe('Command up', () => {

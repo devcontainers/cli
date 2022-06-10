@@ -130,7 +130,6 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		// Use the last stage in the Dockerfile
 		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
 		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
-		// const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
 		baseName = lastStageName;
 		if (modifiedDockerfile) {
 			dockerfile = modifiedDockerfile;
@@ -163,6 +162,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
+	if (!buildParams.buildKitVersion &&
+		(buildParams.buildxPlatform || buildParams.buildxPush)) {
+		throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
+	}
 	if (buildParams.buildKitVersion) {
 		args.push('buildx', 'build');
 		if (buildParams.buildxPlatform) {

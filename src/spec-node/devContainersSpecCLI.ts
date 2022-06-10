@@ -345,6 +345,10 @@ async function doBuild({
 			}
 		} else if ('dockerComposeFile' in config) {
 
+			if (buildxPlatform || buildxPush) {
+				throw new ContainerError({ description: '--platform or --push not supported.' });
+			}
+
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 			const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 			const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, workspaceFolder);
@@ -382,7 +386,16 @@ async function doBuild({
 			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				const args: string[] = [];
+				if (buildxPlatform) {
+					args.push('--platform', buildxPlatform);
+				}
+				if (buildxPush) {
+					args.push('--push');
+				} else {
+					args.push('tag');
+				}
+				await dockerPtyCLI(params, ...args, updatedImageName, argImageName);
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
