@@ -185,14 +185,18 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 	if (noCache) {
 		args.push('--no-cache', '--pull');
-	} else if (config.build && config.build.cacheFrom) {
-		buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
-		if (typeof config.build.cacheFrom === 'string') {
-			args.push('--cache-from', config.build.cacheFrom);
-		} else {
-			for (let index = 0; index < config.build.cacheFrom.length; index++) {
-				const cacheFrom = config.build.cacheFrom[index];
-				args.push('--cache-from', cacheFrom);
+	} else {
+		if (buildParams.additionalCacheFroms) {
+			buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		}
+		if (config.build && config.build.cacheFrom) {
+			if (typeof config.build.cacheFrom === 'string') {
+				args.push('--cache-from', config.build.cacheFrom);
+			} else {
+				for (let index = 0; index < config.build.cacheFrom.length; index++) {
+					const cacheFrom = config.build.cacheFrom[index];
+					args.push('--cache-from', cacheFrom);
+				}
 			}
 		}
 	}

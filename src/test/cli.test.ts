@@ -45,6 +45,32 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker compose --project-name ${options.composeProjectName} down`);
 		}
 	}
+	async function devContainerStop(options: { containerId?: string | null; composeProjectName?: string | null }) {
+		if (options.containerId) {
+			await shellExec(`docker stop ${options.containerId}`);
+		}
+		if (options.composeProjectName) {
+			await shellExec(`docker compose --project-name ${options.composeProjectName} stop`);
+		}
+	}
+	async function pathExists(workspaceFolder: string, location: string) {
+		try {
+			await shellExec(`${cli} exec --workspace-folder ${workspaceFolder} test -e ${location}`);
+			return true;
+		} catch (err) {
+			return false;
+		}
+	}
+	async function commandMarkerTests(workspaceFolder: string, expected: { postCreate: boolean; postStart: boolean; postAttach: boolean }, message: string) {
+		const actual = {
+			postCreate: await pathExists(workspaceFolder, '/tmp/postCreateCommand.testmarker'),
+			postStart: await pathExists(workspaceFolder, '/tmp/postStartCommand.testmarker'),
+			postAttach: await pathExists(workspaceFolder, '/tmp/postAttachCommand.testmarker'),
+		};
+		assert.deepStrictEqual(actual, expected, message);
+	}
+
+
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
 		await shellExec(`mkdir -p ${tmp}`);
@@ -57,18 +83,42 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command build', () => {
-		it('should execute successfully with valid image config', async () => {
-			const testFolder = `${__dirname}/configs/image`;
-			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
-		});
-		it('should execute successfully with valid docker-compose (image) config', async () => {
-			const testFolder = `${__dirname}/configs/compose-image-with-features`;
-			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
-			console.log(res.stdout);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
+
+		buildKitOptions.forEach(({ text, options }) => {
+			it(`should execute successfully with valid image config  [${text}]`, async () => {
+				const testFolder = `${__dirname}/configs/image`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption}`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
+			it(`should execute successfully with valid docker-compose (image) config [${text}]`, async () => {
+				const testFolder = `${__dirname}/configs/compose-image-with-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
+			it(`should execute successfully with valid image config and extra cacheFrom [${text}]`, async () => {
+				const testFolder = `${__dirname}/configs/image`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				// validate the build succeeds with an extra cacheFrom that isn't found
+				// (example scenario: CI builds for PRs)
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --cache-from ghcr.io/devcontainers/notFound ${buildKitOption}`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
+			it(`should execute successfully with valid docker-compose (image) config and extra cacheFrom [${text}]`, async () => {
+				const testFolder = `${__dirname}/configs/compose-image-with-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				// validate the build succeeds with an extra cacheFrom that isn't found
+				// (example scenario: CI builds for PRs)
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --cache-from ghcr.io/devcontainers/notFound ${buildKitOption}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {
@@ -235,8 +285,8 @@ describe('Dev Containers CLI', function () {
 				it('should succeed', () => {
 					assert.equal(upResult2?.outcome, 'success');
 				});
-				it('should not re-use stopped container', () => {
-					assert.notEqual(upResult2?.containerId, upResult1?.containerId);
+				it('should re-use stopped container', () => {
+					assert.equal(upResult2?.containerId, upResult1?.containerId);
 				});
 			});
 		});
@@ -330,7 +380,7 @@ describe('Dev Containers CLI', function () {
 				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
-				it('should have marker content', async () => {
+				it('should have build marker content', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /var/test-marker`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
@@ -409,6 +459,100 @@ describe('Dev Containers CLI', function () {
 				});
 			});
 
+
+			describe(`Dockerfile with post*Commands specified [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+				after(async () => await devContainerDown({ containerId }));
+				it('should have all command markers at appropriate times', async () => {
+					containerId = (await devContainerUp(testFolder, options)).containerId;
+					// Should have all markers (Create + Start + Attach)
+					await commandMarkerTests(testFolder, { postCreate: true, postStart: true, postAttach: true }, 'Markers on first create');
+
+					// Clear markers and stop
+					await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					await devContainerStop({ containerId });
+
+					// Restart container - should have Start + Attach
+					containerId = (await devContainerUp(testFolder, options)).containerId;
+					await commandMarkerTests(testFolder, { postCreate: false, postStart: true, postAttach: true }, 'Markers on restart');
+
+					// TODO - investigate what triggers postAttachCommand and check test is valid
+					// // Clear markers and re-test - should have Attach
+					// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
+				});
+			});
+			describe(`docker-compose with post*Commands specified [${text}]`, () => {
+				let composeProjectName: string | undefined = undefined;
+				const testFolder = `${__dirname}/configs/compose-Dockerfile-with-target`;
+				after(async () => await devContainerDown({ composeProjectName }));
+				it('should have all command markers at appropriate times', async () => {
+					composeProjectName = (await devContainerUp(testFolder, options)).composeProjectName;
+					// Should have all markers (Create + Start + Attach)
+					await commandMarkerTests(testFolder, { postCreate: true, postStart: true, postAttach: true }, 'Markers on first create');
+
+					// Clear markers and stop
+					await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					await devContainerStop({ composeProjectName });
+
+					// Restart container - should have Start + Attach
+					composeProjectName = (await devContainerUp(testFolder, options)).composeProjectName;
+					await commandMarkerTests(testFolder, { postCreate: false, postStart: true, postAttach: true }, 'Markers on restart');
+
+					// TODO - investigate what triggers postAttachCommand and check test is valid
+					// // Clear markers and re-test - should have Attach
+					// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
+				});
+			});
+			describe(`docker-compose with post*Commands specified (stop individual container) [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/compose-Dockerfile-with-target`;
+				after(async () => await devContainerDown({ containerId }));
+				it('should have all command markers at appropriate times', async () => {
+					containerId = (await devContainerUp(testFolder, options)).containerId;
+					// Should have all markers (Create + Start + Attach)
+					await commandMarkerTests(testFolder, { postCreate: true, postStart: true, postAttach: true }, 'Markers on first create');
+
+					// Clear markers and stop
+					await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					await devContainerStop({ containerId });
+
+					// Restart container - should have Start + Attach
+					containerId = (await devContainerUp(testFolder, options)).containerId;
+					await commandMarkerTests(testFolder, { postCreate: false, postStart: true, postAttach: true }, 'Markers on restart');
+
+					// TODO - investigate what triggers postAttachCommand and check test is valid
+					// // Clear markers and re-test - should have Attach
+					// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
+				});
+				describe(`docker-compose alpine with post*Commands [${text}]`, () => {
+					let containerId: string | null = null;
+					const testFolder = `${__dirname}/configs/compose-Dockerfile-alpine`;
+					after(async () => await devContainerDown({ containerId }));
+					it('should have all command markers at appropriate times', async () => {
+						containerId = (await devContainerUp(testFolder, options)).containerId;
+						// Should have all markers (Create + Start + Attach)
+						await commandMarkerTests(testFolder, { postCreate: true, postStart: true, postAttach: true }, 'Markers on first create');
+
+						// Clear markers and stop
+						await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+						assert.ok(containerId);
+						await devContainerStop({ containerId });
+
+						// Restart container - should have Start + Attach
+						containerId = (await devContainerUp(testFolder, options)).containerId;
+						await commandMarkerTests(testFolder, { postCreate: false, postStart: true, postAttach: true }, 'Markers on restart');
+
+						// TODO - investigate what triggers postAttachCommand and check test is valid
+						// // Clear markers and re-test - should have Attach
+						// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+						// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
+					});
+				});
+			});
 		});
 
 		describe('with valid (Dockerfile) config containing #syntax (BuildKit)', () => { // ensure existing '# syntax' lines are handled
@@ -445,6 +589,7 @@ describe('Dev Containers CLI', function () {
 			}
 			assert.equal(success, false, 'expect non-successful call');
 		});
+
 
 	});
 
