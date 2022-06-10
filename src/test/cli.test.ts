@@ -142,6 +142,20 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.outcome, 'success');
 		});
 
+		it('should fail --platform without dockerfile', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/image`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --platform linux/amd64`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /require dockerfilePath/);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+
 		it('should fail with unsupported --platform', async () => {
 			let success = false;
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;

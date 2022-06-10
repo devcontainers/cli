@@ -385,17 +385,11 @@ async function doBuild({
 			await dockerPtyCLI(params, 'pull', config.image);
 			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config);
 
+			if (buildxPlatform || buildxPush) {
+				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
+			}
 			if (argImageName) {
-				const args: string[] = [];
-				if (buildxPlatform) {
-					args.push('--platform', buildxPlatform);
-				}
-				if (buildxPush) {
-					args.push('--push');
-				} else {
-					args.push('tag');
-				}
-				await dockerPtyCLI(params, ...args, updatedImageName, argImageName);
+				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
