@@ -3026,9 +3026,9 @@ vinyl@^2.0.0, vinyl@^2.2.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-"vscode-dev-containers@https://github.com/microsoft/vscode-dev-containers/releases/download/v0.238.0/vscode-dev-containers-0.238.0.tgz":
-  version "0.238.0"
-  resolved "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.238.0/vscode-dev-containers-0.238.0.tgz#64e97991b8dba59cd0d44a7336ecefbbd1badf32"
+"vscode-dev-containers@https://github.com/microsoft/vscode-dev-containers/releases/download/v0.238.1/vscode-dev-containers-0.238.1.tgz":
+  version "0.238.1"
+  resolved "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.238.1/vscode-dev-containers-0.238.1.tgz#de373579370620e58461e4067b6f0e2e1714c69f"
 
 vscode-uri@^3.0.3:
   version "3.0.3"
