@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { ensureDockerfileHasFinalStageName } from '../spec-node/singleContainer';
+import { ensureDockerfileHasFinalStageName } from '../spec-node/utils';
 
 describe('ensureDockerfileHasFinalStageName', () => {
 

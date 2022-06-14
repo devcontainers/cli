@@ -196,7 +196,7 @@ export function getDockerfile(config: DevContainerFromDockerfileConfig) {
 	return 'dockerFile' in config ? config.dockerFile : config.build.dockerfile;
 }
 
-export async function getDockerComposeFilePaths(cliHost: FileHost, config: DevContainerFromDockerComposeConfig, envForComposeFile?: NodeJS.ProcessEnv, cwdForDefaultFiles?: string) {
+export async function getDockerComposeFilePaths(cliHost: FileHost, config: DevContainerFromDockerComposeConfig, envForComposeFile: NodeJS.ProcessEnv, cwdForDefaultFiles: string) {
 	if (Array.isArray(config.dockerComposeFile)) {
 		if (config.dockerComposeFile.length) {
 			return config.dockerComposeFile.map(composeFile => uriToFsPath(getConfigFilePath(cliHost, config, composeFile), cliHost.platform));
@@ -204,34 +204,32 @@ export async function getDockerComposeFilePaths(cliHost: FileHost, config: DevCo
 	} else if (typeof config.dockerComposeFile === 'string') {
 		return [uriToFsPath(getConfigFilePath(cliHost, config, config.dockerComposeFile), cliHost.platform)];
 	}
-	if (cwdForDefaultFiles) {
-		const envComposeFile = envForComposeFile?.COMPOSE_FILE;
-		if (envComposeFile) {
-			return envComposeFile.split(cliHost.path.delimiter)
+	
+	const envComposeFile = envForComposeFile?.COMPOSE_FILE;
+	if (envComposeFile) {
+		return envComposeFile.split(cliHost.path.delimiter)
+			.map(composeFile => cliHost.path.resolve(cwdForDefaultFiles, composeFile));
+	}
+
+	try {
+		const envPath = cliHost.path.join(cwdForDefaultFiles, '.env');
+		const buffer = await cliHost.readFile(envPath);
+		const match = /^COMPOSE_FILE=(.+)$/m.exec(buffer.toString());
+		const envFileComposeFile = match && match[1].trim();
+		if (envFileComposeFile) {
+			return envFileComposeFile.split(cliHost.path.delimiter)
 				.map(composeFile => cliHost.path.resolve(cwdForDefaultFiles, composeFile));
 		}
-
-		try {
-			const envPath = cliHost.path.join(cwdForDefaultFiles, '.env');
-			const buffer = await cliHost.readFile(envPath);
-			const match = /^COMPOSE_FILE=(.+)$/m.exec(buffer.toString());
-			const envFileComposeFile = match && match[1].trim();
-			if (envFileComposeFile) {
-				return envFileComposeFile.split(cliHost.path.delimiter)
-					.map(composeFile => cliHost.path.resolve(cwdForDefaultFiles, composeFile));
-			}
-		} catch (err) {
-			if (!(err && (err.code === 'ENOENT' || err.code === 'EISDIR'))) {
-				throw err;
-			}
+	} catch (err) {
+		if (!(err && (err.code === 'ENOENT' || err.code === 'EISDIR'))) {
+			throw err;
 		}
-
-		const defaultFiles = [cliHost.path.resolve(cwdForDefaultFiles, 'docker-compose.yml')];
-		const override = cliHost.path.resolve(cwdForDefaultFiles, 'docker-compose.override.yml');
-		if (await cliHost.isFile(override)) {
-			defaultFiles.push(override);
-		}
-		return defaultFiles;
 	}
-	return [];
+
+	const defaultFiles = [cliHost.path.resolve(cwdForDefaultFiles, 'docker-compose.yml')];
+	const override = cliHost.path.resolve(cwdForDefaultFiles, 'docker-compose.override.yml');
+	if (await cliHost.isFile(override)) {
+		defaultFiles.push(override);
+	}
+	return defaultFiles;
 }

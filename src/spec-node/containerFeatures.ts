@@ -25,7 +25,7 @@ import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 export const getSafeId = (str: string) => str
 	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
-	.toUpperCase(); 
+	.toUpperCase();
 
 export async function extendImage(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, pullImageOnError: boolean) {
 	let cache: Promise<ImageDetails> | undefined;
@@ -226,7 +226,7 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts ? '# syntax=docker/dockerfile:1.4' : ''}
-ARG _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/vscode/devcontainers/base:buster
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env file(s) for each features source folder
@@ -409,6 +409,10 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, conf
 		'--build-arg', `IMAGE_USER=${imageUser}`,
 		cliHost.path.dirname(destDockerfile)
 	];
-	await dockerPtyCLI(params, ...args);
+	if (params.isTTY) {
+		await dockerPtyCLI(params, ...args);
+	} else {
+		await dockerCLI(params, ...args);
+	}
 	return fixedImageName;
 }
