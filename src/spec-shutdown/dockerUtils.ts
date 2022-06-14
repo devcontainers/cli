@@ -58,7 +58,7 @@ export interface PartialExecParameters {
 	args?: string[];
 	env: NodeJS.ProcessEnv;
 	output: Log;
-	print?: boolean | 'continuous';
+	print?: boolean | 'continuous' | 'onerror';
 }
 
 export interface PartialPtyExecParameters {
