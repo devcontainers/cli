@@ -109,7 +109,7 @@ export function getRemoteWorkspaceFolder(config: DevContainerFromDockerComposeCo
 }
 
 // exported for testing
-export function getBuildInfoForService(composeService: any) {
+export function getBuildInfoForService(composeService: any, cliHostPath: typeof path, localComposeFiles: string[]) {
 	// composeService should taken from readDockerComposeConfig
 	// the 'build' property can be a string or an object (https://docs.docker.com/compose/compose-file/build/#build-definition)
 
@@ -133,7 +133,7 @@ export function getBuildInfoForService(composeService: any) {
 		image,
 		build: {
 			dockerfilePath: (composeBuild.dockerfile as string | undefined) ?? 'Dockerfile',
-			context: composeBuild.context as string,
+			context: (composeBuild.context as string | undefined) ?? cliHostPath.dirname(localComposeFiles[0]),
 			target: composeBuild.target as string | undefined,
 		}
 	};
@@ -151,7 +151,7 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
 	let dockerfile = null;
-	const serviceInfo = getBuildInfoForService(composeService);
+	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);

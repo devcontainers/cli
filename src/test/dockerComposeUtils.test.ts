@@ -1,10 +1,13 @@
 import { assert } from 'chai';
 import * as yaml from 'js-yaml';
+import * as path from 'path';
 import { getBuildInfoForService } from '../spec-node/dockerCompose';
+
+const testComposeFile = path.join('somepath', 'docker-compose.yml');
 
 function loadYamlAndGetBuildInfoForService(input: string) {
     const yamlInput = yaml.load(input);
-    return getBuildInfoForService(yamlInput);
+    return getBuildInfoForService(yamlInput, path, [testComposeFile]);
 }
 
 describe('docker-compose - getBuildInfoForService', () => {
@@ -53,7 +56,7 @@ build: ./a-path
         });
     });
 
-    it('Supplies defaults dockerFilePath when not set', () => {
+    it('Supplies default dockerFilePath when not set', () => {
         const input = `
 build:
   context: ./a-path
@@ -64,6 +67,22 @@ build:
             build: {
                 context: './a-path',
                 dockerfilePath: 'Dockerfile',
+                target: undefined
+            }
+        });
+    });
+
+    it('Supplies default context when not set', () => {
+        const input = `
+build:
+  dockerfile: my-dockerfile
+`;
+        const info = loadYamlAndGetBuildInfoForService(input);
+        assert.deepEqual(info, {
+            image: undefined,
+            build: {
+                context: path.dirname(testComposeFile),
+                dockerfilePath: 'my-dockerfile',
                 target: undefined
             }
         });
