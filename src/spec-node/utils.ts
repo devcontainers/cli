@@ -70,6 +70,8 @@ export interface DockerResolverParameters {
 	additionalCacheFroms: string[];
 	buildKitVersion: string | null;
 	isTTY: boolean;
+	buildxPlatform: string | undefined;
+	buildxPush: boolean;
 }
 
 export interface ResolverResult {

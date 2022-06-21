@@ -100,8 +100,11 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	};
 }
 
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
-	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
+function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
+	return 'image' in config ? config.image : getFolderImageName(params.common);
+}
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
+	const imageName = argImageName ?? getDefaultName(config, params);
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
 		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
@@ -109,6 +112,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 	// image-based dev container - extend
 	return await extendImage(params, config, imageName, 'image' in config);
 }
+
 async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -158,15 +162,26 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
+	if (!buildParams.buildKitVersion &&
+		(buildParams.buildxPlatform || buildParams.buildxPush)) {
+		throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
+	}
 	if (buildParams.buildKitVersion) {
-		args.push('buildx', 'build',
-			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
-			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
-		);
+		args.push('buildx', 'build');
+		if (buildParams.buildxPlatform) {
+			args.push('--platform', buildParams.buildxPlatform);
+		}
+		if (buildParams.buildxPush) {
+			args.push('--push');
+		} else {
+			args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
+		}
+		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
 	}
 	args.push('-f', finalDockerfilePath, '-t', baseImageName);
+
 	const target = config.build?.target;
 	if (target) {
 		args.push('--target', target);
