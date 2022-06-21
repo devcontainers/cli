@@ -18,6 +18,7 @@ const ASSET_NAME = 'devcontainer-features.tgz';
 export interface Feature {
 	id: string;
 	name: string;
+	description?: string;
 	documentationURL?: string;
 	options?: Record<string, FeatureOption>;
 	buildArg?: string; // old properties for temporary compatibility
