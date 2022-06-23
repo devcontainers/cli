@@ -36,8 +36,9 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// };
 			await startExistingContainer(params, idLabels, container);
 		} else {
+			// check
 			const res = await buildNamedImageAndExtend(params, config);
-			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName, res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
+			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
 
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
@@ -103,17 +104,17 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
-	const imageName = argImageName ?? getDefaultName(config, params);
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageNames?: string[]) {
+	const imageNames = argImageNames ?? [getDefaultName(config, params)];
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
+		return await buildAndExtendImage(params, config, imageNames, params.buildNoCache ?? false);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, config, imageName, 'image' in config);
+	return await extendImage(params, config, imageNames[0], 'image' in config);
 }
 
-async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
+async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageNames: string[], noCache: boolean) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
@@ -180,7 +181,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	} else {
 		args.push('build');
 	}
-	args.push('-f', finalDockerfilePath, '-t', baseImageName);
+	args.push('-f', finalDockerfilePath);
+	
+	baseImageNames.forEach(function(image) {
+			args.push('-t', image);
+	});
 
 	const target = config.build?.target;
 	if (target) {
@@ -223,10 +228,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
 	}
 
-	const imageDetails = () => inspectDockerImage(buildParams, baseImageName, false);
+	const imageDetails = () => inspectDockerImage(buildParams, baseImageNames[0], false);
 
 	return {
-		updatedImageName: baseImageName,
+		updatedImageName: baseImageNames,
 		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
 		imageDetails
 	};

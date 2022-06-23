@@ -328,18 +328,24 @@ async function doBuild({
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
 		const { config } = configs;
-		let imageNameResult = '';
+		let imageNameResult = [''];
+		
+		// Support multiple use of `--image-name` 
+		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, config, imageNames);
+			updatedImageName = (updatedImageName && (Array.isArray(updatedImageName) ? updatedImageName : [updatedImageName]) as string[]) || [''];
 
-			if (argImageName) {
-				if (!buildxPush) {
-					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+			if (imageNames) {
+				if (!buildxPush && typeof updatedImageName === 'string') {
+					imageNames.forEach(async function (image) {
+						await dockerPtyCLI(params, 'tag', JSON.stringify(updatedImageName), image);
+					});
 				}
-				imageNameResult = argImageName;
+				imageNameResult = imageNames;
 			} else {
 				imageNameResult = updatedImageName;
 			}
@@ -374,9 +380,11 @@ async function doBuild({
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
 
-			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', originalImageName, argImageName);
-				imageNameResult = argImageName;
+			if (imageNames) {
+				imageNames.forEach(async function (image) {
+					await dockerPtyCLI(params, 'tag', originalImageName, image);
+				});
+				imageNameResult = imageNames;
 			} else {
 				imageNameResult = originalImageName;
 			}
@@ -388,11 +396,13 @@ async function doBuild({
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
 			}
-			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
-				imageNameResult = argImageName;
+			if (imageNames) {
+				imageNames.forEach(async function (image) {
+					await dockerPtyCLI(params, 'tag', updatedImageName, image);
+				});
+				imageNameResult = imageNames;
 			} else {
-				imageNameResult = updatedImageName;
+				imageNameResult = [updatedImageName];
 			}
 		}
 
