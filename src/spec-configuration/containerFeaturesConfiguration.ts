@@ -7,11 +7,13 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
+import { existsSync } from 'fs';
 import { DevContainerConfig, DevContainerFeature } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
-import { existsSync } from 'fs';
+import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
+
 
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
 
@@ -38,6 +40,7 @@ export interface Feature {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
+	installAfter?: string[];
 	include?: string[];
 	exclude?: string[];
 	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
@@ -413,6 +416,15 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder);
+
+	const ordererdFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
+
+	output.write('--- Computed order ----', LogLevel.Trace);
+	for (const feature of ordererdFeatures) {
+		output.write(`${feature.features[0].id}`, LogLevel.Trace);
+	}
+
+	featuresConfig.featureSets = ordererdFeatures;
 
 	return featuresConfig;
 }
@@ -826,6 +838,7 @@ async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature
 		featureSet.internalVersion = '2';
 		feature.buildArg = featureJson.buildArg;
 		feature.options = featureJson.options;
+		feature.installAfter = featureJson.installAfter;
 	} else {
 		featureSet.internalVersion = '1';
 	}

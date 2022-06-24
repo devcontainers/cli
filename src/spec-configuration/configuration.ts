@@ -59,7 +59,8 @@ export interface DevContainerFromImageConfig {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 }
 
@@ -90,7 +91,8 @@ export type DevContainerFromDockerfileConfig = {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 } & (
 		{
@@ -137,7 +139,8 @@ export interface DevContainerFromDockerComposeConfig {
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
-	features?: DevContainerFeature[] | Record<string, string | boolean | Record<string, string | boolean>>;
+	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 }
 

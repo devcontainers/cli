@@ -10,7 +10,13 @@
             "name": "Launch cli - up",
             "program": "${workspaceFolder}/src/spec-node/devContainersSpecCLI.ts",
             "cwd": "${workspaceFolder}",
-            "args": ["up", "--workspace-folder", "../features-playground", "--log-level", "debug", ],
+            "args": [
+                "up",
+                "--workspace-folder",
+                "../devcontainers-features",
+                "--log-level",
+                "debug",
+            ],
             "console": "integratedTerminal",
         }
     ]
