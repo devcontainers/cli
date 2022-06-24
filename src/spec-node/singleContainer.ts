@@ -36,7 +36,6 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// };
 			await startExistingContainer(params, idLabels, container);
 		} else {
-			// check
 			const res = await buildNamedImageAndExtend(params, config);
 			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
 

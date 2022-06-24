@@ -398,11 +398,11 @@ async function doBuild({
 			}
 			if (imageNames) {
 				imageNames.forEach(async function (image) {
-					await dockerPtyCLI(params, 'tag', updatedImageName, image);
+					await dockerPtyCLI(params, 'tag', updatedImageName[0], image);
 				});
 				imageNameResult = imageNames;
 			} else {
-				imageNameResult = [updatedImageName];
+				imageNameResult = updatedImageName;
 			}
 		}
 
