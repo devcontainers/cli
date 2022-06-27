@@ -4,7 +4,7 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as os from 'os';
 import * as path from 'path';
 import { mkdirpLocal } from '../../spec-utils/pfs';
-import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
+import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -38,25 +38,18 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
 
-        const features: DevContainerFeature[] = [
-            {
-                id: 'first',
-                options: {
-                    'version': 'latest'
-                },
-            },
-            {
-                id: 'second',
-                options: {
-                    'value': true
-                },
-            }
-        ];
 
         const config: DevContainerConfig = {
             configFilePath: URI.from({ 'scheme': 'https' }),
             dockerFile: '.',
-            features: features
+            features: {
+                first: {
+                    'version': 'latest'
+                },
+                second: {
+                    'value': true
+                },
+            },
         };
 
         const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);

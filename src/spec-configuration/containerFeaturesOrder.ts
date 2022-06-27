@@ -24,7 +24,8 @@ export function computeFeatureInstallationOrder(config: DevContainerConfig, feat
     }
 }
 
-function computeOverrideInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
+// Exported for unit tests.
+export function computeOverrideInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
     // Starts with the automatic installation order.
     const automaticOrder = computeInstallationOrder(features);
 
@@ -42,7 +43,8 @@ function computeOverrideInstallationOrder(config: DevContainerConfig, features: 
     return orderedFeatures.concat(features);
 }
 
-function computeInstallationOrder(features: FeatureSet[]) {
+// Exported for unit tests.
+export function computeInstallationOrder(features: FeatureSet[]) {
     const nodesById = features.map<FeatureNode>(feature => ({
         feature,
         before: new Set(),
