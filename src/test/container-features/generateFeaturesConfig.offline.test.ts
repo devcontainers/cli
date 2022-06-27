@@ -1,11 +1,11 @@
 import { assert } from 'chai';
 import { generateFeaturesConfig, getFeatureLayers } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import * as os from 'os';
 import * as path from 'path';
 import { mkdirpLocal } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
+import { getLocalCacheFolder } from '../../spec-node/utils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -35,7 +35,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
     it('should correctly return a featuresConfig with just local features', async function () {
 
         const version = 'unittest';
-        const tmpFolder: string = path.join(os.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
+        const tmpFolder: string = path.join(getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
 
         const config: DevContainerConfig = {

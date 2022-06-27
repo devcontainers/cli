@@ -13,7 +13,7 @@ import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getFolderImageName, inspectDockerImage } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, inspectDockerImage } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 
 // Escapes environment variable keys.
@@ -347,7 +347,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, conf
 	const dockerfileName = 'updateUID.Dockerfile';
 	const srcDockerfile = path.join(common.extensionPath, 'scripts', dockerfileName);
 	const version = common.package.version;
-	const destDockerfile = cliHost.path.join(await cliHost.tmpdir(), 'vsch', `${dockerfileName}-${version}`);
+	const destDockerfile = cliHost.path.join(await getCacheFolder(cliHost), `${dockerfileName}-${version}`);
 	const tmpDockerfile = `${destDockerfile}-${Date.now()}`;
 	await cliHost.mkdirp(cliHost.path.dirname(tmpDockerfile));
 	await cliHost.writeFile(tmpDockerfile, await readLocalFile(srcDockerfile));

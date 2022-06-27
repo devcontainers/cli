@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand } from '../spec-common/commonUtils';
@@ -318,9 +319,17 @@ export async function createFeaturesTempFolder(params: { cliHost: CLIHost; packa
 	const { cliHost } = params;
 	const { version } = params.package;
 	// Create temp folder
-	const tmpFolder: string = cliHost.path.join(await cliHost.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
+	const tmpFolder: string = cliHost.path.join(await getCacheFolder(cliHost), 'container-features', `${version}-${Date.now()}`);
 	await cliHost.mkdirp(tmpFolder);
 	return tmpFolder;
+}
+
+export async function getCacheFolder(cliHost: CLIHost): Promise<string> {
+	return cliHost.path.join(await cliHost.tmpdir(), cliHost.platform === 'linux' ? `vsch-${await cliHost.getUsername()}` : 'vsch');
+}
+
+export function getLocalCacheFolder(): string {
+	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${os.userInfo().username}` : 'vsch');
 }
 
 // not expected to be called externally (exposed for testing)
