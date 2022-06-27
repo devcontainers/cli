@@ -16,19 +16,20 @@ interface FeatureNode {
 
 export function computeFeatureInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
 
-    if (!config.overrideFeatureInstallOrder) {
-        return computeInstallationOrder(features);
+    if (config.overrideFeatureInstallOrder) {
+        return computeOverrideInstallationOrder(config, features);
     }
     else {
-        return computeOverrideInstallationOrder(config, features);
+        return computeInstallationOrder(features);
     }
 }
 
 function computeOverrideInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
+    // Starts with the automatic installation order.
     const automaticOrder = computeInstallationOrder(features);
 
+    // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
-
     for (const featureId of config.overrideFeatureInstallOrder!) {
         const feature = automaticOrder.find(feature => feature.features[0].name === featureId);
         if (!feature) {

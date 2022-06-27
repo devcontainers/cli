@@ -4,9 +4,8 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as os from 'os';
 import * as path from 'path';
 import { mkdirpLocal } from '../../spec-utils/pfs';
-import { DevContainerConfig } from '../../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
-import { DevContainerFeature } from '../../spec-common/injectHeadless';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
