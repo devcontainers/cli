@@ -181,10 +181,8 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		args.push('build');
 	}
 	args.push('-f', finalDockerfilePath);
-	
-	baseImageNames.forEach(function(image) {
-			args.push('-t', image);
-	});
+
+	baseImageNames.map(imageName => args.push('-t', imageName));
 
 	const target = config.build?.target;
 	if (target) {
