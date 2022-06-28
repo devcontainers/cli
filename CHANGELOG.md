@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## June 2022
+
+### [0.7.0]
+
+- Multi-platform build support. (https://github.com/devcontainers/cli/pull/24)
+- User-scoped tmp folder on Linux. (https://github.com/microsoft/vscode-remote-release/issues/2347)
+
 ## May 2022
 
 ### [0.6.0]
