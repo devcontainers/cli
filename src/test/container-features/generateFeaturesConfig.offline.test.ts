@@ -14,7 +14,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
 
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
-    const params = { extensionPath: '', output, env, persistedFolder: '' };
+    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '' };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {
@@ -38,15 +38,17 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         const tmpFolder: string = path.join(getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
 
+
         const config: DevContainerConfig = {
             configFilePath: URI.from({ 'scheme': 'https' }),
             dockerFile: '.',
             features: {
                 first: {
-                    'version': 'latest',
-                    'option1': true
+                    'version': 'latest'
                 },
-                third: 'latest'
+                second: {
+                    'value': true
+                },
             },
         };
 
@@ -55,22 +57,16 @@ describe('validate (offline) generateFeaturesConfig()', function () {
             assert.fail();
         }
 
-        const localFeatureSet = (featuresConfig?.featureSets.find(set => set.sourceInformation.type === 'local-cache'));
-        assert.exists(localFeatureSet);
-        assert.strictEqual(localFeatureSet?.features.length, 3);
+        assert.strictEqual(featuresConfig?.featureSets.length, 2);
 
-        const first = localFeatureSet?.features.find((f) => f.id === 'first');
+        const first = featuresConfig.featureSets[0].features.find((f) => f.id === 'first');
         assert.exists(first);
 
-        const second = localFeatureSet?.features.find((f) => f.id === 'second');
+        const second = featuresConfig.featureSets[1].features.find((f) => f.id === 'second');
         assert.exists(second);
 
-        const third = localFeatureSet?.features.find((f) => f.id === 'third');
-        assert.exists(third);
-
         assert.isObject(first?.value);
-        assert.isBoolean(second?.value);
-        assert.isString(third?.value);
+        assert.isObject(second?.value);
 
         // -- Test containerFeatures.ts helper functions
 
@@ -83,7 +79,11 @@ describe('validate (offline) generateFeaturesConfig()', function () {
 
         // getFeatureLayers
         const actualLayers = await getFeatureLayers(featuresConfig);
-        const expectedLayers = `RUN cd /tmp/build-features/local-cache \\
+        const expectedLayers = `RUN cd /tmp/build-features/first_1 \\
+&& chmod +x ./install.sh \\
+&& ./install.sh
+
+RUN cd /tmp/build-features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 

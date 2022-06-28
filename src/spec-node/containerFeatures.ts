@@ -98,11 +98,19 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 
 export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
 
-	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
+	// Creates the folder where the working files will be setup.
+	const tempFolder = await createFeaturesTempFolder(params.common);
+
+	// Extracts the local cache of features.
+	await createLocalFeatures(params, tempFolder);
+
+	// Processes the user's configuration.
+	const featuresConfig = await generateFeaturesConfig(params.common, tempFolder, config, imageLabelDetails, getContainerFeaturesFolder);
 	if (!featuresConfig) {
 		return null;
 	}
 
+	// Generates the end configuration.
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageUser);
 	if (!featureBuildInfo) {
@@ -116,27 +124,26 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
-		result += fSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-			.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
-				.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
-			.join('\n');
+		// We only need to generate this ENV references for the initial features specification.
+		if(fSet.internalVersion !== '2')
+		{
+			result += fSet.features
+				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
+				.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
+					.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
+				.join('\n');
+		}
 	}
 	return result;
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function createLocalFeatures(params: DockerResolverParameters, dstFolder: string)
+{
 	const { common } = params;
 	const { cliHost, output } = common;
-	const { dstFolder } = featuresConfig;
 
-	if (!dstFolder || dstFolder === '') {
-		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
-		return null;
-	}
-
-	// Calculate name of the build folder where localcache has been copied to.
-	const localCacheBuildFolderName = getSourceInfoString({ type: 'local-cache' });
+	// Name of the local cache folder inside the working directory
+	const localCacheBuildFolderName = 'local-cache';
 
 	const srcFolder = getContainerFeaturesFolder(common.extensionPath);
 	output.write(`local container features stored at: ${srcFolder}`);
@@ -170,6 +177,17 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 	create.pipe(extract.stdin);
 	await extract.exit;
 	await createExit; // Allow errors to surface.
+}
+
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+	const { common } = params;
+	const { cliHost, output } = common;
+	const { dstFolder } = featuresConfig;
+
+	if (!dstFolder || dstFolder === '') {
+		output.write('dstFolder is undefined or empty in addContainerFeatures', LogLevel.Error);
+		return null;
+	}
 
 	const buildStageScripts = await Promise.all(featuresConfig.featureSets
 		.map(featureSet => multiStageBuildExploration ? featureSet.features
@@ -212,28 +230,43 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env file(s) for each features source folder
-	await Promise.all([...featuresConfig.featureSets].map(async (featureSet, i) => {
-		const featuresEnv = ([] as string[]).concat(
-			...featureSet.features
-				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
-				.map(getFeatureEnvVariables)
-		).join('\n');
-		const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'devcontainer-features.env'); // next to install.sh
-		await Promise.all([
-			cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
-			...featureSet.features
+	for await (const fSet of featuresConfig.featureSets) {
+		let i = 0;
+		if(fSet.internalVersion === '2')
+		{
+			for await (const fe of fSet.features) {
+				if (fe.infoString)
+				{
+					fe.internalVersion = '2';
+					const envPath = cliHost.path.join(fe.infoString, 'devcontainer-features.env');
+					const variables = getFeatureEnvVariables(fe);
+					await cliHost.writeFile(envPath, Buffer.from(variables.join('\n')));
+				}
+			}
+		} else {
+			const featuresEnv = ([] as string[]).concat(
+				...fSet.features
+					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
+					.map(getFeatureEnvVariables)
+			).join('\n');
+			const envPath = cliHost.path.join(fSet.features[0].infoString!, 'devcontainer-features.env');
+			await Promise.all([
+				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
+				...fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
 				.map(f => {
-					const featuresEnv = [
-						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id)}`
-					]
-						.join('\n');
-					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
-					return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
-				})
-		]);
-	}));
+						const featuresEnv = [
+							...getFeatureEnvVariables(f),
+							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation), f.id)}`
+						]
+							.join('\n');
+						const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
+						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
+					})
+			]);
+		}
+		i++;
+	}
 
 	// For non-BuildKit, build the temporary image for the container-features content
 	if (!useBuildKitBuildContexts) {
@@ -302,15 +335,28 @@ function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
 	const idSafe = getSafeId(f.id);
 	const variables = [];
-	if (values) {
-		variables.push(...Object.keys(values)
-			.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
-		variables.push(`_BUILD_ARG_${idSafe}=true`);
-	}
-	if (f.buildArg) {
-		variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
-	}
-	return variables;
+	
+	if(f.internalVersion !== '2')
+	{
+		if (values) {
+			variables.push(...Object.keys(values)
+				.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
+			variables.push(`_BUILD_ARG_${idSafe}=true`);
+		}
+		if (f.buildArg) {
+			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+		}
+		return variables;
+	} else {
+		if (values) {
+			variables.push(...Object.keys(values)
+				.map(name => `${getSafeId(name)}="${values[name]}"`));
+		}
+		if (f.buildArg) {
+			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+		}
+		return variables;
+	}	
 }
 
 
