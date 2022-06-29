@@ -22,8 +22,6 @@ export interface Feature {
 	name: string;
 	description?: string;
 	filename?: string;
-	runApp?: string;
-	runParams?: string;
 	infoString?: string;
 	internalVersion?: string; // set programmatically
 	tempLocalPath?: string;
@@ -230,8 +228,8 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && export $(cat devcontainer-features.env | xargs) \\
-&& chmod +x ./${feature.runParams} \\
-&& ./${feature.runParams}
+&& chmod +x ./install.sh \\
+&& ./install.sh
 
 `;	
 		})
@@ -827,12 +825,6 @@ async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature
 	if (foundPath) {
 		const jsonString: Buffer = await readLocalFile(foundPath);
 		const featureJson = jsonc.parse(jsonString.toString());
-		feature.runApp = '';
-		feature.runParams = 'install.sh';
-		if (featureJson.install) {
-			feature.runApp = featureJson.install!.app ?? '';
-			feature.runParams = featureJson.install!.file ?? 'install.sh';
-		}
 
 		feature.containerEnv = featureJson.containerEnv;
 		featureSet.internalVersion = '2';
