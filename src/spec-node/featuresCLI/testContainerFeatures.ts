@@ -2,11 +2,11 @@ import path from 'path';
 import chalk from 'chalk';
 import { tmpdir } from 'os';
 import { CLIHost } from '../../spec-common/cliHost';
-import { LogLevel } from '../../spec-utils/log';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
 import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
 import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
 import { DockerResolverParameters } from '../utils';
+import { DevContainerConfig } from '../../spec-configuration/configuration';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -14,6 +14,8 @@ function fail(msg: string) {
     log(msg, { prefix: '[-]', stderr: true });
     process.exit(1);
 }
+
+type Scenarios = { [key: string]: DevContainerConfig };
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
 
@@ -35,14 +37,98 @@ function printFailedTest(feature: string) {
 
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-    const { baseImage, collectionFolder, remoteUser, cliHost, pkg, logLevel, quiet, disposables } = args;
-    let { features } = args;
+    const { pkg, scenariosFolder } = args;
 
     process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│     Testing v${pkg.version}          │
+│           v${pkg.version}            │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
+
+    // There are two modes. 
+    // 1.  '--features ...'  - A user-provided set of features to test (we expect a parallel 'test' subfolder for each feature)
+    // 2.  '--scenarios ...' - A JSON file codifying a set of features to test (potentially with options & with its own test script)
+    if (!!scenariosFolder) {
+        return await runScenarioFeatureTests(args);
+    } else {
+        return await runImplicitFeatureTests(args);
+    }
+}
+
+async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<number> {
+    const { scenariosFolder, cliHost, collectionFolder } = args;
+
+    const srcDir = `${collectionFolder}/src`;
+
+    if (! await cliHost.isFolder(srcDir)) {
+        fail(`Folder '${collectionFolder}' does not contain the required 'src' folder.`);
+    }
+
+    if (!scenariosFolder) {
+        fail('Must supply a scenarios test folder via --scenarios');
+        return 1; // We never reach here, we exit via fail().
+    }
+
+    log(`Scenarios:         ${scenariosFolder}\n`, { prefix: '\n📊', info: true });
+    const scenariosPath = path.join(scenariosFolder, 'scenarios.json');
+
+    if (!cliHost.isFile(scenariosPath)) {
+        fail(`scenarios.json not found, expected on at:  ${scenariosPath}`);
+        return 1; // We never reach here, we exit via fail().
+    }
+
+    // Read in scenarios.json
+    const scenariosBuffer = await cliHost.readFile(scenariosPath);
+    // Parse to json
+    let scenarios: Scenarios = {};
+    try {
+        scenarios = JSON.parse(scenariosBuffer.toString());
+    } catch (e) {
+        fail(`Failed to parse scenarios.json:  ${e.message}`);
+        return 1; // We never reach here, we exit via fail().
+    }
+
+    const testResults: { testName: string; result: boolean }[] = [];
+
+    // For EACH scenario: Spin up a container and exec the scenario test script
+    for (const [scenarioName, scenarioConfig] of Object.entries(scenarios)) {
+        log(`Running scenario:  ${scenarioName}`);
+
+        // Check if we have a scenario test script, otherwise skip.
+        const scenarioTestScript = path.join(scenariosFolder, `${scenarioName}.sh`);
+        if (!cliHost.isFile(scenarioTestScript)) {
+            log(`No scenario test script found at path ${scenarioTestScript}, skipping scenario...`);
+            continue;
+        }
+
+        // Create Container
+        const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig);
+        const params = await generateDockerParams(workspaceFolder, args);
+        await createContainerFromWorkingDirectory(params, workspaceFolder, args);
+
+        // Execute test script
+        // Move the test script into the workspaceFolder
+        const testScript = await cliHost.readFile(scenarioTestScript);
+        const remoteTestScriptName = `${scenarioName}-test-${Date.now()}.sh`;
+        await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
+
+        // Move the test library script into the workspaceFolder
+        await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
+
+        // Execute Test
+        testResults.push({
+            testName: scenarioName,
+            result: await execTest(params, remoteTestScriptName, workspaceFolder)
+        });
+    }
+
+    // Pretty-prints results and returns a status code to indicate success or failure.
+    return analyzeTestResults(testResults);
+}
+
+async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
+    const { baseImage, collectionFolder, remoteUser, cliHost } = args;
+    let { features } = args;
 
     const srcDir = `${collectionFolder}/src`;
     const testsDir = `${collectionFolder}/test`;
@@ -50,7 +136,6 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
     if (! await cliHost.isFolder(srcDir) || ! await cliHost.isFolder(testsDir)) {
         fail(`Folder '${collectionFolder}' does not contain the required 'src' and 'test' folders.`);
     }
-
 
     log(`baseImage:         ${baseImage}`);
     log(`Target Folder:     ${collectionFolder}`);
@@ -66,9 +151,8 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
     log(`features:          ${features.join(', ')}`);
 
-
     // 1. Generate temporary project with 'baseImage' and all the 'features..'
-    const workspaceFolder = await generateProject(
+    const workspaceFolder = await generateProjectFromFeatures(
         cliHost,
         baseImage,
         collectionFolder,
@@ -76,26 +160,8 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
         remoteUser
     );
 
-    log(`workspaceFolder:   ${workspaceFolder}`);
-
-    const params = await generateDockerParams(workspaceFolder, logLevel, quiet, disposables);
-
-    // 1.5. Provide a way to pass options nicely via CLI (or have test config file maybe?)
-
-    // 2. Use  'devcontainer-cli up'  to build and start a container
-    log('Building test container...\n', { prefix: '\n⏳', info: true });
-    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
-    if (!launchResult || !launchResult.containerId) {
-        fail('Failed to launch container');
-        return 2;
-    }
-
-    const { containerId } = launchResult;
-
-    log(`Launched container.`, { prefix: '\n🚀', info: true });
-    log(`containerId:          ${containerId}`);
-    log(`remoteUser:           ${remoteUser}`);
-
+    const params = await generateDockerParams(workspaceFolder, args);
+    await createContainerFromWorkingDirectory(params, workspaceFolder, args);
 
     log('Starting test(s)...\n', { prefix: '\n🏃', info: true });
 
@@ -119,16 +185,21 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
         // Execute Test
         const result = await execTest(params, remoteTestScriptName, workspaceFolder);
         testResults.push({
-            feature,
+            testName: feature,
             result,
         });
     }
 
+    // Pretty-prints results and returns a status code to indicate success or failure.
+    return analyzeTestResults(testResults);
+}
+
+function analyzeTestResults(testResults: { testName: string; result: boolean }[]): number {
     // 4. Print results
     const allPassed = testResults.every((x) => x.result);
     if (!allPassed) {
         testResults.filter((x) => !x.result).forEach((x) => {
-            printFailedTest(x.feature);
+            printFailedTest(x.testName);
         });
     } else {
         log('All tests passed!', { prefix: '\n✅', info: true });
@@ -146,6 +217,27 @@ const devcontainerTemplate = `
     "remoteUser": "#{REMOTE_USER}"
 }`;
 
+async function createContainerFromWorkingDirectory(params: DockerResolverParameters, workspaceFolder: string, args: FeaturesTestCommandInput): Promise<LaunchResult | undefined> {
+    const { quiet, remoteUser, disposables } = args;
+    log(`workspaceFolder:   ${workspaceFolder}`);
+
+    // 2. Use  'devcontainer-cli up'  to build and start a container
+    log('Building test container...\n', { prefix: '\n⏳', info: true });
+    const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
+    if (!launchResult || !launchResult.containerId) {
+        fail('Failed to launch container');
+        return;
+    }
+
+    const { containerId } = launchResult;
+
+    log(`Launched container.`, { prefix: '\n🚀', info: true });
+    log(`containerId:          ${containerId}`);
+    log(`remoteUser:           ${remoteUser}`);
+
+    return launchResult;
+}
+
 async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
     const systemTmpDir = tmpdir();
     const tmpFolder = path.join(systemTmpDir, 'vsch', 'container-features-test', Date.now().toString());
@@ -153,17 +245,17 @@ async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
     return tmpFolder;
 }
 
-async function generateProject(
+async function generateProjectFromFeatures(
     cliHost: CLIHost,
     baseImage: string,
-    targetDirectory: string,
+    collectionsDirectory: string,
     featuresToTest: string[],
     remoteUser: string
 ): Promise<string> {
     const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
     const features = featuresToTest
-        .map((x) => `"${targetDirectory}/src/${x}": "latest"`)
+        .map((x) => `"${collectionsDirectory}/src/${x}": "latest"`)
         .join(',\n');
 
     let template = devcontainerTemplate
@@ -173,6 +265,33 @@ async function generateProject(
 
     await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(template));
 
+    return tmpFolder;
+}
+
+async function generateProjectFromScenario(
+    cliHost: CLIHost,
+    collectionsDirectory: string,
+    scenarioId: string,
+    scenarioObject: DevContainerConfig
+): Promise<string> {
+    const tmpFolder = await createTempDevcontainerFolder(cliHost);
+
+    let features = scenarioObject.features;
+    if (!scenarioObject || !features) {
+        fail(`Scenario '${scenarioId}' is missing features!`);
+        return ''; // Exits in the 'fail()' before this line is reached.
+    }
+
+    // Prefix the local path to the collections directory
+    let updatedFeatures: Record<string, string | boolean | Record<string, string | boolean>> = {};
+    for (const [featureName, featureValue] of Object.entries(features)) {
+        updatedFeatures[`${collectionsDirectory}/src/${featureName}`] = featureValue;
+    }
+    scenarioObject.features = updatedFeatures;
+
+    await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(JSON.stringify(scenarioObject)));
+
+    // tmpFolder will serve as our auto-generated 'workingFolder'
     return tmpFolder;
 }
 
@@ -248,7 +367,8 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
     return (result.outcome === 'success');
 }
 
-async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
+async function generateDockerParams(workspaceFolder: string, args: FeaturesTestCommandInput): Promise<DockerResolverParameters> {
+    const { logLevel, quiet, disposables } = args;
     return await createDockerParams({
         workspaceFolder,
         dockerPath: undefined,
