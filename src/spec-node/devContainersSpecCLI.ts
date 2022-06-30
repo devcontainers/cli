@@ -16,7 +16,7 @@ import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe }
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
-import { buildDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
+import { buildAndExtendDockerCompose, getProjectName, readDockerComposeConfig } from './dockerCompose';
 import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
@@ -188,6 +188,8 @@ async function provision({
 		remoteEnv: keyValuesToRecord(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
+		buildxPlatform: undefined,
+		buildxPush: false,
 	};
 
 	const result = await doProvision(options);
@@ -245,6 +247,8 @@ function buildOptions(y: Argv) {
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
+		'platform': { type: 'string', description: 'Set target platforms.' },
+		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 	});
 }
 
@@ -273,6 +277,8 @@ async function doBuild({
 	'image-name': argImageName,
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
+	'platform': buildxPlatform,
+	'push': buildxPush,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -309,7 +315,9 @@ async function doBuild({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: {},
 			additionalCacheFroms: addCacheFroms,
-			useBuildKit: buildkit
+			useBuildKit: buildkit,
+			buildxPlatform,
+			buildxPush,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -329,15 +337,21 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			const { updatedImageName } = await buildNamedImageAndExtend(params, config);
+			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				if (!buildxPush) {
+					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				}
 				imageNameResult = argImageName;
 			} else {
 				imageNameResult = updatedImageName;
 			}
 		} else if ('dockerComposeFile' in config) {
+
+			if (buildxPlatform || buildxPush) {
+				throw new ContainerError({ description: '--platform or --push not supported.' });
+			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 			const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
@@ -358,23 +372,26 @@ async function doBuild({
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
 			}
 
-			await buildDockerCompose(config, projectName, buildParams, composeFiles, composeGlobalArgs, [config.service], params.buildNoCache || false, undefined, addCacheFroms);
+			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
+			await buildAndExtendDockerCompose(config, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
-			const { updatedImageName } = await extendImage(params, config, originalImageName, !service.build);
 
 			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+				await dockerPtyCLI(params, 'tag', originalImageName, argImageName);
 				imageNameResult = argImageName;
 			} else {
-				imageNameResult = updatedImageName;
+				imageNameResult = originalImageName;
 			}
 		} else {
 
 			await dockerPtyCLI(params, 'pull', config.image);
 			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config);
 
+			if (buildxPlatform || buildxPush) {
+				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
+			}
 			if (argImageName) {
 				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
 				imageNameResult = argImageName;
@@ -513,7 +530,9 @@ async function doRunUserCommands({
 			updateRemoteUserUIDDefault: 'never',
 			remoteEnv: keyValuesToRecord(addRemoteEnvs),
 			additionalCacheFroms: [],
-			useBuildKit: 'auto'
+			useBuildKit: 'auto',
+			buildxPlatform: undefined,
+			buildxPush: false,
 		}, disposables);
 
 		const { common } = params;
@@ -759,6 +778,8 @@ export async function doExec({
 			additionalCacheFroms: [],
 			useBuildKit: 'auto',
 			omitLoggerHeader: true,
+			buildxPlatform: undefined,
+			buildxPush: false,
 		}, disposables);
 
 		const { common } = params;

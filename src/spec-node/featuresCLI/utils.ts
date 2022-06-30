@@ -20,6 +20,8 @@ export const staticProvisionParams = {
     persistedFolder: undefined,
     terminalDimensions: undefined,
     useBuildKit: 'auto' as 'auto',
+    buildxPlatform: undefined,
+    buildxPush: false,
 };
 
 export const staticExecParams = {

@@ -35,6 +35,7 @@ export interface CLIHost {
 	mkdirp(dirpath: string): Promise<void>;
 	readDir(dirpath: string): Promise<string[]>;
 	readDirWithTypes?(dirpath: string): Promise<[string, FileTypeBitmask][]>;
+	getUsername(): Promise<string>;
 	getuid(): Promise<number>;
 	getgid(): Promise<number>;
 	toCommonURI(filePath: string): Promise<URI | undefined>;
@@ -78,6 +79,7 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 			await mkdirpLocal(dirpath);
 		},
 		readDir: readLocalDir,
+		getUsername: async () => os.userInfo().username,
 		getuid: async () => process.getuid(),
 		getgid: async () => process.getgid(),
 		toCommonURI: async (filePath) => URI.file(filePath),

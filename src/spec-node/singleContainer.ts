@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, ensureDockerfileHasFinalStageName } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
@@ -13,7 +13,6 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import * as path from 'path';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -101,8 +100,11 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	};
 }
 
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
-	const imageName = 'image' in config ? config.image : getFolderImageName(params.common);
+function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
+	return 'image' in config ? config.image : getFolderImageName(params.common);
+}
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageName?: string) {
+	const imageName = argImageName ?? getDefaultName(config, params);
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
 		return await buildAndExtendImage(params, config, imageName, params.buildNoCache ?? false);
@@ -110,6 +112,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 	// image-based dev container - extend
 	return await extendImage(params, config, imageName, 'image' in config);
 }
+
 async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageName: string, noCache: boolean) {
 	const { cliHost, output } = buildParams.common;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -126,7 +129,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	} else {
 		// Use the last stage in the Dockerfile
 		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseImageName);
+		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
 		baseName = lastStageName;
 		if (modifiedDockerfile) {
 			dockerfile = modifiedDockerfile;
@@ -145,8 +148,8 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (syntaxMatch) {
 			dockerfile = dockerfile.slice(syntaxMatch[0].length);
 		}
-		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo?.dockerfileContent}`;
-		finalDockerfilePath = path.posix.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
+		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo.dockerfileContent}`;
+		finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
 
 		// track additional build args to include below
@@ -159,29 +162,44 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const args: string[] = [];
+	if (!buildParams.buildKitVersion &&
+		(buildParams.buildxPlatform || buildParams.buildxPush)) {
+		throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
+	}
 	if (buildParams.buildKitVersion) {
-		args.push('buildx', 'build',
-			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
-			'--build-arg', 'BUILDKIT_INLINE_CACHE=1', // ensure cache manifest is included in the image
-		);
+		args.push('buildx', 'build');
+		if (buildParams.buildxPlatform) {
+			args.push('--platform', buildParams.buildxPlatform);
+		}
+		if (buildParams.buildxPush) {
+			args.push('--push');
+		} else {
+			args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
+		}
+		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
 	}
 	args.push('-f', finalDockerfilePath, '-t', baseImageName);
+
 	const target = config.build?.target;
 	if (target) {
 		args.push('--target', target);
 	}
 	if (noCache) {
 		args.push('--no-cache', '--pull');
-	} else if (config.build && config.build.cacheFrom) {
-		buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
-		if (typeof config.build.cacheFrom === 'string') {
-			args.push('--cache-from', config.build.cacheFrom);
-		} else {
-			for (let index = 0; index < config.build.cacheFrom.length; index++) {
-				const cacheFrom = config.build.cacheFrom[index];
-				args.push('--cache-from', cacheFrom);
+	} else {
+		if (buildParams.additionalCacheFroms) {
+			buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		}
+		if (config.build && config.build.cacheFrom) {
+			if (typeof config.build.cacheFrom === 'string') {
+				args.push('--cache-from', config.build.cacheFrom);
+			} else {
+				for (let index = 0; index < config.build.cacheFrom.length; index++) {
+					const cacheFrom = config.build.cacheFrom[index];
+					args.push('--cache-from', cacheFrom);
+				}
 			}
 		}
 	}
@@ -212,40 +230,6 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
 		imageDetails
 	};
-}
-
-// not expected to be called externally (exposed for testing)
-export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
-
-	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
-	const lastFromLineMatch = fromLines[fromLines.length - 1];
-	const lastFromLine = lastFromLineMatch.groups?.line as string;
-
-	// Test for "FROM [--platform=someplat] base [as label]"
-	// That is, match against optional platform and label
-	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
-	if (!fromMatch) {
-		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
-	}
-	if (fromMatch.groups?.label) {
-		return {
-			lastStageName: fromMatch.groups.label,
-			modifiedDockerfile: undefined,
-		};
-	}
-
-	// Last stage doesn't have a name, so modify the Dockerfile to set the name to defaultLastStageName
-	const lastLineStartIndex = (lastFromLineMatch.index as number) + (fromMatch.index as number);
-	const lastLineEndIndex = lastLineStartIndex + lastFromLine.length;
-	const matchedFromText = fromMatch[0];
-	let modifiedDockerfile = dockerfile.slice(0, lastLineStartIndex + matchedFromText.length);
-
-	modifiedDockerfile += ` AS ${defaultLastStageName}`;
-	const remainingFromLineLength = lastFromLine.length - matchedFromText.length;
-	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
-
-	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
 }
 
 export function findUserArg(runArgs: string[] = []) {

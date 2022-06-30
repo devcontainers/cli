@@ -5,5 +5,14 @@
 		"args": { 
 			"VARIANT": "16-bullseye"
 		}
+	},
+	"postCreateCommand": "touch /tmp/postCreateCommand.testmarker",
+	"postStartCommand": "touch /tmp/postStartCommand.testmarker",
+	"postAttachCommand": "touch /tmp/postAttachCommand.testmarker",
+	"features": {
+		"docker-in-docker": "latest",
+		"codspace/myfeatures/helloworld": {
+			"greeting": "howdy"
+		}
 	}
 }

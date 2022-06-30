@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand } from '../spec-common/commonUtils';
@@ -70,6 +71,8 @@ export interface DockerResolverParameters {
 	additionalCacheFroms: string[];
 	buildKitVersion: string | null;
 	isTTY: boolean;
+	buildxPlatform: string | undefined;
+	buildxPush: boolean;
 }
 
 export interface ResolverResult {
@@ -316,7 +319,49 @@ export async function createFeaturesTempFolder(params: { cliHost: CLIHost; packa
 	const { cliHost } = params;
 	const { version } = params.package;
 	// Create temp folder
-	const tmpFolder: string = cliHost.path.join(await cliHost.tmpdir(), 'vsch', 'container-features', `${version}-${Date.now()}`);
+	const tmpFolder: string = cliHost.path.join(await getCacheFolder(cliHost), 'container-features', `${version}-${Date.now()}`);
 	await cliHost.mkdirp(tmpFolder);
 	return tmpFolder;
+}
+
+export async function getCacheFolder(cliHost: CLIHost): Promise<string> {
+	return cliHost.path.join(await cliHost.tmpdir(), cliHost.platform === 'linux' ? `vsch-${await cliHost.getUsername()}` : 'vsch');
+}
+
+export function getLocalCacheFolder(): string {
+	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${os.userInfo().username}` : 'vsch');
+}
+
+// not expected to be called externally (exposed for testing)
+export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
+
+	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
+	const lastFromLineMatch = fromLines[fromLines.length - 1];
+	const lastFromLine = lastFromLineMatch.groups?.line as string;
+
+	// Test for "FROM [--platform=someplat] base [as label]"
+	// That is, match against optional platform and label
+	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
+	if (!fromMatch) {
+		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
+	}
+	if (fromMatch.groups?.label) {
+		return {
+			lastStageName: fromMatch.groups.label,
+			modifiedDockerfile: undefined,
+		};
+	}
+
+	// Last stage doesn't have a name, so modify the Dockerfile to set the name to defaultLastStageName
+	const lastLineStartIndex = (lastFromLineMatch.index as number) + (fromMatch.index as number);
+	const lastLineEndIndex = lastLineStartIndex + lastFromLine.length;
+	const matchedFromText = fromMatch[0];
+	let modifiedDockerfile = dockerfile.slice(0, lastLineStartIndex + matchedFromText.length);
+
+	modifiedDockerfile += ` AS ${defaultLastStageName}`;
+	const remainingFromLineLength = lastFromLine.length - matchedFromText.length;
+	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
+
+	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
 }

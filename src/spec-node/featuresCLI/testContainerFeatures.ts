@@ -276,6 +276,8 @@ async function generateDockerParams(workspaceFolder: string, logLevel: LogLevel,
         remoteEnv: {},
         additionalCacheFroms: [],
         omitLoggerHeader: true,
-        useBuildKit: 'auto'
+        useBuildKit: 'auto',
+        buildxPlatform: undefined,
+        buildxPush: false,
     }, disposables);
 }
