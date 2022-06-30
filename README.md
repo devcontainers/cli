@@ -127,7 +127,7 @@ You may review other resources part of the specification in the [`devcontainers`
 
 ## Contributing
 
-Check out how to contribute to the CLI in [CONTRIBUTING.md](contributing.md).
+Check out how to contribute to the CLI in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
