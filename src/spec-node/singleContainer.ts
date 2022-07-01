@@ -188,7 +188,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		args.push('--target', target);
 	}
 	if (noCache) {
-		args.push('--no-cache', '--pull');
+		args.push('--no-cache');
+		// `docker build --pull` pulls local image: https://github.com/devcontainers/cli/issues/60
+		if (buildParams.buildKitVersion || !extendImageBuildInfo) {
+			args.push('--pull');
+		}
 	} else {
 		if (buildParams.additionalCacheFroms) {
 			buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));

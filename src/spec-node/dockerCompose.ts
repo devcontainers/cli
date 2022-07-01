@@ -234,7 +234,11 @@ ${cacheFromOverrideContent}
 	if (!noBuild) {
 		args.push('build');
 		if (noCache) {
-			args.push('--no-cache', '--pull');
+			args.push('--no-cache');
+			// `docker build --pull` pulls local image: https://github.com/devcontainers/cli/issues/60
+			if (!extendImageBuildInfo) {
+				args.push('--pull');
+			}
 		}
 		if (runServices.length) {
 			args.push(...runServices);
