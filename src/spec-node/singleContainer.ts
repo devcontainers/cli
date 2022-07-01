@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, ensureDockerfileHasFinalStageName } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
@@ -122,6 +122,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
 	if (config.build?.target) {
 		// Explictly set build target for the dev container build features on that
@@ -137,7 +138,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const labelDetails = async () => { return { definition: undefined, version: undefined }; };
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, config.remoteUser ?? 'root', labelDetails);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, () => getImageUser(buildParams, originalDockerfile), labelDetails);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];
