@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { promisify } from 'util';
 import * as path from 'path';
+import * as ncp from 'ncp';
 
 import { URI } from 'vscode-uri';
 
@@ -27,6 +28,7 @@ export const mkdirpLocal = (path: string) => new Promise<void>((res, rej) => fs.
 export const rmdirLocal = promisify(fs.rmdir);
 export const rmLocal = promisify(fs.rm);
 export const cpLocal = promisify(fs.copyFile);
+export const cpDirectoryLocal = promisify(ncp.ncp);
 
 export interface FileHost {
 	platform: NodeJS.Platform;
