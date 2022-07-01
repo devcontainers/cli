@@ -352,7 +352,7 @@ export async function internalGetImageUser(inspectDockerImage: (imageName: strin
 	const fromLine = [...dockerfile.matchAll(findFromLines)][0];
 	const fromMatch = fromLine?.groups?.line?.match(parseFromLine);
 	const imageName = fromMatch?.groups?.image;
-	if (!imageName) {
+	if (!(imageName && imageName.indexOf('$') === -1)) { // Ignore variables.
 		return 'root';
 	}
 	const imageDetails = await inspectDockerImage(imageName);
