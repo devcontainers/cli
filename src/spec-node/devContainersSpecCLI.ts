@@ -638,7 +638,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, async () => /* TODO: ? (await imageDetails()).Config.Labels || */({}), getContainerFeaturesFolder) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd: process.cwd(), output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, async () => /* TODO: ? (await imageDetails()).Config.Labels || */ ({}), getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configs.config,

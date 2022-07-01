@@ -26,6 +26,11 @@ export interface HostRequirements {
 	storage?: string;
 }
 
+export interface DevContainerFeature {
+	id: string;
+	options: boolean | string | Record<string, boolean | string | undefined>;
+}
+
 export interface DevContainerFromImageConfig {
 	configFilePath: URI;
 	image: string;
@@ -55,6 +60,7 @@ export interface DevContainerFromImageConfig {
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 }
 
@@ -86,6 +92,7 @@ export type DevContainerFromDockerfileConfig = {
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 } & (
 		{
@@ -133,6 +140,7 @@ export interface DevContainerFromDockerComposeConfig {
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
+	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 }
 
