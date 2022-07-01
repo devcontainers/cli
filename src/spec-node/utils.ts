@@ -15,7 +15,7 @@ import { ContainerProperties, getContainerProperties, ResolverParameters } from 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -332,17 +332,44 @@ export function getLocalCacheFolder(): string {
 	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${os.userInfo().username}` : 'vsch');
 }
 
+const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
+const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
+const findUserLines = new RegExp(/^\s*USER\s+(?<user>\S+)/, 'gm');
+
+export async function getImageUser(params: DockerResolverParameters, dockerfile: string) {
+	return internalGetImageUser(imageName => inspectDockerImage(params, imageName, true), dockerfile);
+}
+
+export async function internalGetImageUser(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfile: string) {
+	// TODO: Other targets.
+	const userLines = [...dockerfile.matchAll(findUserLines)];
+	if (userLines.length) {
+		const user = userLines[userLines.length - 1].groups?.user;
+		if (user && user.indexOf('$') === -1) { // Ignore variables.
+			return user;
+		}
+	}
+	const fromLine = [...dockerfile.matchAll(findFromLines)][0];
+	const fromMatch = fromLine?.groups?.line?.match(parseFromLine);
+	const imageName = fromMatch?.groups?.image;
+	if (!imageName) {
+		return 'root';
+	}
+	const imageDetails = await inspectDockerImage(imageName);
+	return imageDetails.Config.User || 'root';
+}
+
 // not expected to be called externally (exposed for testing)
 export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
 
 	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-	const fromLines = [...dockerfile.matchAll(new RegExp(/^(?<line>\s*FROM.*)/, 'gm'))];
+	const fromLines = [...dockerfile.matchAll(findFromLines)];
 	const lastFromLineMatch = fromLines[fromLines.length - 1];
 	const lastFromLine = lastFromLineMatch.groups?.line as string;
 
 	// Test for "FROM [--platform=someplat] base [as label]"
 	// That is, match against optional platform and label
-	const fromMatch = lastFromLine.match(/FROM\s+(?<platform>--platform=\S+\s+)?\S+(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/);
+	const fromMatch = lastFromLine.match(parseFromLine);
 	if (!fromMatch) {
 		throw new Error('Error parsing Dockerfile: failed to parse final FROM line');
 	}

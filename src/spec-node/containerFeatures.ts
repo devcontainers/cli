@@ -40,7 +40,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		};
 	};
 
-	const imageUser = (await imageDetails()).Config.User || 'root';
+	const imageUser = async () => (await imageDetails()).Config.User || 'root';
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageUser, imageLabelDetails);
 	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
 		// no feature extensions - return
@@ -96,7 +96,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: string, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: () => Promise<string>, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
 
 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, imageLabelDetails, getContainerFeaturesFolder);
 	if (!featuresConfig) {
@@ -125,7 +125,7 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	return result;
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: string): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: () => Promise<string>): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -264,7 +264,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 		dockerfilePrefixContent,
 		buildArgs: {
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,
-			_DEV_CONTAINERS_IMAGE_USER: imageUser,
+			_DEV_CONTAINERS_IMAGE_USER: await imageUser(),
 			_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE: buildContentImageName,
 		},
 		buildKitContexts: useBuildKitBuildContexts ? { dev_containers_feature_content_source: dstFolder } : {},

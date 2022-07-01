@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -150,12 +150,13 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
-	let dockerfile = null;
+	let dockerfile: string;
+	let originalDockerfile: string;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		dockerfile = originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 		if (target) {
 			// Explictly set build target for the dev container build features on that
 			baseName = target;
@@ -169,13 +170,13 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 			}
 		}
 	} else {
-		dockerfile = `FROM ${composeService.image} AS ${baseName}\n`;
+		dockerfile = originalDockerfile = `FROM ${composeService.image} AS ${baseName}\n`;
 	}
 
 	// determine whether we need to extend with features
 	const labelDetails = async () => { return { definition: undefined, version: undefined }; };
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, config.remoteUser ?? 'root', labelDetails);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, () => getImageUser(params, originalDockerfile), labelDetails);
 
 	let buildOverrideContent = null;
 	if (extendImageBuildInfo) {
