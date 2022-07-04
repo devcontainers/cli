@@ -234,7 +234,7 @@ RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && ./${feature.runParams}
 
 `;	
-		})
+		});
 	});
 	return result;
 }
@@ -374,7 +374,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string, output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
 	if (!config.features)
@@ -519,7 +519,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			name: userFeature.id,
 			value: userFeature.options,
 			included: true,
-		}
+		};
 
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -549,7 +549,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			name: userFeature.id,
 			value: userFeature.options,
 			included: true,
-		}
+		};
 
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -577,7 +577,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			name: userFeature.id,
 			value: userFeature.options,
 			included: true,
-		}
+		};
 
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
