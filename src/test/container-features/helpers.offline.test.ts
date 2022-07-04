@@ -41,7 +41,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'helloworld',
             options: {},
-        } 
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
@@ -53,7 +53,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures/helloworld',
             options: {},
-        }
+        };
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
@@ -70,7 +70,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures/helloworld@v0.0.4',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
@@ -89,7 +89,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'https://example.com/some/long/path/devcontainer-features.tgz#helloworld',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
@@ -101,7 +101,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: './some/long/path/to/helloworld',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
@@ -113,7 +113,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: '../some/long/path/to/helloworld',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         
@@ -126,7 +126,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: '/some/long/path/to/helloworld',
             options: {},
-        }
+        };
         const result = parseFeatureIdentifier(output, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
@@ -140,7 +140,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'https://example.com/some/long/path/devcontainer-features.tgz/',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -150,7 +150,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures#helloworld',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -160,7 +160,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'https://example.com/some/long/path/devcontainer-features.tgz',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -170,7 +170,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'https://example.com/some/long/path/devcontainer-features.tgz#',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -180,7 +180,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures#',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -190,7 +190,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -200,7 +200,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures/@mycoolfeature',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -210,7 +210,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures/MY_$UPER_COOL_FEATURE',
             options: {},
-        }
+        };
 
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
@@ -220,7 +220,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const feature: DevContainerFeature = {
             id: 'octocat/myfeatures@v0.0.1',
             options: {},
-        }
+        };
         
         const result = parseFeatureIdentifier(output, feature);
         assert.notExists(result);
