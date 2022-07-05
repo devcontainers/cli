@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContainerError } from '../../spec-common/errors';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
@@ -78,7 +77,7 @@ describe('Container features install order', () => {
             ]);
             assert.fail('Cyclic dependency not detected.');
         } catch (err) {
-            assert.ok(err instanceof ContainerError);
+            assert.ok(err instanceof Error);
             assert.ok(err.message.indexOf('cyclic'));
         }
     });

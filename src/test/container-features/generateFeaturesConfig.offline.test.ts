@@ -21,17 +21,6 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         return './src/test/container-features/example-features-sets/simple';
     };
 
-    const labels = async () => {
-        const record: Record<string, string | undefined> = {
-            'com.visualstudio.code.devcontainers.id': 'ubuntu',
-            'com.visualstudio.code.devcontainers.release': 'v0.194.2',
-            'com.visualstudio.code.devcontainers.source': 'https://github.com/microsoft/vscode-dev-containers/',
-            'com.visualstudio.code.devcontainers.timestamp': 'Fri, 03 Sep 2021 03:00:16 GMT',
-            'com.visualstudio.code.devcontainers.variant': 'focal',
-        };
-        return record;
-    };
-
     it('should correctly return a featuresConfig with just local features', async function () {
 
         const version = 'unittest';
@@ -52,7 +41,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
             },
         };
 
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder);
         if (!featuresConfig) {
             assert.fail();
         }

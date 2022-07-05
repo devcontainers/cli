@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { ContainerError } from '../spec-common/errors';
 import { FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
 import { DevContainerConfig } from './configuration';
 
@@ -34,7 +33,7 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     for (const featureId of config.overrideFeatureInstallOrder!) {
         const feature = automaticOrder.find(feature => feature.features[0].name === featureId);
         if (!feature) {
-            throw new ContainerError({ description: `Feature ${featureId} not found` });
+            throw new Error(`Feature ${featureId} not found`);
         }
         orderedFeatures.push(feature);
         features.splice(features.indexOf(feature), 1);
@@ -104,7 +103,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
     }
 
     if (missing.size !== 0) {
-        throw new ContainerError({ description: `Features declare cyclic dependency: ${[...missing].join(', ')}` });
+        throw new Error(`Features declare cyclic dependency: ${[...missing].join(', ')}`);
     }
 
     return orderedFeatures;

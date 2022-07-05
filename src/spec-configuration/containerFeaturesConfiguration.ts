@@ -7,9 +7,8 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
-import { existsSync } from 'fs';
 import { DevContainerConfig, DevContainerFeature } from './configuration';
-import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal } from '../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
@@ -21,14 +20,9 @@ export interface Feature {
 	id: string;
 	name: string;
 	description?: string;
-	filename?: string;
-	runApp?: string;
-	runParams?: string;
-	infoString?: string;
+	cachePath?: string;
 	internalVersion?: string; // set programmatically
-	tempLocalPath?: string;
 	consecutiveId?: string;
-	install?: Record<string, string>;
 	documentationURL?: string;
 	licenseURL?: string;
 	options?: Record<string, FeatureOption>;
@@ -230,8 +224,8 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && export $(cat devcontainer-features.env | xargs) \\
-&& chmod +x ./${feature.runParams} \\
-&& ./${feature.runParams}
+&& chmod +x ./install.sh \\
+&& ./install.sh
 
 `;	
 		});
@@ -374,23 +368,11 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, imageLabelDetails: () => Promise<{ definition?: string; version?: string }>, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, getLocalFolder: (d: string) => string) {
 	const { output } = params;
 
-	if (!config.features)
-	{
-		return undefined;
-	}
-
-	if(!imageLabelDetails)
-	{
-		return undefined;
-	}
-
-	// Converts from object notation to array notation.
-	const userFeatures = convertOldFeatures(params, config);
-
-	if(!userFeatures) {
+	const userFeatures = featuresToArray(config);
+	if (!userFeatures) {
 		return undefined;
 	}
 
@@ -429,32 +411,20 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	return featuresConfig;
 }
 
-// Convert features from object syntax to array syntax
-function convertOldFeatures(params: { output: Log }, config: DevContainerConfig): DevContainerFeature[] | undefined 
+function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined
 {
-	params.output.write('');
-
-	let userFeatures: DevContainerFeature[] = [];
-	if (Array.isArray(config.features))
-	{
-		userFeatures = config.features;
+	if (!config.features) {
+		return undefined;
 	}
-	else {
-		if (!config.features || !Object.keys(config.features).length) {
-			return undefined;
-		}
 
-		for (const userFeatureKey of Object.keys(config.features)) {
-			const userFeatureValue = config.features[userFeatureKey];
-			if(userFeatureKey)
-			{
-				let feature : DevContainerFeature = {
-					id: userFeatureKey,
-					options: userFeatureValue
-				};
-				userFeatures.push(feature);
-			}
-		}
+	const userFeatures: DevContainerFeature[] = [];
+	for (const userFeatureKey of Object.keys(config.features)) {
+		const userFeatureValue = config.features[userFeatureKey];
+		const feature: DevContainerFeature = {
+			id: userFeatureKey,
+			options: userFeatureValue
+		};
+		userFeatures.push(feature);
 	}
 
 	return userFeatures;
@@ -673,7 +643,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const featCachePath = path.join(dstFolder, consecutiveId);
 			const sourceInfoType = featureSet.sourceInformation?.type;
 
-			feature.infoString = featCachePath;
+			feature.cachePath = featCachePath;
 			feature.consecutiveId = consecutiveId;
 
 			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
@@ -754,8 +724,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			}
 		}
 		catch (e) {
-			params.output.write(`(!) ERR: Failed to fetch feature: ${e?.Message ?? ''} `, LogLevel.Error);
-			// TODO: Should this be more fatal?
+			params.output.write(`(!) ERR: Failed to fetch feature: ${e?.message ?? ''} `, LogLevel.Error);
+			throw e;
 		}
 	}
 }
@@ -817,23 +787,16 @@ async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature
 
 	let foundPath: string | undefined;
 
-	if (existsSync(jsonPath)) {
+	if (await isLocalFile(jsonPath)) {
 		foundPath = jsonPath;
-	} else if (existsSync(innerJsonPath)) {
+	} else if (await isLocalFile(innerJsonPath)) {
 		foundPath = innerJsonPath;
-		feature.infoString = innerPath;
+		feature.cachePath = innerPath;
 	}
 
 	if (foundPath) {
 		const jsonString: Buffer = await readLocalFile(foundPath);
 		const featureJson = jsonc.parse(jsonString.toString());
-		feature.runApp = '';
-		feature.runParams = 'install.sh';
-		if (featureJson.install) {
-			feature.runApp = featureJson.install!.app ?? '';
-			feature.runParams = featureJson.install!.file ?? 'install.sh';
-		}
-
 		feature.containerEnv = featureJson.containerEnv;
 		featureSet.internalVersion = '2';
 		feature.buildArg = featureJson.buildArg;

@@ -174,9 +174,8 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 	}
 
 	// determine whether we need to extend with features
-	const labelDetails = async () => { return { definition: undefined, version: undefined }; };
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, () => getImageUser(params, originalDockerfile), labelDetails);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, () => getImageUser(params, originalDockerfile));
 
 	let buildOverrideContent = null;
 	if (extendImageBuildInfo) {

@@ -3,9 +3,6 @@
 	"references": [
 		{
 			"path": "../spec-utils"
-		},
-		{
-			"path": "../spec-common"
 		}
 	]
 }
