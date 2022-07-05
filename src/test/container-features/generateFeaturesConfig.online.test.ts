@@ -14,23 +14,13 @@ describe('validate online functionality of generateFeaturesConfig() ', function 
 
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
-    const params = { extensionPath: '', output, env, persistedFolder: '' };
+    const params = { extensionPath: '', output, env, persistedFolder: '', cwd: '' };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {
         return './src/test/container-features/example-features-sets/simple';
     };
 
-    const labels = async () => {
-        const record: Record<string, string | undefined> = {
-            'com.visualstudio.code.devcontainers.id': 'ubuntu',
-            'com.visualstudio.code.devcontainers.release': 'v0.194.2',
-            'com.visualstudio.code.devcontainers.source': 'https://github.com/microsoft/vscode-dev-containers/',
-            'com.visualstudio.code.devcontainers.timestamp': 'Fri, 03 Sep 2021 03:00:16 GMT',
-            'com.visualstudio.code.devcontainers.variant': 'focal',
-        };
-        return record;
-    };
 
     it('should correct return a featuresConfig fetched from a remote tgz', async function () {
         const version = 'unittest2';
@@ -47,7 +37,7 @@ describe('validate online functionality of generateFeaturesConfig() ', function 
                 third: 'latest'
             },
         };
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder);
 
         assert.exists(featuresConfig);
 
@@ -85,7 +75,7 @@ describe('validate online functionality of generateFeaturesConfig() ', function 
             },
         };
 
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, labels, localFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder);
 
         assert.exists(featuresConfig);
         // 3 local features + 1 from codspace/myfeatures + 1 from codspace/myotherfeatures == 5

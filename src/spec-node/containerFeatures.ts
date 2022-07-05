@@ -32,16 +32,9 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	const { common } = params;
 	const { cliHost, output } = common;
 	const imageDetails = () => cache || (cache = inspectDockerImage(params, imageName, pullImageOnError));
-	const imageLabelDetails = async () => {
-		const labels = (await imageDetails()).Config.Labels || {};
-		return {
-			definition: labels['com.visualstudio.code.devcontainers.id'],
-			version: labels['version'],
-		};
-	};
 
 	const imageUser = async () => (await imageDetails()).Config.User || 'root';
-	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageUser, imageLabelDetails);
+	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageUser);
 	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
 		// no feature extensions - return
 		return {
@@ -96,7 +89,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: () => Promise<string>, imageLabelDetails: () => Promise<{ definition: string | undefined; version: string | undefined }>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: () => Promise<string>) {
 
 	// Creates the folder where the working files will be setup.
 	const tempFolder = await createFeaturesTempFolder(params.common);
@@ -105,7 +98,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	await createLocalFeatures(params, tempFolder);
 
 	// Processes the user's configuration.
-	const featuresConfig = await generateFeaturesConfig(params.common, tempFolder, config, imageLabelDetails, getContainerFeaturesFolder);
+	const featuresConfig = await generateFeaturesConfig(params.common, tempFolder, config, getContainerFeaturesFolder);
 	if (!featuresConfig) {
 		return null;
 	}
@@ -235,10 +228,10 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 		if(fSet.internalVersion === '2')
 		{
 			for await (const fe of fSet.features) {
-				if (fe.infoString)
+				if (fe.cachePath)
 				{
 					fe.internalVersion = '2';
-					const envPath = cliHost.path.join(fe.infoString, 'devcontainer-features.env');
+					const envPath = cliHost.path.join(fe.cachePath, 'devcontainer-features.env');
 					const variables = getFeatureEnvVariables(fe);
 					await cliHost.writeFile(envPath, Buffer.from(variables.join('\n')));
 				}
@@ -249,7 +242,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
 					.map(getFeatureEnvVariables)
 			).join('\n');
-			const envPath = cliHost.path.join(fSet.features[0].infoString!, 'devcontainer-features.env');
+			const envPath = cliHost.path.join(fSet.features[0].cachePath!, 'devcontainer-features.env');
 			await Promise.all([
 				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 				...fSet.features
