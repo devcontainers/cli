@@ -137,8 +137,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const labelDetails = async () => { return { definition: undefined, version: undefined }; };
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, () => getImageUser(buildParams, originalDockerfile), labelDetails);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, () => getImageUser(buildParams, originalDockerfile));
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];

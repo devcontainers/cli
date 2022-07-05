@@ -5,7 +5,6 @@ tsconfig*.json
 src
 tsfmt.json
 scripts/gitAskPass.sh
-*.js.map
 build
 azure-pipelines.yml
 .vscode
