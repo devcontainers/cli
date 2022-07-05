@@ -368,7 +368,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, getLocalFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
 	const { output } = params;
 
 	const userFeatures = featuresToArray(config);
@@ -385,7 +385,8 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// load local cache of features;
 	// TODO: Update so that cached features are always version 2
-	let locallyCachedFeatureSet = await loadFeaturesJsonFromDisk(getLocalFolder(params.extensionPath), output); // TODO: Pass dist folder instead to also work with the devcontainer.json support package.
+	const localFeaturesFolder = getLocalFeaturesFolder(params.extensionPath);
+	const locallyCachedFeatureSet = await loadFeaturesJsonFromDisk(localFeaturesFolder, output); // TODO: Pass dist folder instead to also work with the devcontainer.json support package.
 	if (!locallyCachedFeatureSet) {
 		output.write('Failed to load locally cached features', LogLevel.Error);
 		return undefined;
@@ -397,7 +398,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder);
 
 	const ordererdFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
@@ -625,7 +626,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	}
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string) {
 	for (const featureSet of featuresConfig.featureSets) {
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
@@ -652,7 +653,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			if (sourceInfoType === 'local-cache') {
 				// create copy of the local features to set the environment variables for them.
 				await mkdirpLocal(featCachePath);
-				await cpDirectoryLocal(path.join(dstFolder, 'local-cache'), featCachePath);
+				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
 
 				await parseDevContainerFeature(featureSet, feature, featCachePath);
 
