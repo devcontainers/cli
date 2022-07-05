@@ -7,7 +7,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch cli - up",
+            "name": "Launch CLI - up",
             "program": "${workspaceFolder}/src/spec-node/devContainersSpecCLI.ts",
             "cwd": "${workspaceFolder}",
             "args": [
@@ -17,6 +17,23 @@
                 "--log-level",
                 "debug",
             ],
+            "console": "integratedTerminal",
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Tests",
+            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "-r",
+                "ts-node/register",
+                "--exit",
+                "src/test/*.test.ts"
+            ],
+            "env": {
+                "TS_NODE_PROJECT": "src/test/tsconfig.json"
+            },
             "console": "integratedTerminal",
         }
     ]
