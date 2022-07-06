@@ -27,7 +27,7 @@ describe('Dev Containers CLI', function () {
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
-	async function devContainerUp(workspaceFolder: string, options?: { useBuildKit?: boolean, userDataFolder?: string }): Promise<UpResult> {
+	async function devContainerUp(workspaceFolder: string, options?: { useBuildKit?: boolean; userDataFolder?: string }): Promise<UpResult> {
 		const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 		const userDataFolderOption = (options?.userDataFolder ?? false) ? ` --user-data-folder=${options?.userDataFolder}` : '';
 		const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}${userDataFolderOption}`);
