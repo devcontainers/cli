@@ -38,7 +38,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
 		// no feature extensions - return
 		return {
-			updatedImageName: imageName,
+			updatedImageName: [imageName],
 			collapsedFeaturesConfig: undefined,
 			imageDetails
 		};
@@ -86,7 +86,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		const infoParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
 		await dockerCLI(infoParams, ...args);
 	}
-	return { updatedImageName, collapsedFeaturesConfig, imageDetails };
+	return { updatedImageName:[updatedImageName], collapsedFeaturesConfig, imageDetails };
 }
 
 export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: DevContainerConfig, baseName: string, imageUser: () => Promise<string>) {

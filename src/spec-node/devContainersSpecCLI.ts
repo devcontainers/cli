@@ -328,18 +328,21 @@ async function doBuild({
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
 		const { config } = configs;
-		let imageNameResult = '';
+		let imageNameResult: string[] = [''];
+		
+		// Support multiple use of `--image-name` 
+		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			const { updatedImageName } = await buildNamedImageAndExtend(params, config, argImageName);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, config, imageNames);
 
-			if (argImageName) {
+			if (imageNames) {
 				if (!buildxPush) {
-					await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
+					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
 				}
-				imageNameResult = argImageName;
+				imageNameResult = imageNames;
 			} else {
 				imageNameResult = updatedImageName;
 			}
@@ -374,9 +377,9 @@ async function doBuild({
 			const service = composeConfig.services[config.service];
 			const originalImageName = service.image || `${projectName}_${config.service}`;
 
-			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', originalImageName, argImageName);
-				imageNameResult = argImageName;
+			if (imageNames) {
+				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', originalImageName, imageName)));
+				imageNameResult = imageNames;
 			} else {
 				imageNameResult = originalImageName;
 			}
@@ -388,9 +391,9 @@ async function doBuild({
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
 			}
-			if (argImageName) {
-				await dockerPtyCLI(params, 'tag', updatedImageName, argImageName);
-				imageNameResult = argImageName;
+			if (imageNames) {
+				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
+				imageNameResult = imageNames;
 			} else {
 				imageNameResult = updatedImageName;
 			}
