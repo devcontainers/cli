@@ -20,6 +20,7 @@ jobs:
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - run: yarn
+    - run: yarn lint
     - run: yarn package
     - run: yarn test --forbid-only
     - name: TGZ name

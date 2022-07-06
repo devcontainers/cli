@@ -24,7 +24,7 @@
 		"tsc-b-w": "tsc -b -w",
 		"precommit": "node build/hygiene.js",
 		"definitions": "npm-run-all definitions-clean definitions-copy",
-		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --ext .ts ./src ./test",
+		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --max-warnings 0 --ext .ts ./src",
 		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
 		"definitions-copy": "copyfiles --all \"node_modules/vscode-dev-containers/**/*\" dist",
 		"package": "npm-run-all compile npm-pack",
