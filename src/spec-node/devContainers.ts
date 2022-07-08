@@ -46,6 +46,7 @@ export interface ProvisionOptions {
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
 	useBuildKit: 'auto' | 'never';
+	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 }
@@ -55,6 +56,7 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
+
 	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
@@ -82,7 +84,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
 	const pkg = await getPackageConfig(extensionPath);
-	const output = createLog(options, pkg, sessionStart, disposables);
+	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
@@ -164,8 +166,8 @@ export interface LogOptions {
 	terminalDimensions: LogDimensions | undefined;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[]) {
-	const header = `${pkg.name} ${pkg.version}.`;
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
+	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
 	disposables.push(() => output.join());
