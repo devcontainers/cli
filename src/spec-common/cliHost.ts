@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved. 
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -10,7 +10,7 @@ import * as os from 'os';
 import { readLocalFile, writeLocalFile, mkdirpLocal, isLocalFile, renameLocal, readLocalDir, isLocalFolder } from '../spec-utils/pfs';
 import { URI } from 'vscode-uri';
 import { ExecFunction, getLocalUsername, plainExec, plainPtyExec, PtyExecFunction } from './commonUtils';
-import { Duplex } from 'pull-stream';
+import { Abort, Duplex, Sink, Source, SourceCallback } from 'pull-stream';
 
 const toPull = require('stream-to-pull-stream');
 
@@ -87,29 +87,187 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 	};
 }
 
-function connectLocal(socketPath: string) {
-	if (process.platform !== 'win32' || socketPath.startsWith('\\\\.\\pipe\\')) {
-		return toPull.duplex(net.connect(socketPath));
+// Parse a Cygwin socket cookie string to a raw Buffer
+function cygwinUnixSocketCookieToBuffer(cookie: string) {
+	let bytes: number[] = [];
+
+	cookie.split('-').map((number: string) => {
+		const bytesInChar = number.match(/.{2}/g);
+		if (bytesInChar !== null) {
+			bytesInChar.reverse().map((byte) => {
+				bytes.push(parseInt(byte, 16));
+			});
+		}
+	});
+	return Buffer.from(bytes);
+}
+
+// The cygwin/git bash ssh-agent server will reply us with the cookie back (16 bytes)
+// + identifiers (12 bytes), skip them while forwarding data from ssh-agent to the client
+function skipHeader(headerSize: number, cb: SourceCallback<Buffer>, abort: Abort, data?: Buffer): number {
+	if (abort || data === undefined) {
+		cb(abort);
+		return headerSize;
 	}
 
-	const socket = new net.Socket();
+	if (headerSize === 0) {
+		// Fast path avoiding data buffer manipulation
+		// We don't need to modify the received data (handshake header
+		// already removed)
+		cb(null, data);
+	} else if (data.length > headerSize) {
+		// We need to remove part of the data to forward
+		data = data.slice(headerSize, data.length);
+		headerSize = 0;
+		cb(null, data);
+	} else {
+		// We need to remove all forwarded data
+		headerSize = headerSize - data.length;
+		cb(null, Buffer.of());
+	}
+
+	// Return the updated headerSize
+	return headerSize;
+}
+
+// Function to handle the Cygwin/Gpg4win socket filtering
+// These sockets need an handshake before forwarding client and server data
+function handleUnixSocketOnWindows(socket: net.Socket, socketPath: string): Duplex<Buffer, Buffer> {
+	let headerSize = 0;
+	let pendingSourceCallbacks: { abort: Abort; cb: SourceCallback<Buffer> }[] = [];
+	let pendingSinkCalls: Source<Buffer>[] = [];
+	let connectionDuplex: Duplex<Buffer, Buffer> | undefined = undefined;
+
+	let handleError = (err: Abort) => {
+		if (err instanceof Error) {
+			console.error(err);
+		}
+		socket.destroy();
+
+		// Notify pending callbacks with the error
+		for (let callback of pendingSourceCallbacks) {
+			callback.cb(err, undefined);
+		}
+		pendingSourceCallbacks = [];
+
+		for (let callback of pendingSinkCalls) {
+			callback(err, (_abort, _data) => { });
+		}
+		pendingSinkCalls = [];
+	};
+
 	(async () => {
 		const buf = await readLocalFile(socketPath);
-		const i = buf.indexOf(0xa);
-		const port = parseInt(buf.slice(0, i).toString(), 10);
-		const guid = buf.slice(i + 1);
+		const str = buf.toString();
+
+		// Try to parse cygwin socket data
+		const cygwinSocketParameters = str.match(/!<socket >(\d+)( s)? ((([A-Fa-f0-9]{2}){4}-?){4})/);
+
+		let port: number;
+		let handshake: Buffer;
+
+		if (cygwinSocketParameters !== null) {
+			// Cygwin / MSYS / Git Bash unix socket on Windows
+			const portStr = cygwinSocketParameters[1];
+			const guidStr = cygwinSocketParameters[3];
+			port = parseInt(portStr, 10);
+			const guid = cygwinUnixSocketCookieToBuffer(guidStr);
+
+			let identifierData = Buffer.alloc(12);
+			identifierData.writeUInt32LE(process.pid, 0);
+
+			handshake = Buffer.concat([guid, identifierData]);
+
+			// Recv header size = GUID (16 bytes) + identifiers (3 * 4 bytes)
+			headerSize = 16 + 3 * 4;
+		} else {
+			// Gpg4Win unix socket
+			const i = buf.indexOf(0xa);
+			port = parseInt(buf.slice(0, i).toString(), 10);
+			handshake = buf.slice(i + 1);
+
+			// No header will be received from Gpg4Win agent
+			headerSize = 0;
+		}
+
+		// Handle connection errors and resets
+		socket.on('error', err => {
+			handleError(err);
+		});
+
 		socket.connect(port, '127.0.0.1', () => {
-			socket.write(guid, err => {
+			// Write handshake data to the ssh-agent/gpg-agent server
+			socket.write(handshake, err => {
 				if (err) {
-					console.error(err);
-					socket.destroy();
+					// Error will be handled via the 'error' event
+					return;
 				}
+
+				connectionDuplex = toPull.duplex(socket);
+
+				// Call pending source calls, if the pull-stream connection was
+				// pull-ed before we got connected to the ssh-agent/gpg-agent
+				// server.
+				// The received data from ssh-agent/gpg-agent server is filtered
+				// to skip the handshake header.
+				for (let callback of pendingSourceCallbacks) {
+					(connectionDuplex as Duplex<Buffer, Buffer>).source(callback.abort, function (abort, data) {
+						headerSize = skipHeader(headerSize, callback.cb, abort, data);
+					});
+				}
+				pendingSourceCallbacks = [];
+
+				// Call pending sink calls after the handshake is completed
+				// to send what the client sent to us
+				for (let callback of pendingSinkCalls) {
+					(connectionDuplex as Duplex<Buffer, Buffer>).sink(callback);
+				}
+				pendingSinkCalls = [];
 			});
 		});
 	})()
 		.catch(err => {
-			console.error(err);
-			socket.destroy();
+			handleError(err);
 		});
-	return toPull.duplex(socket);
+
+	// pull-stream source that remove the first <headerSize> bytes
+	let source: Source<Buffer> = function (abort: Abort, cb: SourceCallback<Buffer>) {
+		if (connectionDuplex !== undefined) {
+			connectionDuplex.source(abort, function (abort, data) {
+				headerSize = skipHeader(headerSize, cb, abort, data);
+			});
+		} else {
+			pendingSourceCallbacks.push({ abort: abort, cb: cb });
+		}
+	};
+
+	// pull-stream sink. No filtering done, but we need to store calls in case
+	// the connection to the upstram ssh-agent/gpg-agent is not yet connected
+	let sink: Sink<Buffer> = function (source: Source<Buffer>) {
+		if (connectionDuplex !== undefined) {
+			connectionDuplex.sink(source);
+		} else {
+			pendingSinkCalls.push(source);
+		}
+	};
+
+	return {
+		source: source,
+		sink: sink
+	};
+}
+
+// Connect to a ssh-agent or gpg-agent, supporting multiple platforms
+function connectLocal(socketPath: string) {
+	if (process.platform !== 'win32' || socketPath.startsWith('\\\\.\\pipe\\')) {
+		// Simple case: direct forwarding
+		return toPull.duplex(net.connect(socketPath));
+	}
+
+	// More complex case: we need to do an handshake to support Cygwin / Git Bash
+	// sockets or Gpg4Win sockets
+
+	const socket = new net.Socket();
+
+	return handleUnixSocketOnWindows(socket, socketPath);
 }
