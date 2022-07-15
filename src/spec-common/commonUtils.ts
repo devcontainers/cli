@@ -5,6 +5,7 @@
 
 import { Writable, Readable } from 'stream';
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as ptyType from 'node-pty';
@@ -13,7 +14,7 @@ import { StringDecoder } from 'string_decoder';
 import { toErrorText } from './errors';
 import { Disposable, Event } from '../spec-utils/event';
 import { isLocalFile } from '../spec-utils/pfs';
-import { Log } from '../spec-utils/log';
+import { Log, nullLog } from '../spec-utils/log';
 import { ShellServer } from './shellServer';
 
 export { CLIHost, getCLIHost } from './cliHost';
@@ -454,4 +455,23 @@ export async function isFile(shellServer: ShellServer, location: string) {
 				.stdout.trim() === 'True';
 		}
 	})();
+}
+
+let localUsername: Promise<string>;
+export async function getLocalUsername() {
+	if (localUsername === undefined) {
+		localUsername = (async () => {
+			try {
+				return os.userInfo().username;
+			} catch (err) {
+				if (process.platform !== 'linux') {
+					throw err;
+				}
+				// os.userInfo() fails with VS Code snap install: https://github.com/microsoft/vscode-remote-release/issues/6913
+				const result = await runCommandNoPty({ exec: plainExec(undefined), cmd: 'id', args: ['-u', '-n'], output: nullLog });
+				return result.stdout.toString().trim();
+			}
+		})();
+	}
+	return localUsername;
 }

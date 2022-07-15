@@ -9,7 +9,7 @@ import * as os from 'os';
 
 import { readLocalFile, writeLocalFile, mkdirpLocal, isLocalFile, renameLocal, readLocalDir, isLocalFolder } from '../spec-utils/pfs';
 import { URI } from 'vscode-uri';
-import { ExecFunction, plainExec, plainPtyExec, PtyExecFunction } from './commonUtils';
+import { ExecFunction, getLocalUsername, plainExec, plainPtyExec, PtyExecFunction } from './commonUtils';
 import { Duplex } from 'pull-stream';
 
 const toPull = require('stream-to-pull-stream');
@@ -79,7 +79,7 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 			await mkdirpLocal(dirpath);
 		},
 		readDir: readLocalDir,
-		getUsername: async () => os.userInfo().username,
+		getUsername: getLocalUsername,
 		getuid: async () => process.getuid(),
 		getgid: async () => process.getgid(),
 		toCommonURI: async (filePath) => URI.file(filePath),

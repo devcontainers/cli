@@ -24,7 +24,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
     it('should correctly return a featuresConfig with just local features', async function () {
 
         const version = 'unittest';
-        const tmpFolder: string = path.join(getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
+        const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
 
 

@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { CLIHost, runCommandNoPty, runCommand } from '../spec-common/commonUtils';
+import { CLIHost, runCommandNoPty, runCommand, getLocalUsername } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
 import { ContainerProperties, getContainerProperties, ResolverParameters } from '../spec-common/injectHeadless';
@@ -328,8 +328,8 @@ export async function getCacheFolder(cliHost: CLIHost): Promise<string> {
 	return cliHost.path.join(await cliHost.tmpdir(), cliHost.platform === 'linux' ? `vsch-${await cliHost.getUsername()}` : 'vsch');
 }
 
-export function getLocalCacheFolder(): string {
-	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${os.userInfo().username}` : 'vsch');
+export async function getLocalCacheFolder() {
+	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${await getLocalUsername()}` : 'vsch');
 }
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
