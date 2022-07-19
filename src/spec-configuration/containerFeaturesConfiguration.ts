@@ -12,6 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
+import { execSync } from 'child_process';
 
 
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -396,6 +397,12 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
 
+	// Generate package.json
+	output.write('--- Generating package.json ----', LogLevel.Trace);
+
+	// TODO: NEW!
+	await generatePackageJsonAndFetch(featuresConfig, dstFolder, output);
+
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder);
@@ -443,6 +450,43 @@ async function processUserFeatures(output: Log, userFeatures: DevContainerFeatur
 		}
 	);
 	return featuresConfig;
+}
+
+type PackageJson = {
+	name: string;
+	dependencies: { [key: string]: string };
+};
+
+async function generatePackageJsonAndFetch(featuresConfig: FeaturesConfig, dstFolder: string, output: Log) {
+	const dependencies: { [key in string]: string } = {};
+	featuresConfig.featureSets.forEach(set => {
+		const feature = set.features[0];
+		const sourceInfo = set.sourceInformation as GithubSourceInformation;
+		const owner = sourceInfo.owner;
+		const repo = sourceInfo.repo;
+		const featureId = feature.id;
+
+		const npmidentifier = `@${owner}/${repo}-${featureId}`;
+		dependencies[npmidentifier] = '1';
+	});
+
+	let packageJson: PackageJson = {
+		name: 'Features',
+		dependencies
+	};
+
+	output.write(JSON.stringify(packageJson), LogLevel.Trace);
+	console.log(dstFolder, LogLevel.Trace);
+
+	const npmCacheDir = path.join(dstFolder, 'npmCache');
+	await mkdirpLocal(npmCacheDir);
+
+	await writeLocalFile(path.join(npmCacheDir, 'package.json'), JSON.stringify(packageJson));
+
+	output.write('attempting install', LogLevel.Trace);
+	execSync(`npm install`, { cwd: npmCacheDir });
+
+	return npmCacheDir;
 }
 
 export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFeature) : FeatureSet | undefined {
