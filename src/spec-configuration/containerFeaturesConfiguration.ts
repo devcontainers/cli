@@ -93,6 +93,7 @@ export interface ShallowCloneSourceInformation extends BaseSourceInformation {
 	owner: string;
 	repo: string;
 	ref: string;
+	cloneFolderName: string;
 }
 
 export interface NpmPackageSourceInformation extends BaseSourceInformation {
@@ -700,14 +701,20 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	if (OVERRIDE_EXPERIMENTAL_SHALLOW_CLONE) {
 		output.write('Fetching via shallow clone.');
 
+		const expectedTagName = `${feat.id}_${version}`;
+
+		// TODO: Optimize to reuse same refs
+		const cloneFolderName = `${owner}_${repo}_${feat.id}_${version}`;
+
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'shallow-clone',
-				authenticatedCloneCommand: `git clone https://ci:<GITHUB_TOKEN>@github.com/${owner}/${repo}.git --single-branch -b ${version}`,
-				unauthenticatedCloneCommand: `git clone https://github.com/${owner}/${repo}.git --single-branch -b ${version}`,
+				authenticatedCloneCommand: `git clone https://ci:<GITHUB_TOKEN>@github.com/${owner}/${repo}.git --single-branch -b  ${expectedTagName} ${cloneFolderName}`,
+				unauthenticatedCloneCommand: `git clone https://github.com/${owner}/${repo}.git --single-branch -b  ${expectedTagName} ${cloneFolderName}`,
 				owner,
 				repo,
 				ref: version,
+				cloneFolderName,
 			},
 			features: [feat],
 		};
@@ -849,6 +856,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(shallowCloneCacheDir);
 
 				const githubToken = params.env['GITHUB_TOKEN'];
+				// TODO: Optimize this to not clone the same ref twice!
 				if (githubToken) {
 					params.output.write('Authenticated Shallow Clone', LogLevel.Trace);
 					const authenticatedCmd = 
@@ -859,6 +867,12 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					params.output.write('Unauthenticated Shallow Clone', LogLevel.Trace);
 					execSync(sourceInfo.unauthenticatedCloneCommand, { cwd: shallowCloneCacheDir });
 				}
+
+				// Copy from the cache to the destination.
+				const assets = path.join(shallowCloneCacheDir, sourceInfo.cloneFolderName, 'src', feature.id);
+				await cpDirectoryLocal(assets, featCachePath);
+
+
 				continue;
 			}
 
