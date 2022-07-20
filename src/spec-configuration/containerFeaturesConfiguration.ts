@@ -64,7 +64,7 @@ export interface Mount {
 	external?: boolean;
 }
 
-export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation;
+export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | NpmPackageSourceInformation;
 
 interface BaseSourceInformation {
 	type: string;
@@ -84,6 +84,13 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
+}
+
+export interface NpmPackageSourceInformation extends BaseSourceInformation {
+	type: 'npm-package';
+	registry: string;
+	namespace: string;
+	version?: string;
 }
 
 export interface GithubSourceInformationInput {
@@ -176,6 +183,8 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 			return srcInfo.tarballUri + getCounter();
 		case 'github-repo':
 			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
+		case 'npm-package':
+			return `npm-${srcInfo.namespace}-${srcInfo.version || 'latest'}-${getCounter()}`;
 		case 'file-path':
 			return srcInfo.filePath + '-' + getCounter();
 	}
@@ -401,11 +410,11 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Generating package.json ----', LogLevel.Trace);
 
 	// TODO: NEW!
-	await generatePackageJsonAndFetch(featuresConfig, dstFolder, output);
+	const npmCacheFolder = await generatePackageJsonAndFetch(featuresConfig, dstFolder, output);
 
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, npmCacheFolder);
 
 	const ordererdFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
@@ -460,14 +469,18 @@ type PackageJson = {
 async function generatePackageJsonAndFetch(featuresConfig: FeaturesConfig, dstFolder: string, output: Log) {
 	const dependencies: { [key in string]: string } = {};
 	featuresConfig.featureSets.forEach(set => {
+		if (set.sourceInformation.type !== 'npm-package') {
+			return;
+		}
 		const feature = set.features[0];
-		const sourceInfo = set.sourceInformation as GithubSourceInformation;
-		const owner = sourceInfo.owner;
-		const repo = sourceInfo.repo;
+		const sourceInfo = set.sourceInformation;
+		const namespace = sourceInfo.namespace;
 		const featureId = feature.id;
 
-		const npmidentifier = `@${owner}/${repo}-${featureId}`;
-		dependencies[npmidentifier] = '1';
+		const version = sourceInfo.version ?? '*';
+
+		const npmidentifier = `${namespace}/${featureId}`;
+		dependencies[npmidentifier] = version;
 	});
 
 	let packageJson: PackageJson = {
@@ -483,8 +496,8 @@ async function generatePackageJsonAndFetch(featuresConfig: FeaturesConfig, dstFo
 
 	await writeLocalFile(path.join(npmCacheDir, 'package.json'), JSON.stringify(packageJson));
 
-	output.write('attempting install', LogLevel.Trace);
-	execSync(`npm install`, { cwd: npmCacheDir });
+	output.write('attempting npm install', LogLevel.Trace);
+	execSync(`npm install`, { cwd: npmCacheDir }); // TODO: Use API directly instead of depending on `npm`?
 
 	return npmCacheDir;
 }
@@ -494,8 +507,9 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//      (0)  <feature>
 	//      (1)  <publisher>/<feature-set>/<feature>@version
 	//      (2)  https://<../URI/..>/devcontainer-features.tgz#<feature>
-	//      (3) ./<local-path>#<feature>  -or-  ../<local-path>#<feature>  -or-   /<local-path>#<feature>
-	// 
+	//      (3)  ./<local-path>#<feature>  -or-  ../<local-path>#<feature>  -or-   /<local-path>#<feature>
+	//      (4)  @<namespace>/<feature>@[version]
+	//
 	//  (0) This is a locally cached feature.
 	//
 	//  (1) Our "registry" is backed by GitHub public repositories (or repos visible with the environment's GITHUB_TOKEN).
@@ -504,7 +518,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//
 	//      eg: octocat/myfeatures/helloworld
 	//
-	//      The above example assumes the 'latest' GitHub release, and internally will 
+	//      The above example assumes the 'latest' GitHub release, and internally will
 	//      fetch the devcontainer-features.tgz artifact from that release.
 	//      To specify a certain release tag, append the tag with an @ symbol
 	//
@@ -522,8 +536,52 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//          -  an absolute file path (prepended by a /)
 	//
 	//      No version can be provided, as the directory is copied 'as is' and is inherently taking the 'latest'
+	//
+	//  (4) Npm package identifier.
+	//      Package is saved in an npm registry.  Format is @<namespace>/<feature>@[version], where 'version' is optional.
+	// 
 	
 	output.write(`* Processing feature: ${userFeature.id}`);
+
+	// (4) Npm package identifier.
+	if (userFeature.id.startsWith('@') && userFeature.id.includes('/')) {
+		output.write(`* Processing npm package identifier.`);
+		const splitOnSlash = userFeature.id.split('/');
+		if (splitOnSlash.length !== 2) {
+			output.write(`Parse error. Identifier of this form must include a single slash delimiting the namespace and the feature (+ version if applicable). Provided: ${userFeature.id}.`, LogLevel.Error);
+			return undefined;
+		}
+		const namespace = splitOnSlash[0];
+		const featureNameAndVersion = splitOnSlash[1];
+
+		let featureName = featureNameAndVersion;
+		let version: string | undefined;
+
+		const splitOnAt = featureNameAndVersion.split('@');
+		if (splitOnAt.length === 2) {
+			featureName = splitOnAt[0];
+			version = splitOnAt[1];
+		}
+
+		let feat: Feature = {
+			id: featureName,
+			name: featureName,
+			value: userFeature.options,
+			included: true,
+		};
+
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'npm-package',
+				namespace,
+				registry: 'https://registry.npmjs.org',
+				version,
+			},
+			features: [feat],
+		};
+
+		return newFeaturesSet;
+	}
 
 	// cached feature
 	if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
@@ -670,7 +728,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	}
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, npmCacheFolder: string) {
 	for (const featureSet of featuresConfig.featureSets) {
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
@@ -692,7 +750,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			feature.consecutiveId = consecutiveId;
 
 			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
-			params.output.write(`* Fetching feature: ${featureDebugId}`);
+			params.output.write(`* Fetching feature: ${featureDebugId}`);	
 
 			if (sourceInfoType === 'local-cache') {
 				// create copy of the local features to set the environment variables for them.
@@ -720,7 +778,16 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			params.output.write(`Detected tarball`, LogLevel.Trace);
+			if (sourceInfoType === 'npm-package') {
+				const sourceInfo = featureSet.sourceInformation;
+				params.output.write(`Copying over from npm cache`, LogLevel.Trace);
+				await mkdirpLocal(featCachePath);
+				await cpDirectoryLocal(path.join(npmCacheFolder, 'node_modules', sourceInfo.namespace, feature.id), featCachePath);
+
+				continue;
+			}
+
+			params.output.write(`All other paths exhausted, must be a tarball (or github repo saved as a tarball)`, LogLevel.Trace);
 			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, params.output);
 
 			// Ordered list of tarballUris to attempt to fetch from.
