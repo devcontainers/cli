@@ -64,7 +64,7 @@ export interface Mount {
 	external?: boolean;
 }
 
-export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | NpmPackageSourceInformation;
+export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | NpmPackageSourceInformation | ShallowCloneSourceInformation;
 
 interface BaseSourceInformation {
 	type: string;
@@ -84,6 +84,15 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
+}
+
+export interface ShallowCloneSourceInformation extends BaseSourceInformation {
+	type: 'shallow-clone';
+	authenticatedCloneCommand: string;
+	unauthenticatedCloneCommand: string;
+	owner: string;
+	repo: string;
+	ref: string;
 }
 
 export interface NpmPackageSourceInformation extends BaseSourceInformation {
@@ -185,6 +194,8 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
 		case 'npm-package':
 			return `npm-${srcInfo.namespace}-${srcInfo.version || 'latest'}-${getCounter()}`;
+		case 'shallow-clone':
+			return `shallow-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.ref}-${getCounter()}`;
 		case 'file-path':
 			return srcInfo.filePath + '-' + getCounter();
 	}
@@ -406,24 +417,22 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
 
-	// Generate package.json
+	// TODO: EXPERIMENTAL
 	output.write('--- Generating package.json ----', LogLevel.Trace);
-
-	// TODO: NEW!
-	const npmCacheFolder = await generatePackageJsonAndFetch(featuresConfig, dstFolder, output);
+	const npmCacheFolder = await generateNpmCache(featuresConfig, dstFolder, output);
 
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, npmCacheFolder);
 
-	const ordererdFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
+	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
 	output.write('--- Computed order ----', LogLevel.Trace);
-	for (const feature of ordererdFeatures) {
+	for (const feature of orderedFeatures) {
 		output.write(`${feature.features[0].id}`, LogLevel.Trace);
 	}
 
-	featuresConfig.featureSets = ordererdFeatures;
+	featuresConfig.featureSets = orderedFeatures;
 
 	return featuresConfig;
 }
@@ -466,7 +475,7 @@ type PackageJson = {
 	dependencies: { [key: string]: string };
 };
 
-async function generatePackageJsonAndFetch(featuresConfig: FeaturesConfig, dstFolder: string, output: Log) {
+async function generateNpmCache(featuresConfig: FeaturesConfig, dstFolder: string, output: Log) {
 	const dependencies: { [key in string]: string } = {};
 	featuresConfig.featureSets.forEach(set => {
 		if (set.sourceInformation.type !== 'npm-package') {
@@ -508,7 +517,10 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//      (1)  <publisher>/<feature-set>/<feature>@version
 	//      (2)  https://<../URI/..>/devcontainer-features.tgz#<feature>
 	//      (3)  ./<local-path>#<feature>  -or-  ../<local-path>#<feature>  -or-   /<local-path>#<feature>
+	//
+	// 		EXPERIMENTAL!
 	//      (4)  @<namespace>/<feature>@[version]
+	// 		(5)  <publisher>/<feature-set>/<feature>[@[ref]]
 	//
 	//  (0) This is a locally cached feature.
 	//
@@ -539,7 +551,9 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	//
 	//  (4) Npm package identifier.
 	//      Package is saved in an npm registry.  Format is @<namespace>/<feature>@[version], where 'version' is optional.
-	// 
+	//
+	//  (5) Shallow Clone
+	// 	    WARNING: CURRENTLY OVERRIDES existing github release format.
 	
 	output.write(`* Processing feature: ${userFeature.id}`);
 
@@ -664,8 +678,77 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 		return newFeaturesSet;
 	}
 
-	output.write(`Github feature.`);
-	// Github repository source.
+	// Muist be some kind of GitHub identifer.
+	const parsedGitHubIdentifier = parseGitHubIdentifier(userFeature, output);
+	if (!parsedGitHubIdentifier) {
+		output.write(`Parse error. Found malformed GitHub identifier.`, LogLevel.Error);
+		return undefined;
+	}
+
+	const { owner, repo, id, version } = parsedGitHubIdentifier;
+
+	let feat: Feature = {
+		id: id,
+		name: userFeature.id,
+		value: userFeature.options,
+		included: true,
+	};
+
+	// TODO : This is a temporary hack that disables fetching via GitHub release.
+	const OVERRIDE_EXPERIMENTAL_SHALLOW_CLONE = true;
+
+	if (OVERRIDE_EXPERIMENTAL_SHALLOW_CLONE) {
+		output.write('Fetching via shallow clone.');
+
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'shallow-clone',
+				authenticatedCloneCommand: `git clone https://ci:<GITHUB_TOKEN>@github.com/${owner}/${repo}.git --single-branch -b ${version}`,
+				unauthenticatedCloneCommand: `git clone https://github.com/${owner}/${repo}.git --single-branch -b ${version}`,
+				owner,
+				repo,
+				ref: version,
+			},
+			features: [feat],
+		};
+		return newFeaturesSet;
+	}
+	else {
+		output.write(`Fetching via release asset.`);
+
+		if (version === 'latest') {
+			let newFeaturesSet: FeatureSet = {
+				sourceInformation: {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
+					owner,
+					repo,
+					isLatest: true
+				},
+				features: [feat],
+			};
+			return newFeaturesSet;
+		} else {
+			// We must have a tag, return a tarball URI for the tagged version. 
+			let newFeaturesSet: FeatureSet = {
+				sourceInformation: {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
+					owner,
+					repo,
+					tag: version,
+					isLatest: false
+				},
+				features: [feat],
+			};
+			return newFeaturesSet;
+		}
+	}
+}
+
+function parseGitHubIdentifier(userFeature: DevContainerFeature, output: Log) {
 	let version = 'latest';
 	let splitOnAt = userFeature.id.split('@');
 	if (splitOnAt.length > 2) {
@@ -690,42 +773,12 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	const repo = splitOnSlash[1];
 	const id = splitOnSlash[2];
 
-	let feat: Feature = {
-		id: id,
-		name: userFeature.id,
-		value: userFeature.options,
-		included: true,
+	return {
+		owner,
+		repo,
+		id,
+		version,
 	};
-
-	if (version === 'latest') {
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'github-repo',
-				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
-				owner,
-				repo,
-				isLatest: true
-			},
-			features: [feat],
-		};
-		return newFeaturesSet;
-	} else {
-		// We must have a tag, return a tarball URI for the tagged version. 
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'github-repo',
-				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
-				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
-				owner,
-				repo,
-				tag: version,
-				isLatest: false
-			},
-			features: [feat],
-		};
-		return newFeaturesSet;
-	}
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, npmCacheFolder: string) {
@@ -778,12 +831,34 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
+			// TODO: EXPERIMENTAL
 			if (sourceInfoType === 'npm-package') {
-				const sourceInfo = featureSet.sourceInformation;
 				params.output.write(`Copying over from npm cache`, LogLevel.Trace);
+				const sourceInfo = featureSet.sourceInformation;
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(path.join(npmCacheFolder, 'node_modules', sourceInfo.namespace, feature.id), featCachePath);
 
+				continue;
+			}
+
+			// TODO: EXPERIMENTAL
+			if (sourceInfoType === 'shallow-clone') {
+				params.output.write(`Fetching via shallow clone`, LogLevel.Trace);
+				const sourceInfo = featureSet.sourceInformation;
+				const shallowCloneCacheDir = path.join(dstFolder, 'shallowCloneCache');
+				await mkdirpLocal(shallowCloneCacheDir);
+
+				const githubToken = params.env['GITHUB_TOKEN'];
+				if (githubToken) {
+					params.output.write('Authenticated Shallow Clone', LogLevel.Trace);
+					const authenticatedCmd = 
+						sourceInfo.authenticatedCloneCommand
+							.replace('<GITHUB_TOKEN>', githubToken);
+					execSync(authenticatedCmd, { cwd: shallowCloneCacheDir });
+				} else {
+					params.output.write('Unauthenticated Shallow Clone', LogLevel.Trace);
+					execSync(sourceInfo.unauthenticatedCloneCommand, { cwd: shallowCloneCacheDir });
+				}
 				continue;
 			}
 
