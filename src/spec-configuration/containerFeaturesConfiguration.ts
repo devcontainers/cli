@@ -63,7 +63,7 @@ export interface Mount {
 	external?: boolean;
 }
 
-export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation;
+export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
 
 interface BaseSourceInformation {
 	type: string;
@@ -73,6 +73,26 @@ export interface LocalCacheSourceInformation extends BaseSourceInformation {
 	type: 'local-cache';
 }
 
+export interface OCISourceInformation extends BaseSourceInformation {
+	type: 'oci';
+	// registry: 'ghcr.io'; // Configurable in the future
+	// repositoryPrefix: string;  // Empty for my examples
+	// tag: string;
+	uri: string;
+}
+
+export interface DirectTarballSourceInformation extends BaseSourceInformation {
+	type: 'direct-tarball';
+	tarballUri: string;
+}
+
+export interface FilePathSourceInformation extends BaseSourceInformation {
+	type: 'file-path';
+	filePath: string;
+	isRelative: boolean; // If not a relative path, then it is an absolute path.
+}
+
+// deprecated
 export interface GithubSourceInformation extends BaseSourceInformation {
 	type: 'github-repo';
 	apiUri: string;
@@ -93,16 +113,6 @@ export interface GithubSourceInformationInput {
 	tag?: string;
 }
 
-export interface DirectTarballSourceInformation extends BaseSourceInformation {
-	type: 'direct-tarball';
-	tarballUri: string;
-}
-
-export interface FilePathSourceInformation extends BaseSourceInformation {
-	type: 'file-path';
-	filePath: string;
-	isRelative: boolean; // If not a relative path, then it is an absolute path.
-}
 
 export interface FeatureSet {
 	features: Feature[];
@@ -177,6 +187,8 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
 		case 'file-path':
 			return srcInfo.filePath + '-' + getCounter();
+		case 'oci':
+			return `oci-${srcInfo.uri}-${getCounter()}`;
 	}
 }
 
@@ -396,9 +408,11 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
 
+	const ociCacheDir = await prepareGHCRauthAndOCICache(dstFolder);
+
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
 	const ordererdFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
@@ -410,6 +424,17 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	featuresConfig.featureSets = ordererdFeatures;
 
 	return featuresConfig;
+}
+
+async function prepareGHCRauthAndOCICache(dstFolder: string) {
+	// TODO error checking and somehow oras (or our own client) needs to be embedded!
+	//const githubToken = params.env['GITHUB_TOKEN'];
+	//execSync(`oras login ghcr.io -u USERNAME -p ${githubToken}`);
+
+	const ociCacheDir = path.join(dstFolder, 'ociCache');
+	await mkdirpLocal(ociCacheDir);
+
+	return ociCacheDir;
 }
 
 function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined
@@ -495,6 +520,36 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
+			},
+			features: [feat],
+		};
+
+		return newFeaturesSet;
+	}
+
+	// (6) Oci Identifier
+	if (userFeature.id.startsWith('ghcr.io')) {
+
+		// eg:   ghcr.io/codspace/python:1.0.6
+		const splitOnSlash = userFeature.id.split('/');
+		const splitOnColon = splitOnSlash[2].split(':');
+
+		// const owner = splitOnSlash[1];
+		const featureName = splitOnColon[0];
+		// const version = splitOnColon[1];
+
+		let feat: Feature = {
+			id: featureName,
+			name: featureName,
+			value: userFeature.options,
+			included: true,
+		};
+
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'oci',
+				uri: userFeature.id, // TODO: Entire Identifier, refactor later (or don't?)
+
 			},
 			features: [feat],
 		};
@@ -626,7 +681,7 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	}
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
 	for (const featureSet of featuresConfig.featureSets) {
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
@@ -649,6 +704,24 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
 			params.output.write(`* Fetching feature: ${featureDebugId}`);
+
+			if (sourceInfoType === 'oci') {
+				params.output.write(`Fetching from OCI`, LogLevel.Trace);
+
+				//execSync(`oras pull ${featureSet.sourceInformation.uri}`, { cwd: ociCacheDir });
+
+				const tarballPath = path.join(ociCacheDir, `${feature.id}.tgz`);
+
+				await mkdirpLocal(featCachePath);
+				await tar.x(
+					{
+						file: tarballPath,
+						cwd: featCachePath,
+					}
+				);
+
+				continue;
+			}
 
 			if (sourceInfoType === 'local-cache') {
 				// create copy of the local features to set the environment variables for them.
