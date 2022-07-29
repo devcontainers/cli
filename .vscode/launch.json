@@ -10,7 +10,7 @@
             "name": "Launch CLI - up",
             "program": "${workspaceFolder}/src/spec-node/devContainersSpecCLI.ts",
             "cwd": "${workspaceFolder}",
-            "envFile": "${workspaceFolder}/.env",
+            // "envFile": "${workspaceFolder}/.env",  // Create .env file in the workspace folder to pass environment variables to the CLI.
             "args": [
                 "up",
                 "--workspace-folder",
