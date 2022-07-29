@@ -5,6 +5,22 @@ import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
+
+export interface SourceInformation {
+    source: string;
+    owner?: string;
+    repo?: string;
+    tag?: string;
+    ref?: string;
+    sha?: string;
+}
+
+export interface DevContainerCollectionMetadata {
+    sourceInformation: SourceInformation;
+    features: Feature[];
+}
+
+
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
     const { output } = args;
 
@@ -17,9 +33,16 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
         return 1;
     }
 
+    const collection: DevContainerCollectionMetadata = {
+        sourceInformation: {
+            source: 'devcontainer-cli',
+        },
+        features: metadataOutput,
+    };
+
     // Write the metadata to a file
     const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
-    await writeLocalFile(metadataOutputPath, JSON.stringify(metadataOutput, null, 4));
+    await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
 
     return 0;
 }
@@ -37,7 +60,7 @@ export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): 
         output.write(`Processing feature: ${f}...`, LogLevel.Info);
         if (!f.startsWith('.')) {
             const featureFolder = path.join(featuresFolder, f);
-            const archiveName = `${f}.tgz`;
+            const archiveName = `devcontainer-feature-${f}.tgz`;
 
             await tarDirectory(featureFolder, archiveName, outputDir);
 
