@@ -661,6 +661,12 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					const local = localFeatures.features.find(x => x.id === feature.id);
 					feature.buildArg = local?.buildArg;
 					feature.options = local?.options;
+					feature.init = local?.init;
+					feature.privileged = local?.privileged;
+					feature.capAdd = local?.capAdd;
+					feature.securityOpt = local?.securityOpt;
+					feature.mounts = local?.mounts;
+					feature.entrypoint = local?.entrypoint;
 				}
 				continue;
 			}
@@ -803,6 +809,12 @@ async function parseDevContainerFeature(featureSet: FeatureSet, feature: Feature
 		feature.buildArg = featureJson.buildArg;
 		feature.options = featureJson.options;
 		feature.installAfter = featureJson.installAfter;
+		feature.init = featureJson.init;
+		feature.privileged = featureJson.privileged;
+		feature.capAdd = featureJson.capAdd;
+		feature.securityOpt = featureJson.securityOpt;
+		feature.mounts = featureJson.mounts;
+		feature.entrypoint = featureJson.entrypoint;
 	} else {
 		featureSet.internalVersion = '1';
 	}
