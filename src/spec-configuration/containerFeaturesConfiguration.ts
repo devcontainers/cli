@@ -506,7 +506,24 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	
 	output.write(`* Processing feature: ${userFeature.id}`);
 
+	// Adding backward compatibility
+	const migratedfeatures = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
+	const renamedFeatures = new Map();
+	renamedFeatures.set('golang', 'go');
+	const newFeaturePath = 'ghcr.io/devcontainers/features';
+
+	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (migratedfeatures.includes(userFeature.id)) {
+		userFeature.id = `${newFeaturePath}/${userFeature.id}`;
+	}
+
+	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (renamedFeatures.get(userFeature.id) !== undefined) {
+		userFeature.id = `${newFeaturePath}/${renamedFeatures.get(userFeature.id)}`;
+	}
+
 	// cached feature
+	// Deprecated features (eg. fish, maven, gradle, homebrew, jupyterlab)
 	if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
 		output.write(`Cached feature found.`);
 
