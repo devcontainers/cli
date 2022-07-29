@@ -3,10 +3,11 @@ import chalk from 'chalk';
 import { tmpdir } from 'os';
 import { CLIHost } from '../../spec-common/cliHost';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
-import { doExec, FeaturesTestCommandInput } from '../devContainersSpecCLI';
+import { doExec } from '../devContainersSpecCLI';
 import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
 import { DockerResolverParameters } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
+import { FeaturesTestCommandInput } from './test';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
