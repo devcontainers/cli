@@ -1,16 +1,19 @@
 import path from 'path';
+import tar from 'tar';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
+import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
+    const { output } = args;
 
     // For each feature, package each feature and write to 'outputDir/{f}.tgz'
     // Returns an array of feature metadata from each processed feature
-    const metadataOutput = await getFeaturesAndPackage(args.collectionFolder, args.outputDir);
+    const metadataOutput = await getFeaturesAndPackage(args);
 
     if (!metadataOutput) {
-        // ERR
+        output.write('Failed to package features', LogLevel.Error);
         return 1;
     }
 
@@ -18,44 +21,41 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
     const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
     await writeLocalFile(metadataOutputPath, JSON.stringify(metadataOutput, null, 4));
 
-
     return 0;
 }
 
-async function tarDirectory(_featureFolder: string, _archiveName: string, _outputDir: string) {
-
+async function tarDirectory(featureFolder: string, archiveName: string, outputDir: string) {
+    return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: featureFolder }, ['.'])));
 }
 
-export async function getFeaturesAndPackage(basePath: string, outputDir: string): Promise<Feature[] | undefined> {
-    // const { output } = args;
-    const featureDirs = await readLocalDir(basePath);
+export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
+    const { output, featuresFolder, outputDir } = args;
+    const featureDirs = await readLocalDir(featuresFolder);
     let metadatas: Feature[] = [];
 
-    await Promise.all(
-        featureDirs.map(async (f: string) => {
-            // output.write(`Processing feature: ${f}`);
-            if (!f.startsWith('.')) {
-                const featureFolder = path.join(basePath, f);
-                const archiveName = `${f}.tgz`;
+    for await (const f of featureDirs) {
+        output.write(`Processing feature: ${f}...`, LogLevel.Info);
+        if (!f.startsWith('.')) {
+            const featureFolder = path.join(featuresFolder, f);
+            const archiveName = `${f}.tgz`;
 
-                await tarDirectory(featureFolder, archiveName, outputDir);
+            await tarDirectory(featureFolder, archiveName, outputDir);
 
-                const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
-
-                if (!isLocalFile(featureJsonPath)) {
-                    // core.error(`Feature '${f}' is missing a devcontainer-feature.json`);
-                    // core.setFailed('All features must have a devcontainer-feature.json');
-                    return;
-                }
-
-                const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
-                metadatas.push(featureMetadata);
+            const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
+            if (!isLocalFile(featureJsonPath)) {
+                output.write(`Feature '${f}' is missing a devcontainer-feature.json`, LogLevel.Error);
+                return;
             }
-        })
-    );
+
+            const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
+            metadatas.push(featureMetadata);
+        }
+    }
+
+    output.write(metadatas.length.toString(), LogLevel.Info);
 
     if (metadatas.length === 0) {
-        // core.setFailed('No features found');
+        output.write('Failed to generate metadata file.', LogLevel.Error);
         return;
     }
 
