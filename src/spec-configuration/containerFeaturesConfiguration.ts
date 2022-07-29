@@ -63,10 +63,20 @@ export interface Mount {
 	external?: boolean;
 }
 
-export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation;
+// Temp: Copied from https://github.com/devcontainers/cli/blob/oci/src/spec-configuration/containerFeaturesConfiguration.ts#L66
+export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
 
 interface BaseSourceInformation {
 	type: string;
+}
+
+// Temp: Copied from https://github.com/devcontainers/cli/blob/oci/src/spec-configuration/containerFeaturesConfiguration.ts#L76
+export interface OCISourceInformation extends BaseSourceInformation {
+	type: 'oci';
+	// registry: 'ghcr.io'; // Configurable in the future
+	// repositoryPrefix: string;  // Empty for my examples
+	// tag: string;
+	uri: string;
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
@@ -147,6 +157,35 @@ export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeatu
 }
 
 export const multiStageBuildExploration = false;
+
+// Adding backward compatibility
+const features = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
+
+const renamedFeatures = new Map();
+renamedFeatures.set('golang', 'go');
+
+const newFeaturePath = 'ghcr.io/devcontainers/features';
+
+// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+function getIdAndSourceInfoMapping(id: string, sourceInfo: SourceInformation): [string, SourceInformation] {
+	if (features.includes(id)) {
+		//TODO: Store 'oci' as a constant
+		const sourceInformation: OCISourceInformation = {
+			type: 'oci',
+			uri: `${newFeaturePath}/${id}`
+		};
+		return [sourceInformation.uri, sourceInformation];
+	} else if (renamedFeatures.get(id) !== undefined) {
+		const sourceInformation: OCISourceInformation = {
+			type: 'oci',
+			uri: `${newFeaturePath}/${renamedFeatures.get(id)}`
+		};
+		return [sourceInformation.uri, sourceInformation];
+	}
+	else {
+		return [id, sourceInfo];
+	}
+}
 
 // Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
 let counter = 1;
@@ -639,6 +678,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			}
 
 			const feature = featureSet.features[0];
+			[feature.id, featureSet.sourceInformation] = getIdAndSourceInfoMapping(feature.id, featureSet.sourceInformation);
+
 			const consecutiveId = feature.id + '_' + getCounter();
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
