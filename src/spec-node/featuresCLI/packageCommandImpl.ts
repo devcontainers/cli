@@ -52,12 +52,10 @@ export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): 
         }
     }
 
-    output.write(metadatas.length.toString(), LogLevel.Info);
-
     if (metadatas.length === 0) {
-        output.write('Failed to generate metadata file.', LogLevel.Error);
         return;
     }
 
+    output.write(`Packaged ${metadatas.length.toString()} features!`, LogLevel.Info);
     return metadatas;
 }
