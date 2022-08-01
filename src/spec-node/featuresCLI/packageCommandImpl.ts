@@ -59,13 +59,19 @@ export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): 
             const featureFolder = path.join(featuresFolder, f);
             const archiveName = `devcontainer-feature-${f}.tgz`;
 
-            await tarDirectory(featureFolder, archiveName, outputDir);
-
+            // Validate minimal feature folder structure
             const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
+            const installShPath = path.join(featureFolder, 'install.sh');
             if (!isLocalFile(featureJsonPath)) {
                 output.write(`Feature '${f}' is missing a devcontainer-feature.json`, LogLevel.Error);
                 return;
             }
+            if (!isLocalFile(installShPath)) {
+                output.write(`Feature '${f}' is missing an install.sh`, LogLevel.Error);
+                return;
+            }
+
+            await tarDirectory(featureFolder, archiveName, outputDir);
 
             const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
             metadatas.push(featureMetadata);
