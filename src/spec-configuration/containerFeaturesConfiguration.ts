@@ -12,6 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
+import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, validateOCIFeature, OCIManifest } from './containerFeaturesOCI';
 
 
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -75,10 +76,8 @@ export interface LocalCacheSourceInformation extends BaseSourceInformation {
 
 export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
-	// registry: 'ghcr.io'; // Configurable in the future
-	// repositoryPrefix: string;  // Empty for my examples
-	// tag: string;
-	uri: string;
+	featureRef: OCIFeatureRef;
+	manifest: OCIManifest;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
@@ -188,7 +187,7 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 		case 'file-path':
 			return srcInfo.filePath + '-' + getCounter();
 		case 'oci':
-			return `oci-${srcInfo.uri}-${getCounter()}`;
+			return `oci-${srcInfo.featureRef.id}-${getCounter()}`;
 	}
 }
 
@@ -406,7 +405,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, userFeatures, featuresConfig);
+	featuresConfig = await processUserFeatures(params.output, params.env, userFeatures, featuresConfig);
 
 	const ociCacheDir = await prepareGHCRauthAndOCICache(dstFolder);
 
@@ -458,19 +457,17 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig) : Promise<FeaturesConfig>
-{
-	userFeatures.forEach(userFeature => {
-			const newFeatureSet = parseFeatureIdentifier(output, userFeature);
+async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
+	for (const userFeature of userFeatures) {
+		const newFeatureSet = await parseFeatureIdentifier(output, env, userFeature);
 			if(newFeatureSet) {
 				featuresConfig.featureSets.push(newFeatureSet);
 			}
-		}
-	);
+	}
 	return featuresConfig;
 }
 
-export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFeature) : FeatureSet | undefined {
+export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
 	// A identifier takes this form:
 	//      (0)  <feature>
 	//      (1)  <publisher>/<feature-set>/<feature>@version
@@ -506,8 +503,10 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	
 	output.write(`* Processing feature: ${userFeature.id}`);
 
+	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
+
 	// cached feature
-	if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
+	if (type === 'local-cache') {
 		output.write(`Cached feature found.`);
 
 		let feat: Feature = {
@@ -527,38 +526,8 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 		return newFeaturesSet;
 	}
 
-	// (6) Oci Identifier
-	if (userFeature.id.startsWith('ghcr.io')) {
-
-		// eg:   ghcr.io/codspace/python:1.0.6
-		const splitOnSlash = userFeature.id.split('/');
-		const splitOnColon = splitOnSlash[2].split(':');
-
-		// const owner = splitOnSlash[1];
-		const featureName = splitOnColon[0];
-		// const version = splitOnColon[1];
-
-		let feat: Feature = {
-			id: featureName,
-			name: featureName,
-			value: userFeature.options,
-			included: true,
-		};
-
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'oci',
-				uri: userFeature.id, // TODO: Entire Identifier, refactor later (or don't?)
-
-			},
-			features: [feat],
-		};
-
-		return newFeaturesSet;
-	}
-
 	// remote tar file
-	if (userFeature.id.startsWith('http://') || userFeature.id.startsWith('https://')) {
+	if (type === 'direct-tarball') {
 		output.write(`Remote tar file found.`);
 		let input = userFeature.id.replace(/\/+$/, '');
 		const featureIdDelimiter = input.lastIndexOf('#');
@@ -589,9 +558,10 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 	}
 
 	// local disk
-	const userFeaturePath = path.parse(userFeature.id);
+
 	// If its a valid path
-	if (userFeature.id.startsWith('./') || userFeature.id.startsWith('../') || (userFeaturePath && path.isAbsolute(userFeature.id))) {
+	if (type === 'file-path') {
+		const userFeaturePath = path.parse(userFeature.id);
 		//if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
 		output.write(`Local disk feature.`);
 		const filePath = userFeature.id;
@@ -614,6 +584,12 @@ export function parseFeatureIdentifier(output: Log, userFeature: DevContainerFea
 			features: [feat],
 		};
 
+		return newFeaturesSet;
+	}
+
+	// (6) Oci Identifier
+	if (type === 'oci' && manifest) {
+		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
 		return newFeaturesSet;
 	}
 
@@ -707,18 +683,11 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			if (sourceInfoType === 'oci') {
 				params.output.write(`Fetching from OCI`, LogLevel.Trace);
-
-				//execSync(`oras pull ${featureSet.sourceInformation.uri}`, { cwd: ociCacheDir });
-
-				const tarballPath = path.join(ociCacheDir, `${feature.id}.tgz`);
-
 				await mkdirpLocal(featCachePath);
-				await tar.x(
-					{
-						file: tarballPath,
-						cwd: featCachePath,
-					}
-				);
+				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath);
+				if (!success) {
+					// TODO: FAIL
+				}
 
 				continue;
 			}
@@ -941,4 +910,36 @@ function getFeatureValueDefaults(feature: Feature) {
 			}
 			return defaults;
 		}, {} as Record<string, string | boolean | undefined>);
+}
+
+export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: string) {
+
+	// DEPRECATED: This is a legacy feature-set ID
+	if (!id.includes('/') && !id.includes('\\')) {
+		return { type: 'local-cache', manifest: undefined };
+	}
+
+	// Direct tarball reference
+	if (id.startsWith('http://') || id.startsWith('https://')) {
+		return { type: 'direct-tarball', manifest: undefined };
+	}
+
+	// Local feature on disk
+	const validPath = path.parse(id);
+	if (id.startsWith('./') || id.startsWith('../') || (validPath && path.isAbsolute(id))) {
+		return { type: 'file-path', manifest: undefined };
+	}
+
+	// version identifier for a github release feature.
+	// DEPRECATED: This is a legacy feature-set ID
+	if (id.includes('@')) {
+		return { type: 'github-repo', manifest: undefined };
+	}
+
+	const manifest = await validateOCIFeature(output, env, id);
+	if (manifest) {
+		return { type: 'oci', manifest: manifest };
+	}
+
+	return { type: 'github-repo', manifest: undefined };
 }
