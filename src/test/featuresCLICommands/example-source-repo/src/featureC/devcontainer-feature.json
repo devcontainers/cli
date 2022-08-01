@@ -1,0 +1,15 @@
+{
+    "id": "featureC",
+    "name": "Feature C",
+    "description": "Installs feature C",
+    "options": {
+        "version": {
+            "type": "string",
+            "proposals": [
+                "latest"
+            ],
+            "default": "latest",
+            "description": "Set latest version"
+        }
+    }
+}
