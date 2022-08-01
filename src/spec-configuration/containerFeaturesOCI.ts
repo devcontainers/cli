@@ -189,7 +189,7 @@ async function getAuthenticationToken(env: NodeJS.ProcessEnv): Promise<string> {
 
     const githubToken = env['GITHUB_TOKEN'];
 
-    if (!githubToken) {
+    if (githubToken) {
         return 'Bearer ' + githubToken;
     }
 
