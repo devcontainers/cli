@@ -17,7 +17,10 @@ export function featuresPackageOptions(y: Argv) {
             'force-clean-output-dir': { type: 'boolean', alias: 'f', default: false, description: 'Automatically delete previous output directory before packaging' },
             'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
         })
-        .check(_argv => {
+        .check(argv => {
+            if (argv['scenarios'] && argv['features']) {
+                throw new Error('Cannot combine --scenarios and --features');
+            }
             return true;
         });
 }

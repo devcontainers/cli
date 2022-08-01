@@ -2,14 +2,14 @@ import { assert } from 'chai';
 import { before } from 'mocha';
 import tar from 'tar';
 import path from 'path';
-import { FeaturesPackageCommandInput } from '../../../src/spec-node/featuresCLI/package';
-import { DevContainerCollectionMetadata, doFeaturesPackageCommand } from '../../../src/spec-node/featuresCLI/packageCommandImpl';
-import { getCLIHost } from '../../spec-common/cliHost';
-import { loadNativeModule } from '../../spec-common/commonUtils';
-import { createLog } from '../../spec-node/devContainers';
-import { getPackageConfig } from '../../spec-node/utils';
-import { mapLogLevel } from '../../spec-utils/log';
-import { isLocalFile, mkdirpLocal, readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { FeaturesPackageCommandInput } from '..//../src/spec-node/featuresCLI/package';
+import { DevContainerCollectionMetadata, doFeaturesPackageCommand } from '../../src/spec-node/featuresCLI/packageCommandImpl';
+import { getCLIHost } from '../spec-common/cliHost';
+import { loadNativeModule } from '..//spec-common/commonUtils';
+import { createLog } from '../spec-node/devContainers';
+import { getPackageConfig } from '../spec-node/utils';
+import { mapLogLevel } from '..//spec-utils/log';
+import { isLocalFile, mkdirpLocal, readLocalFile, rmLocal } from '../spec-utils/pfs';
 
 describe('features package command', () => {
 
@@ -18,9 +18,9 @@ describe('features package command', () => {
         await Promise.all(disposables.map(d => d()));
     };
 
-    const srcFolder = `${__dirname}/example-source-repo/src`;
+    const srcFolder = `${__dirname}/featuresCLICommands/example-source-repo/src`;
     console.log(srcFolder);
-    const outputDir = `${__dirname}/example-source-repo/output`;
+    const outputDir = `${__dirname}/featuresCLICommands/example-source-repo/output`;
     console.log(outputDir);
 
     // Package
@@ -29,7 +29,7 @@ describe('features package command', () => {
         await rmLocal(outputDir, { recursive: true, force: true });
         await mkdirpLocal(outputDir);
 
-        const extensionPath = path.join(__dirname, '..', '..', '..');
+        const extensionPath = path.join(__dirname, '..', '..');
         const pkg = await getPackageConfig(extensionPath);
 
         const cwd = process.cwd();
