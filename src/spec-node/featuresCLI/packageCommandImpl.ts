@@ -5,7 +5,6 @@ import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
-
 export interface SourceInformation {
     source: string;
     owner?: string;
@@ -14,12 +13,10 @@ export interface SourceInformation {
     ref?: string;
     sha?: string;
 }
-
 export interface DevContainerCollectionMetadata {
     sourceInformation: SourceInformation;
     features: Feature[];
 }
-
 
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
     const { output } = args;
