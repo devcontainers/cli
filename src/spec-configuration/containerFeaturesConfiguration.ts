@@ -684,7 +684,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			if (sourceInfoType === 'oci') {
 				params.output.write(`Fetching from OCI`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
-				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath);
+				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath, featureSet.sourceInformation.featureRef);
 				if (!success) {
 					// TODO: FAIL
 				}

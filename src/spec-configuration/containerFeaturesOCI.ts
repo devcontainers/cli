@@ -96,13 +96,13 @@ export async function validateOCIFeature(output: Log, env: NodeJS.ProcessEnv, id
 
     const manifestUrl = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/manifests/${featureRef.version}`;
     output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-    const manifest = await getFeatureManifest(output, env, manifestUrl);
+    const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef);
 
     return manifest;
 }
 
 // Download a feature from which a manifest was previously downloaded.
-export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string): Promise<boolean> {
+export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef): Promise<boolean> {
 
     if (featureSet.sourceInformation.type !== 'oci') {
         output.write(`FeatureSet is not an OCI featureSet.`);
@@ -112,7 +112,7 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
     const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.namespace}/${featureSet.sourceInformation.featureRef.featureName}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
     output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-    const success = await getFeatureBlob(output, env, blobUrl, ociCacheDir, featCachePath);
+    const success = await getFeatureBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
 
     if (!success) {
         output.write(`Failed to download package for ${featureSet.sourceInformation.featureRef.featureName}`, LogLevel.Error);
@@ -122,17 +122,17 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
     return true;
 }
 
-export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, featureRef: string): Promise<OCIManifest | undefined> {
+export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, url: string, featureRef: OCIFeatureRef): Promise<OCIManifest | undefined> {
     try {
         const headers = {
             'user-agent': 'devcontainer',
-            'Authorization': await getAuthenticationToken(env),
+            'Authorization': await getAuthenticationToken(env, output, featureRef.registry, featureRef.id),
             'Accept': 'application/vnd.oci.image.manifest.v1+json',
         };
 
         const options = {
             type: 'GET',
-            url: featureRef,
+            url: url,
             headers: headers
         };
 
@@ -147,7 +147,7 @@ export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, fe
 }
 
 // Downloads a blob from a registry.
-export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string): Promise<boolean> {
+export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef): Promise<boolean> {
     // TODO: Paralelize if multiple layers (not likely).
     // TODO: Seeking might be needed if the size is too large.
     try {
@@ -155,7 +155,7 @@ export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: s
 
         const headers = {
             'user-agent': 'devcontainer',
-            'Authorization': await getAuthenticationToken(env),
+            'Authorization': await getAuthenticationToken(env, output, featureRef.registry, featureRef.id),
             'Accept': 'application/vnd.oci.image.manifest.v1+json',
         };
 
@@ -183,7 +183,7 @@ export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: s
     }
 }
 
-async function getAuthenticationToken(env: NodeJS.ProcessEnv): Promise<string> {
+async function getAuthenticationToken(env: NodeJS.ProcessEnv, output: Log, registry: string, id: string): Promise<string> {
     // TODO: Use operating system keychain to get credentials.
     // TODO: Fallback to read docker config to get credentials.
 
@@ -191,7 +191,30 @@ async function getAuthenticationToken(env: NodeJS.ProcessEnv): Promise<string> {
 
     if (githubToken) {
         return 'Bearer ' + githubToken;
+    } else {
+        if (registry === 'ghcr.io') {
+            const token = await getGHCRtoken(output, id);
+            return 'Bearer ' + token;
+        }
     }
 
     return '';
+}
+
+export async function getGHCRtoken(output: Log, id: string) {
+    const headers = {
+        'user-agent': 'devcontainer',
+    };
+
+    const url = `https://ghcr.io/token?scope=repo:${id}:pull&service=ghcr.io`;
+
+    const options = {
+        type: 'GET',
+        url: url,
+        headers: headers
+    };
+
+    const token = JSON.parse((await request(options, output)).toString()).token;
+
+    return token;
 }
