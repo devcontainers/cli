@@ -1,8 +1,10 @@
 import * as path from 'path';
 import * as tar from 'tar';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
-import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
+import { isLocalFile, mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 import { FeatureSet } from './containerFeaturesConfiguration';
 
 export interface OCIFeatureRef {
@@ -217,4 +219,32 @@ export async function getAuthToken(output: Log, registry: string, id: string) {
     const token = JSON.parse((await request(options, output)).toString()).token;
 
     return token;
+}
+
+// -- Push
+
+export async function createManifest(output: Log, pathToTgz: string): Promise<OCIManifest | undefined> {
+
+    /*const tgzLayer = */calculateTgzLayer(output, pathToTgz);
+    return undefined;
+}
+
+export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise<{ digest: string; size: number; mediaType: string } | undefined> {
+    output.write(`Creating manifest from ${pathToTgz}`, LogLevel.Trace);
+    if (!(await isLocalFile(pathToTgz))) {
+        output.write(`${pathToTgz} does not exist.`, LogLevel.Error);
+        return undefined;
+    }
+
+    const tarBytes = fs.readFileSync(pathToTgz);
+
+
+    const tarSha256 = crypto.createHash('sha256').update(tarBytes).digest('hex');
+    output.write(`${pathToTgz}:  sha256:${tarSha256} (size: ${tarBytes.byteLength})`, LogLevel.Trace);
+
+    return {
+        digest: `sha256:${tarSha256}`,
+        size: tarBytes.byteLength,
+        mediaType: 'application/octet-stream'
+    };
 }
