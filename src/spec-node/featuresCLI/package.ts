@@ -3,7 +3,7 @@ import { Argv } from 'yargs';
 import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
-import { isLocalFolder, mkdirpLocal } from '../../spec-utils/pfs';
+import { isLocalFolder, mkdirpLocal, rmLocal } from '../../spec-utils/pfs';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { getPackageConfig } from '../utils';
@@ -12,16 +12,12 @@ import { doFeaturesPackageCommand } from './packageCommandImpl';
 export function featuresPackageOptions(y: Argv) {
     return y
         .options({
-            // 'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to auto-detect all features in collection directory.  Cannot be combined with \'-s\'.', },
-            'features-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing features source code' },
-            'output-dir': { type: 'string', alias: 'o', default: '/tmp/build', description: 'Path to output' },
+            'feature-collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing source code for collection of features' },
+            'output-dir': { type: 'string', alias: 'o', default: './output', description: 'Path to output directory. Will create directories as needed.' },
+            'force-clean-output-dir': { type: 'boolean', alias: 'f', default: false, description: 'Automatically delete previous output directory before packaging' },
             'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-            'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
         })
         .check(_argv => {
-            // if (argv['scenarios'] && argv['features']) {
-            //     throw new Error('Cannot combine --scenarios and --features');
-            // }
             return true;
         });
 }
@@ -29,10 +25,9 @@ export function featuresPackageOptions(y: Argv) {
 export type FeaturesPackageArgs = UnpackArgv<ReturnType<typeof featuresPackageOptions>>;
 export interface FeaturesPackageCommandInput {
     cliHost: CLIHost;
-    // features?: string[];
-    featuresFolder: string;
-    output: Log;
+    srcFolder: string;
     outputDir: string;
+    output: Log;
     disposables: (() => Promise<unknown> | undefined)[];
 }
 
@@ -41,9 +36,10 @@ export function featuresPackageHandler(args: FeaturesPackageArgs) {
 }
 
 async function featuresPackage({
-    'features-folder': featuresFolder,
+    'feature-collection-folder': featureCollectionFolder,
     'log-level': inputLogLevel,
     'output-dir': outputDir,
+    'force-clean-output-dir': forceCleanOutputDir,
 }: FeaturesPackageArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
@@ -62,22 +58,31 @@ async function featuresPackage({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    output.write('Packaging features...\n', LogLevel.Info);
+    output.write('Packaging features...', LogLevel.Info);
 
-    const featuresDirResolved = cliHost.path.resolve(featuresFolder);
+    const featuresDirResolved = cliHost.path.resolve(featureCollectionFolder);
     if (!(await isLocalFolder(featuresDirResolved))) {
         throw new Error(`Features folder '${featuresDirResolved}' does not exist`);
     }
 
     const outputDirResolved = cliHost.path.resolve(outputDir);
-    if (!(await isLocalFolder(outputDirResolved))) {
-        // TODO: Delete folder first?
-        await mkdirpLocal(outputDirResolved);
+    if (await isLocalFolder(outputDirResolved)) {
+        // Output dir exists. Delete it automatically if '-f' is true
+        if (forceCleanOutputDir) {
+            await rmLocal(outputDirResolved, { recursive: true, force: true });
+        }
+        else {
+            output.write(`Output directory '${outputDirResolved}' already exists. Manually delete, or pass '-f' to continue.`, LogLevel.Warning);
+            process.exit(1);
+        }
     }
+
+    // Generate output folder.
+    await mkdirpLocal(outputDirResolved);
 
     const args: FeaturesPackageCommandInput = {
         cliHost,
-        featuresFolder: featuresDirResolved,
+        srcFolder: featuresDirResolved,
         outputDir: outputDirResolved,
         output,
         disposables

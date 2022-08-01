@@ -52,7 +52,7 @@ async function tarDirectory(featureFolder: string, archiveName: string, outputDi
 }
 
 export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
-    const { output, featuresFolder, outputDir } = args;
+    const { output, srcFolder: featuresFolder, outputDir } = args;
     const featureDirs = await readLocalDir(featuresFolder);
     let metadatas: Feature[] = [];
 

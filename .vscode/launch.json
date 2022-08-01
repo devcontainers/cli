@@ -14,7 +14,7 @@
             "args": [
                 "up",
                 "--workspace-folder",
-                "/home/node/example-project",
+                "${workspaceFolder}/src/test/configs/example", // Edit this example config to test the CLI against a custom configuration.
                 "--log-level",
                 "debug",
             ],
