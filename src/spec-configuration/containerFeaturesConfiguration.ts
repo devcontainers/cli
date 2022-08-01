@@ -407,7 +407,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, params.env, userFeatures, featuresConfig);
 
-	const ociCacheDir = await prepareGHCRauthAndOCICache(dstFolder);
+	const ociCacheDir = await prepareOCICache(dstFolder);
 
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
@@ -425,11 +425,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	return featuresConfig;
 }
 
-async function prepareGHCRauthAndOCICache(dstFolder: string) {
-	// TODO error checking and somehow oras (or our own client) needs to be embedded!
-	//const githubToken = params.env['GITHUB_TOKEN'];
-	//execSync(`oras login ghcr.io -u USERNAME -p ${githubToken}`);
-
+async function prepareOCICache(dstFolder: string) {
 	const ociCacheDir = path.join(dstFolder, 'ociCache');
 	await mkdirpLocal(ociCacheDir);
 
@@ -686,7 +682,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath, featureSet.sourceInformation.featureRef);
 				if (!success) {
-					// TODO: FAIL
+					params.output.write(`Could not download OCI feature: ${featureSet.sourceInformation.featureRef.id}`, LogLevel.Error);
 				}
 
 				continue;
@@ -941,5 +937,6 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 		return { type: 'oci', manifest: manifest };
 	}
 
+	// DEPRECATED: This is a legacy feature-set ID
 	return { type: 'github-repo', manifest: undefined };
 }

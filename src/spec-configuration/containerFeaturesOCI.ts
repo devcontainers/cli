@@ -64,7 +64,7 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
     // ex: ghcr.io/codspace/features/ruby:1
     const splitOnColon = identifier.split(':');
     const id = splitOnColon[0];
-    const version = splitOnColon[1] ? splitOnColon[1] : '1';
+    const version = splitOnColon[1] ? splitOnColon[1] : 'latest';
 
     const splitOnSlash = id.split('/');
     const featureName = splitOnSlash[splitOnSlash.length - 1];
@@ -72,13 +72,13 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
     const registry = splitOnSlash[0];
     const namespace = splitOnSlash.slice(1, -1).join('/');
 
-    output.write(`identifier: ${identifier}`);
-    output.write(`id: ${id}`);
-    output.write(`version: ${version}`);
-    output.write(`featureName: ${featureName}`);
-    output.write(`owner: ${owner}`);
-    output.write(`namespace: ${namespace}`);
-    output.write(`registry: ${registry}`);
+    output.write(`identifier: ${identifier}`, LogLevel.Trace);
+    output.write(`id: ${id}`, LogLevel.Trace);
+    output.write(`version: ${version}`, LogLevel.Trace);
+    output.write(`featureName: ${featureName}`, LogLevel.Trace);
+    output.write(`owner: ${owner}`, LogLevel.Trace);
+    output.write(`namespace: ${namespace}`, LogLevel.Trace);
+    output.write(`registry: ${registry}`, LogLevel.Trace);
 
     return {
         id,
@@ -105,7 +105,7 @@ export async function validateOCIFeature(output: Log, env: NodeJS.ProcessEnv, id
 export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef): Promise<boolean> {
 
     if (featureSet.sourceInformation.type !== 'oci') {
-        output.write(`FeatureSet is not an OCI featureSet.`);
+        output.write(`FeatureSet is not an OCI featureSet.`, LogLevel.Error);
         throw new Error('FeatureSet is not an OCI featureSet.');
     }
 
@@ -178,7 +178,7 @@ export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: s
 
         return true;
     } catch (e) {
-        output.write(`error: ${e}`, LogLevel.Trace);
+        output.write(`error: ${e}`, LogLevel.Error);
         return false;
     }
 }
