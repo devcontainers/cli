@@ -187,26 +187,22 @@ async function getAuthenticationToken(env: NodeJS.ProcessEnv, output: Log, regis
     // TODO: Use operating system keychain to get credentials.
     // TODO: Fallback to read docker config to get credentials.
 
+    // TEMP for ghcr.io
     const githubToken = env['GITHUB_TOKEN'];
-
-    if (githubToken) {
-        return 'Bearer ' + githubToken;
-    } else {
-        if (registry === 'ghcr.io') {
-            const token = await getGHCRtoken(output, id);
-            return 'Bearer ' + token;
-        }
+    if (registry !== 'ghcr.io' || !githubToken) {
+        const token = await getAuthToken(output, registry, id);
+        return 'Bearer ' + token;
     }
 
     return '';
 }
 
-export async function getGHCRtoken(output: Log, id: string) {
+export async function getAuthToken(output: Log, registry: string, id: string) {
     const headers = {
         'user-agent': 'devcontainer',
     };
 
-    const url = `https://ghcr.io/token?scope=repo:${id}:pull&service=ghcr.io`;
+    const url = `https://${registry}/token?scope=repo:${id}:pull&service=ghcr.io`;
 
     const options = {
         type: 'GET',
