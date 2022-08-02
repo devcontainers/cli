@@ -8,8 +8,9 @@ import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '..//spec-common/commonUtils';
 import { createLog } from '../spec-node/devContainers';
 import { getPackageConfig } from '../spec-node/utils';
-import { mapLogLevel } from '..//spec-utils/log';
+import { Log, mapLogLevel } from '..//spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, rmLocal } from '../spec-utils/pfs';
+import { getSermanticVersions } from '../spec-node/featuresCLI/publishCommandImpl';
 
 describe('features package command', () => {
 
@@ -95,5 +96,63 @@ describe('features package command', () => {
         assert.isTrue(otherfileExists);
         const otherFileContents = await readLocalFile(`${outputDir}/other-file.md`, 'utf8');
         assert.strictEqual(otherFileContents, 'hello there');
+    });
+});
+
+describe('features publish command', () => {
+    let output: Log;
+    const disposables: (() => Promise<unknown> | undefined)[] = [];
+    const dispose = async () => {
+        await Promise.all(disposables.map(d => d()));
+    };
+
+    before(async () => {
+
+        const extensionPath = path.join(__dirname, '..', '..');
+        const pkg = await getPackageConfig(extensionPath);
+
+        output = createLog({
+            logLevel: mapLogLevel('trace'),
+            logFormat: 'text',
+            log: (str) => process.stdout.write(str),
+            terminalDimensions: undefined,
+        }, pkg, new Date(), disposables, true);
+    });
+
+    it('should generate correct semantic versions', async () => {
+        // First publish
+        let version = '1.0.0';
+        let publishedVersions: string[] = [];
+        let expectedSemVer = ['1', '1.0', '1.0.0', 'latest'];
+
+        let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+        assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+
+        // Publish new major version
+        version = '2.0.0';
+        publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+        expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
+
+        semanticVersions = getSermanticVersions(version, publishedVersions, output);
+        assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+
+        // Publish hotfix version
+        version = '1.0.1';
+        publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
+        expectedSemVer = ['1', '1.0', '1.0.1'];
+
+        semanticVersions = getSermanticVersions(version, publishedVersions, output);
+        assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+
+        // Re-publish version
+        version = '1.0.1';
+        publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
+
+        semanticVersions = getSermanticVersions(version, publishedVersions, output);
+        assert.isUndefined(semanticVersions);
+    });
+
+    after(async () => {
+        await dispose();
     });
 });
