@@ -98,6 +98,10 @@ export async function validateOCIFeature(output: Log, env: NodeJS.ProcessEnv, id
     output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
     const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef);
 
+    if (manifest?.config.mediaType !== 'application/vnd.devcontainers') {
+        return undefined;
+    }
+
     return manifest;
 }
 
