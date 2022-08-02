@@ -272,7 +272,7 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
     const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef.id, manifest.digest, registryAuthToken);
     if (manifest.digest && existingFeatureManifest) {
         output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
-        await putManifestWithTags(output, tags);
+        await putManifestWithTags(output, manifest.manifestStr, tags);
         return true;
     }
 
@@ -305,28 +305,29 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
         }
 
         // Send a final PUT to combine blobs and tag manifest properly.
-        await putManifestWithTags(output, manifest, tags);
+        await putManifestWithTags(output, manifest.manifestStr, tags);
 
     }
+
     // Success!
     return true;
 }
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pushing-manifests (PUT /manifests/<ref>)
-export async function putManifestWithTags(output: Log, tags: string[]) {
+export async function putManifestWithTags(output: Log, manifest: string, tags: string[]) {
     output.write(`Tagging manifest with tags: ${tags.join(', ')}`, LogLevel.Trace);
+    output.write(manifest);
     throw new Error('Not implemented');
 }
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put (PUT <location>?digest=<digest>)
-export async function putBlob(output: Log, blobPutLocationUriPath: string, featureRef: OCIFeatureRef, digest: string, registryAuthToken: string) {
+export async function putBlob(output: Log, blobPutLocationUriPath: string, featureRef: OCIFeatureRef, digest: string, _registryAuthToken: string) {
     output.write(`Uploading blob: ${name} with digest ${digest}`, LogLevel.Trace);
 
-    const headers: HEADERS = {
-        'user-agent': 'devcontainer',
-        'authorization': `Bearer ${registryAuthToken}`
-
-    }
+    // const headers: HEADERS = {
+    //     'user-agent': 'devcontainer',
+    //     'authorization': `Bearer ${registryAuthToken}`
+    // }
 
     let url = '';
     if (blobPutLocationUriPath.startsWith('https://')) {
@@ -336,7 +337,9 @@ export async function putBlob(output: Log, blobPutLocationUriPath: string, featu
     }
     url += `?digest=sha256:${digest}`;
 
-    await request({ type: 'PUT', url,  })
+    output.write(`Crafted blob url:  ${url}`, LogLevel.Trace);
+
+    // await request({ type: 'PUT', url,  })
 }
 
 export async function generateCompleteManifest(output: Log, pathToTgz: string): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
@@ -393,7 +396,7 @@ export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise
         const headers: HEADERS = {
             'user-agent': 'devcontainer',
             'authorization': `Bearer ${authToken}`,
-            
+        };
         
     const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/blobs/uploads/`;
         const { statusCode, resHeaders } = await requestFetchHeaders({ type: 'POST', url, headers }, output);
@@ -401,11 +404,9 @@ export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise
     output.write(`${url}: ${statusCode}`, LogLevel.Trace);
         if (statusCode === 202) {
             return resHeaders['Location'];
-            
-        return undefined;
         }
+        return undefined;
     }
-}        
 
 export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
     // A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
