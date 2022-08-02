@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as tar from 'tar';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { headRequest, request } from '../spec-utils/httpRequest';
+import { headRequest, request, requestFetchHeaders } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 import { FeatureSet } from './containerFeaturesConfiguration';
@@ -95,19 +95,18 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
 
 // Validate if a manifest exists and is reachable about the declared feature.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
     const featureRef = getFeatureRef(output, identifier);
 
+    // TODO: Always use the manifest digest (the canonical digest) instead of the `featureRef.version`
+    //       matching some lock file. 
     let reference = featureRef.version;
     if (manifestDigest) {
         reference = manifestDigest;
     }
-
-    // TODO: Always use the manifest digest (the canonical digest) instead of the `featureRef.version`
-    //       matching some lock file. 
     const manifestUrl = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/manifests/${reference}`;
     output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-    const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef);
+    const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef, authToken);
 
     if (manifest?.config.mediaType !== 'application/vnd.devcontainers') {
         output.write(`(!) Unexpected manifest media type: ${manifest?.config.mediaType}`, LogLevel.Error);
@@ -140,14 +139,14 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
     return true;
 }
 
-export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, url: string, featureRef: OCIFeatureRef): Promise<OCIManifest | undefined> {
+export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, url: string, featureRef: OCIFeatureRef, authToken?: string): Promise<OCIManifest | undefined> {
     try {
         const headers: HEADERS = {
             'user-agent': 'devcontainer',
             'accept': 'application/vnd.oci.image.manifest.v1+json',
         };
 
-        const auth = await fetchRegistrySessionToken(output, featureRef.registry, featureRef.id, env, 'pull');
+        const auth = authToken ?? await fetchRegistryAuthToken(output, featureRef.registry, featureRef.id, env, 'pull');
         if (auth) {
             headers['authorization'] = `Bearer ${auth}`;
         }
@@ -169,7 +168,7 @@ export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, ur
 }
 
 // Downloads a blob from a registry.
-export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef): Promise<boolean> {
+export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef, authToken?: string): Promise<boolean> {
     // TODO: Parallelize if multiple layers (not likely).
     // TODO: Seeking might be needed if the size is too large.
     try {
@@ -180,7 +179,7 @@ export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: s
             'accept': 'application/vnd.oci.image.manifest.v1+json',
         };
 
-        const auth = await fetchRegistrySessionToken(output, featureRef.registry, featureRef.id, env, 'pull');
+        const auth = authToken ?? await fetchRegistryAuthToken(output, featureRef.registry, featureRef.id, env, 'pull');
         if (auth) {
             headers['authorization'] = `Bearer ${auth}`;
         }
@@ -209,14 +208,16 @@ export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: s
     }
 }
 
-export async function fetchRegistrySessionToken(output: Log, registry: string, id: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
+// https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
+export async function fetchRegistryAuthToken(output: Log, registry: string, id: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
     const headers: HEADERS = {
         'user-agent': 'devcontainer'
     };
 
     // TODO: Read OS keychain/docker config for auth in various registries!
     if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-        headers['authorization'] = `Bearer ${env['GITHUB_TOKEN']}`;
+        const base64Encoded = Buffer.from(`USERNAME:${env['GITHUB_TOKEN']}`).toString('base64');
+        headers['authorization'] = `Basic ${base64Encoded}`;
     }
 
     const url = `https://${registry}/token?scope=repo:${id}:${operationScopes}&service=${registry}`;
@@ -229,13 +230,13 @@ export async function fetchRegistrySessionToken(output: Log, registry: string, i
 
     const authReq = await request(options, output);
     if (!authReq) {
-        output.write('Failed to get registry session token', LogLevel.Error);
+        output.write('Failed to get registry auth token', LogLevel.Error);
         return undefined;
     }
 
     const token = JSON.parse(authReq.toString())?.token;
     if (!token) {
-        output.write('Failed to parse registry session token response', LogLevel.Error);
+        output.write('Failed to parse registry auth token response', LogLevel.Error);
         return undefined;
     }
     return token;
@@ -253,6 +254,13 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
 
     const featureRef = featureSet.sourceInformation.featureRef;
 
+    // Generate registry auth token with `pull,push` scopes.
+    const registryAuthToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.id, env, 'pull,push');
+    if (!registryAuthToken) {
+        output.write(`Failed to get registry auth token`, LogLevel.Error);
+        return false;
+    }
+
     // Generate Manifest for given feature artifact.
     const manifest = await generateCompleteManifest(output, pathToTgz);
     if (!manifest) {
@@ -261,26 +269,45 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
     }
 
     // If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-    const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef.id, manifest.digest);
+    const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef.id, manifest.digest, registryAuthToken);
     if (manifest.digest && existingFeatureManifest) {
         output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
         await putManifestWithTags(output, tags);
-        return false; //TODO
+        return true;
     }
 
-    // Obtain session ID with `pull,push`
+    const blobsToPush = [
+        {
+            name: 'configLayer',
+            digest: manifest.manifestObj.config.digest,
+        },
+        {
+            name: 'tgzLayer',
+            digest: manifest.manifestObj.layers[0].digest,
+        }
+    ];
 
-    // Check and see which blobs are already in the registry.
-    // const a = checkIfBlobExists(featureSet, );
-    // const b = checkIfBlobExists();
+    // Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
+    const blobPutLocationUriPath = await postUploadSessionId(output, featureRef, registryAuthToken);
+    if (!blobPutLocationUriPath) {
+        output.write(`Failed to get upload session ID`, LogLevel.Error);
+        return false;
+    }
 
-    // https://github.com/opencontainers/distribution-spec/blob/main/spec.md#single-post
-    // POST blobs
+    for await (const blob of blobsToPush) {
+        const { name, digest } = blob;
+        const blobExistsConfigLayer = await checkIfBlobExists(output, featureRef, digest, registryAuthToken);
+        output.write(`blob: ${name} with digest ${digest}  ${blobExistsConfigLayer ? 'already exists' : 'does not exist'} in registry.`, LogLevel.Trace);
 
+        // PUT blobs
+        if (!blobExistsConfigLayer) {
+            putBlob(output, blobPutLocationUriPath, featureRef, digest, registryAuthToken);
+        }
 
-    // Send a PUT to combine blobs and tag manifest properly.
-    await putManifestWithTags(output, tags);
+        // Send a final PUT to combine blobs and tag manifest properly.
+        await putManifestWithTags(output, manifest, tags);
 
+    }
     // Success!
     return true;
 }
@@ -289,6 +316,27 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
 export async function putManifestWithTags(output: Log, tags: string[]) {
     output.write(`Tagging manifest with tags: ${tags.join(', ')}`, LogLevel.Trace);
     throw new Error('Not implemented');
+}
+
+// Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put (PUT <location>?digest=<digest>)
+export async function putBlob(output: Log, blobPutLocationUriPath: string, featureRef: OCIFeatureRef, digest: string, registryAuthToken: string) {
+    output.write(`Uploading blob: ${name} with digest ${digest}`, LogLevel.Trace);
+
+    const headers: HEADERS = {
+        'user-agent': 'devcontainer',
+        'authorization': `Bearer ${registryAuthToken}`
+
+    }
+
+    let url = '';
+    if (blobPutLocationUriPath.startsWith('https://')) {
+        url = blobPutLocationUriPath;
+    } else {
+        url = `https://${featureRef.registry}${blobPutLocationUriPath}`;
+    }
+    url += `?digest=sha256:${digest}`;
+
+    await request({ type: 'PUT', url,  })
 }
 
 export async function generateCompleteManifest(output: Log, pathToTgz: string): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
@@ -325,11 +373,11 @@ export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise
 }
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#checking-if-content-exists-in-the-registry
-//       Requires sessionId token.
-export async function checkIfBlobExists(output: Log, featureRef: OCIFeatureRef, digest: string, sessionId: string): Promise<boolean | undefined> {
+    //       Requires registry auth token.
+    export async function checkIfBlobExists(output: Log, featureRef: OCIFeatureRef, digest: string, authToken: string): Promise<boolean> {
     const headers: HEADERS = {
         'user-agent': 'devcontainer',
-        'authorization': `Bearer ${sessionId}`,
+        'authorization': `Bearer ${authToken}`,
     };
 
     const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/blobs/${digest}`;
@@ -338,6 +386,26 @@ export async function checkIfBlobExists(output: Log, featureRef: OCIFeatureRef, 
     output.write(`${url}: ${statusCode}`, LogLevel.Trace);
     return statusCode === 200;
 }
+
+    // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put
+    //       Requires registry auth token.
+    export async function postUploadSessionId(output: Log, featureRef: OCIFeatureRef, authToken: string): Promise<string | undefined> {
+        const headers: HEADERS = {
+            'user-agent': 'devcontainer',
+            'authorization': `Bearer ${authToken}`,
+            
+        
+    const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/blobs/uploads/`;
+        const { statusCode, resHeaders } = await requestFetchHeaders({ type: 'POST', url, headers }, output);
+        
+    output.write(`${url}: ${statusCode}`, LogLevel.Trace);
+        if (statusCode === 202) {
+            return resHeaders['Location'];
+            
+        return undefined;
+        }
+    }
+}        
 
 export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
     // A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.

@@ -1,7 +1,7 @@
 // import { assert } from 'chai';
 // import { getFeatureManifest, getFeatureBlob, getFeatureRef, createManifest } from '../../spec-configuration/containerFeaturesOCI';
 import { assert } from 'chai';
-import { calculateContentDigest, calculateTgzLayer, getFeatureBlob, getFeatureManifest, getFeatureRef, fetchOCIFeatureManifestIfExists, checkIfBlobExists, fetchRegistrySessionToken } from '../../spec-configuration/containerFeaturesOCI';
+import { calculateContentDigest, calculateTgzLayer, getFeatureBlob, getFeatureManifest, getFeatureRef, fetchOCIFeatureManifestIfExists, checkIfBlobExists, fetchRegistryAuthToken as fetchRegistryAuthToken } from '../../spec-configuration/containerFeaturesOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -90,18 +90,18 @@ describe('Test Generate Manifests and Digests', () => {
     it('Can check whether a blob exists', async () => {
         const ociFeatureRef = getFeatureRef(output, 'ghcr.io/codspace/features/go:1');
         const { registry, id } = ociFeatureRef;
-        const sessionId = await fetchRegistrySessionToken(output, registry, id, process.env, 'pull');
-        if (!sessionId) {
-            assert.fail('Could not get session token');
+        const sessionAuth = await fetchRegistryAuthToken(output, registry, id, process.env, 'pull');
+        if (!sessionAuth) {
+            assert.fail('Could not get registry auth token');
         }
 
-        const tarLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5', sessionId);
+        const tarLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5', sessionAuth);
         assert.isTrue(tarLayerBlobExists);
 
-        const configLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', sessionId);
+        const configLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', sessionAuth);
         assert.isTrue(configLayerBlobExists);
 
-        const randomStringDoesNotExist = await checkIfBlobExists(output, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3', sessionId);
+        const randomStringDoesNotExist = await checkIfBlobExists(output, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3', sessionAuth);
         assert.isFalse(randomStringDoesNotExist);
 
     });
