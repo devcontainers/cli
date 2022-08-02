@@ -50,6 +50,11 @@ export async function getPublishedVersions(featureId: string, registry: string, 
 }
 
 export function getSermanticVersions(version: string, publishedVersions: string[], output: Log) {
+    if (publishedVersions.includes(version)) {
+        output.write(`(!) Version ${version} already exists, skipping ${version}...`, LogLevel.Warning);
+        return undefined;
+    }
+
     let semanticVersions: string[] = [];
     if (semver.valid(version) === null) {
         output.write(`(!) ERR: Version ${version} is not a valid semantic version...`, LogLevel.Error);

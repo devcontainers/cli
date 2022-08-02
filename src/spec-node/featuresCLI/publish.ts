@@ -82,11 +82,9 @@ async function featuresPublish({
 
         output.write(`Fetching published versions...`, LogLevel.Info);
         const publishedVersions: string[] = await getPublishedVersions(f.id, registry, namespace, output);
+        const semanticVersions: string[] | undefined = getSermanticVersions(f.version, publishedVersions, output);
 
-        if (publishedVersions.includes(f.version)) {
-            output.write(`(!) Version ${f.version} already exists, skipping ${f.id}...`, LogLevel.Warning);
-        } else {
-            const semanticVersions: string[] = getSermanticVersions(f.version, publishedVersions, output);
+        if (semanticVersions !== undefined) {
             output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
 
             // TODO: CALL OCI PUSH
