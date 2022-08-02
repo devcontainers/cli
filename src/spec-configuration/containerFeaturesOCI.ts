@@ -21,7 +21,6 @@ export interface OCILayer {
     digest: string;
     size: number;
     annotations: {
-        // 'org.opencontainers.image.ref.name': string;
         'org.opencontainers.image.title': string;
     };
 }
@@ -97,12 +96,13 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
 export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
     const featureRef = getFeatureRef(output, identifier);
 
-    // TODO: Always use the manifest digest (the canonical digest) instead of the `featureRef.version`
-    //       matching some lock file. 
+    // TODO: Always use the manifest digest (the canonical digest) 
+    //       instead of the `featureRef.version` by referencing some lock file (if available).
     let reference = featureRef.version;
     if (manifestDigest) {
         reference = manifestDigest;
     }
+
     const manifestUrl = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/manifests/${reference}`;
     output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
     const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef, authToken);
@@ -116,6 +116,7 @@ export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.P
 }
 
 // Download a feature from which a manifest was previously downloaded.
+// Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-blobs
 export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string): Promise<boolean> {
 
     if (featureSet.sourceInformation.type !== 'oci') {
@@ -214,8 +215,23 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, id: 
     };
 
     // TODO: Read OS keychain/docker config for auth in various registries!
+
+    let userToken = '';
     if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-        const base64Encoded = Buffer.from(`USERNAME:${env['GITHUB_TOKEN']}`).toString('base64');
+        userToken = env['GITHUB_TOKEN'];
+    } else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
+        // eg: DEVCONTAINERS_OCI_AUTH=domain1:token1,domain2:token2
+        const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
+        const authContext = authContexts.find(a => a.split(':')[0] === registry);
+        if (authContext && authContext.length === 2) {
+            userToken = authContext.split(':')[1];
+        }
+    } else {
+        output.write('No oauth authentication credentials found.', LogLevel.Trace);
+    }
+
+    if (userToken) {
+        const base64Encoded = Buffer.from(`USERNAME:${userToken}`).toString('base64');
         headers['authorization'] = `Basic ${base64Encoded}`;
     }
 
@@ -233,7 +249,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, id: 
         return undefined;
     }
 
-    const token = JSON.parse(authReq.toString())?.token;
+    const token: string | undefined = JSON.parse(authReq.toString())?.token;
     if (!token) {
         output.write('Failed to parse registry auth token response', LogLevel.Error);
         return undefined;

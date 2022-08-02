@@ -463,40 +463,49 @@ async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeat
 	return featuresConfig;
 }
 
+export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: string) {
+	// See the specification for valid feature identifiers:
+	//   > https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	//
+	// Additionally, we support the following deprecated syntaxes for backwards compatibility:
+	//      (0)  A 'local feature' packaged with the CLI.
+	//			 Syntax:   <feature>
+	//
+	//      (1)  A feature backed by a GitHub Release
+	//			 Syntax:   <repoOwner>/<repoName>/<featureId>[@version]
+
+	// DEPRECATED: This is a legacy feature-set ID
+	if (!id.includes('/') && !id.includes('\\')) {
+		return { type: 'local-cache', manifest: undefined };
+	}
+
+	// Direct tarball reference
+	if (id.startsWith('https://')) {
+		return { type: 'direct-tarball', manifest: undefined };
+	}
+
+	// Local feature on disk
+	const validPath = path.parse(id);
+	if (id.startsWith('./') || id.startsWith('../') || (validPath && path.isAbsolute(id))) {
+		return { type: 'file-path', manifest: undefined };
+	}
+
+	// version identifier for a github release feature.
+	// DEPRECATED: This is a legacy feature-set ID
+	if (id.includes('@')) {
+		return { type: 'github-repo', manifest: undefined };
+	}
+
+	const manifest = await fetchOCIFeatureManifestIfExists(output, env, id);
+	if (manifest) {
+		return { type: 'oci', manifest: manifest };
+	}
+
+	// DEPRECATED: This is a legacy feature-set ID
+	return { type: 'github-repo', manifest: undefined };
+}
+
 export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
-	// A identifier takes this form:
-	//      (0)  <feature>
-	//      (1)  <publisher>/<feature-set>/<feature>@version
-	//      (2)  https://<../URI/..>/devcontainer-features.tgz#<feature>
-	//      (3) ./<local-path>#<feature>  -or-  ../<local-path>#<feature>  -or-   /<local-path>#<feature>
-	// 
-	//  (0) This is a locally cached feature.
-	//
-	//  (1) Our "registry" is backed by GitHub public repositories (or repos visible with the environment's GITHUB_TOKEN).
-	//      Say organization 'octocat' has a repo titled 'myfeatures' with a set of feature definitions.
-	//      One of the [1..n] features in this repo has an id of 'helloworld'.
-	//
-	//      eg: octocat/myfeatures/helloworld
-	//
-	//      The above example assumes the 'latest' GitHub release, and internally will 
-	//      fetch the devcontainer-features.tgz artifact from that release.
-	//      To specify a certain release tag, append the tag with an @ symbol
-	//
-	//      eg: octocat/myfeatures/helloworld@v0.0.2
-	//
-	//  (2) A fully-qualified https URI to a devcontainer-features.tgz file can be provided instead
-	//      of a using the GitHub registry "shorthand". Note this is identified by a
-	//      s.StartsWith("https://" ||  "http://").
-	//
-	//      eg: https://example.com/../../devcontainer-features.tgz#helloworld
-	//
-	//  (3) This is a local path to a directory on disk following the expected file convention
-	//      The path can either be:
-	//          -  a relative file path to the .devcontainer file (prepended by a ./  or ../)
-	//          -  an absolute file path (prepended by a /)
-	//
-	//      No version can be provided, as the directory is copied 'as is' and is inherently taking the 'latest'
-	
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
@@ -908,35 +917,3 @@ function getFeatureValueDefaults(feature: Feature) {
 		}, {} as Record<string, string | boolean | undefined>);
 }
 
-export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: string) {
-
-	// DEPRECATED: This is a legacy feature-set ID
-	if (!id.includes('/') && !id.includes('\\')) {
-		return { type: 'local-cache', manifest: undefined };
-	}
-
-	// Direct tarball reference
-	if (id.startsWith('http://') || id.startsWith('https://')) {
-		return { type: 'direct-tarball', manifest: undefined };
-	}
-
-	// Local feature on disk
-	const validPath = path.parse(id);
-	if (id.startsWith('./') || id.startsWith('../') || (validPath && path.isAbsolute(id))) {
-		return { type: 'file-path', manifest: undefined };
-	}
-
-	// version identifier for a github release feature.
-	// DEPRECATED: This is a legacy feature-set ID
-	if (id.includes('@')) {
-		return { type: 'github-repo', manifest: undefined };
-	}
-
-	const manifest = await fetchOCIFeatureManifestIfExists(output, env, id);
-	if (manifest) {
-		return { type: 'oci', manifest: manifest };
-	}
-
-	// DEPRECATED: This is a legacy feature-set ID
-	return { type: 'github-repo', manifest: undefined };
-}
