@@ -20,7 +20,7 @@ describe('Test OCI Pull', () => {
 
     it('Get a manifest by tag', async () => {
         const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1');
-        const manifest = await getFeatureManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1', featureRef);
+        const manifest = await getFeatureManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1:0:14', featureRef);
         assert.isNotNull(manifest);
         assert.exists(manifest);
 
