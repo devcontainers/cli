@@ -93,14 +93,23 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
 }
 
 // Validate if a manifest exists and is reachable about the declared feature.
-export async function validateOCIFeature(output: Log, env: NodeJS.ProcessEnv, identifier: string): Promise<OCIManifest | undefined> {
+// Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
+export async function validateOCIFeature(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
     const featureRef = getFeatureRef(output, identifier);
 
-    const manifestUrl = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/manifests/${featureRef.version}`;
+    let reference = featureRef.version;
+    if (manifestDigest) {
+        reference = manifestDigest;
+    }
+
+    // TODO: Always use the manifest digest (the canonical digest) instead of the `featureRef.version`
+    //       matching some lock file. 
+    const manifestUrl = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/manifests/${reference}`;
     output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
     const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef);
 
     if (manifest?.config.mediaType !== 'application/vnd.devcontainers') {
+        output.write(`(!) Unexpected manifest media type: ${manifest?.config.mediaType}`, LogLevel.Error);
         return undefined;
     }
 
@@ -193,20 +202,24 @@ async function getAuthenticationToken(env: NodeJS.ProcessEnv, output: Log, regis
     // TODO: Use operating system keychain to get credentials.
     // TODO: Fallback to read docker config to get credentials.
 
-    // TEMP for ghcr.io
-    const githubToken = env['GITHUB_TOKEN'];
-    if (registry !== 'ghcr.io' || !githubToken) {
-        const token = await getAuthToken(output, registry, id);
-        return 'Bearer ' + token;
+    // TODO: Un-hardcode ghcr.io
+    const registryAuthToken = await fetchRegistryAuthToken(output, registry, id, env);
+
+    if (!registryAuthToken) {
+        return ''; // TODO
     }
 
-    return '';
+    return `Bearer ${registryAuthToken}`;
 }
 
-export async function getAuthToken(output: Log, registry: string, id: string) {
-    const headers = {
-        'user-agent': 'devcontainer',
+export async function fetchRegistryAuthToken(output: Log, registry: string, id: string, env: NodeJS.ProcessEnv): Promise<string | undefined> {
+    const headers: { 'authorization'?: string; 'user-agent': string } = {
+        'user-agent': 'devcontainer'
     };
+
+    if (!!env['GITHUB_TOKEN']) {
+        headers['authorization'] = `Bearer ${env['GITHUB_TOKEN']}`;
+    }
 
     const url = `https://${registry}/token?scope=repo:${id}:pull&service=ghcr.io`;
 
@@ -216,12 +229,25 @@ export async function getAuthToken(output: Log, registry: string, id: string) {
         headers: headers
     };
 
-    const token = JSON.parse((await request(options, output)).toString()).token;
+    const authReq = await request(options, output);
+    if (!authReq) {
+        output.write('Failed to get registry auth token', LogLevel.Error);
+        return undefined;
+    }
 
+    const token = JSON.parse(authReq.toString())?.token;
+    if (!token) {
+        output.write('Failed to parse registry auth token response', LogLevel.Error);
+        return undefined;
+    }
     return token;
 }
 
 // -- Push
+
+// export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string, featureRef: OCIFeatureRef): Promise<boolean> {
+//     const await validateOCIFeature(output, env, featureRef.id);
+// }
 
 export async function generateManifest(output: Log, pathToTgz: string): Promise<OCIManifest | undefined> {
 
@@ -284,5 +310,4 @@ export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
         manifestObj: manifest,
         hash: manifestHash,
     };
-
 }
