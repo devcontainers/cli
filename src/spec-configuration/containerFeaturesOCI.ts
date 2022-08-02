@@ -221,7 +221,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, id: 
         headers['authorization'] = `Bearer ${env['GITHUB_TOKEN']}`;
     }
 
-    const url = `https://${registry}/token?scope=repo:${id}:pull&service=ghcr.io`;
+    const url = `https://${registry}/token?scope=repo:${id}:pull&service=${registry}`;
 
     const options = {
         type: 'GET',
