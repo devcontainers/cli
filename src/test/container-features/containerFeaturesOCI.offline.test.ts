@@ -1,7 +1,7 @@
 // import { assert } from 'chai';
 // import { getFeatureManifest, getFeatureBlob, getFeatureRef, createManifest } from '../../spec-configuration/containerFeaturesOCI';
 import { assert } from 'chai';
-import { calculateContentDigest, calculateTgzLayer } from '../../spec-configuration/containerFeaturesOCI';
+import { calculateContentDigest, calculateTgzLayer, validateOCIFeature } from '../../spec-configuration/containerFeaturesOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -50,11 +50,10 @@ const testAssetsDir = `${__dirname}/assets`;
 //     });
 // });
 
-describe('Test OCI Push', () => {
-
+describe('Test Generate Manifests and Digests', () => {
     // Example: 
     //    https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-    // NOTE: This was pushed via the oras reference impl.
+    //    NOTE: This artifact was originally pushed via the oras reference implementation.
     it('Generates the correct tgz manifest layer', async () => {
 
         // Calculate the tgz layer
@@ -80,9 +79,10 @@ describe('Test OCI Push', () => {
         assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
 
         assert.strictEqual('9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', hash);
+    });
 
-
-
-
+    it('Can fetch an artifact from a digest reference', async () => {
+        const manifest = await validateOCIFeature(output, process.env, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
+        assert.strictEqual(manifest?.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
     });
 });
