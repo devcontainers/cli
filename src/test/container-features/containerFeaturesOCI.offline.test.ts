@@ -50,13 +50,12 @@ describe('Test OCI Pull', () => {
     });
 });
 
+
+//  NOTE: Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
 describe('Test Generate Manifests and Digests', () => {
-    // Example: 
-    //    https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-    //    NOTE: This artifact was originally pushed via the oras reference implementation.
     it('Generates the correct tgz manifest layer', async () => {
 
-        // Calculate the tgz layer
+        // Calculate the tgz layer and digest
         const res = await calculateTgzLayer(output, `${testAssetsDir}/go.tgz`);
         const expected = {
             digest: 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5',
