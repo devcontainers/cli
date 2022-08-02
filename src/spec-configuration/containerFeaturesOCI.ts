@@ -16,25 +16,25 @@ export interface OCIFeatureRef {
     registry: string;
 }
 
+export interface OCILayer {
+    mediaType: string;
+    digest: string;
+    size: number;
+    annotations: {
+        // 'org.opencontainers.image.ref.name': string;
+        'org.opencontainers.image.title': string;
+    };
+}
 export interface OCIManifest {
+    digest?: string;
     schemaVersion: number;
     mediaType: string;
     config: {
-        mediaType: string;
         digest: string;
+        mediaType: string;
         size: number;
     };
-    layers: [
-        {
-            mediaType: string;
-            digest: string;
-            size: number;
-            annotations: {
-                'org.opencontainers.image.ref.name': string;
-                'org.opencontainers.image.title': string;
-            };
-        }
-    ];
+    layers: OCILayer[];
 }
 
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest): FeatureSet {
@@ -223,13 +223,21 @@ export async function getAuthToken(output: Log, registry: string, id: string) {
 
 // -- Push
 
-export async function createManifest(output: Log, pathToTgz: string): Promise<OCIManifest | undefined> {
+export async function generateManifest(output: Log, pathToTgz: string): Promise<OCIManifest | undefined> {
 
-    /*const tgzLayer = */calculateTgzLayer(output, pathToTgz);
-    return undefined;
+    const tgzLayer = await calculateTgzLayer(output, pathToTgz);
+    if (!tgzLayer) {
+        output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
+        return undefined;
+    }
+
+    const { manifestObj, hash } = await calculateContentDigest(output, tgzLayer);
+    manifestObj.digest = `sha256:${hash}`;
+
+    return manifestObj;
 }
 
-export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise<{ digest: string; size: number; mediaType: string } | undefined> {
+export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise<OCILayer | undefined> {
     output.write(`Creating manifest from ${pathToTgz}`, LogLevel.Trace);
     if (!(await isLocalFile(pathToTgz))) {
         output.write(`${pathToTgz} does not exist.`, LogLevel.Error);
@@ -238,13 +246,43 @@ export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise
 
     const tarBytes = fs.readFileSync(pathToTgz);
 
-
     const tarSha256 = crypto.createHash('sha256').update(tarBytes).digest('hex');
     output.write(`${pathToTgz}:  sha256:${tarSha256} (size: ${tarBytes.byteLength})`, LogLevel.Trace);
 
     return {
+        mediaType: 'application/vnd.devcontainers.layer.v1+tar',
         digest: `sha256:${tarSha256}`,
         size: tarBytes.byteLength,
-        mediaType: 'application/octet-stream'
+        annotations: {
+            'org.opencontainers.image.title': path.basename(pathToTgz),
+        }
     };
+}
+
+export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
+    // {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}
+
+    let manifest: OCIManifest = {
+        schemaVersion: 2,
+        mediaType: 'application/vnd.oci.image.manifest.v1+json',
+        config: {
+            mediaType: 'application/vnd.devcontainers',
+            digest: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            size: 0
+        },
+        layers: [
+            tgzLayer
+        ]
+    };
+
+    const manifestStringified = JSON.stringify(manifest);
+    const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
+    output.write(`manifest:  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Trace);
+
+    return {
+        manifestStr: manifestStringified,
+        manifestObj: manifest,
+        hash: manifestHash,
+    };
+
 }
