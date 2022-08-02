@@ -7,4 +7,4 @@ tmp
 .DS_Store
 .env
 output
-package
+src/test/featuresCLICommands/example-source-repo/output/**
