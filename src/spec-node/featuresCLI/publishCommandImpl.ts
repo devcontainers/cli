@@ -1,6 +1,5 @@
 import { request } from '../../spec-utils/httpRequest';
 import { Log, LogLevel } from '../../spec-utils/log';
-import { output } from './publish';
 
 const semverCompare = require('semver-compare');
 const semver = require('semver');
@@ -38,15 +37,15 @@ export async function getPublishedVersions(featureId: string, registry: string, 
         }
 
         output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
-        return undefined;
+        process.exit(1);
     }
 }
 
-export function getSermanticVersions(version: string, publishedVersions: string[]) {
+export function getSermanticVersions(version: string, publishedVersions: string[], output: Log) {
     let semanticVersions: string[] = [];
     if (semver.valid(version) === null) {
-        output.write(`Skipping as version ${version} is not a valid semantic version...`);
-        return null;
+        output.write(`(!) ERR: Version ${version} is not a valid semantic version...`, LogLevel.Error);
+        process.exit(1);
     }
 
     // Add semantic versions ex. 1.2.3 --> [1, 1.2, 1.2.3]
@@ -71,6 +70,7 @@ export function getSermanticVersions(version: string, publishedVersions: string[
     return semanticVersions;
 }
 
+// temp
 async function getAuthenticationToken(output: Log, registry: string, id: string): Promise<string> {
     if (registry === 'ghcr.io') {
         const token = await getGHCRtoken(output, id);
@@ -80,6 +80,7 @@ async function getAuthenticationToken(output: Log, registry: string, id: string)
     return '';
 }
 
+// temp
 export async function getGHCRtoken(output: Log, id: string) {
     const headers = {
         'user-agent': 'devcontainer',

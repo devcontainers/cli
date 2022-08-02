@@ -1,13 +1,13 @@
 import path from 'path';
 import { Argv } from 'yargs';
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import { readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { isLocalFile, readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { getPackageConfig } from '../../spec-utils/product';
+import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { FeaturesPackageArgs, featuresPackage } from './package';
 import { DevContainerCollectionMetadata } from './packageCommandImpl';
 import { getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
-
-export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 export function featuresPublishOptions(y: Argv) {
     return y
@@ -34,6 +34,21 @@ async function featuresPublish({
     'registry': registry,
     'namespace': namespace
 }: FeaturesPublishArgs) {
+    const disposables: (() => Promise<unknown> | undefined)[] = [];
+
+    const dispose = async () => {
+        await Promise.all(disposables.map(d => d()));
+    };
+
+    const extensionPath = path.join(__dirname, '..', '..', '..');
+    const pkg = await getPackageConfig(extensionPath);
+    const output = createLog({
+        logLevel: mapLogLevel(inputLogLevel),
+        logFormat: 'text',
+        log: (str) => process.stdout.write(str),
+        terminalDimensions: undefined,
+    }, pkg, new Date(), disposables);
+
     // Package features
     const outputDir = '/tmp/features-output';
 
@@ -44,32 +59,45 @@ async function featuresPublish({
         'output-dir': outputDir
     };
 
-    await featuresPackage(packageArgs);
+    await featuresPackage(packageArgs, false);
 
     const metadataOutputPath = path.join(outputDir, 'devcontainer-collection.json');
+    if (!isLocalFile(metadataOutputPath)) {
+        output.write(`(!) ERR: Failed to fetch ${metadataOutputPath}`, LogLevel.Error);
+        process.exit(1);
+    }
+
     const metadata: DevContainerCollectionMetadata = JSON.parse(await readLocalFile(metadataOutputPath, 'utf-8'));
 
+    // temp
+    const exitCode = 0;
+
     for (const f of metadata.features) {
-        output.write(`Processing feature: ${f.id}`, LogLevel.Info);
+        output.write('\n');
+        output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
         output.write(`Fetching published versions...`, LogLevel.Info);
-        const publishedVersions: string[] | undefined = await getPublishedVersions(f.id, registry, namespace, output);
-        let semanticVersions;
+        const publishedVersions: string[] = await getPublishedVersions(f.id, registry, namespace, output);
 
-        if (publishedVersions !== undefined && f.version !== undefined && publishedVersions.includes(f.version)) {
-            output.write(`Skipping ${f.id} as ${f.version} is already published...`);
+        if (f.version !== undefined && publishedVersions.includes(f.version)) {
+            output.write(`Skipping ${f.id} as ${f.version} is already published...`, LogLevel.Warning);
         } else {
-            if (f.version !== undefined && publishedVersions !== undefined) {
-                semanticVersions = getSermanticVersions(f.version, publishedVersions);
+            if (f.version !== undefined) {
+                const semanticVersions: string[] = getSermanticVersions(f.version, publishedVersions, output);
 
-                if (semanticVersions !== null) {
-                    output.write(`Publishing versions ${semanticVersions}`);
-                    // CALL OCI PUSH
-                }
+                output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
+
+                // TODO: CALL OCI PUSH
+                // exitCode = await doFeaturesPublishCommand();
+
+                output.write(`Published feature: ${f.id}...`, LogLevel.Info);
             }
         }
     }
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });
+
+    await dispose();
+    process.exit(exitCode);
 }
