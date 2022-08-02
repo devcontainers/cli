@@ -12,7 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
-import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, validateOCIFeature, OCIManifest } from './containerFeaturesOCI';
+import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExists, OCIManifest } from './containerFeaturesOCI';
 
 
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -680,7 +680,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			if (sourceInfoType === 'oci') {
 				params.output.write(`Fetching from OCI`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
-				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath, featureSet.sourceInformation.featureRef);
+				const success = await fetchOCIFeature(params.output, params.env, featureSet, ociCacheDir, featCachePath);
 				if (!success) {
 					params.output.write(`Could not download OCI feature: ${featureSet.sourceInformation.featureRef.id}`, LogLevel.Error);
 				}
@@ -932,7 +932,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 		return { type: 'github-repo', manifest: undefined };
 	}
 
-	const manifest = await validateOCIFeature(output, env, id);
+	const manifest = await fetchOCIFeatureManifestIfExists(output, env, id);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	}
