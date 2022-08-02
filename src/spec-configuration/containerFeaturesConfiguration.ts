@@ -18,6 +18,7 @@ const V1_ASSET_NAME = 'devcontainer-features.tgz';
 
 export interface Feature {
 	id: string;
+	version?: string;
 	name: string;
 	description?: string;
 	cachePath?: string;
