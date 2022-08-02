@@ -96,6 +96,12 @@ export function getFeatureRef(output: Log, identifier: string): OCIFeatureRef {
 export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
     const featureRef = getFeatureRef(output, identifier);
 
+    // Simple mechanism to avoid making a DNS request for 
+    // something that is not a domain name.
+    if (featureRef.registry.indexOf('.') < 0) {
+        return undefined;
+    }
+
     // TODO: Always use the manifest digest (the canonical digest) 
     //       instead of the `featureRef.version` by referencing some lock file (if available).
     let reference = featureRef.version;
