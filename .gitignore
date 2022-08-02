@@ -7,3 +7,4 @@ tmp
 .DS_Store
 .env
 output
+package

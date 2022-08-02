@@ -35,7 +35,7 @@ export function featuresPackageHandler(args: FeaturesPackageArgs) {
     (async () => await featuresPackage(args))().catch(console.error);
 }
 
-async function featuresPackage({
+export async function featuresPackage({
     'feature-collection-folder': featureCollectionFolder,
     'log-level': inputLogLevel,
     'output-dir': outputDir,
@@ -88,8 +88,9 @@ async function featuresPackage({
         disposables
     };
 
-    const exitCode = await doFeaturesPackageCommand(args);
+    await doFeaturesPackageCommand(args);
+    // const exitCode = await doFeaturesPackageCommand(args);
 
     await dispose();
-    process.exit(exitCode);
+    // process.exit(exitCode);
 }
