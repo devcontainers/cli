@@ -47,7 +47,7 @@ async function featuresPublish({
         logFormat: 'text',
         log: (str) => process.stdout.write(str),
         terminalDimensions: undefined,
-    }, pkg, new Date(), disposables);
+    }, pkg, new Date(), disposables, true);
 
     // Package features
     const outputDir = '/tmp/features-output';
@@ -73,25 +73,26 @@ async function featuresPublish({
     const exitCode = 0;
 
     for (const f of metadata.features) {
-        output.write('\n');
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
+
+        if (f.version === undefined) {
+            output.write(`(!) Version does not exist, skipping ${f.id}...`, LogLevel.Warning);
+            continue;
+        }
 
         output.write(`Fetching published versions...`, LogLevel.Info);
         const publishedVersions: string[] = await getPublishedVersions(f.id, registry, namespace, output);
 
-        if (f.version !== undefined && publishedVersions.includes(f.version)) {
-            output.write(`Skipping ${f.id} as ${f.version} is already published...`, LogLevel.Warning);
+        if (publishedVersions.includes(f.version)) {
+            output.write(`(!) Version ${f.version} already exists, skipping ${f.id}...`, LogLevel.Warning);
         } else {
-            if (f.version !== undefined) {
-                const semanticVersions: string[] = getSermanticVersions(f.version, publishedVersions, output);
+            const semanticVersions: string[] = getSermanticVersions(f.version, publishedVersions, output);
+            output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
 
-                output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
+            // TODO: CALL OCI PUSH
+            // exitCode = await doFeaturesPublishCommand();
 
-                // TODO: CALL OCI PUSH
-                // exitCode = await doFeaturesPublishCommand();
-
-                output.write(`Published feature: ${f.id}...`, LogLevel.Info);
-            }
+            output.write(`Published feature: ${f.id}...`, LogLevel.Info);
         }
     }
 

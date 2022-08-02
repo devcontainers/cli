@@ -12,11 +12,24 @@ interface versions {
 export async function getPublishedVersions(featureId: string, registry: string, namespace: string, output: Log) {
     const url = `https://${registry}/v2/${namespace}/${featureId}/tags/list`;
     const id = `${registry}/${namespace}/${featureId}`;
+    let token = '';
+
+    try {
+        token = await getAuthenticationToken(registry, id);
+    } catch (e) {
+        // Publishing for the first time
+        if (e?.message.includes('403')) {
+            return [];
+        }
+
+        output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
+        process.exit(1);
+    }
 
     try {
         const headers = {
             'user-agent': 'devcontainer',
-            'Authorization': await getAuthenticationToken(output, registry, id),
+            'Authorization': token,
             'Accept': 'application/json',
         };
 
@@ -26,16 +39,11 @@ export async function getPublishedVersions(featureId: string, registry: string, 
             headers: headers
         };
 
-        const response = await request(options, output);
+        const response = await request(options);
         const publishedVersionsResponse: versions = JSON.parse(response.toString());
 
         return publishedVersionsResponse.tags;
     } catch (e) {
-        // Publishing for the first time
-        if (e && e.code === 403) {
-            return [];
-        }
-
         output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
         process.exit(1);
     }
@@ -51,8 +59,11 @@ export function getSermanticVersions(version: string, publishedVersions: string[
     // Add semantic versions ex. 1.2.3 --> [1, 1.2, 1.2.3]
     const parsedVersion = semver.parse(version);
 
-    semanticVersions.push(parsedVersion.major);
-    semanticVersions.push(`${parsedVersion.major}.${parsedVersion.minor}`);
+    if (parsedVersion.major !== 0) {
+        semanticVersions.push(parsedVersion.major);
+        semanticVersions.push(`${parsedVersion.major}.${parsedVersion.minor}`);
+    }
+
     semanticVersions.push(version);
 
     let publishLatest = true;
@@ -71,9 +82,9 @@ export function getSermanticVersions(version: string, publishedVersions: string[
 }
 
 // temp
-async function getAuthenticationToken(output: Log, registry: string, id: string): Promise<string> {
+async function getAuthenticationToken(registry: string, id: string): Promise<string> {
     if (registry === 'ghcr.io') {
-        const token = await getGHCRtoken(output, id);
+        const token = await getGHCRtoken(id);
         return 'Bearer ' + token;
     }
 
@@ -81,7 +92,7 @@ async function getAuthenticationToken(output: Log, registry: string, id: string)
 }
 
 // temp
-export async function getGHCRtoken(output: Log, id: string) {
+export async function getGHCRtoken(id: string) {
     const headers = {
         'user-agent': 'devcontainer',
     };
@@ -94,7 +105,7 @@ export async function getGHCRtoken(output: Log, id: string) {
         headers: headers
     };
 
-    const token = JSON.parse((await request(options, output)).toString()).token;
+    const token = JSON.parse((await request(options)).toString()).token;
 
     return token;
 }
