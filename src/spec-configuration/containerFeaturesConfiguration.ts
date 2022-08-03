@@ -505,29 +505,38 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 	return { type: 'github-repo', manifest: undefined };
 }
 
+export function getBackwardCompatibleVersion(id: string) {
+	const migratedfeatures = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
+	const renamedFeatures = new Map();
+	renamedFeatures.set('golang', 'go');
+
+	const newFeaturePath = 'ghcr.io/devcontainers/features';
+	const versionBackwardComp = '1';
+
+	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (migratedfeatures.includes(id)) {
+		return `${newFeaturePath}/${id}:${versionBackwardComp}`;
+	}
+
+	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (renamedFeatures.get(id) !== undefined) {
+		return `${newFeaturePath}/${renamedFeatures.get(id)}:${versionBackwardComp}`;
+	}
+
+	// Deprecated and all other features references (eg. fish, ghcr.io/devcontainers/features/go, ghcr.io/owner/repo/id etc)
+	return id;
+}
+
 export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// Adding backward compatibility
-	const migratedfeatures = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
-	const renamedFeatures = new Map();
-	renamedFeatures.set('golang', 'go');
-	const newFeaturePath = 'ghcr.io/devcontainers/features';
-
-	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
-	if (migratedfeatures.includes(userFeature.id)) {
-		userFeature.id = `${newFeaturePath}/${userFeature.id}`;
-	}
-
-	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
-	if (renamedFeatures.get(userFeature.id) !== undefined) {
-		userFeature.id = `${newFeaturePath}/${renamedFeatures.get(userFeature.id)}`;
-	}
+	userFeature.id = getBackwardCompatibleVersion(userFeature.id);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
 
 	// cached feature
-	// Resolves deprecated features (eg. fish, maven, gradle, homebrew, jupyterlab)
+	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
 	if (type === 'local-cache') {
 		output.write(`Cached feature found.`);
 
