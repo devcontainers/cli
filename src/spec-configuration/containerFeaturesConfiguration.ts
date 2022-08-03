@@ -710,7 +710,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
 
 				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
-					output.write(`ERR: Failed to parse feature.`, LogLevel.Error);
+					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
+					output.write(err, LogLevel.Error);
+					throw new Error(err);
 				}
 				continue;
 			}
@@ -721,7 +723,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				const executionPath = featureSet.sourceInformation.isRelative ? path.join(params.cwd, featureSet.sourceInformation.filePath) : featureSet.sourceInformation.filePath;
 
 				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
-					output.write(`ERR: Failed to parse feature.`, LogLevel.Error);
+					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
+					output.write(err, LogLevel.Error);
+					throw new Error(err);
 				}				
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(executionPath, featCachePath);
@@ -766,7 +770,9 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				if (didSucceed) {
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
 					if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
-						output.write(`ERR: Failed to parse feature.`, LogLevel.Error);
+						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
+						output.write(err, LogLevel.Error);
+						throw new Error(err);
 					}
 					break;
 				}
