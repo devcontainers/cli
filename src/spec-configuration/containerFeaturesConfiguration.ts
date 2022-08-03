@@ -17,7 +17,7 @@ import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManife
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
-export const V1_DEVCONTAINER_FEATURES_FILE_NAME = 'devcontainer-features.json';
+export const V1_DEVCONTAINER_FEATURES_FILE_NAME = 'devcontainer-feature.json';
 
 // v2
 export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';

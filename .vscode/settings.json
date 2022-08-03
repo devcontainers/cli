@@ -15,7 +15,7 @@
         "TS_NODE_PROJECT": "src/test/tsconfig.json"
     },
     "files.associations": {
-        "devcontainer-features.json": "jsonc"
+        "devcontainer-feature.json": "jsonc"
     },
     "typescript.tsdk": "node_modules/typescript/lib",
     "git.branchProtection": [

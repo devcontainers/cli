@@ -9,7 +9,7 @@ import { getLocalCacheFolder } from '../../spec-node/utils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-// Test fetching/generating the devcontainer-features.json config
+// Test fetching/generating the devcontainer-feature.json config
 describe('validate online functionality of generateFeaturesConfig() ', function () {
 
     // Setup
