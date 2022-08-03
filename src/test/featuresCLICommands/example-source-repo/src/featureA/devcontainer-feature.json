@@ -1,0 +1,15 @@
+{
+    "id": "featureA",
+    "name": "Feature A",
+    "description": "Installs feature A",
+    "options": {
+        "version": {
+            "type": "string",
+            "proposals": [
+                "latest"
+            ],
+            "default": "latest",
+            "description": "Set latest version"
+        }
+    }
+}

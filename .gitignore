@@ -5,3 +5,6 @@ logs
 *.tgz
 tmp
 .DS_Store
+.env
+output
+src/test/featuresCLICommands/example-source-repo/output/**
