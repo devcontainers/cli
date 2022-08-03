@@ -409,8 +409,6 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	const ociCacheDir = await prepareGHCRauthAndOCICache(dstFolder);
-
 	// Fetch features and get version information
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
@@ -526,12 +524,10 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		userFeature.id = `${newFeaturePath}/${renamedFeatures.get(userFeature.id)}`;
 	}
 
-	// cached feature
-	// Deprecated features (eg. fish, maven, gradle, homebrew, jupyterlab)
-	if (!userFeature.id.includes('/') && !userFeature.id.includes('\\')) {
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
 
 	// cached feature
+	// Resolves deprecated features (eg. fish, maven, gradle, homebrew, jupyterlab)
 	if (type === 'local-cache') {
 		output.write(`Cached feature found.`);
 
@@ -545,36 +541,6 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
-			},
-			features: [feat],
-		};
-
-		return newFeaturesSet;
-	}
-
-	// (6) Oci Identifier
-	if (userFeature.id.startsWith('ghcr.io')) {
-
-		// eg:   ghcr.io/codspace/python:1.0.6
-		const splitOnSlash = userFeature.id.split('/');
-		const splitOnColon = splitOnSlash[2].split(':');
-
-		// const owner = splitOnSlash[1];
-		const featureName = splitOnColon[0];
-		// const version = splitOnColon[1];
-
-		let feat: Feature = {
-			id: featureName,
-			name: featureName,
-			value: userFeature.options,
-			included: true,
-		};
-
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'oci',
-				uri: userFeature.id, // TODO: Entire Identifier, refactor later (or don't?)
-
 			},
 			features: [feat],
 		};
