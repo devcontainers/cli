@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
-import { getBackwardCompatibleVersion, getSourceInfoString, parseFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getBackwardCompatibleFeatureId, getSourceInfoString, parseFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -268,17 +268,17 @@ describe('validate function getSourceInfoString', function () {
     });
 });
 
-describe('validate function getBackwardCompatibleVersion', () => {
+describe('validate function getBackwardCompatibleFeatureId', () => {
     it('should map the migrated (old shorthand syntax) features to ghcr.io/devcontainers/features/*', () => {
         let id = 'node';
         let expectedId = 'ghcr.io/devcontainers/features/node:1';
-        let mappedId = getBackwardCompatibleVersion(id);
+        let mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
 
         id = 'python';
         expectedId = 'ghcr.io/devcontainers/features/python:1';
-        mappedId = getBackwardCompatibleVersion(id);
+        mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
     });
@@ -286,7 +286,7 @@ describe('validate function getBackwardCompatibleVersion', () => {
     it('should map the renamed (old shorthand syntax) features to ghcr.io/devcontainers/features/*', () => {
         let id = 'golang';
         let expectedId = 'ghcr.io/devcontainers/features/go:1';
-        let mappedId = getBackwardCompatibleVersion(id);
+        let mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
     });
@@ -294,13 +294,13 @@ describe('validate function getBackwardCompatibleVersion', () => {
     it('should keep the deprecated (old shorthand syntax) features id intact', () => {
         let id = 'fish';
         let expectedId = 'fish';
-        let mappedId = getBackwardCompatibleVersion(id);
+        let mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
 
         id = 'maven';
         expectedId = 'maven';
-        mappedId = getBackwardCompatibleVersion(id);
+        mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
     });
@@ -308,19 +308,19 @@ describe('validate function getBackwardCompatibleVersion', () => {
     it('should keep all other features id intact', () => {
         let id = 'ghcr.io/devcontainers/features/node:1';
         let expectedId = id;
-        let mappedId = getBackwardCompatibleVersion(id);
+        let mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
 
         id = 'ghcr.io/user/repo/go:1';
         expectedId = id;
-        mappedId = getBackwardCompatibleVersion(id);
+        mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
 
         id = 'ghcr.io/user/repo/go';
         expectedId = id;
-        mappedId = getBackwardCompatibleVersion(id);
+        mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
     });

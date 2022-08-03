@@ -505,7 +505,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 	return { type: 'github-repo', manifest: undefined };
 }
 
-export function getBackwardCompatibleVersion(id: string) {
+export function getBackwardCompatibleFeatureId(id: string) {
 	const migratedfeatures = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
 	const renamedFeatures = new Map();
 	renamedFeatures.set('golang', 'go');
@@ -531,7 +531,7 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// Adding backward compatibility
-	userFeature.id = getBackwardCompatibleVersion(userFeature.id);
+	userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
 
