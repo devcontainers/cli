@@ -132,7 +132,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message.replace('\n', ''), /'.*Failed to fetch tarball.*'/);
+					assert.ok(res.message.indexOf('Failed to fetch tarball') > -1, `Actual error msg:  ${res.message}`);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
@@ -147,7 +147,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message.replace('\n', ''), /'.*Failed to process feature.*'/);
+					assert.ok(res.message.indexOf('Failed to process feature') > -1, `Actual error msg:  ${res.message}`);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
