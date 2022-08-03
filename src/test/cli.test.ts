@@ -132,7 +132,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message, /'Failed to fetch tarball'/);
+					assert.match(res.message.replace('\n', ''), /'.*Failed to fetch tarball.*'/);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
@@ -147,7 +147,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message, /'Failed to process feature'/);
+					assert.match(res.message.replace('\n', ''), /'.*Failed to process feature.*'/);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
@@ -501,7 +501,7 @@ describe('Dev Containers CLI', function () {
 				const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
 				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
-				it('should detect ruby installed', async () => {
+				it('should detect docker installed (--privileged flag passed)', async () => {
 					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
