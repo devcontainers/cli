@@ -418,14 +418,14 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
-	const ordereredFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
+	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
 	output.write('--- Computed order ----', LogLevel.Trace);
-	for (const feature of ordereredFeatures) {
+	for (const feature of orderedFeatures) {
 		output.write(`${feature.features[0].id}`, LogLevel.Trace);
 	}
 
-	featuresConfig.featureSets = ordereredFeatures;
+	featuresConfig.featureSets = orderedFeatures;
 
 	return featuresConfig;
 }
@@ -603,72 +603,71 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		return newFeaturesSet;
 	}
 
-	if (type === 'github-repo') {
-		output.write(`Github feature.`);
-		// Github repository source.
-		let version = 'latest';
-		let splitOnAt = userFeature.id.split('@');
-		if (splitOnAt.length > 2) {
-			output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
-			return undefined;
-		}
-		if (splitOnAt.length === 2) {
-			output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
-			version = splitOnAt[1];
-		}
-
-		// Remaining info must be in the first part of the split.
-		const featureBlob = splitOnAt[0];
-		const splitOnSlash = featureBlob.split('/');
-		// We expect all GitHub/registry features to follow the triple slash pattern at this point
-		//  eg: <publisher>/<feature-set>/<feature>
-		if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
-			output.write(`Invalid parse for GitHub Release feature: Follow format '<publisher>/<feature-set>/<feature>, or republish feature to OCI registry.'`, LogLevel.Error);
-			return undefined;
-		}
-		const owner = splitOnSlash[0];
-		const repo = splitOnSlash[1];
-		const id = splitOnSlash[2];
-
-		let feat: Feature = {
-			id: id,
-			name: userFeature.id,
-			value: userFeature.options,
-			included: true,
-		};
-
-		if (version === 'latest') {
-			let newFeaturesSet: FeatureSet = {
-				sourceInformation: {
-					type: 'github-repo',
-					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
-					owner,
-					repo,
-					isLatest: true
-				},
-				features: [feat],
-			};
-			return newFeaturesSet;
-		} else {
-			// We must have a tag, return a tarball URI for the tagged version. 
-			let newFeaturesSet: FeatureSet = {
-				sourceInformation: {
-					type: 'github-repo',
-					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
-					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
-					owner,
-					repo,
-					tag: version,
-					isLatest: false
-				},
-				features: [feat],
-			};
-			return newFeaturesSet;
-		}
+	output.write(`Github feature.`);
+	// Github repository source.
+	let version = 'latest';
+	let splitOnAt = userFeature.id.split('@');
+	if (splitOnAt.length > 2) {
+		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
+		return undefined;
+	}
+	if (splitOnAt.length === 2) {
+		output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+		version = splitOnAt[1];
 	}
 
-	throw new Error(`Unsupported feature source type: ${type}`);
+	// Remaining info must be in the first part of the split.
+	const featureBlob = splitOnAt[0];
+	const splitOnSlash = featureBlob.split('/');
+	// We expect all GitHub/registry features to follow the triple slash pattern at this point
+	//  eg: <publisher>/<feature-set>/<feature>
+	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
+		output.write(`Invalid parse for GitHub Release feature: Follow format '<publisher>/<feature-set>/<feature>, or republish feature to OCI registry.'`, LogLevel.Error);
+		return undefined;
+	}
+	const owner = splitOnSlash[0];
+	const repo = splitOnSlash[1];
+	const id = splitOnSlash[2];
+
+	let feat: Feature = {
+		id: id,
+		name: userFeature.id,
+		value: userFeature.options,
+		included: true,
+	};
+
+	if (version === 'latest') {
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'github-repo',
+				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
+				owner,
+				repo,
+				isLatest: true
+			},
+			features: [feat],
+		};
+		return newFeaturesSet;
+	} else {
+		// We must have a tag, return a tarball URI for the tagged version. 
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'github-repo',
+				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
+				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
+				owner,
+				repo,
+				tag: version,
+				isLatest: false
+			},
+			features: [feat],
+		};
+		return newFeaturesSet;
+	}
+
+	// TODO: Handle invalid source types better by refactoring this function.
+	// throw new Error(`Unsupported feature source type: ${type}`);
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
