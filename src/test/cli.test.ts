@@ -132,7 +132,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message, /'Failed to fetch tarball for myfakefeature_1_github-repo after attempting 2 possibilities.'/);
+					assert.match(res.message, /'Failed to fetch tarball'/);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
@@ -147,7 +147,7 @@ describe('Dev Containers CLI', function () {
 					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 					const res = JSON.parse(error.stdout);
 					assert.equal(res.outcome, 'error');
-					assert.match(res.message, /'Failed to process feature ghcr.io\/devcontainers\/features\/myfakefeature:1'/);
+					assert.match(res.message, /'Failed to process feature'/);
 				}
 				assert.equal(success, false, 'expect non-successful call');
 			});
@@ -466,11 +466,12 @@ describe('Dev Containers CLI', function () {
 				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have access to installed features (docker)', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.match(res.stderr, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
@@ -495,17 +496,18 @@ describe('Dev Containers CLI', function () {
 				});
 			});
 
-			describe(`with valid (Dockerfile) config and v2 OCI feature (ruby) [${text}]`, () => {
+			describe(`with valid (Dockerfile) config and v2 OCI feature (dind) [${text}]`, () => {
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
 				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
-				it('should have build marker content', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ruby --version`);
+				it('should detect ruby installed', async () => {
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /ruby.*/);
+					assert.match(res.stderr, /CONTAINER ID/);
 				});
 			});
 
@@ -515,11 +517,12 @@ describe('Dev Containers CLI', function () {
 				beforeEach(async () => composeProjectName = (await devContainerUp(testFolder, options)).composeProjectName);
 				afterEach(async () => await devContainerDown({ composeProjectName }));
 				it('should have access to installed features (docker)', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.match(res.stderr, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);

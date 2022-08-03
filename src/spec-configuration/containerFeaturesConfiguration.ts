@@ -538,6 +538,37 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		return newFeaturesSet;
 	}
 
+	// remote tar file
+	if (type === 'direct-tarball') {
+		output.write(`Remote tar file found.`);
+		let input = userFeature.id.replace(/\/+$/, '');
+		const featureIdDelimiter = input.lastIndexOf('#');
+		const id = input.substring(featureIdDelimiter + 1);
+
+		if (id === '' || !allowedFeatureIdRegex.test(id)) {
+			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
+			return undefined;
+		}
+
+		const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
+		let feat: Feature = {
+			id: id,
+			name: userFeature.id,
+			value: userFeature.options,
+			included: true,
+		};
+
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'direct-tarball',
+				tarballUri: tarballUri
+			},
+			features: [feat],
+		};
+
+		return newFeaturesSet;
+	}
+
 	// If its a valid path
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
@@ -569,37 +600,6 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
 		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
-		return newFeaturesSet;
-	}
-
-	// remote tar file
-	if (type === 'direct-tarball') {
-		output.write(`Remote tar file found.`);
-		let input = userFeature.id.replace(/\/+$/, '');
-		const featureIdDelimiter = input.lastIndexOf('#');
-		const id = input.substring(featureIdDelimiter + 1);
-
-		if (id === '' || !allowedFeatureIdRegex.test(id)) {
-			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
-			return undefined;
-		}
-
-		const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
-		let feat: Feature = {
-			id: id,
-			name: userFeature.id,
-			value: userFeature.options,
-			included: true,
-		};
-
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'direct-tarball',
-				tarballUri: tarballUri
-			},
-			features: [feat],
-		};
-
 		return newFeaturesSet;
 	}
 
