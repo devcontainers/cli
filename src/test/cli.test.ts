@@ -95,7 +95,7 @@ describe('Dev Containers CLI', function () {
 			it(`should execute successfully with valid docker-compose (image) config [${text}]`, async () => {
 				const testFolder = `${__dirname}/configs/compose-image-with-features`;
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
-				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption}`);
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption} --log-level trace`);
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
@@ -118,6 +118,38 @@ describe('Dev Containers CLI', function () {
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
+			});
+
+			// Testing failing with invalid devcontainers
+			it('should fail when a non-existent v1 feature is in the config', async () => {
+				const testFolder = `${__dirname}/configs/invalid-configs/invalid-v1-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				let success = false;
+				try {
+					await shellExec(`${cli} build --workspace-folder ${testFolder} ${buildKitOption} --log-level trace`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.ok(res.message.indexOf('Failed to fetch tarball') > -1, `Actual error msg:  ${res.message}`);
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			});
+			it('should fail when a non-existent v2 feature is in the config', async () => {
+				const testFolder = `${__dirname}/configs/invalid-configs/invalid-v2-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				let success = false;
+				try {
+					await shellExec(`${cli} build --workspace-folder ${testFolder} ${buildKitOption} --log-level trace`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.ok(res.message.indexOf('Failed to process feature') > -1, `Actual error msg:  ${res.message}`);
+				}
+				assert.equal(success, false, 'expect non-successful call');
 			});
 		});
 
@@ -434,11 +466,12 @@ describe('Dev Containers CLI', function () {
 				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have access to installed features (docker)', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.match(res.stderr, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
@@ -463,17 +496,33 @@ describe('Dev Containers CLI', function () {
 				});
 			});
 
-			describe(`with valid (docker-compose with image) config containing features [${text}]`, () => {
+			describe(`with valid (Dockerfile) config and v2 OCI feature (dind) [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
+				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
+				afterEach(async () => await devContainerDown({ containerId }));
+				it('should detect docker installed (--privileged flag passed)', async () => {
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+					const response = JSON.parse(res.stdout);
+					console.log(res.stderr);
+					assert.equal(response.outcome, 'success');
+					assert.match(res.stderr, /CONTAINER ID/);
+				});
+			});
+
+			describe(`with valid (docker-compose with image) config containing v1 features [${text}]`, () => {
 				let composeProjectName: string | undefined = undefined;
 				const testFolder = `${__dirname}/configs/compose-image-with-features`;
 				beforeEach(async () => composeProjectName = (await devContainerUp(testFolder, options)).composeProjectName);
 				afterEach(async () => await devContainerDown({ composeProjectName }));
 				it('should have access to installed features (docker)', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.match(res.stderr, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
