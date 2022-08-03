@@ -192,7 +192,7 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 		case 'file-path':
 			return srcInfo.filePath + '-' + getCounter();
 		case 'oci':
-			return `oci-${srcInfo.featureRef.id}-${getCounter()}`;
+			return `oci-${srcInfo.featureRef.resource}-${getCounter()}`;
 	}
 }
 
@@ -461,9 +461,10 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
 		const newFeatureSet = await parseFeatureIdentifier(output, env, userFeature);
-			if(newFeatureSet) {
-				featuresConfig.featureSets.push(newFeatureSet);
-			}
+		if (!newFeatureSet) {
+			throw new Error(`Failed to process feature ${userFeature.id}`);
+		}
+		featuresConfig.featureSets.push(newFeatureSet);
 	}
 	return featuresConfig;
 }
@@ -504,10 +505,11 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 	const manifest = await fetchOCIFeatureManifestIfExists(output, env, id);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
+	} else {
+		// DEPRECATED: This is a legacy feature-set ID
+		output.write('(!) WARNING: Falling back to deprecated GitHub Release syntax. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature for updated specification.', LogLevel.Warning);
+		return { type: 'github-repo', manifest: undefined };
 	}
-
-	// DEPRECATED: This is a legacy feature-set ID
-	return { type: 'github-repo', manifest: undefined };
 }
 
 export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
@@ -533,6 +535,40 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 			features: [feat],
 		};
 
+		return newFeaturesSet;
+	}
+
+	// If its a valid path
+	if (type === 'file-path') {
+		output.write(`Local disk feature.`);
+		const userFeaturePath = path.parse(userFeature.id);
+		//if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
+		const filePath = userFeature.id;
+		const id = userFeaturePath.name;
+		const isRelative = !path.isAbsolute(userFeature.id);
+
+		let feat: Feature = {
+			id: id,
+			name: userFeature.id,
+			value: userFeature.options,
+			included: true,
+		};
+
+		let newFeaturesSet: FeatureSet = {
+			sourceInformation: {
+				type: 'file-path',
+				filePath,
+				isRelative: isRelative
+			},
+			features: [feat],
+		};
+
+		return newFeaturesSet;
+	}
+
+	// (6) Oci Identifier
+	if (type === 'oci' && manifest) {
+		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
 		return newFeaturesSet;
 	}
 
@@ -567,16 +603,32 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		return newFeaturesSet;
 	}
 
-	// local disk
+	if (type === 'github-repo') {
+		output.write(`Github feature.`);
+		// Github repository source.
+		let version = 'latest';
+		let splitOnAt = userFeature.id.split('@');
+		if (splitOnAt.length > 2) {
+			output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
+			return undefined;
+		}
+		if (splitOnAt.length === 2) {
+			output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+			version = splitOnAt[1];
+		}
 
-	// If its a valid path
-	if (type === 'file-path') {
-		const userFeaturePath = path.parse(userFeature.id);
-		//if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
-		output.write(`Local disk feature.`);
-		const filePath = userFeature.id;
-		const id = userFeaturePath.name;
-		const isRelative = !path.isAbsolute(userFeature.id);
+		// Remaining info must be in the first part of the split.
+		const featureBlob = splitOnAt[0];
+		const splitOnSlash = featureBlob.split('/');
+		// We expect all GitHub/registry features to follow the triple slash pattern at this point
+		//  eg: <publisher>/<feature-set>/<feature>
+		if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
+			output.write(`Invalid parse for GitHub Release feature: Follow format '<publisher>/<feature-set>/<feature>, or republish feature to OCI registry.'`, LogLevel.Error);
+			return undefined;
+		}
+		const owner = splitOnSlash[0];
+		const repo = splitOnSlash[1];
+		const id = splitOnSlash[2];
 
 		let feat: Feature = {
 			id: id,
@@ -585,86 +637,38 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 			included: true,
 		};
 
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'file-path',
-				filePath,
-				isRelative: isRelative
-			},
-			features: [feat],
-		};
-
-		return newFeaturesSet;
+		if (version === 'latest') {
+			let newFeaturesSet: FeatureSet = {
+				sourceInformation: {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
+					owner,
+					repo,
+					isLatest: true
+				},
+				features: [feat],
+			};
+			return newFeaturesSet;
+		} else {
+			// We must have a tag, return a tarball URI for the tagged version. 
+			let newFeaturesSet: FeatureSet = {
+				sourceInformation: {
+					type: 'github-repo',
+					apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
+					unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
+					owner,
+					repo,
+					tag: version,
+					isLatest: false
+				},
+				features: [feat],
+			};
+			return newFeaturesSet;
+		}
 	}
 
-	// (6) Oci Identifier
-	if (type === 'oci' && manifest) {
-		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
-		return newFeaturesSet;
-	}
-
-	output.write(`Github feature.`);
-	// Github repository source.
-	let version = 'latest';
-	let splitOnAt = userFeature.id.split('@');
-	if (splitOnAt.length > 2) {
-		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
-		return undefined;
-	}
-	if (splitOnAt.length === 2) {
-		output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
-		version = splitOnAt[1];
-	}
-
-	// Remaining info must be in the first part of the split.
-	const featureBlob = splitOnAt[0];
-	const splitOnSlash = featureBlob.split('/');
-	// We expect all GitHub/registry features to follow the triple slash pattern at this point
-	//  eg: <publisher>/<feature-set>/<feature>
-	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
-		output.write(`Invalid parse for GitHub/registry feature identifier. Follow format: '<publisher>/<feature-set>/<feature>'`, LogLevel.Error);
-		return undefined;
-	}
-	const owner = splitOnSlash[0];
-	const repo = splitOnSlash[1];
-	const id = splitOnSlash[2];
-
-	let feat: Feature = {
-		id: id,
-		name: userFeature.id,
-		value: userFeature.options,
-		included: true,
-	};
-
-	if (version === 'latest') {
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'github-repo',
-				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
-				owner,
-				repo,
-				isLatest: true
-			},
-			features: [feat],
-		};
-		return newFeaturesSet;
-	} else {
-		// We must have a tag, return a tarball URI for the tagged version. 
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'github-repo',
-				apiUri: `https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}`,
-				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/download/${version}`, // v1/v2 implementations append name of relevant asset
-				owner,
-				repo,
-				tag: version,
-				isLatest: false
-			},
-			features: [feat],
-		};
-		return newFeaturesSet;
-	}
+	throw new Error(`Unsupported feature source type: ${type}`);
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
@@ -698,7 +702,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				const success = await fetchOCIFeature(output, params.env, featureSet, ociCacheDir, featCachePath);
 				if (!success) {
-					output.write(`Could not download OCI feature: ${featureSet.sourceInformation.featureRef.id}`, LogLevel.Error);
+					const err = `Could not download OCI feature: ${featureSet.sourceInformation.featureRef.id}`;
+					throw new Error(err);
+				}
+
+				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
+					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
+					throw new Error(err);
 				}
 
 				continue;
@@ -711,7 +721,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
-					output.write(err, LogLevel.Error);
 					throw new Error(err);
 				}
 				continue;
@@ -724,7 +733,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
-					output.write(err, LogLevel.Error);
 					throw new Error(err);
 				}				
 				await mkdirpLocal(featCachePath);
@@ -771,7 +779,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
 					if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
-						output.write(err, LogLevel.Error);
 						throw new Error(err);
 					}
 					break;
@@ -780,7 +787,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			if (!didSucceed) {
 				const msg = `(!) Failed to fetch tarball for ${featureDebugId} after attempting ${tarballUris.length} possibilities.`;
-				output.write(msg, LogLevel.Error);
 				throw new Error(msg);
 			}
 		}
@@ -844,8 +850,7 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 //
 // Returns a boolean indicating whether the feature was successfully parsed.
 async function parseDevContainerFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
-	const innerPath = path.join(featCachePath, feature.id);
-	const innerJsonPath = path.join(innerPath, DEVCONTAINER_FEATURE_FILE_NAME);
+	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
 		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Warning);
@@ -853,9 +858,11 @@ async function parseDevContainerFeature(output: Log, featureSet: FeatureSet, fea
 	}
 
 	featureSet.internalVersion = '2';
-	feature.cachePath = innerPath;
+	feature.cachePath = featCachePath;
 	const jsonString: Buffer = await readLocalFile(innerJsonPath);
 	const featureJson = jsonc.parse(jsonString.toString());
+
+	// TODO: Use spread operator {..., } to avoid needing to explicitly set each property.
 
 	feature.containerEnv = featureJson.containerEnv;
 	feature.buildArg = featureJson.buildArg;

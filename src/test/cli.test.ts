@@ -95,7 +95,7 @@ describe('Dev Containers CLI', function () {
 			it(`should execute successfully with valid docker-compose (image) config [${text}]`, async () => {
 				const testFolder = `${__dirname}/configs/compose-image-with-features`;
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
-				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption}`);
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption} --log-level trace`);
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
@@ -118,6 +118,38 @@ describe('Dev Containers CLI', function () {
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
+			});
+
+			// Testing failing with invalid devcontainers
+			it('should fail when a non-existent v1 feature is in the config', async () => {
+				const testFolder = `${__dirname}/configs/invalid-configs/invalid-v1-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				let success = false;
+				try {
+					await shellExec(`${cli} build --workspace-folder ${testFolder} ${buildKitOption} --log-level trace`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.match(res.message, /'Failed to fetch tarball for myfakefeature_1_github-repo after attempting 2 possibilities.'/);
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			});
+			it('should fail when a non-existent v2 feature is in the config', async () => {
+				const testFolder = `${__dirname}/configs/invalid-configs/invalid-v2-features`;
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				let success = false;
+				try {
+					await shellExec(`${cli} build --workspace-folder ${testFolder} ${buildKitOption} --log-level trace`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.match(res.message, /'Failed to process feature ghcr.io\/devcontainers\/features\/myfakefeature:1'/);
+				}
+				assert.equal(success, false, 'expect non-successful call');
 			});
 		});
 
@@ -463,7 +495,21 @@ describe('Dev Containers CLI', function () {
 				});
 			});
 
-			describe(`with valid (docker-compose with image) config containing features [${text}]`, () => {
+			describe(`with valid (Dockerfile) config and v2 OCI feature (ruby) [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
+				beforeEach(async () => containerId = (await devContainerUp(testFolder, options)).containerId);
+				afterEach(async () => await devContainerDown({ containerId }));
+				it('should have build marker content', async () => {
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ruby --version`);
+					const response = JSON.parse(res.stdout);
+					console.log(res.stderr);
+					assert.equal(response.outcome, 'success');
+					assert.match(res.stderr, /ruby.*/);
+				});
+			});
+
+			describe(`with valid (docker-compose with image) config containing v1 features [${text}]`, () => {
 				let composeProjectName: string | undefined = undefined;
 				const testFolder = `${__dirname}/configs/compose-image-with-features`;
 				beforeEach(async () => composeProjectName = (await devContainerUp(testFolder, options)).composeProjectName);
