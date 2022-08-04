@@ -7,7 +7,7 @@
 			"greeting": "buongiorno"
 		},
 		"./example-v2-features-sets/simple/src/featureB": {
-			"color": "gold"
+			"favorite": "gold"
 		}
 	}
 }

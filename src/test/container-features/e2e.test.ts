@@ -9,7 +9,7 @@ import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
-describe('Dev Container Features E2E', function () {
+describe('Dev Container Features E2E (remote)', function () {
     this.timeout('120s');
 
     const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
@@ -56,26 +56,41 @@ describe('Dev Container Features E2E', function () {
 
     describe('v2 - Dockerfile feature Configs', () => {
 
-        //TODO UNCOMMENT
-        // describe(`dockerfile-with-v2-oci-features`, () => {
-        //     let containerId: string | null = null;
-        //     const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
-        //     beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
-        //     afterEach(async () => await devContainerDown({ containerId }));
-        //     it('should detect docker installed (--privileged flag implicitly passed)', async () => {
-        //         // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
-        //         const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-        //         const response = JSON.parse(res.stdout);
-        //         console.log(res.stderr);
-        //         assert.equal(response.outcome, 'success');
-        //         assert.match(res.stderr, /CONTAINER ID/);
-        //     });
-        // });
+        describe(`dockerfile-with-v2-oci-features`, () => {
+            let containerId: string | null = null;
+            const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
+            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            afterEach(async () => await devContainerDown({ containerId }));
+            it('should detect docker installed (--privileged flag implicitly passed)', async () => {
+                // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                const response = JSON.parse(res.stdout);
+                console.log(res.stderr);
+                assert.equal(response.outcome, 'success');
+                assert.match(res.stderr, /CONTAINER ID/);
+            });
+        });
+    });
+});
+
+
+describe('Dev Container Features E2E (local-path)', function () {
+    this.timeout('120s');
+
+    const tmp = path.resolve(process.cwd(), path.join(__dirname, 'tmp1'));
+    const cli = `npx --prefix ${tmp} devcontainer`;
+
+    before('Install', async () => {
+        await shellExec(`rm -rf ${tmp}/node_modules`);
+        await shellExec(`mkdir -p ${tmp}`);
+        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+    });
 
         describe(`dockerfile-with-v2-local-features`, () => {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features`;
-            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            const cwd = __dirname;
+            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', cwd })).containerId);
             afterEach(async () => await devContainerDown({ containerId }));
 
             it('should exec the color commmand', async () => {
@@ -86,7 +101,7 @@ describe('Dev Container Features E2E', function () {
                 assert.match(res.stderr, /my favorite color is gold/);
             });
 
-            it('should exec the hellworld commmand', async () => {
+            it('should exec the helloworld commmand', async () => {
                 const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
                 const response = JSON.parse(res.stdout);
                 console.log(res.stderr);
@@ -95,9 +110,3 @@ describe('Dev Container Features E2E', function () {
             });
         });
     });
-
-
-
-
-
-});

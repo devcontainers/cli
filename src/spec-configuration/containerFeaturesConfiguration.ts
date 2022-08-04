@@ -91,8 +91,7 @@ export interface DirectTarballSourceInformation extends BaseSourceInformation {
 
 export interface FilePathSourceInformation extends BaseSourceInformation {
 	type: 'file-path';
-	filePath: string;
-	isRelative: boolean; // If not a relative path, then it is an absolute path.
+	resolvedFilePath: string; // Resolved, absolute file path
 }
 
 // deprecated
@@ -189,7 +188,7 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 		case 'github-repo':
 			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
 		case 'file-path':
-			return srcInfo.filePath + '-' + getCounter();
+			return srcInfo.resolvedFilePath + '-' + getCounter();
 		case 'oci':
 			return `oci-${srcInfo.featureRef.resource}-${getCounter()}`;
 	}
@@ -410,10 +409,11 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	featuresConfig = await processUserFeatures(params.output, params.env, userFeatures, featuresConfig);
+	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	// Fetch features and get version information
+	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
@@ -459,7 +459,7 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 // Creates one feature set per feature to aid in support of the previous structure.
 async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await parseFeatureIdentifier(output, env, userFeature);
+		const newFeatureSet = await processFeatureIdentifier(output, env, userFeature);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -511,7 +511,9 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 	}
 }
 
-export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
+// Strictly processes the user provided feature identifier to determine sourceInformation type.
+// Returns a featureSet per feature.
+export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
@@ -569,23 +571,19 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 	}
 
 	// If it matches the path syntax, it is a 'local' feature pointing to source code.
-	// NOTE: Only confirms the path is exists.
-	//		 Does not ensure the proper files are present.
+	// Resolves the absolute path and ensures that the directory exists.
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
-		const pathToFeatureFolder = path.normalize(userFeature.id);
-		output.write('Normalized path ' + pathToFeatureFolder, LogLevel.Trace);
+		const resolvedFilePathToFeatureFolder = path.resolve(userFeature.id);
+		output.write(`Resolved: ${userFeature.id}  ->  ${resolvedFilePathToFeatureFolder}`, LogLevel.Trace);
 
-		if (!pathToFeatureFolder || !isLocalFolder(pathToFeatureFolder)) {
-			output.write(`Local file path parse error. Resolved: ${pathToFeatureFolder}`, LogLevel.Error);
+		if (!resolvedFilePathToFeatureFolder || !isLocalFolder(resolvedFilePathToFeatureFolder)) {
+			output.write(`Local file path parse error. Resolved path to feature folder: ${resolvedFilePathToFeatureFolder}`, LogLevel.Error);
 			return undefined;
 		}
 
-		const id = path.basename(pathToFeatureFolder);
+		const id = path.basename(resolvedFilePathToFeatureFolder);
 		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
-
-		const isRelative = !path.isAbsolute(userFeature.id);
-
 		let feat: Feature = {
 			id,
 			name: userFeature.id,
@@ -596,8 +594,7 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'file-path',
-				filePath: pathToFeatureFolder,
-				isRelative: isRelative
+				resolvedFilePath: resolvedFilePathToFeatureFolder,
 			},
 			features: [feat],
 		};
@@ -713,7 +710,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					throw new Error(err);
 				}
 
-				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
@@ -726,7 +723,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
 
-				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
@@ -735,15 +732,14 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 		
 			if (sourceInfoType === 'file-path') {
 				output.write(`Detected local file path`, LogLevel.Trace);
-				
-				const executionPath = featureSet.sourceInformation.isRelative ? path.join(params.cwd, featureSet.sourceInformation.filePath) : featureSet.sourceInformation.filePath;
+				await mkdirpLocal(featCachePath);
+				const executionPath = featureSet.sourceInformation.resolvedFilePath;
+				await cpDirectoryLocal(executionPath, featCachePath);
 
-				if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}				
-				await mkdirpLocal(featCachePath);
-				await cpDirectoryLocal(executionPath, featCachePath);
 				continue;
 			}
 
@@ -784,7 +780,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 				if (didSucceed) {
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
-					if (!(await parseDevContainerFeature(output, featureSet, feature, featCachePath))) {
+					if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 						throw new Error(err);
 					}
@@ -852,11 +848,12 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 	}
 }
 
-// Implements the latest ('internalVersion' = '2') parsing logic, 
-// Falls back to earlier implementation(s) if requirements not present.
-//
-// Returns a boolean indicating whether the feature was successfully parsed.
-async function parseDevContainerFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
+// Reads the feature's 'devcontainer-feature.json` and applies any attributes to the in-memory Feature object.
+// NOTE:
+// 		Implements the latest ('internalVersion' = '2') parsing logic, 
+// 		Falls back to earlier implementation(s) if requirements not present.
+// 		Returns a boolean indicating whether the feature was successfully parsed.
+async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
 	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
