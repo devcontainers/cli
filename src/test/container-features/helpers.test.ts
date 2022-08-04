@@ -46,6 +46,12 @@ const assertFeatureIdInvariant = (id: string) => {
 describe('validate processFeatureIdentifier', async function () {
 	// const VALID_TYPES = ['local-cache', 'github-repo', 'direct-tarball', 'file-path', 'oci'];
 
+
+	// In the real implementation, the cwd is passed by the calling function with the value of `--workspace-folder`.
+	// See: https://github.com/devcontainers/cli/blob/45541ba21437bf6c16826762f084ab502157789b/src/spec-node/devContainersSpecCLI.ts#L152-L153
+	const cwd = process.cwd();
+	console.log(`cwd: ${cwd}`);
+
 	describe('VALID processFeatureIdentifier examples', async function () {
 		it('should process local-cache', async function () {
 			// Parsed out of a user's devcontainer.json
@@ -53,7 +59,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'docker-in-docker',
 				options: {}
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -72,7 +78,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'octocat/myfeatures/helloworld',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -98,7 +104,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'octocat/myfeatures/helloworld@v0.0.4',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -142,7 +148,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -160,10 +166,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const cwd = process.cwd();
-			console.log(`cwd: ${cwd}`);
-
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -180,10 +183,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const cwd = process.cwd();
-			console.log(`cwd: ${cwd}`);
-
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -201,7 +201,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -220,7 +220,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -253,7 +253,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -288,7 +288,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -298,7 +298,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -308,7 +308,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -318,7 +318,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -328,7 +328,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -338,7 +338,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -348,7 +348,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -358,7 +358,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 
@@ -368,7 +368,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, feature);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
 	});
