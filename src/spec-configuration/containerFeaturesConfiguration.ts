@@ -577,7 +577,16 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	// Resolves the absolute path and ensures that the directory exists.
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
-		const resolvedFilePathToFeatureFolder = path.resolve(path.join(workspaceCwd, userFeature.id));
+
+		let resolvedFilePathToFeatureFolder = '';
+		if (path.isAbsolute(userFeature.id)) {
+			resolvedFilePathToFeatureFolder = userFeature.id;
+		} else {
+			// A relative path to a feature directory is 
+			// computed relative to the `--workspace-folder`
+			resolvedFilePathToFeatureFolder = path.join(workspaceCwd, userFeature.id);
+		}
+
 		output.write(`Resolved: ${userFeature.id}  ->  ${resolvedFilePathToFeatureFolder}`, LogLevel.Trace);
 
 		if (!resolvedFilePathToFeatureFolder || !isLocalFolder(resolvedFilePathToFeatureFolder)) {
