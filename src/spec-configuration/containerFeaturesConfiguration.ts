@@ -385,6 +385,9 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
 	const { output } = params;
 
+	const workspaceCwd = params.cwd;
+	output.write(`workspaceCwd: ${workspaceCwd}`, LogLevel.Trace);
+
 	const userFeatures = featuresToArray(config);
 	if (!userFeatures) {
 		return undefined;
@@ -408,7 +411,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, params.env, userFeatures, featuresConfig);
+	featuresConfig = await processUserFeatures(params.output, params.env, workspaceCwd, userFeatures, featuresConfig);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -457,9 +460,9 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
+async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, env, userFeature);
+		const newFeatureSet = await processFeatureIdentifier(output, env, workspaceCwd, userFeature);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -513,7 +516,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
@@ -574,7 +577,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	// Resolves the absolute path and ensures that the directory exists.
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
-		const resolvedFilePathToFeatureFolder = path.resolve(userFeature.id);
+		const resolvedFilePathToFeatureFolder = path.resolve(path.join(workspaceCwd, userFeature.id));
 		output.write(`Resolved: ${userFeature.id}  ->  ${resolvedFilePathToFeatureFolder}`, LogLevel.Trace);
 
 		if (!resolvedFilePathToFeatureFolder || !isLocalFolder(resolvedFilePathToFeatureFolder)) {

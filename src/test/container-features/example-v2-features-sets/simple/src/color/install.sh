@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Activating feature 'featureB'"
+echo "Activating feature 'color'"
 
 echo "The provided favorite color is: $FAVORITE"
 

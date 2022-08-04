@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Activating feature 'featureA'"
+echo "Activating feature 'localFeatureA'"
 
 GREETING=${GREETING:-undefined}
 echo "The provided greeting is: $GREETING"

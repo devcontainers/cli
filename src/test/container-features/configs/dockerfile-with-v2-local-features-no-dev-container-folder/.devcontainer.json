@@ -3,10 +3,10 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
-		"./example-v2-features-sets/simple/src/featureA": {
+		"./local-features/localFeatureA": {
 			"greeting": "buongiorno"
 		},
-		"./example-v2-features-sets/simple/src/featureB": {
+		"./local-features/localFeatureB": {
 			"favorite": "gold"
 		}
 	}

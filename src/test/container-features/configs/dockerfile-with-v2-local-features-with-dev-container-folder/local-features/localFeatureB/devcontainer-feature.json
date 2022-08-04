@@ -1,0 +1,17 @@
+{
+    "id": "localFeatureB",
+    "version": "1.0.0",
+    "name": "A feature to remind you of your favorite color",
+    "options": {
+        "favorite": {
+            "type": "string",
+            "enum": [
+                "red",
+                "gold",
+                "green"
+            ],
+            "default": "red",
+            "description": "Choose your favorite color."
+        }
+    }
+}

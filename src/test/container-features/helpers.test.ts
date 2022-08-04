@@ -38,13 +38,16 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
 
     // // -- Valid 
 
+    const cwd = process.cwd();
+    console.log(`cwd: ${cwd}`);
+
     it('should parse local features and return an undefined tarballUrl', async function () {
         const feature: DevContainerFeature = {
             id: 'helloworld',
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.strictEqual(result?.sourceInformation.type, 'local-cache');
@@ -55,7 +58,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             id: 'octocat/myfeatures/helloworld',
             options: {},
         };
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, {
@@ -74,7 +77,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, {
@@ -94,7 +97,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-features.tgz' });
@@ -106,10 +109,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const cwd = process.cwd();
-        console.log(`cwd: ${cwd}`);
-
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
@@ -122,11 +122,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const cwd = process.cwd();
-        console.log(`cwd: ${cwd}`);
-
-
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
@@ -138,7 +134,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             id: '/some/long/path/to/helloworld',
             options: {},
         };
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
         assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
@@ -153,7 +149,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -163,7 +159,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -173,7 +169,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -183,7 +179,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -193,7 +189,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -203,7 +199,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -213,7 +209,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -223,7 +219,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
 
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 
@@ -233,7 +229,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             options: {},
         };
         
-        const result = await processFeatureIdentifier(output, process.env, feature);
+        const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
 });

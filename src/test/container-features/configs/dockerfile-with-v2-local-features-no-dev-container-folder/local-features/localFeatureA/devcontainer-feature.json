@@ -1,5 +1,5 @@
 {
-    "id": "featureA",
+    "id": "localFeatureA",
     "version": "1.0.0",
     "name": "A hello world feature",
     "options": {
