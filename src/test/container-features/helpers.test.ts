@@ -1,4 +1,5 @@
 import { assert } from 'chai';
+import path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { getSourceInfoString, processFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId } from '../../spec-node/containerFeatures';
@@ -99,30 +100,38 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         assert.deepEqual(result?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-features.tgz' });
     });
 
-    // it('should parse when provided a local-filesystem relative path', async function () {
-    //     const feature: DevContainerFeature = {
-    //         id: './some/long/path/to/helloworld',
-    //         options: {},
-    //     };
+    it('should parse when provided a local-filesystem relative path', async function () {
+        const feature: DevContainerFeature = {
+            id: './some/long/path/to/helloworld',
+            options: {},
+        };
 
-    //     const result = await processFeatureIdentifier(output, process.env, feature);
-    //     assert.exists(result);
-    //     assert.strictEqual(result?.features[0].id, 'helloworld');
-    //     assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
-    // });
+        const cwd = process.cwd();
+        console.log(`cwd: ${cwd}`);
 
-    // it('should parse when provided a local-filesystem relative path, starting with ../', async function () {
-    //     const feature: DevContainerFeature = {
-    //         id: '../some/long/path/to/helloworld',
-    //         options: {},
-    //     };
+        const result = await processFeatureIdentifier(output, process.env, feature);
+        assert.exists(result);
+        assert.strictEqual(result?.features[0].id, 'helloworld');
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
+    });
 
-    //     const result = await processFeatureIdentifier(output, process.env, feature);
+
+    it('should parse when provided a local-filesystem relative path, starting with ../', async function () {
+        const feature: DevContainerFeature = {
+            id: '../some/long/path/to/helloworld',
+            options: {},
+        };
+
+        const cwd = process.cwd();
+        console.log(`cwd: ${cwd}`);
+
+
+        const result = await processFeatureIdentifier(output, process.env, feature);
         
-    //     assert.exists(result);
-    //     assert.strictEqual(result?.features[0].id, 'helloworld');
-    //     assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '../some/long/path/to/helloworld' });
-    // });
+        assert.exists(result);
+        assert.strictEqual(result?.features[0].id, 'helloworld');
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld') });
+    });
 
     it('should parse when provided a local-filesystem absolute path', async function () {
         const feature: DevContainerFeature = {
