@@ -30,10 +30,11 @@ export function shellExec(command: string, options: cp.ExecOptions = {}, suppres
     });
 }
 
-export async function devContainerUp(cli: string, workspaceFolder: string, options?: { useBuildKit?: boolean; userDataFolder?: string }): Promise<UpResult> {
+export async function devContainerUp(cli: string, workspaceFolder: string, options?: { useBuildKit?: boolean; userDataFolder?: string, logLevel?: string }): Promise<UpResult> {
     const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
     const userDataFolderOption = (options?.userDataFolder ?? false) ? ` --user-data-folder=${options?.userDataFolder}` : '';
-    const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}${userDataFolderOption}`);
+    const logLevelOption = (options?.logLevel ?? false) ? ` --log-level ${options?.logLevel}` : '';
+    const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}${userDataFolderOption} ${logLevelOption}`);
     const response = JSON.parse(res.stdout);
     assert.equal(response.outcome, 'success');
     const { outcome, containerId, composeProjectName } = response as UpResult;

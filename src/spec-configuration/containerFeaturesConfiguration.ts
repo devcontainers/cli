@@ -8,12 +8,11 @@ import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
 import { DevContainerConfig, DevContainerFeature } from './configuration';
-import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile, isLocalFolder } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
 import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExists, OCIManifest } from './containerFeaturesOCI';
-
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -469,7 +468,7 @@ async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, userFeat
 	return featuresConfig;
 }
 
-export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: string) {
+export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, userFeatureId: string) {
 	// See the specification for valid feature identifiers:
 	//   > https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 	//
@@ -481,28 +480,28 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, id: 
 	//			 Syntax:   <repoOwner>/<repoName>/<featureId>[@version]
 
 	// DEPRECATED: This is a legacy feature-set ID
-	if (!id.includes('/') && !id.includes('\\')) {
+	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
 		return { type: 'local-cache', manifest: undefined };
 	}
 
 	// Direct tarball reference
-	if (id.startsWith('https://')) {
+	if (userFeatureId.startsWith('https://')) {
 		return { type: 'direct-tarball', manifest: undefined };
 	}
 
 	// Local feature on disk
-	const validPath = path.parse(id);
-	if (id.startsWith('./') || id.startsWith('../') || (validPath && path.isAbsolute(id))) {
+	// !! NOTE: The ability for paths outside the project file tree will soon be removed.
+	if (userFeatureId.startsWith('./') || userFeatureId.startsWith('../') || userFeatureId.startsWith('/')) {
 		return { type: 'file-path', manifest: undefined };
 	}
 
 	// version identifier for a github release feature.
 	// DEPRECATED: This is a legacy feature-set ID
-	if (id.includes('@')) {
+	if (userFeatureId.includes('@')) {
 		return { type: 'github-repo', manifest: undefined };
 	}
 
-	const manifest = await fetchOCIFeatureManifestIfExists(output, env, id);
+	const manifest = await fetchOCIFeatureManifestIfExists(output, env, userFeatureId);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	} else {
@@ -569,17 +568,26 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		return newFeaturesSet;
 	}
 
-	// If its a valid path
+	// If it matches the path syntax, it is a 'local' feature pointing to source code.
+	// NOTE: Only confirms the path is exists.
+	//		 Does not ensure the proper files are present.
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
-		const userFeaturePath = path.parse(userFeature.id);
-		//if (userFeaturePath && ((path.isAbsolute(userFeature.id) && existsSync(userFeature.id)) || !path.isAbsolute(userFeature.id))) {
-		const filePath = userFeature.id;
-		const id = userFeaturePath.name;
+		const pathToFeatureFolder = path.normalize(userFeature.id);
+		output.write('Normalized path ' + pathToFeatureFolder, LogLevel.Trace);
+
+		if (!pathToFeatureFolder || !isLocalFolder(pathToFeatureFolder)) {
+			output.write(`Local file path parse error. Resolved: ${pathToFeatureFolder}`, LogLevel.Error);
+			return undefined;
+		}
+
+		const id = path.basename(pathToFeatureFolder);
+		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
+
 		const isRelative = !path.isAbsolute(userFeature.id);
 
 		let feat: Feature = {
-			id: id,
+			id,
 			name: userFeature.id,
 			value: userFeature.options,
 			included: true,
@@ -588,7 +596,7 @@ export async function parseFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'file-path',
-				filePath,
+				filePath: pathToFeatureFolder,
 				isRelative: isRelative
 			},
 			features: [feat],
@@ -853,6 +861,7 @@ async function parseDevContainerFeature(output: Log, featureSet: FeatureSet, fea
 
 	if (!(await isLocalFile(innerJsonPath))) {
 		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Warning);
+		output.write(`For v2, expected devcontainer-feature.json at ${innerJsonPath}`, LogLevel.Trace);
 		return await parseDevContainerFeature_v1Impl(output, featureSet, feature, featCachePath);
 	}
 
