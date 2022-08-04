@@ -150,7 +150,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assertFeatureIdInvariant(featureId);
 
 			assert.exists(featureSet);
-			assert.strictEqual(featureSet?.features[0].id, 'helloworld');
+			assert.strictEqual(featureSet?.features[0].id, 'ruby');
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/ruby.tgz' });
 		});
 
@@ -216,7 +216,40 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process oci registry (without tag)', async function () {
 			const feature: DevContainerFeature = {
-				id: 'ghcr.io/devcontainers/features/ruby',
+				id: 'ghcr.io/codspace/features/ruby',
+				options: {},
+			};
+
+			const featureSet = await processFeatureIdentifier(output, process.env, feature);
+			if (!featureSet) {
+				assert.fail('processFeatureIdentifier returned null');
+			}
+			const featureId = featureSet.features[0].id;
+			assertFeatureIdInvariant(featureId);
+			assert.strictEqual(featureSet?.features[0].id, 'ruby');
+
+			assert.exists(featureSet);
+
+			const expectedFeatureRef: OCIFeatureRef = {
+				id: 'ruby',
+				owner: 'devcontainers',
+				namespace: 'codspace/features',
+				registry: 'ghcr.io',
+				version: 'latest',
+				resource: 'ghcr.io/codspace/features'
+			};
+
+			if (featureSet.sourceInformation.type === 'oci') {
+				assert.ok(featureSet.sourceInformation.type === 'oci');
+				assert.deepEqual(featureSet.sourceInformation.featureRef, expectedFeatureRef);
+			} else {
+				assert.fail('sourceInformation.type is not oci');
+			}
+		});
+
+		it('should process oci registry (with a tag)', async function () {
+			const feature: DevContainerFeature = {
+				id: 'ghcr.io/devcontainers/features/ruby:1.0.10',
 				options: {},
 			};
 
