@@ -49,5 +49,7 @@ jobs:
           run: yarn
         - name: Compile
           run: yarn compile
+        - name: Package
+          run: yarn package       
         - name: Run Offline Tests
-          run: yarn test-container-features-offline --forbid-only
+          run: yarn test-container-features --forbid-only
