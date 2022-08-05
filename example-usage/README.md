@@ -19,7 +19,7 @@ Each should run on macOS or Linux. For Windows, you can use these scripts from W
 
 ## Using the examples
 
-All examples use the contents of the `workspace` folder for their configuration if you want to make any modifications. The example scripts are then in different sub-folders. 
+All examples use the contents of the `workspace` folder for their configuration, which is where you can modifications if you'd like. The example scripts are then in different sub-folders. 
 
 ### Tool examples
 
