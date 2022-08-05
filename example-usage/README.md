@@ -14,7 +14,7 @@ Each should run on macOS or Linux. For Windows, you can use these scripts from W
 2. Install [node-gyp pre-requisites](https://github.com/nodejs/node-gyp):
    - **Linux:** Use your distro's package manager. E.g. on Ubuntu/Debian: `sudo apt-get update && sudo apt-get install python3-minimal gcc g++ make`
    - **macOS:** Install the XCode Command Line Tools ([more info](https://github.com/nodejs/node-gyp/blob/main/README.md#on-macos))
-3. Make sure you have an OpenSSH compliant `ssh` command available and in your path if you plan to use the `Vim via SSH` example. (It should already be there on macOS, and in Linux/WSL, you can install `openssh-client` using your distro's package manager if its missing.)
+3. Make sure you have an OpenSSH compliant `ssh` command available and in your path if you plan to use the `Vim via SSH` example (it should already be there on macOS, and in Linux/WSL, you can install `openssh-client` using your distro's package manager if its missing)
 3. Install the latest dev container CLI: `npm install -g @devcontainers/cli`
 
 ## Using the examples
