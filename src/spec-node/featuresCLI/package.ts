@@ -13,8 +13,8 @@ const targetPositionalDescription = `
 Package features at provided [target] (default is cwd), where [target] is either:
    1. A collection folder containing a './src' folder with [1..n] features.
    2. A single feature that contains a devcontainer-feature.json.
-
-	Additionally, a 'devcontainer-collection.json' will be generated in the output directory.
+   
+   Additionally, a 'devcontainer-collection.json' will be generated in the output directory.
 `;
 
 export function featuresPackageOptions(y: Argv) {

@@ -32,11 +32,11 @@ describe('CLI features subcommands', async function () {
 		assert.isTrue(success);
 	});
 
-	it('features package subcommand (--collection-folder)', async function () {
+	it('features package subcommand (collection)', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features package -c ${collectionFolder} -o ${tmp}/output --force-clean-output-dir --log-level trace`);
+			await shellExec(`${cli} features package -o ${tmp}/output -f --log-level trace  ${collectionFolder} `);
 			success = true;
 		} catch (error) {
 			assert.fail('features package sub-command should not throw');
@@ -44,6 +44,13 @@ describe('CLI features subcommands', async function () {
 		assert.isTrue(success);
 
 		const colorTgzExists = await isLocalFile(`${tmp}/output/devcontainer-feature-color.tgz`);
+		assert.isTrue(colorTgzExists);
+
 		const helloTgzExists = await isLocalFile(`${tmp}/output/devcontainer-feature-hello.tgz`);
+		assert.isTrue(helloTgzExists);
+
+		const collectionFileExists = await isLocalFile(`${tmp}/output/devcontainer-collection.json`);
+		assert.isTrue(collectionFileExists);
+
 	});
 });

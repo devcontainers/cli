@@ -51,7 +51,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler);
-		y.command('package', 'Package features', featuresPackageOptions, featuresPackageHandler);
+		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.parse(restArgs ? argv.slice(1) : argv);
