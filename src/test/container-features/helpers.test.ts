@@ -144,7 +144,7 @@ describe('validate processFeatureIdentifier', async function () {
 		//TODO this won't work!
 		it('should process direct-tarball (v2 with direct tar download)', async function () {
 			const feature: DevContainerFeature = {
-				id: 'https://example.com/some/long/path/ruby.tgz',
+				id: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
 				options: {},
 			};
 
@@ -157,7 +157,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'ruby');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/ruby.tgz' });
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
 		});
 
 		it('should process file-path (relative path with ./)', async function () {
