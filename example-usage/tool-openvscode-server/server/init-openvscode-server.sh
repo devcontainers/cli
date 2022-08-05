@@ -9,7 +9,7 @@ if [ ! -e "$HOME/.openvscodeserver" ]; then
     rm -f /tmp/openvscode-server.tar.gz
 fi
 if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
-    $HOME/.openvscodeserver/bin/openvscode-server serve-local --without-connection-token --host 0.0.0.0 --port 3000
+    $HOME/.openvscodeserver/bin/openvscode-server serve-local --without-connection-token --host 0.0.0.0 --port 8000
 else
     echo "\ncode-server is already running.\n\nConnect using: http://localhost:8000\n"
 fi
