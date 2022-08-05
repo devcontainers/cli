@@ -23,7 +23,7 @@ All examples use the contents of the `workspace` folder for their configuration,
 
 ### Tool examples
 
-You can use the example by opening a terminal and typing one of the following:
+You can use these examples by opening a terminal and typing one of the following:
 
 -  `tool-vscode-server/start.sh` - [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) (official)
 - `tool-openvscode-server/start.sh` - [openvscode-server](https://github.com/gitpod-io/openvscode-server)
