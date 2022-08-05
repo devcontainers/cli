@@ -37,7 +37,7 @@ This also adds a desktop to the container that can be accessed from a web browse
 
 #### How the tool examples work
 
-This example demonstrates the use of the dev container CLI to:
+These examples demonstrate the use of the dev container CLI to:
 
 1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
 
