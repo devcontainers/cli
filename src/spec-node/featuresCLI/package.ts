@@ -3,24 +3,29 @@ import { Argv } from 'yargs';
 import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
-import { isLocalFolder, mkdirpLocal, rmLocal } from '../../spec-utils/pfs';
+import { isLocalFile, isLocalFolder, mkdirpLocal, rmLocal } from '../../spec-utils/pfs';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { getPackageConfig } from '../utils';
 import { doFeaturesPackageCommand } from './packageCommandImpl';
 
+const targetPositionalDescription = `
+Package features at provided [target] (default is cwd), where [target] is either:
+   1. A collection folder containing a './src' folder with [1..n] features.
+   2. A single feature that contains a devcontainer-feature.json.
+
+	Additionally, a 'devcontainer-collection.json' will be generated in the output directory.
+`;
+
 export function featuresPackageOptions(y: Argv) {
 	return y
 		.options({
-			'feature-collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing source code for collection of features' },
-			'output-dir': { type: 'string', alias: 'o', default: './output', description: 'Path to output directory. Will create directories as needed.' },
-			'force-clean-output-dir': { type: 'boolean', alias: 'f', default: false, description: 'Automatically delete previous output directory before packaging' },
+			'output-folder': { type: 'string', alias: 'o', default: './output', description: 'Path to output directory. Will create directories as needed.' },
+			'force-clean-output-folder': { type: 'boolean', alias: 'f', default: false, description: 'Automatically delete previous output directory before packaging' },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		})
-		.check(argv => {
-			if (argv['scenarios'] && argv['features']) {
-				throw new Error('Cannot combine --scenarios and --features');
-			}
+		.positional('target', { type: 'string', default: '.', description: targetPositionalDescription })
+		.check(_argv => {
 			return true;
 		});
 }
@@ -28,10 +33,11 @@ export function featuresPackageOptions(y: Argv) {
 export type FeaturesPackageArgs = UnpackArgv<ReturnType<typeof featuresPackageOptions>>;
 export interface FeaturesPackageCommandInput {
 	cliHost: CLIHost;
-	srcFolder: string;
+	targetFolder: string;
 	outputDir: string;
 	output: Log;
 	disposables: (() => Promise<unknown> | undefined)[];
+	isCollection: boolean; // Packaging a collection of many features. Should autodetect.
 }
 
 export function featuresPackageHandler(args: FeaturesPackageArgs) {
@@ -39,10 +45,10 @@ export function featuresPackageHandler(args: FeaturesPackageArgs) {
 }
 
 async function featuresPackage({
-	'feature-collection-folder': featureCollectionFolder,
+	'target': targetFolder,
 	'log-level': inputLogLevel,
-	'output-dir': outputDir,
-	'force-clean-output-dir': forceCleanOutputDir,
+	'output-folder': outputDir,
+	'force-clean-output-folder': forceCleanOutputDir,
 }: FeaturesPackageArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -61,11 +67,9 @@ async function featuresPackage({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-	output.write('Packaging features...', LogLevel.Info);
-
-	const featuresDirResolved = cliHost.path.resolve(featureCollectionFolder);
-	if (!(await isLocalFolder(featuresDirResolved))) {
-		throw new Error(`Features folder '${featuresDirResolved}' does not exist`);
+	const targetFolderResolved = cliHost.path.resolve(targetFolder);
+	if (!(await isLocalFolder(targetFolderResolved))) {
+		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
 	}
 
 	const outputDirResolved = cliHost.path.resolve(outputDir);
@@ -80,15 +84,32 @@ async function featuresPackage({
 		}
 	}
 
+	// Detect if we're packaging a collection or a single feature
+	const isCollection = await isLocalFolder(cliHost.path.join(targetFolderResolved, 'src'));
+	const isSingleFeature = await isLocalFile(cliHost.path.join(targetFolderResolved, 'devcontainer-feature.json'));
+
+	if (isCollection && isSingleFeature) {
+		throw new Error(`Expected file structure for target folder '${targetFolderResolved}'.`);
+	}
+
+	if (isCollection) {
+		output.write('Packaging feature collection...', LogLevel.Info);
+	} else if (isSingleFeature) {
+		output.write('Packaging feature...', LogLevel.Info);
+	} else {
+		throw new Error(`Expected file structure for target folder '${targetFolderResolved}'.`);
+	}
+
 	// Generate output folder.
 	await mkdirpLocal(outputDirResolved);
 
 	const args: FeaturesPackageCommandInput = {
 		cliHost,
-		srcFolder: featuresDirResolved,
+		targetFolder: targetFolderResolved,
 		outputDir: outputDirResolved,
 		output,
-		disposables
+		disposables,
+		isCollection,
 	};
 
 	const exitCode = await doFeaturesPackageCommand(args);

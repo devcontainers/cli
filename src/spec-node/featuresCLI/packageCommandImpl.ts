@@ -19,11 +19,18 @@ export interface DevContainerCollectionMetadata {
 }
 
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
-	const { output } = args;
+	const { output, isCollection } = args;
 
 	// For each feature, package each feature and write to 'outputDir/{f}.tgz'
 	// Returns an array of feature metadata from each processed feature
-	const metadataOutput = await getFeaturesAndPackage(args);
+
+	let metadataOutput: Feature[] | undefined = [];
+	if (isCollection) {
+		metadataOutput = await packageCollection(args);
+	} else {
+		// Package individual features
+		throw new Error('TODO!');
+	}
 
 	if (!metadataOutput) {
 		output.write('Failed to package features', LogLevel.Error);
@@ -48,15 +55,17 @@ async function tarDirectory(featureFolder: string, archiveName: string, outputDi
 	return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: featureFolder }, ['.'])));
 }
 
-export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
-	const { output, srcFolder: featuresFolder, outputDir } = args;
-	const featureDirs = await readLocalDir(featuresFolder);
+export async function packageCollection(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
+	const { output, targetFolder, outputDir } = args;
+
+	const srcFolder = path.join(targetFolder, 'src');
+	const featuresDirs = await readLocalDir(srcFolder);
 	let metadatas: Feature[] = [];
 
-	for await (const f of featureDirs) {
+	for await (const f of featuresDirs) {
 		output.write(`Processing feature: ${f}...`, LogLevel.Info);
 		if (!f.startsWith('.')) {
-			const featureFolder = path.join(featuresFolder, f);
+			const featureFolder = path.join(srcFolder, f);
 			const archiveName = `devcontainer-feature-${f}.tgz`;
 
 			// Validate minimal feature folder structure
@@ -82,6 +91,6 @@ export async function getFeaturesAndPackage(args: FeaturesPackageCommandInput): 
 		return;
 	}
 
-	output.write(`Packaged ${metadatas.length.toString()} features!`, LogLevel.Info);
+	output.write(`Packaged ${metadatas.length} features!`, LogLevel.Info);
 	return metadatas;
 }

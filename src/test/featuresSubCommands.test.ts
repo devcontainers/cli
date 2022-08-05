@@ -43,7 +43,7 @@ describe('features package command', () => {
 
         const args: FeaturesPackageCommandInput = {
             cliHost,
-            srcFolder,
+            targetFolder: srcFolder,
             outputDir,
             output,
             disposables,

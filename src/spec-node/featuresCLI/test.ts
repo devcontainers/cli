@@ -61,7 +61,7 @@ async function featuresTest({
 
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const extensionPath = path.join(__dirname, '..', '..');
+	const extensionPath = path.join(__dirname, '..', '..', '..');
 	const pkg = await getPackageConfig(extensionPath);
 
 	const logLevel = mapLogLevel(inputLogLevel);
