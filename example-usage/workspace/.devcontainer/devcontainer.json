@@ -6,12 +6,17 @@
 
 	// 👇 Dev Container Features - https://containers.dev/implementors/features/
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker": "latest",
-		"ghcr.io/devcontainers/features/desktop-lite": { },
-		"ghcr.io/devcontainers/features/go": "1.18.4",
-		"ghcr.io/devcontainers/features/node": "16.15.1",
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "1.18.4"
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "16.15.1",
+			"nodeGypDependencies": false
+		},
+		"ghcr.io/devcontainers/features/desktop-lite:1": { },
+		"ghcr.io/devcontainers/features/docker-in-docker:1": { },
 		// Optional - For tools that require SSH
-		"ghcr.io/devcontainers/features/sshd": { }
+		"ghcr.io/devcontainers/features/sshd:1": { }
 	},
 
 	// We are using appPort since forwardPorts not yet supported directly 

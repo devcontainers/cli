@@ -106,7 +106,7 @@ The [example-usage](./example-usage) folder contains some simple shell scripts t
 
 - Inject tools for use inside a development container
 - Use a dev container as your CI build environment to build an application (even if it is not deployed as a container)
-- Build a container image from a devcontainer.json file that includes [dev container features](https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md)
+- Build a container image from a devcontainer.json file that includes [dev container features](https://containers.dev/implementors/features/#devcontainer-json-properties)
 
 ## Build from sources
 

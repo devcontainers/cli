@@ -4,7 +4,7 @@ This folder contains a set of basic examples that use the devcontainer CLI for d
 
 1. [Use three different tools from a development container](#tool-examples)
 2. [Use a dev container as your CI build environment](#ci-build-environment-example) (even if your app is not deployed as a container)
-3. [Build a container image](#building-an-image-from-devcontainerjson) from a devcontainer.json file that includes [dev container features](https://containers.dev/implementors/features/)
+3. [Build a container image](#building-an-image-from-devcontainerjson) from a devcontainer.json file that includes [dev container features](https://containers.dev/implementors/features/#devcontainer-json-properties)
 
 Each should run on macOS or Linux. For Windows, you can use these scripts from WSL2.
 
@@ -39,7 +39,7 @@ This also adds a desktop to the container that can be accessed from a web browse
 
 These examples demonstrate the use of the dev container CLI to:
 
-1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
+1. Simplify setup using the "[dev container features](https://containers.dev/implementors/features/#devcontainer-json-properties)" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
 
 2. How the dev container CLI can be used to inject tools without building them into the base image:
 
@@ -65,7 +65,7 @@ The initial build can take a bit since it is building the dev container image, w
 
 This example demonstrates the use of the dev container CLI to:
 
-1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
+1. Simplify setup using the "[dev container features](https://containers.dev/implementors/features/#devcontainer-json-properties)" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
 
 2. Execute an application build script inside a dev container as follows:
 
