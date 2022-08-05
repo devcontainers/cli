@@ -100,6 +100,14 @@ Hello, VS Code Remote - Containers!
 
 Congrats, you've just run the dev container CLI and seen it in action!
 
+## More CLI examples
+
+The [example-usage](./example-usage) folder contains some simple shell scripts to illustrate how the CLI can be used to:
+
+- Inject tools for use inside a development container
+- Use a dev container as your CI build environment to build an application (even if it is not deployed as a container)
+- Build a container image rom a devcontainer.json file that includes [dev container features](https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md).
+
 ## Build from sources
 
 This repository has a [dev container configuration](https://github.com/devcontainers/cli/tree/main/.devcontainer), which you can use to ensure you have the right dependencies installed.
