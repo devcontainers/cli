@@ -25,7 +25,7 @@ All examples use the contents of the `workspace` folder for their configuration,
 
 You can use these examples by opening a terminal and typing one of the following:
 
--  `tool-vscode-server/start.sh` - [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) (official)
+- `tool-vscode-server/start.sh` - [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) (official)
 - `tool-openvscode-server/start.sh` - [openvscode-server](https://github.com/gitpod-io/openvscode-server)
 - `tool-vim-via-ssh/start.sh` - Vim via a SSH connection. SSH is used primarily to demonstrate how this could be achieved from other SSH supporting client tools.
 
