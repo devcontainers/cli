@@ -73,7 +73,7 @@ This example demonstrates the use of the dev container CLI to:
     2. Use `devcontainer exec` to run a build script from the mounted folder inside the development container.
     3. Delete the container when the build is finished.
 
-All environment variables are automatically available from "exec", including those that are are set in the non-root user's ".bashrc" file. The devcontainer CLI also automatically adjusts to UID/GID differences for the user inside the container on Linux to ensure the workspace folder is writable.
+All environment variables are automatically available from `exec`, including those that are are set in the non-root user's `.bashrc` file. The dev container CLI also automatically adjusts to UID/GID differences for the user inside the container on Linux to ensure the workspace folder is writable.
 
 ### Building an image from devcontainer.json
 
