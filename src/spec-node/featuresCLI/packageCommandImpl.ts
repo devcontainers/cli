@@ -29,7 +29,7 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 		metadataOutput = await packageCollection(args);
 	} else {
 		// Package individual features
-		throw new Error('TODO!');
+		metadataOutput = await packageSingleFeature(args);
 	}
 
 	if (!metadataOutput) {
@@ -55,6 +55,28 @@ async function tarDirectory(featureFolder: string, archiveName: string, outputDi
 	return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: featureFolder }, ['.'])));
 }
 
+const getArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
+
+export async function packageSingleFeature(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
+	const { output, targetFolder, outputDir } = args;
+	let metadatas: Feature[] = [];
+
+	const featureJsonPath = path.join(targetFolder, 'devcontainer-feature.json');
+	const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
+	if (!featureMetadata.id || !featureMetadata.version) {
+		output.write(`Feature is missing an id or version in its devcontainer-feature.json`, LogLevel.Error);
+		return;
+	}
+	const archiveName = getArchiveName(featureMetadata.id);
+
+	await tarDirectory(targetFolder, archiveName, outputDir);
+	output.write(`Packaged feature '${featureMetadata.id}'`, LogLevel.Info);
+
+	metadatas.push(featureMetadata);
+	return metadatas;
+}
+
+
 export async function packageCollection(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
 	const { output, targetFolder, outputDir } = args;
 
@@ -66,7 +88,7 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 		output.write(`Processing feature: ${f}...`, LogLevel.Info);
 		if (!f.startsWith('.')) {
 			const featureFolder = path.join(srcFolder, f);
-			const archiveName = `devcontainer-feature-${f}.tgz`;
+			const archiveName = getArchiveName(f);
 
 			// Validate minimal feature folder structure
 			const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
@@ -83,6 +105,10 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 			await tarDirectory(featureFolder, archiveName, outputDir);
 
 			const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
+			if (!featureMetadata.id || !featureMetadata.version) {
+				output.write(`Feature '${f}' is missing an id or verion in its devcontainer-feature.json`, LogLevel.Error);
+				return;
+			}
 			metadatas.push(featureMetadata);
 		}
 	}

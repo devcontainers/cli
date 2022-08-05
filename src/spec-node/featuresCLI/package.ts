@@ -89,15 +89,15 @@ async function featuresPackage({
 	const isSingleFeature = await isLocalFile(cliHost.path.join(targetFolderResolved, 'devcontainer-feature.json'));
 
 	if (isCollection && isSingleFeature) {
-		throw new Error(`Expected file structure for target folder '${targetFolderResolved}'.`);
+		throw new Error(`Unexpected file structure for target folder '${targetFolderResolved}'.`);
 	}
 
 	if (isCollection) {
 		output.write('Packaging feature collection...', LogLevel.Info);
 	} else if (isSingleFeature) {
-		output.write('Packaging feature...', LogLevel.Info);
+		output.write('Packaging single feature...', LogLevel.Info);
 	} else {
-		throw new Error(`Expected file structure for target folder '${targetFolderResolved}'.`);
+		throw new Error(`Unexpected file structure for target folder '${targetFolderResolved}'.`);
 	}
 
 	// Generate output folder.

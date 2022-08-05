@@ -36,21 +36,38 @@ describe('CLI features subcommands', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features package -o ${tmp}/output -f --log-level trace  ${collectionFolder} `);
+			await shellExec(`${cli} features package -o ${tmp}/output/test01 -f --log-level trace  ${collectionFolder} `);
 			success = true;
 		} catch (error) {
 			assert.fail('features package sub-command should not throw');
 		}
 		assert.isTrue(success);
 
-		const colorTgzExists = await isLocalFile(`${tmp}/output/devcontainer-feature-color.tgz`);
+		const colorTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-feature-color.tgz`);
 		assert.isTrue(colorTgzExists);
 
-		const helloTgzExists = await isLocalFile(`${tmp}/output/devcontainer-feature-hello.tgz`);
+		const helloTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-feature-hello.tgz`);
 		assert.isTrue(helloTgzExists);
 
-		const collectionFileExists = await isLocalFile(`${tmp}/output/devcontainer-collection.json`);
+		const collectionFileExists = await isLocalFile(`${tmp}/output/test01/devcontainer-collection.json`);
 		assert.isTrue(collectionFileExists);
+	});
 
+	it('features package subcommand (single feature)', async function () {
+		const singleFeatureFolder = `${__dirname}/example-v2-features-sets/simple/src/color`;
+		let success = false;
+		try {
+			await shellExec(`${cli} features package -o ${tmp}/output/test02 -f --log-level trace  ${singleFeatureFolder} `);
+			success = true;
+		} catch (error) {
+			assert.fail('features package sub-command should not throw');
+		}
+		assert.isTrue(success);
+
+		const colorTgzExists = await isLocalFile(`${tmp}/output/test02/devcontainer-feature-color.tgz`);
+		assert.isTrue(colorTgzExists);
+
+		const collectionFileExists = await isLocalFile(`${tmp}/output/test02/devcontainer-collection.json`);
+		assert.isTrue(collectionFileExists);
 	});
 });

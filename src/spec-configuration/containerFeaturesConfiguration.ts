@@ -23,6 +23,7 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
 export interface Feature {
 	id: string;
+	version?: string;
 	name: string;
 	description?: string;
 	cachePath?: string;
