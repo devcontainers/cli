@@ -10,11 +10,11 @@ describe('Test OCI Pull', () => {
         const feat = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1');
         output.write(`feat: ${JSON.stringify(feat)}`);
 
-        assert.equal(feat.id, 'ghcr.io/codspace/features/ruby');
-        assert.equal(feat.featureName, 'ruby');
-        assert.equal(feat.owner, 'codspace');
+        assert.equal(feat.id, 'ruby');
         assert.equal(feat.namespace, 'codspace/features');
+        assert.equal(feat.owner, 'codspace');
         assert.equal(feat.registry, 'ghcr.io');
+        assert.equal(feat.resource, 'ghcr.io/codspace/features/ruby');
         assert.equal(feat.version, '1');
     });
 

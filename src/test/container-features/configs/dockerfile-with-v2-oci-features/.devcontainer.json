@@ -1,0 +1,12 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"VARIANT": "16-bullseye"
+		}
+	},
+	"features": {
+		"github-cli": "latest",
+		"ghcr.io/codspace/features/docker-in-docker:1": {}
+	}
+}
