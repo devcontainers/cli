@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import { isLocalFile } from '../../spec-utils/pfs';
+import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { shellExec } from '../testUtils';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -45,11 +45,19 @@ describe('CLI features subcommands', async function () {
 
 		const colorTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-feature-color.tgz`);
 		assert.isTrue(colorTgzExists);
+		const tgzArchiveContentsColor = await shellExec(`tar -tvf ${tmp}/output/test01/devcontainer-feature-color.tgz`);
+		assert.match(tgzArchiveContentsColor.stdout, /devcontainer-feature.json/);
+		assert.match(tgzArchiveContentsColor.stdout, /install.sh/);
 
 		const helloTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-feature-hello.tgz`);
 		assert.isTrue(helloTgzExists);
+		const tgzArchiveContentsHello = await shellExec(`tar -tvf ${tmp}/output/test01/devcontainer-feature-hello.tgz`);
+		assert.match(tgzArchiveContentsHello.stdout, /devcontainer-feature.json/);
+		assert.match(tgzArchiveContentsHello.stdout, /install.sh/);
 
 		const collectionFileExists = await isLocalFile(`${tmp}/output/test01/devcontainer-collection.json`);
+		const json = JSON.parse((await readLocalFile(`${tmp}/output/test01/devcontainer-collection.json`)).toString());
+		assert.strictEqual(json.features.length, 2);
 		assert.isTrue(collectionFileExists);
 	});
 
@@ -66,8 +74,14 @@ describe('CLI features subcommands', async function () {
 
 		const colorTgzExists = await isLocalFile(`${tmp}/output/test02/devcontainer-feature-color.tgz`);
 		assert.isTrue(colorTgzExists);
+		const tgzArchiveContentsColor = await shellExec(`tar -tvf ${tmp}/output/test02/devcontainer-feature-color.tgz`);
+		assert.match(tgzArchiveContentsColor.stdout, /devcontainer-feature.json/);
+		assert.match(tgzArchiveContentsColor.stdout, /install.sh/);
 
 		const collectionFileExists = await isLocalFile(`${tmp}/output/test02/devcontainer-collection.json`);
+		assert.isTrue(collectionFileExists);
+		const json = JSON.parse((await readLocalFile(`${tmp}/output/test02/devcontainer-collection.json`)).toString());
+		assert.strictEqual(json.features.length, 1);
 		assert.isTrue(collectionFileExists);
 	});
 });

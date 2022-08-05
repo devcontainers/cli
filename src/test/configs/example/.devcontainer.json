@@ -4,7 +4,7 @@
 	"image": "mcr.microsoft.com/devcontainers/base:latest",
 	"features": {
 		"go": {
-			"verson": "latest"
+			"version": "latest"
 		}
 	}
 }

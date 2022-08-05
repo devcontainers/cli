@@ -8,5 +8,3 @@ tmp[0-9]
 .DS_Store
 .env
 output
-src/test/featuresCLICommands/example-source-repo/output/**
-
