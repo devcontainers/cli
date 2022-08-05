@@ -27,7 +27,7 @@ You can use these examples by opening a terminal and typing one of the following
 
 - `tool-vscode-server/start.sh` - [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) (official)
 - `tool-openvscode-server/start.sh` - [openvscode-server](https://github.com/gitpod-io/openvscode-server)
-- `tool-vim-via-ssh/start.sh` - Vim via a SSH connection. SSH is used primarily to demonstrate how this could be achieved from other SSH supporting client tools.
+- `tool-vim-via-ssh/start.sh` - Vim via an SSH connection. SSH is used primarily to demonstrate how this could be achieved from other SSH supporting client tools.
 
 When switching between examples, pass `true` in as an argument to get the container recreated to avoid port conflicts. e.g., `./start.sh true`
 
