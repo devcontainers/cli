@@ -3,8 +3,8 @@
 This repository provides a basic examples of using the devcontainer CLI for different use cases. It includes example scripts to:
 
 1. [Use three different tools from a development container](#tool-examples)
-2. [Use a dev container as your CI build environment to build an application](#ci-build-environment-example) (even if it is not deployed as a container)
-3. [Build a container image rom a devcontainer.json file](#building-an-image-from-devcontainerjson) that includes [dev container features](https://containers.dev/implementors/features/)
+2. [Use a dev container as your CI build environment](#ci-build-environment-example) (even if your app is not deployed as a container)
+3. [Build a container image](#building-an-image-from-devcontainerjson) from a devcontainer.json file that includes [dev container features](https://containers.dev/implementors/features/)
 
 Each should run on macOS or Linux (including WSL2 on Windows).
 
@@ -39,7 +39,7 @@ This also adds a desktop to the container that can be accessed from a web browse
 
 This example demonstrates the use of the dev container CLI to:
 
-1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See ``workspace/.devcontainer/devcontainer.jsonn` for more information.
+1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
 
 2. How the dev container CLI can be used to inject tools without building them into the base image as follows:
 
