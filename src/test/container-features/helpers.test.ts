@@ -294,6 +294,12 @@ describe('validate function getBackwardCompatibleFeatureId', () => {
         let mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
+
+        id = 'common';
+        expectedId = 'ghcr.io/devcontainers/features/common-utils:1';
+        mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
     });
 
     it('should keep the deprecated (old shorthand syntax) features id intact', () => {

@@ -515,11 +515,13 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 }
 
 export function getBackwardCompatibleFeatureId(id: string) {
-	const migratedfeatures = ['aws-cli', 'azure-cli', 'common', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
+	const migratedfeatures = ['aws-cli', 'azure-cli', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
 	const renamedFeatures = new Map();
 	renamedFeatures.set('golang', 'go');
+	renamedFeatures.set('common', 'common-utils');
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
+	// Note: Pin the versionBackwardComp to '1' to avoid breaking changes.
 	const versionBackwardComp = '1';
 
 	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
