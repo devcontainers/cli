@@ -1,12 +1,12 @@
 # Dev Container CLI Examples
 
-This repository provides a basic examples of using the devcontainer CLI for different use cases. It includes example scripts to:
+This folder contains a set of basic examples that use the devcontainer CLI for different use cases. It includes example scripts to:
 
 1. [Use three different tools from a development container](#tool-examples)
 2. [Use a dev container as your CI build environment](#ci-build-environment-example) (even if your app is not deployed as a container)
 3. [Build a container image](#building-an-image-from-devcontainerjson) from a devcontainer.json file that includes [dev container features](https://containers.dev/implementors/features/)
 
-Each should run on macOS or Linux (including WSL2 on Windows).
+Each should run on macOS or Linux. For Windows, you can use these scripts from WSL2.
 
 ## Pre-requisites
 
