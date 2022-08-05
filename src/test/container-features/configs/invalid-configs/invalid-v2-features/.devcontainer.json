@@ -1,0 +1,6 @@
+{
+    "image": "ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/myfakefeature:1": "latest"
+    }
+}

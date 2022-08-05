@@ -10,7 +10,7 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, inspectDockerImage } from './utils';
@@ -143,7 +143,7 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 	await cliHost.mkdirp(`${dstFolder}/${localCacheBuildFolderName}`);
 	const create = tar.c({
 		cwd: srcFolder,
-		filter: path => (path !== './Dockerfile' && path !== './devcontainer-features.json'),
+		filter: path => (path !== './Dockerfile' && path !== `./${V1_DEVCONTAINER_FEATURES_FILE_NAME}`),
 	}, ['.']);
 	const createExit = new Promise((resolve, reject) => {
 		create.on('error', reject);

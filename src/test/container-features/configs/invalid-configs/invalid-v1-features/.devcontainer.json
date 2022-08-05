@@ -1,0 +1,6 @@
+{
+    "image": "ubuntu",
+    "features": {
+        "devcontainers/features/myfakefeature": "latest"
+    }
+}

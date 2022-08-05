@@ -1,0 +1,13 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"./local-features/localFeatureA": {
+			"greeting": "buongiorno"
+		},
+		"./local-features/localFeatureB": {
+			"favorite": "gold"
+		}
+	}
+}

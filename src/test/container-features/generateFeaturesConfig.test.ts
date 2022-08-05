@@ -18,7 +18,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {
-        return './src/test/container-features/example-features-sets/simple';
+        return './src/test/container-features/example-v1-features-sets/simple';
     };
 
     it('should correctly return a featuresConfig with just local features', async function () {
