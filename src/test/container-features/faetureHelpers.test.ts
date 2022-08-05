@@ -53,6 +53,7 @@ describe('validate processFeatureIdentifier', async function () {
 	console.log(`cwd: ${cwd}`);
 
 	describe('VALID processFeatureIdentifier examples', async function () {
+
 		it('should process local-cache', async function () {
 			// Parsed out of a user's devcontainer.json
 			let userFeature: DevContainerFeature = {
@@ -126,22 +127,6 @@ describe('validate processFeatureIdentifier', async function () {
 			});
 		});
 
-		// TODO: This hasn't been advertised and should probably just be deprecated.
-		// it('should process direct-tarball (v1 with feature after hash)', async function () {
-		//     const feature: DevContainerFeature = {
-		//         id: 'https://example.com/some/long/path/devcontainer-features.tgz#helloworld',
-		//         options: {},
-		//     };
-
-		//     const result = await processFeatureIdentifier(output, process.env, feature);
-		//     const featureId = featureSet.features[0].id;
-		//     assertFeatureIdInvariant(featureId);
-		//     assert.exists(result);
-		//     assert.strictEqual(result?.features[0].id, 'helloworld');
-		//     assert.deepEqual(result?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-features.tgz' });
-		// });
-
-		//TODO this won't work!
 		it('should process direct-tarball (v2 with direct tar download)', async function () {
 			const feature: DevContainerFeature = {
 				id: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
@@ -160,59 +145,42 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
 		});
 
-		it('should process file-path (relative path with ./)', async function () {
+		it('should parse when provided a local-filesystem relative path', async function () {
 			const feature: DevContainerFeature = {
 				id: './some/long/path/to/helloworld',
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
-			if (!featureSet) {
-				assert.fail('processFeatureIdentifier returned null');
-			}
-			const featureId = featureSet.features[0].id;
-			assertFeatureIdInvariant(featureId);
-
-			assert.strictEqual(featureSet?.features[0].id, 'helloworld');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
+			assert.exists(result);
+			assert.strictEqual(result?.features[0].id, 'helloworld');
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
 		});
 
-		it('should process file-path (relative path with ../)', async function () {
+
+		it('should parse when provided a local-filesystem relative path, starting with ../', async function () {
 			const feature: DevContainerFeature = {
 				id: '../some/long/path/to/helloworld',
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
-			if (!featureSet) {
-				assert.fail('processFeatureIdentifier returned null');
-			}
-			const featureId = featureSet.features[0].id;
-			assertFeatureIdInvariant(featureId);
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 
-			assert.exists(featureSet);
-			assert.strictEqual(featureSet?.features[0].id, 'helloworld');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld') });
+			assert.exists(result);
+			assert.strictEqual(result?.features[0].id, 'helloworld');
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld') });
 		});
 
-		it('should process file-path (absolute path)', async function () {
+		it('should parse when provided a local-filesystem absolute path', async function () {
 			const feature: DevContainerFeature = {
 				id: '/some/long/path/to/helloworld',
 				options: {},
 			};
-
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
-			if (!featureSet) {
-				assert.fail('processFeatureIdentifier returned null');
-			}
-			const featureId = featureSet.features[0].id;
-			assertFeatureIdInvariant(featureId);
-
-			assert.exists(featureSet);
-			assert.strictEqual(featureSet?.features[0].id, 'helloworld');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
+			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
+			assert.exists(result);
+			assert.strictEqual(result?.features[0].id, 'helloworld');
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
 		});
-
 
 		it('should process oci registry (without tag)', async function () {
 			const feature: DevContainerFeature = {
