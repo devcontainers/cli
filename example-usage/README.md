@@ -41,7 +41,7 @@ This example demonstrates the use of the dev container CLI to:
 
 1. Simplify setup using the "dev container features" concept. For example, SSH support is added just using a feature reference. See `workspace/.devcontainer/devcontainer.json` for more information.
 
-2. How the dev container CLI can be used to inject tools without building them into the base image as follows:
+2. How the dev container CLI can be used to inject tools without building them into the base image:
 
     1. Use `devcontainer up` to spin up the container and mount a `server` and `workspace` folder into the container.
     2. Use `devcontainer exec` to run a script from this mounted folder to set up the appropriate server.
