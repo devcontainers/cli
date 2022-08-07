@@ -26,6 +26,9 @@ RUN eval $(sed -n "s/${REMOTE_USER}:[^:]*:\([^:]*\):\([^:]*\):[^:]*:\([^:]*\).*/
 		if [ "$OLD_GID" != "$NEW_GID" ]; then \
 			sed -i -e "s/\([^:]*:[^:]*:\)${OLD_GID}:/\1${NEW_GID}:/" /etc/group; \
 		fi; \
+		if [ ! -d "$HOME_FOLDER" ]; then \
+			mkhomedir_helper ${REMOTE_USER}; \
+		fi; \
 		chown -R $NEW_UID:$NEW_GID $HOME_FOLDER; \
 	fi;
 
