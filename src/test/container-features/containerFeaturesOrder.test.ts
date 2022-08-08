@@ -95,6 +95,29 @@ describe('Container features install order', () => {
         );
     });
 
+    it('respects overrideFeatureInstallOrder for OCI features', () => {
+        const orderedFeatures = computeOverrideInstallationOrder(
+            { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['ghcr.io/user/repo/node'] },
+            [
+                getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
+                getOCIFeatureSet('ghcr.io/user/repo/node:1')
+            ]).map(f => f.sourceInformation.type === 'oci' ? f.sourceInformation.featureRef.resource : '');
+
+        assert.equal(orderedFeatures[0], 'ghcr.io/user/repo/node');
+        assert.equal(orderedFeatures[1], 'ghcr.io/devcontainers/features/node');
+    });
+
+    it('throws an error for features referenced in overrideFeatureInstallOrder without fully qualified id', () => {
+        assert.throws(() => {
+            computeOverrideInstallationOrder(
+                { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['node'] },
+                [
+                    getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
+                    getOCIFeatureSet('ghcr.io/user/repo/node:1')
+                ]).map(f => f.sourceInformation.type === 'oci' ? f.sourceInformation.featureRef.resource : '');
+        }, { message: 'Feature node not found' });
+    });
+
     function installAfter(id: string, ...installAfter: string[]): FeatureSet {
         return {
             sourceInformation: {
@@ -104,6 +127,41 @@ describe('Container features install order', () => {
                 id,
                 name: id,
                 installAfter,
+                value: true,
+                included: true,
+            }],
+        };
+    }
+
+    function getOCIFeatureSet(id: string): FeatureSet {
+        // example - ghcr.io/devcontainers/features/node:1
+        const splitOnCollon = id.split(':');
+        const spiltOnSlash = splitOnCollon[0].split('/');
+        return {
+            sourceInformation: {
+                type: 'oci',
+                featureRef: {
+                    id: spiltOnSlash[3],
+                    namespace: `${spiltOnSlash[1]}/${spiltOnSlash[2]}`,
+                    owner: spiltOnSlash[1],
+                    registry: spiltOnSlash[0],
+                    resource: splitOnCollon[0],
+                    version: splitOnCollon[1]
+                },
+                manifest: {
+                    schemaVersion: 123,
+                    mediaType: 'test',
+                    config: {
+                        digest: 'test',
+                        mediaType: 'test',
+                        size: 100
+                    },
+                    layers: []
+                }
+            },
+            features: [{
+                id: spiltOnSlash[3],
+                name: spiltOnSlash[3],
                 value: true,
                 included: true,
             }],

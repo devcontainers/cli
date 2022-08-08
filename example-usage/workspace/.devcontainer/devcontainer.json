@@ -18,10 +18,6 @@
 		// Optional - For tools that require SSH
 		"ghcr.io/devcontainers/features/sshd:1": { }
 	},
-	"overrideFeatureInstallOrder": [
-		"ghcr.io/devcontainers/features/desktop-lite",
-		"ghcr.io/devcontainers/features/node"
-	],
 
 	// We are using appPort since forwardPorts not yet supported directly 
 	// by the CLI. See https://github.com/devcontainers/cli/issues/22
