@@ -19,8 +19,8 @@ describe('Test OCI Pull', () => {
     });
 
     it('Get a manifest by tag', async () => {
-        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.14');
-        const manifest = await getFeatureManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1.0.14', featureRef);
+        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
+        const manifest = await getFeatureManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1.0.13', featureRef);
         assert.isNotNull(manifest);
         assert.exists(manifest);
 
@@ -37,12 +37,12 @@ describe('Test OCI Pull', () => {
             output.write(`Layer imageTitle: ${layer.annotations['org.opencontainers.image.title']}`);
         });
 
-        assert.equal(manifest.layers[0].digest, 'sha256:c33008d0dc12d0e631734082401bec692da809eae2ac51e24f58c1cac68fc0c9');
+        assert.equal(manifest.layers[0].digest, 'sha256:8f59630bd1ba6d9e78b485233a0280530b3d0a44338f472206090412ffbd3efb');
     });
 
     it('Download a feature', async () => {
-        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.14');
-        const result = await getFeatureBlob(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/blobs/sha256:c33008d0dc12d0e631734082401bec692da809eae2ac51e24f58c1cac68fc0c9', '/tmp', '/tmp/featureTest', featureRef);
+        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
+        const result = await getFeatureBlob(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/blobs/sha256:8f59630bd1ba6d9e78b485233a0280530b3d0a44338f472206090412ffbd3efb', '/tmp', '/tmp/featureTest', featureRef);
         assert.isTrue(result);
     });
 });
