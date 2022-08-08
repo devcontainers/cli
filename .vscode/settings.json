@@ -23,5 +23,6 @@
         "release/*"
     ],
     "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modifications"
+    "editor.formatOnSaveMode": "modifications",
+    "editor.insertSpaces": false
 }
