@@ -53,12 +53,29 @@ describe('Dev Container Features E2E (remote)', function () {
         });
     });
 
-
     describe('v2 - Dockerfile feature Configs', () => {
 
         describe(`dockerfile-with-v2-oci-features`, () => {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
+            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            afterEach(async () => await devContainerDown({ containerId }));
+            it('should detect docker installed (--privileged flag implicitly passed)', async () => {
+                // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
+                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                const response = JSON.parse(res.stdout);
+                console.log(res.stderr);
+                assert.equal(response.outcome, 'success');
+                assert.match(res.stderr, /CONTAINER ID/);
+            });
+        });
+    });
+
+    describe('v2 - Image property feature Configs', () => {
+
+        describe(`image-with-v2-tarball`, () => {
+            let containerId: string | null = null;
+            const testFolder = `${__dirname}/configs/image-with-v2-tarball`;
             beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
             afterEach(async () => await devContainerDown({ containerId }));
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {

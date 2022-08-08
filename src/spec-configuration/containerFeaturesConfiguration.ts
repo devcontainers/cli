@@ -547,8 +547,21 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		output.write(`Remote tar file found.`);
 		const tarballUri = new URL.URL(userFeature.id);
 
+		const fullPath = tarballUri.pathname;
+		const tarballName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+		output.write(`tarballName = ${tarballName}`, LogLevel.Trace);
+
+		const regex = new RegExp('devcontainer-feature-(.*).tgz');
+		const matches = regex.exec(tarballName);
+
+		if (!matches || matches.length !== 2) {
+			output.write(`Expected tarball name to follow 'devcontainer-feature-<feature-id>.tgz' format.  Received '${tarballName}'`, LogLevel.Error);
+			return undefined;
+		}
+		const id = matches[1];
+
 		if (id === '' || !allowedFeatureIdRegex.test(id)) {
-			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
+			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Received ${id}.`, LogLevel.Error);
 			return undefined;
 		}
 
@@ -562,7 +575,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'direct-tarball',
-				tarballUri: tarballUri
+				tarballUri: tarballUri.toString()
 			},
 			features: [feat],
 		};

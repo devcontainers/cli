@@ -1,0 +1,6 @@
+{
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:16",
+	"features": {
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {}
+	}
+}
