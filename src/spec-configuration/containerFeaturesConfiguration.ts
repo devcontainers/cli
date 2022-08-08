@@ -545,16 +545,13 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	// remote tar file
 	if (type === 'direct-tarball') {
 		output.write(`Remote tar file found.`);
-		let input = userFeature.id.replace(/\/+$/, '');
-		const featureIdDelimiter = input.lastIndexOf('#');
-		const id = input.substring(featureIdDelimiter + 1);
+		const tarballUri = new URL.URL(userFeature.id);
 
 		if (id === '' || !allowedFeatureIdRegex.test(id)) {
 			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
 			return undefined;
 		}
 
-		const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
 		let feat: Feature = {
 			id: id,
 			name: userFeature.id,

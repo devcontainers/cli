@@ -46,7 +46,6 @@ const assertFeatureIdInvariant = (id: string) => {
 describe('validate processFeatureIdentifier', async function () {
 	// const VALID_TYPES = ['local-cache', 'github-repo', 'direct-tarball', 'file-path', 'oci'];
 
-
 	// In the real implementation, the cwd is passed by the calling function with the value of `--workspace-folder`.
 	// See: https://github.com/devcontainers/cli/blob/45541ba21437bf6c16826762f084ab502157789b/src/spec-node/devContainersSpecCLI.ts#L152-L153
 	const cwd = process.cwd();
@@ -217,7 +216,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process oci registry (with a tag)', async function () {
 			const feature: DevContainerFeature = {
-				id: 'ghcr.io/devcontainers/features/ruby:1.0.10',
+				id: 'ghcr.io/codspace/features/ruby:1.0.10',
 				options: {},
 			};
 
@@ -233,11 +232,11 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const expectedFeatureRef: OCIFeatureRef = {
 				id: 'ruby',
-				owner: 'devcontainers',
-				namespace: 'devcontainers/features',
+				owner: 'codspace',
+				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: 'latest',
-				resource: 'ghcr.iodevcontainers/features'
+				resource: 'ghcr.io/codspace/features'
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
