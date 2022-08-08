@@ -11,8 +11,8 @@ import { doFeaturesPackageCommand } from './packageCommandImpl';
 
 const targetPositionalDescription = `
 Package features at provided [target] (default is cwd), where [target] is either:
-   1. A collection folder containing a './src' folder with [1..n] features.
-   2. A single feature that contains a devcontainer-feature.json.
+   1. A path to the src folder of the collection with [1..n] features.
+   2. A path to a single feature that contains a devcontainer-feature.json.
    
    Additionally, a 'devcontainer-collection.json' will be generated in the output directory.
 `;
@@ -37,7 +37,7 @@ export interface FeaturesPackageCommandInput {
 	outputDir: string;
 	output: Log;
 	disposables: (() => Promise<unknown> | undefined)[];
-	isCollection: boolean; // Packaging a collection of many features. Should autodetect.
+	isSingleFeature: boolean; // Packaging a collection of many features. Should autodetect.
 }
 
 export function featuresPackageHandler(args: FeaturesPackageArgs) {
@@ -85,19 +85,17 @@ async function featuresPackage({
 	}
 
 	// Detect if we're packaging a collection or a single feature
-	const isCollection = await isLocalFolder(cliHost.path.join(targetFolderResolved, 'src'));
+	const isValidFolder = await isLocalFolder(cliHost.path.join(targetFolderResolved));
 	const isSingleFeature = await isLocalFile(cliHost.path.join(targetFolderResolved, 'devcontainer-feature.json'));
 
-	if (isCollection && isSingleFeature) {
-		throw new Error(`Unexpected file structure for target folder '${targetFolderResolved}'.`);
+	if (!isValidFolder) {
+		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
 	}
 
-	if (isCollection) {
-		output.write('Packaging feature collection...', LogLevel.Info);
-	} else if (isSingleFeature) {
+	if (isSingleFeature) {
 		output.write('Packaging single feature...', LogLevel.Info);
 	} else {
-		throw new Error(`Unexpected file structure for target folder '${targetFolderResolved}'.`);
+		output.write('Packaging feature collection...', LogLevel.Info);
 	}
 
 	// Generate output folder.
@@ -109,7 +107,7 @@ async function featuresPackage({
 		outputDir: outputDirResolved,
 		output,
 		disposables,
-		isCollection,
+		isSingleFeature,
 	};
 
 	const exitCode = await doFeaturesPackageCommand(args);

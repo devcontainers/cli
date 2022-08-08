@@ -33,10 +33,10 @@ describe('CLI features subcommands', async function () {
 	});
 
 	it('features package subcommand (collection)', async function () {
-		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
+		const srcFolder = `${__dirname}/example-v2-features-sets/simple/src`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features package -o ${tmp}/output/test01 -f --log-level trace  ${collectionFolder} `);
+			await shellExec(`${cli} features package -o ${tmp}/output/test01 -f --log-level trace  ${srcFolder} `);
 			success = true;
 		} catch (error) {
 			assert.fail('features package sub-command should not throw');

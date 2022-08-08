@@ -19,17 +19,17 @@ export interface DevContainerCollectionMetadata {
 }
 
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
-	const { output, isCollection } = args;
+	const { output, isSingleFeature } = args;
 
 	// For each feature, package each feature and write to 'outputDir/{f}.tgz'
 	// Returns an array of feature metadata from each processed feature
 
 	let metadataOutput: Feature[] | undefined = [];
-	if (isCollection) {
-		metadataOutput = await packageCollection(args);
-	} else {
+	if (isSingleFeature) {
 		// Package individual features
 		metadataOutput = await packageSingleFeature(args);
+	} else {
+		metadataOutput = await packageCollection(args);
 	}
 
 	if (!metadataOutput) {
@@ -78,9 +78,8 @@ export async function packageSingleFeature(args: FeaturesPackageCommandInput): P
 
 
 export async function packageCollection(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
-	const { output, targetFolder, outputDir } = args;
+	const { output, targetFolder: srcFolder, outputDir } = args;
 
-	const srcFolder = path.join(targetFolder, 'src');
 	const featuresDirs = await readLocalDir(srcFolder);
 	let metadatas: Feature[] = [];
 
