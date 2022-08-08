@@ -9,5 +9,8 @@
 		"./local-features/localFeatureB": {
 			"favorite": "gold"
 		}
-	}
+	},
+	"overrideFeatureInstallOrder": [
+		"./local-features/localFeatureB"
+	]
 }

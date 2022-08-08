@@ -31,7 +31,7 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
     for (const featureId of config.overrideFeatureInstallOrder!) {
-        const feature = automaticOrder.find(feature => feature.features[0].name === featureId);
+        const feature = automaticOrder.find(feature => feature.features[0].name === featureId || (feature.sourceInformation.type === 'oci' && feature.sourceInformation.featureRef.resource === featureId));
         if (!feature) {
             throw new Error(`Feature ${featureId} not found`);
         }

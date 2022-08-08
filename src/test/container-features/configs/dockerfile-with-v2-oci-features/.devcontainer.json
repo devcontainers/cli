@@ -8,5 +8,8 @@
 	"features": {
 		"github-cli": "latest",
 		"ghcr.io/codspace/features/docker-in-docker:1": {}
-	}
+	},
+	"overrideFeatureInstallOrder": [
+		"github-cli"
+	]
 }
