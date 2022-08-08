@@ -114,7 +114,7 @@ describe('Container features install order', () => {
                 [
                     getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
                     getOCIFeatureSet('ghcr.io/user/repo/node:1')
-                ]).map(f => f.sourceInformation.type === 'oci' ? f.sourceInformation.featureRef.resource : '');
+                ]);
         }, { message: 'Feature node not found' });
     });
 
