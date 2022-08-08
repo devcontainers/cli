@@ -19,7 +19,7 @@ Each should run on macOS or Linux. For Windows, you can use these scripts from W
 
 ## Using the examples
 
-All examples use the contents of the `workspace` folder for their configuration, which is where you can modifications if you'd like. The example scripts are then in different sub-folders. 
+All examples use the contents of the `workspace` folder for their configuration, which is where you can make modifications if you'd like. The example scripts are then in different sub-folders. 
 
 ### Tool examples
 
@@ -50,6 +50,8 @@ These examples demonstrate the use of the dev container CLI to:
 Currently the `appPort` property is used in `devcontainer.json` instead of `forwardPorts` due to a gap in the current dev container CLI ([see here](https://github.com/devcontainers/cli/issues/22)).
 
 ### CI build environment example
+
+This example illustrates how you can use the dev container CLI to build your application in any CI system. (Note there is also a [GitHub Action](https://github.com/marketplace/actions/devcontainers-ci) and [Azure DevOps task](https://marketplace.visualstudio.com/items?itemName=devcontainers.ci) if you are using those automation systems, but this example will focus on direct use of the CLI.)
 
 You can use the example by opening a terminal and typing the following:
 
