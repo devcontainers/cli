@@ -1,0 +1,36 @@
+{
+	"name": "devcontainer CLI Demo",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+
+	// 👇 Dev Container Features - https://containers.dev/implementors/features/
+	"features": {
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "1.18.4"
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "16.15.1",
+			"nodeGypDependencies": false
+		},
+		"ghcr.io/devcontainers/features/desktop-lite:1": { },
+		"ghcr.io/devcontainers/features/docker-in-docker:1": { },
+		// Optional - For tools that require SSH
+		"ghcr.io/devcontainers/features/sshd:1": { }
+	},
+
+	// We are using appPort since forwardPorts not yet supported directly 
+	// by the CLI. See https://github.com/devcontainers/cli/issues/22
+	// A pre-processor can easily parse devcontainer.json and inject
+	// these values as appropriate. We're omitting that for simplicity.
+	"appPort": [
+		// Expose SSH port for tools that need it (e.g. JetBrains)
+		"127.0.0.1:2222:2222",
+		// Port VS Code Server / openvscode-server is on
+		8000,
+		// Port for VNC web server contributed by the desktop-lite feature
+		6080
+	],
+
+	"remoteUser": "vscode"
+}
