@@ -514,11 +514,12 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 	}
 }
 
-export function getBackwardCompatibleFeatureId(id: string) {
+export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 	const migratedfeatures = ['aws-cli', 'azure-cli', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
 	const renamedFeatures = new Map();
 	renamedFeatures.set('golang', 'go');
 	renamedFeatures.set('common', 'common-utils');
+	const deprecatedFeatures = ['fish', 'gradle', 'homebrew', 'jupyterlab', 'maven'];
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
 	// Note: Pin the versionBackwardComp to '1' to avoid breaking changes.
@@ -534,6 +535,10 @@ export function getBackwardCompatibleFeatureId(id: string) {
 		return `${newFeaturePath}/${renamedFeatures.get(id)}:${versionBackwardComp}`;
 	}
 
+	if (deprecatedFeatures.includes(id)) {
+		output.write(`(!) WARNING: Falling back to deprecated '${id}' feature.`, LogLevel.Warning);
+	}
+
 	// Deprecated and all other features references (eg. fish, ghcr.io/devcontainers/features/go, ghcr.io/owner/repo/id etc)
 	return id;
 }
@@ -544,7 +549,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// Adding backward compatibility
-	userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
+	userFeature.id = getBackwardCompatibleFeatureId(output, userFeature.id);
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
 
