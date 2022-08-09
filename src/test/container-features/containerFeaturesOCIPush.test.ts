@@ -8,7 +8,7 @@ const testAssetsDir = `${__dirname}/assets`;
 
 //  NOTE: 
 //  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-describe('Test Generate Manifests and Digests', () => {
+describe('Test OCI Push', () => {
     it('Generates the correct tgz manifest layer', async () => {
 
         // Calculate the tgz layer and digest
@@ -44,8 +44,8 @@ describe('Test Generate Manifests and Digests', () => {
 
     it('Can check whether a blob exists', async () => {
         const ociFeatureRef = getFeatureRef(output, 'ghcr.io/codspace/features/go:1');
-        const { registry, id } = ociFeatureRef;
-        const sessionAuth = await fetchRegistryAuthToken(output, registry, id, process.env, 'pull');
+        const { registry, resource } = ociFeatureRef;
+        const sessionAuth = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
         if (!sessionAuth) {
             assert.fail('Could not get registry auth token');
         }

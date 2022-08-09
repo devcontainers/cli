@@ -246,6 +246,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, reso
     }
 
     const url = `https://${registry}/token?scope=repo:${resource}:${operationScopes}&service=${registry}`;
+    output.write(`url: ${url}`, LogLevel.Trace);
 
     const options = {
         type: 'GET',
@@ -253,7 +254,14 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, reso
         headers: headers
     };
 
-    const authReq = await request(options, output);
+    let authReq: Buffer;
+    try {
+        authReq = await request(options, output);
+    } catch (e: any) {
+        output.write(`Failed to get registry auth token with error: ${e}`, LogLevel.Error);
+        return undefined;
+    }
+
     if (!authReq) {
         output.write('Failed to get registry auth token', LogLevel.Error);
         return undefined;
