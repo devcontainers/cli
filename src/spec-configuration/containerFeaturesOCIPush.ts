@@ -27,7 +27,7 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
     // Generate Manifest for given feature artifact.
     const manifest = await generateCompleteManifest(output, pathToTgz);
     if (!manifest) {
-        output.write(`Failed to generate manifest for ${featureRef.featureName}`, LogLevel.Error);
+        output.write(`Failed to generate manifest for ${featureRef.id}`, LogLevel.Error);
         return false;
     }
 
@@ -146,7 +146,7 @@ export async function checkIfBlobExists(output: Log, featureRef: OCIFeatureRef, 
         'authorization': `Bearer ${authToken}`,
     };
 
-    const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/blobs/${digest}`;
+    const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/blobs/${digest}`;
     const statusCode = await headRequest({ url, headers }, output);
 
     output.write(`${url}: ${statusCode}`, LogLevel.Trace);
@@ -161,7 +161,7 @@ export async function postUploadSessionId(output: Log, featureRef: OCIFeatureRef
         'authorization': `Bearer ${authToken}`,
     };
 
-    const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.featureName}/blobs/uploads/`;
+    const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/blobs/uploads/`;
     const { statusCode, resHeaders } = await requestFetchHeaders({ type: 'POST', url, headers }, output);
 
     output.write(`${url}: ${statusCode}`, LogLevel.Trace);

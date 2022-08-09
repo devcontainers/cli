@@ -21,16 +21,18 @@ import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { CLIHost, getCLIHost } from '../spec-common/cliHost';
+import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
-import { doFeaturesTestCommand } from './featuresCLI/testContainerFeatures';
-import { PackageConfiguration } from '../spec-utils/product';
+import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
+import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 (async () => {
 
+	const packageFolder = path.join(__dirname, '..', '..');
+	const version = (await getPackageConfig(packageFolder)).version;
 	const argv = process.argv.slice(2);
 	const restArgs = argv[0] === 'exec' && argv[1] !== '--help'; // halt-at-non-option doesn't work in subcommands: https://github.com/yargs/yargs/issues/1417
 	const y = yargs([])
@@ -41,7 +43,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 			'halt-at-non-option': restArgs,
 		})
 		.scriptName('devcontainer')
-		.version((await getPackageConfig(path.join(__dirname, '..', '..'))).version)
+		.version(version)
 		.demandCommand()
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
@@ -49,14 +51,17 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
-	y.command('features', 'Features commands', (y: Argv) =>
-		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler));
+	y.command('features', 'Features commands', (y: Argv) => {
+		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler);
+		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
+	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
+	y.epilog(`devcontainer@${version} ${packageFolder}`);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
 })().catch(console.error);
 
-type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
+export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
@@ -333,8 +338,8 @@ async function doBuild({
 		}
 		const { config } = configs;
 		let imageNameResult: string[] = [''];
-		
-		// Support multiple use of `--image-name` 
+
+		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
 		if (isDockerFileConfig(config)) {
@@ -645,7 +650,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd: process.cwd(), output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configs.config,
@@ -831,85 +836,6 @@ export async function doExec({
 		};
 	}
 }
-
-// -- 'features test' command
-function featuresTestOptions(y: Argv) {
-	return y
-		.options({
-			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
-			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to auto-detect all features in collection directory.  Cannot be combined with \'-s\'.', },
-			'scenarios': { type: 'string', alias: 's', description: 'Path to scenario test directory (containing scenarios.json).  Cannot be combined with \'-f\'.' },
-			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
-			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
-		})
-		.check(argv => {
-			if (argv['scenarios'] && argv['features']) {
-				throw new Error('Cannot combine --scenarios and --features');
-			}
-			return true;
-		});
-}
-
-export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
-export interface FeaturesTestCommandInput {
-	cliHost: CLIHost;
-	pkg: PackageConfiguration;
-	baseImage: string;
-	collectionFolder: string;
-	features?: string[];
-	scenariosFolder: string | undefined;
-	remoteUser: string;
-	quiet: boolean;
-	logLevel: LogLevel;
-	disposables: (() => Promise<unknown> | undefined)[];
-}
-
-function featuresTestHandler(args: FeaturesTestArgs) {
-	(async () => await featuresTest(args))().catch(console.error);
-}
-
-async function featuresTest({
-	'base-image': baseImage,
-	'collection-folder': collectionFolder,
-	features,
-	scenarios: scenariosFolder,
-	'remote-user': remoteUser,
-	quiet,
-	'log-level': inputLogLevel,
-}: FeaturesTestArgs) {
-	const disposables: (() => Promise<unknown> | undefined)[] = [];
-	const dispose = async () => {
-		await Promise.all(disposables.map(d => d()));
-	};
-
-	const cwd = process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const extensionPath = path.join(__dirname, '..', '..');
-	const pkg = await getPackageConfig(extensionPath);
-
-	const logLevel = mapLogLevel(inputLogLevel);
-
-	const args: FeaturesTestCommandInput = {
-		baseImage,
-		cliHost,
-		logLevel,
-		quiet,
-		pkg,
-		collectionFolder: cliHost.path.resolve(collectionFolder),
-		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
-		scenariosFolder: scenariosFolder ? cliHost.path.resolve(scenariosFolder) : undefined,
-		remoteUser,
-		disposables
-	};
-
-	const exitCode = await doFeaturesTestCommand(args);
-
-	await dispose();
-	process.exit(exitCode);
-}
-// -- End: 'features test' command
 
 function keyValuesToRecord(keyValues: string[]): Record<string, string> {
 	return keyValues.reduce((envs, env) => {
