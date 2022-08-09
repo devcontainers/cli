@@ -1,7 +1,6 @@
 import { assert } from 'chai';
 import { getFeatureBlob, getFeatureManifest, getFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import { rmdirLocal } from '../../spec-utils/pfs';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
