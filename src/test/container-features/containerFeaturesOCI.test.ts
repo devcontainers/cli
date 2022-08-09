@@ -5,7 +5,6 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 describe('Test OCI Pull', () => {
-
     it('Parse OCI identifier', async () => {
         const feat = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1');
         output.write(`feat: ${JSON.stringify(feat)}`);
