@@ -58,6 +58,5 @@ describe('Test OCI Push', () => {
 
         const randomStringDoesNotExist = await checkIfBlobExists(output, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3', sessionAuth);
         assert.isFalse(randomStringDoesNotExist);
-
     });
 });

@@ -61,7 +61,8 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 	});
 }
 
-export function requestFetchHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log) {
+// Send HTTP Request.  Does not throw on status code, but rather always returns 'statusCode' and 'resHeaders'.
+export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
 	return new Promise<{ statusCode: number; resHeaders: Record<string, string> }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions = {
@@ -72,21 +73,14 @@ export function requestFetchHeaders(options: { type: string; url: string; header
 			headers: options.headers,
 		};
 		const req = https.request(reqOptions, res => {
-			if (res.statusCode! < 200 || res.statusCode! > 299) {
-				reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-				if (output) {
-					output.write(`HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Error);
-				}
-			} else {
-				res.on('error', reject);
-				res.on('end', () => {
-					const result = {
-						statusCode: res.statusCode!,
-						resHeaders: res.headers as Record<string, string>
-					};
-					resolve(result);
-				});
-			}
+			res.on('error', reject);
+			res.on('end', () => {
+				const result = {
+					statusCode: res.statusCode!,
+					resHeaders: res.headers as Record<string, string>
+				};
+				resolve(result);
+			});
 		});
 		req.on('error', reject);
 		if (options.data) {
