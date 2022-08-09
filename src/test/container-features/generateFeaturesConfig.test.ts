@@ -10,7 +10,7 @@ import { getLocalCacheFolder } from '../../spec-node/utils';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 // Test fetching/generating the devcontainer-features.json config
-describe('validate (offline) generateFeaturesConfig()', function () {
+describe('validate generateFeaturesConfig()', function () {
 
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
@@ -67,7 +67,7 @@ describe('validate (offline) generateFeaturesConfig()', function () {
         //         assert.strictEqual(actualEnvs, expectedEnvs);
 
         // getFeatureLayers
-        const actualLayers = await getFeatureLayers(featuresConfig);
+        const actualLayers = getFeatureLayers(featuresConfig);
         const expectedLayers = `RUN cd /tmp/build-features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh

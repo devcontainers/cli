@@ -199,11 +199,11 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const expectedFeatureRef: OCIFeatureRef = {
 				id: 'ruby',
-				owner: 'devcontainers',
+				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: 'latest',
-				resource: 'ghcr.io/codspace/features'
+				resource: 'ghcr.io/codspace/features/ruby'
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -216,7 +216,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process oci registry (with a tag)', async function () {
 			const feature: DevContainerFeature = {
-				id: 'ghcr.io/codspace/features/ruby:1.0.10',
+				id: 'ghcr.io/codspace/features/ruby:1.0.13',
 				options: {},
 			};
 
@@ -235,8 +235,8 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
-				version: 'latest',
-				resource: 'ghcr.io/codspace/features'
+				version: '1.0.13',
+				resource: 'ghcr.io/codspace/features/ruby'
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
