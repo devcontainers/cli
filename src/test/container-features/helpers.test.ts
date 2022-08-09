@@ -67,8 +67,9 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             repo: 'myfeatures',
             apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest',
             unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download',
-            isLatest: true
-                                                    });
+            isLatest: true,
+            referenceId: 'octocat/myfeatures/helloworld'
+        });
     });
 
     it('should parse gitHub with version', async function () {
@@ -87,7 +88,8 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             tag: 'v0.0.4',
             apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4',
             unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4',
-            isLatest: false
+            isLatest: false,
+            referenceId: 'octocat/myfeatures/helloworld@v0.0.4'
         });
     });
 
@@ -100,7 +102,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-features.tgz' });
+        assert.deepEqual(result?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-features.tgz', referenceId: 'https://example.com/some/long/path/devcontainer-features.tgz#helloworld' });
     });
 
     it('should parse when provided a local-filesystem relative path', async function () {
@@ -112,7 +114,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld'), referenceId: './some/long/path/to/helloworld' });
     });
 
 
@@ -123,10 +125,10 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         };
 
         const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-        
+
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld') });
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld'), referenceId: '../some/long/path/to/helloworld' });
     });
 
     it('should parse when provided a local-filesystem absolute path', async function () {
@@ -137,7 +139,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
         const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.exists(result);
         assert.strictEqual(result?.features[0].id, 'helloworld');
-        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
+        assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld', referenceId: '/some/long/path/to/helloworld' });
     });
 
 
@@ -228,7 +230,7 @@ describe('validate function parseRemoteFeatureToDownloadUri', function () {
             id: 'octocat/myfeatures@v0.0.1',
             options: {},
         };
-        
+
         const result = await processFeatureIdentifier(output, process.env, cwd, feature);
         assert.notExists(result);
     });
@@ -240,6 +242,7 @@ describe('validate function getSourceInfoString', function () {
     it('should work for local-cache', async function () {
         const srcInfo: SourceInformation = {
             type: 'local-cache',
+            referenceId: 'test'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'local-cache');
@@ -252,7 +255,8 @@ describe('validate function getSourceInfoString', function () {
             repo: 'mobileapp',
             isLatest: true,
             apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/latest',
-            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download'
+            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download',
+            referenceId: 'bob/mobileapp'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'github-bob-mobileapp-latest');
@@ -266,7 +270,8 @@ describe('validate function getSourceInfoString', function () {
             tag: 'v0.0.4',
             isLatest: false,
             apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/tags/v0.0.4',
-            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4'
+            unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4',
+            referenceId: 'bob/mobileapp'
         };
         const output = getSourceInfoString(srcInfo);
         assert.include(output, 'github-bob-mobileapp-v0.0.4');

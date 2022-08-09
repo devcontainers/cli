@@ -122,6 +122,7 @@ describe('Container features install order', () => {
         return {
             sourceInformation: {
                 type: 'local-cache',
+                referenceId: id
             },
             features: [{
                 id,
@@ -157,7 +158,8 @@ describe('Container features install order', () => {
                         size: 100
                     },
                     layers: []
-                }
+                },
+                referenceId: id
             },
             features: [{
                 id: spiltOnSlash[3],

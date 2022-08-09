@@ -52,7 +52,7 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
             type: 'oci',
             manifest: manifest,
             featureRef: featureRef,
-
+            referenceId: `${featureRef.resource}:${featureRef.version}`
         },
         features: [feat],
     };
