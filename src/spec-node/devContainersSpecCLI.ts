@@ -32,6 +32,8 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 (async () => {
 
+	const packageFolder = path.join(__dirname, '..', '..');
+	const version = (await getPackageConfig(packageFolder)).version;
 	const argv = process.argv.slice(2);
 	const restArgs = argv[0] === 'exec' && argv[1] !== '--help'; // halt-at-non-option doesn't work in subcommands: https://github.com/yargs/yargs/issues/1417
 	const y = yargs([])
@@ -42,7 +44,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 			'halt-at-non-option': restArgs,
 		})
 		.scriptName('devcontainer')
-		.version((await getPackageConfig(path.join(__dirname, '..', '..'))).version)
+		.version(version)
 		.demandCommand()
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
@@ -56,6 +58,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 		y.command('publish', 'Publish features', featuresPublishOptions, featuresPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
+	y.epilog(`devcontainer@${version} ${packageFolder}`);
 	y.parse(restArgs ? argv.slice(1) : argv);
 
 })().catch(console.error);
@@ -337,8 +340,8 @@ async function doBuild({
 		}
 		const { config } = configs;
 		let imageNameResult: string[] = [''];
-		
-		// Support multiple use of `--image-name` 
+
+		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
 		if (isDockerFileConfig(config)) {
@@ -649,7 +652,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd: process.cwd(), output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configs.config,
