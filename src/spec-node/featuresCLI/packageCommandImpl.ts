@@ -51,22 +51,21 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
 
-
-	// TODO: temporary
-	const featureRef: OCIFeatureRef = {
-		id: 'color',
-		owner: 'joshspicer',
-		namespace: 'joshspicer/mypackages',
-		registry: 'ghcr.io',
-		resource: 'ghcr.io/joshspicer/mypackages/color'
-	};
-	const result = await pushOCIFeature(output, process.env, featureRef, path.join(args.outputDir, `devcontainer-feature-color.tgz`), ['1', '1.0']);
-	if (!result) {
-		output.write('Failed to push feature', LogLevel.Error);
-	} else {
-		output.write('Successfully pushed feature', LogLevel.Info);
-	}
-	// END TEMPORARY
+	// // TODO: temporary
+	// const featureRef: OCIFeatureRef = {
+	// 	id: 'color',
+	// 	owner: 'joshspicer',
+	// 	namespace: 'joshspicer/mypackages',
+	// 	registry: 'ghcr.io',
+	// 	resource: 'ghcr.io/joshspicer/mypackages/color'
+	// };
+	// const result = await pushOCIFeature(output, process.env, featureRef, path.join(args.outputDir, `devcontainer-feature-color.tgz`), ['1', '1.0']);
+	// if (!result) {
+	// 	output.write('Failed to push feature', LogLevel.Error);
+	// } else {
+	// 	output.write('Successfully pushed feature', LogLevel.Info);
+	// }
+	// // END TEMPORARY
 
 	return 0;
 }
