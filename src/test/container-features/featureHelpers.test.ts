@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
-import { getSourceInfoString, processFeatureIdentifier, SourceInformation } from '../../spec-configuration/containerFeaturesConfiguration';
+import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
@@ -338,43 +338,5 @@ describe('validate processFeatureIdentifier', async function () {
 			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.notExists(result);
 		});
-	});
-});
-
-describe('validate function getSourceInfoString', function () {
-
-	it('should work for local-cache', async function () {
-		const srcInfo: SourceInformation = {
-			type: 'local-cache',
-		};
-		const output = getSourceInfoString(srcInfo);
-		assert.include(output, 'local-cache');
-	});
-
-	it('should work for github-repo without a tag (implicit latest)', async function () {
-		const srcInfo: SourceInformation = {
-			type: 'github-repo',
-			owner: 'bob',
-			repo: 'mobileapp',
-			isLatest: true,
-			apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/latest',
-			unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/latest/download'
-		};
-		const output = getSourceInfoString(srcInfo);
-		assert.include(output, 'github-bob-mobileapp-latest');
-	});
-
-	it('should work for github-repo with a tag', async function () {
-		const srcInfo: SourceInformation = {
-			type: 'github-repo',
-			owner: 'bob',
-			repo: 'mobileapp',
-			tag: 'v0.0.4',
-			isLatest: false,
-			apiUri: 'https://api.github.com/repos/bob/mobileapp/releases/tags/v0.0.4',
-			unauthenticatedUri: 'https://github.com/bob/mobileapp/releases/download/v0.0.4'
-		};
-		const output = getSourceInfoString(srcInfo);
-		assert.include(output, 'github-bob-mobileapp-v0.0.4');
 	});
 });
