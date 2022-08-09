@@ -4,18 +4,12 @@ import * as crypto from 'crypto';
 import { headRequest, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
-import { FeatureSet } from './containerFeaturesConfiguration';
 import { fetchOCIFeatureManifestIfExists, fetchRegistryAuthToken, HEADERS, OCIFeatureRef, OCILayer, OCIManifest } from './containerFeaturesOCI';
 
 // (!) Entrypoint function to push a feature to a registry.
 //     Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, pathToTgz: string, tags: string[]): Promise<boolean> {
-	if (featureSet.sourceInformation.type !== 'oci') {
-		output.write(`Provided feature is not of type 'OCI'.  Cannot publish to an OCI registry.`, LogLevel.Error);
-		return false;
-	}
-
-	const featureRef = featureSet.sourceInformation.featureRef;
+export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureRef: OCIFeatureRef, pathToTgz: string, tags: string[]): Promise<boolean> {
+	output.write(`Starting push of feature '${featureRef.id}' to '${featureRef.resource}' with tags '${tags.join(', ')}'`);
 
 	// Generate registry auth token with `pull,push` scopes.
 	const registryAuthToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.id, env, 'pull,push');
@@ -32,7 +26,7 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
 	}
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-	const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef.id, manifest.digest, registryAuthToken);
+	const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef, manifest.digest, registryAuthToken);
 	if (manifest.digest && existingFeatureManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
 		await putManifestWithTags(output, manifest.manifestStr, featureRef, tags, registryAuthToken);
@@ -60,12 +54,12 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
 	for await (const blob of blobsToPush) {
 		const { name, digest } = blob;
 		const blobExistsConfigLayer = await checkIfBlobExists(output, featureRef, digest, registryAuthToken);
-		output.write(`blob: ${name} with digest ${digest}  ${blobExistsConfigLayer ? 'already exists' : 'does not exist'} in registry.`, LogLevel.Trace);
+		output.write(`blob: '${name}' with digest '${digest}'  ${blobExistsConfigLayer ? 'already exists' : 'does not exist'} in registry.`, LogLevel.Trace);
 
 		// PUT blobs
 		if (!blobExistsConfigLayer) {
 			if (!(await putBlob(output, pathToTgz, blobPutLocationUriPath, featureRef, digest, registryAuthToken))) {
-				output.write(`Failed to PUT blob ${name} with digest ${digest}`, LogLevel.Error);
+				output.write(`Failed to PUT blob '${name}' with digest '${digest}'`, LogLevel.Error);
 				return false;
 			}
 		}
@@ -99,9 +93,9 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 			return false;
 		}
 
-		const dockerContentDigestResponseHeader = resHeaders['Docker-Content-Digest'];
-		const locationResponseHeader = resHeaders['Location'];
-		output.write(`Successfully tagged -> ${locationResponseHeader}`, LogLevel.Info);
+		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'] || resHeaders['Docker-Content-Digest'];
+		const locationResponseHeader = resHeaders['location'] || resHeaders['Location'];
+		output.write(`Tagged: ${tag} -> ${locationResponseHeader}`, LogLevel.Info);
 		output.write(`Docker-Content-Digest: ${dockerContentDigestResponseHeader}`, LogLevel.Trace);
 	}
 	return true;
@@ -129,13 +123,13 @@ export async function putBlob(output: Log, pathToBlob: string, blobPutLocationUr
 	} else {
 		url = `https://${featureRef.registry}${blobPutLocationUriPath}`;
 	}
-	url += `?digest=sha256:${digest}`;
+	url += `?digest=${digest}`;
 
 	output.write(`Crafted blob url:  ${url}`, LogLevel.Trace);
 
 	const { statusCode } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) });
 	if (statusCode !== 201) {
-		output.write(`Failed to upload blob '${pathToBlob}' to '${url}'`, LogLevel.Error);
+		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}'`, LogLevel.Error);
 		return false;
 	}
 
@@ -163,7 +157,7 @@ export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise
 	const tarBytes = fs.readFileSync(pathToTgz);
 
 	const tarSha256 = crypto.createHash('sha256').update(tarBytes).digest('hex');
-	output.write(`${pathToTgz}:  sha256:${tarSha256} (size: ${tarBytes.byteLength})`, LogLevel.Trace);
+	output.write(`${pathToTgz}:  sha256:${tarSha256} (size: ${tarBytes.byteLength})`, LogLevel.Info);
 
 	return {
 		mediaType: 'application/vnd.devcontainers.layer.v1+tar',
@@ -199,11 +193,11 @@ export async function postUploadSessionId(output: Log, featureRef: OCIFeatureRef
 	};
 
 	const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/blobs/uploads/`;
+	output.write(`Generating Upload URL -> ${url}`, LogLevel.Trace);
 	const { statusCode, resHeaders } = await requestResolveHeaders({ type: 'POST', url, headers }, output);
-
 	output.write(`${url}: ${statusCode}`, LogLevel.Trace);
 	if (statusCode === 202) {
-		const locationHeader = resHeaders['Location'];
+		const locationHeader = resHeaders['location'] || resHeaders['Location'];
 		if (!locationHeader) {
 			output.write(`${url}: Got 202 status code, but no location header found.`, LogLevel.Error);
 			return undefined;
@@ -224,7 +218,7 @@ export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
 		mediaType: 'application/vnd.oci.image.manifest.v1+json',
 		config: {
 			mediaType: 'application/vnd.devcontainers',
-			digest: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+			digest: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // A zero byte digest for the devcontainer mediaType.
 			size: 0
 		},
 		layers: [
@@ -234,7 +228,7 @@ export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
 
 	const manifestStringified = JSON.stringify(manifest);
 	const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
-	output.write(`manifest:  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Trace);
+	output.write(`content digest:  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
 
 	return {
 		manifestStr: manifestStringified,

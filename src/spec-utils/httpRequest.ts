@@ -52,7 +52,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
 			if (output) {
-				output.write(`HTTP HEAD request returned status code ${res.statusCode}`, LogLevel.Trace);
+				output.write(`HEAD ${url} -> ${res.statusCode}`, LogLevel.Trace);
 			}
 			resolve(res.statusCode!);
 		});
@@ -74,13 +74,11 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 		};
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
-			res.on('end', () => {
-				const result = {
-					statusCode: res.statusCode!,
-					resHeaders: res.headers as Record<string, string>
-				};
-				resolve(result);
-			});
+			const result = {
+				statusCode: res.statusCode!,
+				resHeaders: res.headers! as Record<string, string>
+			};
+			resolve(result);
 		});
 		req.on('error', reject);
 		if (options.data) {

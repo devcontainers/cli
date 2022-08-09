@@ -32,7 +32,7 @@ describe('CLI features subcommands', async function () {
 		assert.isTrue(success);
 	});
 
-	it('features package subcommand (collection)', async function () {
+	it('features package subcommand - collection', async function () {
 		const srcFolder = `${__dirname}/example-v2-features-sets/simple/src`;
 		let success = false;
 		try {
@@ -61,7 +61,7 @@ describe('CLI features subcommands', async function () {
 		assert.isTrue(collectionFileExists);
 	});
 
-	it('features package subcommand (single feature)', async function () {
+	it('features package subcommand', async function () {
 		const singleFeatureFolder = `${__dirname}/example-v2-features-sets/simple/src/color`;
 		let success = false;
 		try {

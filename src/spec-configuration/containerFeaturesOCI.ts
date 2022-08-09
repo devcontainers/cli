@@ -9,7 +9,7 @@ export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content
 
 export interface OCIFeatureRef {
     id: string;
-    version: string;
+    version?: string;
     owner: string;
     namespace: string;
     registry: string;
@@ -92,11 +92,15 @@ export function getFeatureRef(output: Log, resourceAndVersion: string): OCIFeatu
     };
 }
 
+
+export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+    const featureRef = getFeatureRef(output, identifier);
+    return await fetchOCIFeatureManifestIfExists(output, env, featureRef, manifestDigest, authToken);
+}
+
 // Validate if a manifest exists and is reachable about the declared feature.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
-    const featureRef = getFeatureRef(output, identifier);
-
+export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, featureRef: OCIFeatureRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
     // Simple mechanism to avoid making a DNS request for 
     // something that is not a domain name.
     if (featureRef.registry.indexOf('.') < 0) {
@@ -114,7 +118,6 @@ export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.P
     const manifest = await getFeatureManifest(output, env, manifestUrl, featureRef, authToken);
 
     if (!manifest) {
-        output.write('OCI manifest not found', LogLevel.Warning);
         return;
     }
 
@@ -167,12 +170,12 @@ export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, ur
             headers: headers
         };
 
-        const response = await request(options, output);
+        const response = await request(options);
         const manifest: OCIManifest = JSON.parse(response.toString());
 
         return manifest;
     } catch (e) {
-        output.write(`error: ${e}`, LogLevel.Error);
+        output.write(`Manifest Not Found: ${e}`, LogLevel.Warning);
         return undefined;
     }
 }

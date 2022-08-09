@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { getFeatureRef, fetchOCIFeatureManifestIfExists, fetchRegistryAuthToken } from '../../spec-configuration/containerFeaturesOCI';
+import { getFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, fetchRegistryAuthToken } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateTgzLayer, calculateContentDigest, checkIfBlobExists } from '../../spec-configuration/containerFeaturesOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
@@ -38,7 +38,7 @@ describe('Test OCI Push', () => {
     });
 
     it('Can fetch an artifact from a digest reference', async () => {
-        const manifest = await fetchOCIFeatureManifestIfExists(output, process.env, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
+        const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(output, process.env, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
         assert.strictEqual(manifest?.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
     });
 

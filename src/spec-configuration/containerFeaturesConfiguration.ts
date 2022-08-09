@@ -12,7 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
-import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExists, OCIManifest } from './containerFeaturesOCI';
+import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, OCIManifest } from './containerFeaturesOCI';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -505,7 +505,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 		return { type: 'github-repo', manifest: undefined };
 	}
 
-	const manifest = await fetchOCIFeatureManifestIfExists(output, env, userFeatureId);
+	const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(output, env, userFeatureId);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	} else {
