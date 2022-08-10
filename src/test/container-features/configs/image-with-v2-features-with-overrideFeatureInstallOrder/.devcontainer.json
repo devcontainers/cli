@@ -10,17 +10,14 @@
 		"./local-features/localFeatureA": {
 			"greeting": "buongiorno"
 		},
-		// "github-cli": "latest",
-		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {},
-		// "codspace/myfeatures/helloworld": {
-		// 	"greeting": "howdy"
-		// }
+		"./local/localFeatureA": {
+			"greeting": "buongiorno"
+		},
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {}
 	},
 	"overrideFeatureInstallOrder": [
 		"./local-features/localFeatureA",
 		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
-		// "codspace/myfeatures/helloworld",
-		// "github-cli",
 		"ghcr.io/devcontainers/features/ruby"
 	]
 }
