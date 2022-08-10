@@ -1,0 +1,26 @@
+{
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/ruby:1": {
+			"version": "3.1"
+		},
+		"ghcr.io/codspace/features/ruby:1": {
+			"version": "3.0"
+		},
+		"./local-features/localFeatureA": {
+			"greeting": "buongiorno"
+		},
+		// "github-cli": "latest",
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {},
+		// "codspace/myfeatures/helloworld": {
+		// 	"greeting": "howdy"
+		// }
+	},
+	"overrideFeatureInstallOrder": [
+		"./local-features/localFeatureA",
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
+		// "codspace/myfeatures/helloworld",
+		// "github-cli",
+		"ghcr.io/devcontainers/features/ruby"
+	]
+}

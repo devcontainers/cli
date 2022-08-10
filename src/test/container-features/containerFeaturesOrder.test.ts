@@ -7,8 +7,22 @@ import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
+import { devContainerDown, devContainerUp, shellExec, UpResult } from '../testUtils';
+import path from 'path';
 
-describe('Container features install order', () => {
+const pkg = require('../../../package.json');
+
+describe('Container features install order', function () {
+    this.timeout('120s');
+
+    const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+    const cli = `npx --prefix ${tmp} devcontainer`;
+
+    before('Install', async () => {
+        await shellExec(`rm -rf ${tmp}/node_modules`);
+        await shellExec(`mkdir -p ${tmp}`);
+        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+    });
 
     it('has stable order among independent features', () => {
         assert.deepEqual(
@@ -116,6 +130,32 @@ describe('Container features install order', () => {
                     getOCIFeatureSet('ghcr.io/user/repo/node:1')
                 ]);
         }, { message: 'Feature node not found' });
+    });
+
+    describe('image-with-v2-features-with-overrideFeatureInstallOrder', function () {
+        let upResult: UpResult | null = null;
+        const testFolder = `${__dirname}/configs/image-with-v2-features-with-overrideFeatureInstallOrder`;
+        before(async () => {
+            // build and start the container
+            upResult = await devContainerUp(cli, testFolder);
+        });
+        after(async () => await devContainerDown({ composeProjectName: upResult?.composeProjectName }));
+        it('should succeed', () => {
+            assert.equal(upResult!.outcome, 'success');
+        });
+    });
+
+    describe('image-with-v1-features-with-overrideFeatureInstallOrder', function () {
+        let upResult: UpResult | null = null;
+        const testFolder = `${__dirname}/configs/image-with-v1-features-with-overrideFeatureInstallOrder`;
+        before(async () => {
+            // build and start the container
+            upResult = await devContainerUp(cli, testFolder);
+        });
+        after(async () => await devContainerDown({ composeProjectName: upResult?.composeProjectName }));
+        it('should succeed', () => {
+            assert.equal(upResult!.outcome, 'success');
+        });
     });
 
     function installAfter(id: string, ...installAfter: string[]): FeatureSet {

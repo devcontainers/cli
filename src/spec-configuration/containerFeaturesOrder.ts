@@ -48,7 +48,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         feature,
         before: new Set(),
         after: new Set(),
-    })).reduce((map, feature) => map.set(feature.feature.features[0].name, feature), new Map<string, FeatureNode>());
+    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.referenceId, feature), new Map<string, FeatureNode>());
 
     const nodes = [...nodesById.values()];
     for (const later of nodes) {
@@ -87,19 +87,19 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         }
         orderedFeatures.push(
             ...current.map(node => node.feature)
-                .sort((a, b) => a.features[0].name.localeCompare(b.features[0].name)) // stable order
+                .sort((a, b) => a.sourceInformation.referenceId.localeCompare(b.sourceInformation.referenceId)) // stable order
         );
         current = next;
     }
 
     orderedFeatures.push(
         ...islands.map(node => node.feature)
-            .sort((a, b) => a.features[0].name.localeCompare(b.features[0].name)) // stable order
+            .sort((a, b) => a.sourceInformation.referenceId.localeCompare(b.sourceInformation.referenceId)) // stable order
     );
 
     const missing = new Set(nodesById.keys());
     for (const feature of orderedFeatures) {
-        missing.delete(feature.features[0].name);
+        missing.delete(feature.sourceInformation.referenceId);
     }
 
     if (missing.size !== 0) {

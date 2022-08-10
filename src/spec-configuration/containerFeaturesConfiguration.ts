@@ -431,7 +431,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	output.write('--- Computed order ----', LogLevel.Trace);
 	for (const feature of orderedFeatures) {
-		output.write(`${feature.features[0].id}`, LogLevel.Trace);
+		output.write(`${feature.sourceInformation.referenceId}`, LogLevel.Trace);
 	}
 
 	featuresConfig.featureSets = orderedFeatures;
