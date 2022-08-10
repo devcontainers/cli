@@ -1,9 +1,7 @@
 import { assert } from 'chai';
 import path from 'path';
-import { createLog } from '../../spec-node/devContainers';
 import { getSermanticVersions } from '../../spec-node/featuresCLI/publishCommandImpl';
-import { getPackageConfig } from '../../spec-node/utils';
-import { createPlainLog, Log, LogLevel, makeLog, mapLogLevel } from '../../spec-utils/log';
+import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { shellExec } from '../testUtils';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -90,25 +88,6 @@ describe('CLI features subcommands', async function () {
 });
 
 describe('features publish subcommand', () => {
-    let output: Log;
-    const disposables: (() => Promise<unknown> | undefined)[] = [];
-    const dispose = async () => {
-        await Promise.all(disposables.map(d => d()));
-    };
-
-    before(async () => {
-
-        const extensionPath = path.join(__dirname, '..', '..');
-        const pkg = await getPackageConfig(extensionPath);
-
-        output = createLog({
-            logLevel: mapLogLevel('trace'),
-            logFormat: 'text',
-            log: (str) => process.stdout.write(str),
-            terminalDimensions: undefined,
-        }, pkg, new Date(), disposables, true);
-    });
-
     it('should generate correct semantic versions', async () => {
         // First publish
         let version = '1.0.0';
@@ -142,7 +121,7 @@ describe('features publish subcommand', () => {
         assert.isUndefined(semanticVersions);
     });
 
-    after(async () => {
-        await dispose();
-    });
+	it('should test getPublishedVersions()', async () => {
+
+	});
 });

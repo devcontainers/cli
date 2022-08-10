@@ -7,16 +7,22 @@ import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { FeaturesPackageArgs, featuresPackage } from './package';
 import { DevContainerCollectionMetadata } from './packageCommandImpl';
-import { getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
+import { doFeaturesPublishCommand, getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
+
+const targetPositionalDescription = `
+Package and publish features at provided [target] (default is cwd), where [target] is either:
+   1. A path to the src folder of the collection with [1..n] features.
+   2. A path to a single feature that contains a devcontainer-feature.json.
+`;
 
 export function featuresPublishOptions(y: Argv) {
     return y
         .options({
-            'feature-collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing source code for collection of features' },
             'registry': { type: 'string', alias: 'r', default: 'ghcr.io', description: 'Name of the OCI registry.' },
             'namespace': { type: 'string', alias: 'n', require: true, description: 'Unique indentifier for the collection of features. Example: <owner>/<repo>' },
             'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' }
         })
+        .positional('target', { type: 'string', default: '.', description: targetPositionalDescription })
         .check(_argv => {
             return true;
         });
@@ -29,13 +35,12 @@ export function featuresPublishHandler(args: FeaturesPublishArgs) {
 }
 
 async function featuresPublish({
-    'feature-collection-folder': featureCollectionFolder,
+    'target': targetFolder,
     'log-level': inputLogLevel,
     'registry': registry,
     'namespace': namespace
 }: FeaturesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
-
     const dispose = async () => {
         await Promise.all(disposables.map(d => d()));
     };
@@ -53,10 +58,10 @@ async function featuresPublish({
     const outputDir = '/tmp/features-output';
 
     const packageArgs: FeaturesPackageArgs = {
-        'feature-collection-folder': featureCollectionFolder,
-        'force-clean-output-dir': true,
+        'target': targetFolder,
         'log-level': inputLogLevel,
-        'output-dir': outputDir
+        'output-folder': outputDir,
+        'force-clean-output-folder': true,
     };
 
     await featuresPackage(packageArgs, false);
@@ -67,16 +72,13 @@ async function featuresPublish({
         process.exit(1);
     }
 
+    let exitCode = 0;
     const metadata: DevContainerCollectionMetadata = JSON.parse(await readLocalFile(metadataOutputPath, 'utf-8'));
-
-    // temp
-    const exitCode = 0;
-
     for (const f of metadata.features) {
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
         if (f.version === undefined) {
-            output.write(`(!) Version does not exist, skipping ${f.id}...`, LogLevel.Warning);
+            output.write(`(!) WARNING: Version does not exist, skipping ${f.id}...`, LogLevel.Warning);
             continue;
         }
 
@@ -86,17 +88,13 @@ async function featuresPublish({
 
         if (semanticVersions !== undefined) {
             output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-
-            // TODO: CALL OCI PUSH
-            // exitCode = await doFeaturesPublishCommand();
-
+            exitCode = doFeaturesPublishCommand();
             output.write(`Published feature: ${f.id}...`, LogLevel.Info);
         }
     }
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });
-
     await dispose();
     process.exit(exitCode);
 }

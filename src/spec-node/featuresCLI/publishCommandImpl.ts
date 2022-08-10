@@ -1,3 +1,4 @@
+import { fetchRegistryAuthToken, HEADERS } from '../../spec-configuration/containerFeaturesOCI';
 import { request } from '../../spec-utils/httpRequest';
 import { Log, LogLevel } from '../../spec-utils/log';
 
@@ -10,27 +11,21 @@ interface versions {
 }
 
 export async function getPublishedVersions(featureId: string, registry: string, namespace: string, output: Log) {
-    const url = `https://${registry}/v2/${namespace}/${featureId}/tags/list`;
-    const id = `${registry}/${namespace}/${featureId}`;
-    let token = '';
-
     try {
-        token = await getAuthenticationToken(registry, id);
-    } catch (e) {
-        // Publishing for the first time
-        if (e?.message.includes('403')) {
-            return [];
+        const url = `https://${registry}/v2/${namespace}/${featureId}/tags/list`;
+        const resource = `${registry}/${namespace}/${featureId}`;
+
+        let authToken = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
+
+        if (!authToken) {
+            output.write(`(!) ERR: Failed to publish feature: ${resource}`, LogLevel.Error);
+            process.exit(1);
         }
 
-        output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
-        process.exit(1);
-    }
-
-    try {
-        const headers = {
+        const headers: HEADERS = {
             'user-agent': 'devcontainer',
-            'Authorization': token,
-            'Accept': 'application/json',
+            'accept': 'application/json',
+            'authorization': `Bearer ${authToken}`
         };
 
         const options = {
@@ -44,6 +39,11 @@ export async function getPublishedVersions(featureId: string, registry: string, 
 
         return publishedVersionsResponse.tags;
     } catch (e) {
+        // Publishing for the first time
+        if (e?.message.includes('HTTP 404: Not Found')) {
+            return [];
+        }
+
         output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
         process.exit(1);
     }
@@ -51,7 +51,7 @@ export async function getPublishedVersions(featureId: string, registry: string, 
 
 export function getSermanticVersions(version: string, publishedVersions: string[], output: Log) {
     if (publishedVersions.includes(version)) {
-        output.write(`(!) Version ${version} already exists, skipping ${version}...`, LogLevel.Warning);
+        output.write(`(!) WARNING: Version ${version} already exists, skipping ${version}...`, LogLevel.Warning);
         return undefined;
     }
 
@@ -61,7 +61,7 @@ export function getSermanticVersions(version: string, publishedVersions: string[
         process.exit(1);
     }
 
-    // Add semantic versions ex. 1.2.3 --> [1, 1.2, 1.2.3]
+    // Add semantic versions eg. 1.2.3 --> [1, 1.2, 1.2.3]
     const parsedVersion = semver.parse(version);
 
     if (parsedVersion.major !== 0) {
@@ -86,31 +86,7 @@ export function getSermanticVersions(version: string, publishedVersions: string[
     return semanticVersions;
 }
 
-// temp
-async function getAuthenticationToken(registry: string, id: string): Promise<string> {
-    if (registry === 'ghcr.io') {
-        const token = await getGHCRtoken(id);
-        return 'Bearer ' + token;
-    }
-
-    return '';
-}
-
-// temp
-export async function getGHCRtoken(id: string) {
-    const headers = {
-        'user-agent': 'devcontainer',
-    };
-
-    const url = `https://ghcr.io/token?scope=repo:${id}:pull&service=ghcr.io`;
-
-    const options = {
-        type: 'GET',
-        url: url,
-        headers: headers
-    };
-
-    const token = JSON.parse((await request(options)).toString()).token;
-
-    return token;
+// TODO: Depends on https://github.com/devcontainers/cli/pull/99
+export function doFeaturesPublishCommand() {
+    return 0;
 }

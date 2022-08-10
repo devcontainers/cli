@@ -44,12 +44,12 @@ export function featuresPackageHandler(args: FeaturesPackageArgs) {
 	(async () => await featuresPackage(args))().catch(console.error);
 }
 
-async function featuresPackage({
+export async function featuresPackage({
 	'target': targetFolder,
 	'log-level': inputLogLevel,
 	'output-folder': outputDir,
 	'force-clean-output-folder': forceCleanOutputDir,
-}: FeaturesPackageArgs) {
+}: FeaturesPackageArgs, shouldExit: boolean = true) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
@@ -113,5 +113,8 @@ async function featuresPackage({
 	const exitCode = await doFeaturesPackageCommand(args);
 
 	await dispose();
-	process.exit(exitCode);
+
+	if (shouldExit) {
+        process.exit(exitCode);
+    }
 }
