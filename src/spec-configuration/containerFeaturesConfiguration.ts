@@ -73,7 +73,7 @@ export type SourceInformation = LocalCacheSourceInformation | GithubSourceInform
 
 interface BaseSourceInformation {
 	type: string;
-	referenceId: string; // The id format specified dicates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	referenceId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
