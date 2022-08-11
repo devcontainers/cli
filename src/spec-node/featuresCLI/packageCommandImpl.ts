@@ -5,9 +5,6 @@ import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
-import { pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
-import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
-
 export interface SourceInformation {
 	source: string;
 	owner?: string;
@@ -50,22 +47,6 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	// Write the metadata to a file
 	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
-
-	// TODO: temporary
-	const featureRef: OCIFeatureRef = {
-		id: 'color',
-		owner: 'joshspicer',
-		namespace: 'joshspicer/mypackages',
-		registry: 'ghcr.io',
-		resource: 'ghcr.io/joshspicer/mypackages/color'
-	};
-	const result = await pushOCIFeature(output, featureRef, path.join(args.outputDir, `devcontainer-feature-color.tgz`), ['1', '1.2']);
-	if (!result) {
-		output.write('Failed to push feature', LogLevel.Error);
-	} else {
-		output.write('Successfully pushed feature', LogLevel.Info);
-	}
-	// END TEMPORARY
 
 	return 0;
 }
@@ -124,7 +105,7 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 
 			const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
 			if (!featureMetadata.id || !featureMetadata.version) {
-				output.write(`Feature '${f}' is missing an id or verion in its devcontainer-feature.json`, LogLevel.Error);
+				output.write(`Feature '${f}' is missing an id or version in its devcontainer-feature.json`, LogLevel.Error);
 				return;
 			}
 			metadatas.push(featureMetadata);

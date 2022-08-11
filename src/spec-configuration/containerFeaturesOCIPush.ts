@@ -10,6 +10,7 @@ import { fetchOCIFeatureManifestIfExists, fetchRegistryAuthToken, HEADERS, OCIFe
 //     Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
 export async function pushOCIFeature(output: Log, featureRef: OCIFeatureRef, pathToTgz: string, tags: string[]): Promise<boolean> {
 	output.write(`Starting push of feature '${featureRef.id}' to '${featureRef.resource}' with tags '${tags.join(', ')}'`);
+	output.write(`${JSON.stringify(featureRef, null, 2)}`, LogLevel.Trace);
 	const env = process.env;
 
 	// Generate registry auth token with `pull,push` scopes.
@@ -20,7 +21,7 @@ export async function pushOCIFeature(output: Log, featureRef: OCIFeatureRef, pat
 	}
 
 	// Generate Manifest for given feature artifact.
-	const manifest = await generateCompleteManifest(output, pathToTgz);
+	const manifest = await generateCompleteManifest(output, pathToTgz, featureRef);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${featureRef.id}`, LogLevel.Error);
 		return false;
@@ -105,7 +106,7 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put (PUT <location>?digest=<digest>)
 export async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: string, featureRef: OCIFeatureRef, digest: string, registryAuthToken: string): Promise<boolean> {
-	output.write(`Uploading blob with digest ${digest}`, LogLevel.Trace);
+	output.write(`PUT new blob -> '${digest}'`, LogLevel.Info);
 
 	if (!(await isLocalFile(pathToBlob))) {
 		output.write(`Blob ${pathToBlob} does not exist`, LogLevel.Error);
@@ -138,15 +139,14 @@ export async function putBlob(output: Log, pathToBlob: string, blobPutLocationUr
 	return true;
 }
 
-export async function generateCompleteManifest(output: Log, pathToTgz: string): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
+export async function generateCompleteManifest(output: Log, pathToTgz: string, ociFeatureRef: OCIFeatureRef): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
 
 	const tgzLayer = await calculateTgzLayer(output, pathToTgz);
 	if (!tgzLayer) {
 		output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
 		return undefined;
 	}
-
-	return await calculateContentDigest(output, tgzLayer);
+	return await calculateManifestAndContentDigest(output, tgzLayer, ociFeatureRef);
 }
 
 export async function calculateTgzLayer(output: Log, pathToTgz: string): Promise<OCILayer | undefined> {
@@ -209,7 +209,7 @@ export async function postUploadSessionId(output: Log, featureRef: OCIFeatureRef
 	return undefined;
 }
 
-export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
+export async function calculateManifestAndContentDigest(output: Log, tgzLayer: OCILayer, ociFeatureRef: OCIFeatureRef) {
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
 	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'
@@ -226,10 +226,16 @@ export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
 		layers: [
 			tgzLayer
 		],
-		annotations: {
-			'com.github.package.type': 'devcontainer_feature'
-		}
 	};
+
+	// Specific registries look for certain optional metadata 
+	// in the manifest, in this case for UI presentation.
+	const ociRegistry = ociFeatureRef.registry;
+	if (ociRegistry === 'ghcr.io') {
+		manifest.annotations = {
+			'com.github.package.type': 'devcontainer-feature',
+		};
+	}
 
 	const manifestStringified = JSON.stringify(manifest);
 	const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
