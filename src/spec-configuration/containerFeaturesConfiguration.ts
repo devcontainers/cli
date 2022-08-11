@@ -23,6 +23,7 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
 export interface Feature {
 	id: string;
+	version?: string;
 	name: string;
 	description?: string;
 	cachePath?: string;
@@ -578,16 +579,26 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	// remote tar file
 	if (type === 'direct-tarball') {
 		output.write(`Remote tar file found.`);
-		let input = userFeature.id.replace(/\/+$/, '');
-		const featureIdDelimiter = input.lastIndexOf('#');
-		const id = input.substring(featureIdDelimiter + 1);
+		const tarballUri = new URL.URL(userFeature.id);
+
+		const fullPath = tarballUri.pathname;
+		const tarballName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+		output.write(`tarballName = ${tarballName}`, LogLevel.Trace);
+
+		const regex = new RegExp('devcontainer-feature-(.*).tgz');
+		const matches = regex.exec(tarballName);
+
+		if (!matches || matches.length !== 2) {
+			output.write(`Expected tarball name to follow 'devcontainer-feature-<feature-id>.tgz' format.  Received '${tarballName}'`, LogLevel.Error);
+			return undefined;
+		}
+		const id = matches[1];
 
 		if (id === '' || !allowedFeatureIdRegex.test(id)) {
-			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Provided: ${id}.`, LogLevel.Error);
+			output.write(`Parse error. Specify a feature id with alphanumeric, dash, or underscore characters. Received ${id}.`, LogLevel.Error);
 			return undefined;
 		}
 
-		const tarballUri = new URL.URL(input.substring(0, featureIdDelimiter)).toString();
 		let feat: Feature = {
 			id: id,
 			name: userFeature.id,
@@ -598,7 +609,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'direct-tarball',
-				tarballUri: tarballUri
+				tarballUri: tarballUri.toString()
 			},
 			features: [feat],
 		};
