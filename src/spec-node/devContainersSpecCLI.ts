@@ -26,7 +26,7 @@ import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
-import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
+// import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
