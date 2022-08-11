@@ -52,7 +52,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
 			if (output) {
-				output.write(`HEAD ${url} -> ${res.statusCode}`, LogLevel.Trace);
+				output.write(`HEAD ${options.url} -> ${res.statusCode}`, LogLevel.Trace);
 			}
 			resolve(res.statusCode!);
 		});

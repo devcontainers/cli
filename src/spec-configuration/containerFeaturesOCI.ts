@@ -34,6 +34,7 @@ export interface OCIManifest {
         size: number;
     };
     layers: OCILayer[];
+    annotations?: {};
 }
 
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest): FeatureSet {
@@ -175,7 +176,6 @@ export async function getFeatureManifest(output: Log, env: NodeJS.ProcessEnv, ur
 
         return manifest;
     } catch (e) {
-        output.write(`Manifest Not Found: ${e}`, LogLevel.Warning);
         return undefined;
     }
 }

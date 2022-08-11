@@ -8,8 +8,9 @@ import { fetchOCIFeatureManifestIfExists, fetchRegistryAuthToken, HEADERS, OCIFe
 
 // (!) Entrypoint function to push a feature to a registry.
 //     Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureRef: OCIFeatureRef, pathToTgz: string, tags: string[]): Promise<boolean> {
+export async function pushOCIFeature(output: Log, featureRef: OCIFeatureRef, pathToTgz: string, tags: string[]): Promise<boolean> {
 	output.write(`Starting push of feature '${featureRef.id}' to '${featureRef.resource}' with tags '${tags.join(', ')}'`);
+	const env = process.env;
 
 	// Generate registry auth token with `pull,push` scopes.
 	const registryAuthToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.id, env, 'pull,push');
@@ -24,6 +25,7 @@ export async function pushOCIFeature(output: Log, env: NodeJS.ProcessEnv, featur
 		output.write(`Failed to generate manifest for ${featureRef.id}`, LogLevel.Error);
 		return false;
 	}
+	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
 	const existingFeatureManifest = await fetchOCIFeatureManifestIfExists(output, env, featureRef, manifest.digest, registryAuthToken);
@@ -96,7 +98,7 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'] || resHeaders['Docker-Content-Digest'];
 		const locationResponseHeader = resHeaders['location'] || resHeaders['Location'];
 		output.write(`Tagged: ${tag} -> ${locationResponseHeader}`, LogLevel.Info);
-		output.write(`Docker-Content-Digest: ${dockerContentDigestResponseHeader}`, LogLevel.Trace);
+		output.write(`Returned Content-Digest: ${dockerContentDigestResponseHeader}`, LogLevel.Trace);
 	}
 	return true;
 }
@@ -223,12 +225,15 @@ export async function calculateContentDigest(output: Log, tgzLayer: OCILayer) {
 		},
 		layers: [
 			tgzLayer
-		]
+		],
+		annotations: {
+			'com.github.package.type': 'devcontainer_feature'
+		}
 	};
 
 	const manifestStringified = JSON.stringify(manifest);
 	const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
-	output.write(`content digest:  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
+	output.write(`Computed Content-Digest ->  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
 
 	return {
 		manifestStr: manifestStringified,
