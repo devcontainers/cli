@@ -1,6 +1,6 @@
 import { assert } from 'chai';
-import { getFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, fetchRegistryAuthToken } from '../../spec-configuration/containerFeaturesOCI';
-import { calculateTgzLayer, calculateContentDigest, checkIfBlobExists } from '../../spec-configuration/containerFeaturesOCIPush';
+import { getFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, fetchRegistryAuthToken, OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+import { calculateTgzLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerFeaturesOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -27,8 +27,16 @@ describe('Test OCI Push', () => {
         }
         assert.deepEqual(res, expected);
 
+        const ociFeatureRef: OCIFeatureRef = {
+            'id': 'color',
+            'owner': 'owner',
+            'namespace': 'owner/repo',
+            'registry': 'contoso.io',
+            'resource': 'contoso.io/owner/repo/color'
+        };
+
         // Generate entire manifest to be able to calculate content digest
-        const { manifestStr, digest } = await calculateContentDigest(output, res);
+        const { manifestStr, digest } = await calculateManifestAndContentDigest(output, res, ociFeatureRef);
 
         // 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
         assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
