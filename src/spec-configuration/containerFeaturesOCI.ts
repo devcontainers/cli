@@ -255,13 +255,13 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, reso
 
     const authReq = await request(options, output);
     if (!authReq) {
-        output.write('(!) ERR: Failed to get registry auth token', LogLevel.Error);
+        output.write('Failed to get registry auth token', LogLevel.Error);
         return undefined;
     }
 
     const token: string | undefined = JSON.parse(authReq.toString())?.token;
     if (!token) {
-        output.write('(!) ERR: Failed to parse registry auth token response', LogLevel.Error);
+        output.write('Failed to parse registry auth token response', LogLevel.Error);
         return undefined;
     }
     return token;
