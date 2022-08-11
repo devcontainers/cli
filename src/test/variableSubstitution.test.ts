@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { substitute } from '../spec-common/variableSubstitution';
 import { URI } from 'vscode-uri';
 
-describe.only('Variable substitution', function () {
+describe('Variable substitution', function () {
 
 	it(`environment variables`, async () => {
 		const raw = {
