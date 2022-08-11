@@ -319,7 +319,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	const { started } = await startEventSeen(params, { [projectLabel]: projectName, [serviceLabel]: config.service }, canceled, common.output, common.getLogLevel() === LogLevel.Trace); // await getEvents, but only assign started.
 
 	const service = composeConfig.services[config.service];
-	const originalImageName = service.image || `${projectName}_${config.service}`;
+	const originalImageName = service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
 
 	// Try to restore the 'third' docker-compose file and featuresConfig from persisted storage.
 	// This file may have been generated upon a Codespace creation.
@@ -398,6 +398,12 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	return {
 		containerId: (await findComposeContainer(params, projectName, config.service))!,
 	};
+}
+
+export function getDefaultImageName(dockerComposeCLI: DockerComposeCLI, projectName: string, serviceName: string) {
+	const version = parseVersion(dockerComposeCLI.version);
+	const separator = version && isEarlierVersion(version, [2, 8, 0]) ? '_' : '-';
+	return `${projectName}${separator}${serviceName}`;
 }
 
 async function writeFeaturesComposeOverrideFile(
