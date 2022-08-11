@@ -70,7 +70,9 @@ describe('validate processFeatureIdentifier', async function () {
 			assertFeatureIdInvariant(featureId);
 
 			assert.strictEqual(featureId, 'docker-in-docker');
-			assert.strictEqual(featureSet?.sourceInformation.type, 'local-cache');
+
+			// Automapping feature ids from old shorthand syntax to ghcr.io/devcontainers/features/*
+			assert.strictEqual(featureSet?.sourceInformation.type, 'oci');
 		});
 
 		it('should process github-repo (without version)', async function () {
