@@ -5,6 +5,9 @@ import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
+import { pushFeatureCollectionMetadata, pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
+import { OCIFeatureCollectionRef, OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+
 export interface SourceInformation {
 	source: string;
 	owner?: string;
@@ -47,6 +50,38 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	// Write the metadata to a file
 	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
+
+	// TODO: temporary
+	const featureRef: OCIFeatureRef = {
+		id: 'color',
+		owner: 'joshspicer',
+		namespace: 'joshspicer/mypackages',
+		registry: 'ghcr.io',
+		resource: 'ghcr.io/joshspicer/mypackages/color',
+		path: 'joshspicer/mypackages/color',
+	};
+	const result = await pushOCIFeature(output, featureRef, path.join(args.outputDir, `devcontainer-feature-color.tgz`), ['1', '1.5']);
+	if (!result) {
+		output.write('Failed to push feature', LogLevel.Error);
+	} else {
+		output.write('Successfully pushed feature', LogLevel.Info);
+	}
+
+	const featureCollectionRef: OCIFeatureCollectionRef = {
+		'path': 'joshspicer/mypackages',
+		'registry': 'ghcr.io',
+		'version': 'latest',
+	};
+	const result2 = await pushFeatureCollectionMetadata(output, featureCollectionRef, path.join(args.outputDir, `devcontainer-collection.json`));
+	if (!result2) {
+		output.write('Failed to push collection', LogLevel.Error);
+	} else {
+		output.write('Successfully pushed collection', LogLevel.Info);
+	}
+
+
+	// END TEMPORARY
+
 
 	return 0;
 }
