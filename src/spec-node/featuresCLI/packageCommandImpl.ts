@@ -5,8 +5,8 @@ import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 
-import { pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
-import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+// import { pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
+// import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 
 export interface SourceInformation {
 	source: string;
