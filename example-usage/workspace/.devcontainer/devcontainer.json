@@ -4,6 +4,25 @@
 		"dockerfile": "Dockerfile"
 	},
 
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"streetsidesoftware.code-spell-checker",
+				"mutantdino.resourcemonitor"
+			],
+			"settings": {
+				"resmon.show.battery": false,
+				"resmon.show.cpufreq": false
+			}
+		},
+		"openvscodeserver": {
+			"extensions": [
+				"streetsidesoftware.code-spell-checker"
+			],
+			"settings": { }
+		}
+	},
+	
 	// 👇 Dev Container Features - https://containers.dev/implementors/features/
 	"features": {
 		"ghcr.io/devcontainers/features/go:1": {
