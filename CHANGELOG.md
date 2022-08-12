@@ -4,6 +4,11 @@ Notable changes.
 
 ## August 2022
 
+### [0.11.0]
+
+- WIP on features v2:
+	- Auto map old feature ids to OCI features. (https://github.com/devcontainers/cli/pull/100)
+
 ### [0.10.0]
 
 - Implement optional default values in localEnv/containerEnv expansions. (https://github.com/devcontainers/cli/issues/50)

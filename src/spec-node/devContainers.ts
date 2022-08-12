@@ -49,6 +49,7 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	skipFeatureAutoMapping: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -119,6 +120,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		remoteEnv,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
+		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
