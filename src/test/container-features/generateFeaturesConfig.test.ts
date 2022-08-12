@@ -14,7 +14,7 @@ describe('validate generateFeaturesConfig()', function () {
 
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
-    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '' };
+    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '', skipFeatureAutoMapping: false };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {

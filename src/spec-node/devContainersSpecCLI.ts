@@ -94,6 +94,7 @@ function provisionOptions(y: Argv) {
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
+		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -152,6 +153,7 @@ async function provision({
 	'remote-env': addRemoteEnv,
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
+	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -195,6 +197,7 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
+		skipFeatureAutoMapping,
 	};
 
 	const result = await doProvision(options);
@@ -254,6 +257,7 @@ function buildOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 	});
 }
 
@@ -284,6 +288,7 @@ async function doBuild({
 	'buildkit': buildkit,
 	'platform': buildxPlatform,
 	'push': buildxPush,
+	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -323,6 +328,7 @@ async function doBuild({
 			useBuildKit: buildkit,
 			buildxPlatform,
 			buildxPush,
+			skipFeatureAutoMapping,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -453,6 +459,7 @@ function runUserCommandsOptions(y: Argv) {
 		prebuild: { type: 'boolean', default: false, description: 'Stop after onCreateCommand and updateContentCommand, rerunning updateContentCommand if it has run before.' },
 		'stop-for-personalization': { type: 'boolean', default: false, description: 'Stop for personalization.' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
+		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -501,6 +508,7 @@ async function doRunUserCommands({
 	prebuild,
 	'stop-for-personalization': stopForPersonalization,
 	'remote-env': addRemoteEnv,
+	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -541,6 +549,7 @@ async function doRunUserCommands({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			skipFeatureAutoMapping,
 		}, disposables);
 
 		const { common } = params;
@@ -599,6 +608,7 @@ function readConfigurationOptions(y: Argv) {
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'include-features-configuration': { type: 'boolean', default: false, description: 'Include features configuration.' },
+		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 	});
 }
 
@@ -619,6 +629,7 @@ async function readConfiguration({
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
 	'include-features-configuration': includeFeaturesConfig,
+	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -650,7 +661,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env, skipFeatureAutoMapping }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configs.config,
@@ -690,6 +701,7 @@ function execOptions(y: Argv) {
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
+		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.positional('cmd', {
 			type: 'string',
@@ -746,6 +758,7 @@ export async function doExec({
 	'terminal-columns': terminalColumns,
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
+	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -788,6 +801,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			skipFeatureAutoMapping,
 		}, disposables);
 
 		const { common } = params;
