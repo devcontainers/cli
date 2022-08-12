@@ -5,6 +5,7 @@
 	},
 
 	"customizations": {
+		// 👇 Config only used for VS Code Server
 		"vscode": {
 			"extensions": [
 				"streetsidesoftware.code-spell-checker",
@@ -15,6 +16,7 @@
 				"resmon.show.cpufreq": false
 			}
 		},
+		// 👇 Config only used for openvscode-server
 		"openvscodeserver": {
 			"extensions": [
 				"streetsidesoftware.code-spell-checker"
