@@ -145,8 +145,8 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 		});
 
 		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
-		// Collect the results into the 'testResults' array.
-		testResults = await doScenario(featureTestFolder, args, testResults);
+		// Pass  'testResults' array reference in to capture results.
+		await doScenario(featureTestFolder, args, testResults);
 		if (!testResults) {
 			fail(`Failed to run scenarios in ${featureTestFolder}`);
 			return 1; // We never reach here, we exit via fail().
@@ -163,7 +163,6 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 	const scenariosPath = path.join(pathToTestDir, 'scenarios.json');
 
 	if (!(await cliHost.isFile(scenariosPath))) {
-		fail(`scenarios.json not found, expected at:  ${scenariosPath}`);
 		return;
 	}
 
