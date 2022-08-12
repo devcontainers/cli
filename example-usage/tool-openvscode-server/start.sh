@@ -12,4 +12,3 @@ devcontainer read-configuration --include-features-configuration --log-format js
 
 devcontainer up $remove_flag --mount "type=bind,source=$(pwd)/server,target=/server"  --workspace-folder ../workspace
 devcontainer exec --workspace-folder ../workspace /server/init-openvscode-server.sh
-
