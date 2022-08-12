@@ -17,6 +17,7 @@ function fail(msg: string) {
 }
 
 type Scenarios = { [key: string]: DevContainerConfig };
+type TestResult = { testName: string; result: boolean };
 
 function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
 
@@ -71,61 +72,16 @@ async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<
 	}
 
 	log(`Scenarios:         ${scenariosFolder}\n`, { prefix: '\n📊', info: true });
-	const scenariosPath = path.join(scenariosFolder, 'scenarios.json');
-
-	if (!cliHost.isFile(scenariosPath)) {
-		fail(`scenarios.json not found, expected on at:  ${scenariosPath}`);
+	const testResults = await doScenario(scenariosFolder, args);
+	if (!testResults) {
+		fail(`Failed to run scenarios in ${scenariosFolder}`);
 		return 1; // We never reach here, we exit via fail().
-	}
-
-	// Read in scenarios.json
-	const scenariosBuffer = await cliHost.readFile(scenariosPath);
-	// Parse to json
-	let scenarios: Scenarios = {};
-	try {
-		scenarios = JSON.parse(scenariosBuffer.toString());
-	} catch (e) {
-		fail(`Failed to parse scenarios.json:  ${e.message}`);
-		return 1; // We never reach here, we exit via fail().
-	}
-
-	const testResults: { testName: string; result: boolean }[] = [];
-
-	// For EACH scenario: Spin up a container and exec the scenario test script
-	for (const [scenarioName, scenarioConfig] of Object.entries(scenarios)) {
-		log(`Running scenario:  ${scenarioName}`);
-
-		// Check if we have a scenario test script, otherwise skip.
-		const scenarioTestScript = path.join(scenariosFolder, `${scenarioName}.sh`);
-		if (!cliHost.isFile(scenarioTestScript)) {
-			log(`No scenario test script found at path ${scenarioTestScript}, skipping scenario...`);
-			continue;
-		}
-
-		// Create Container
-		const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig);
-		const params = await generateDockerParams(workspaceFolder, args);
-		await createContainerFromWorkingDirectory(params, workspaceFolder, args);
-
-		// Execute test script
-		// Move the test script into the workspaceFolder
-		const testScript = await cliHost.readFile(scenarioTestScript);
-		const remoteTestScriptName = `${scenarioName}-test-${Date.now()}.sh`;
-		await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
-
-		// Move the test library script into the workspaceFolder
-		await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
-
-		// Execute Test
-		testResults.push({
-			testName: scenarioName,
-			result: await execTest(params, remoteTestScriptName, workspaceFolder)
-		});
 	}
 
 	// Pretty-prints results and returns a status code to indicate success or failure.
 	return analyzeTestResults(testResults);
 }
+
 
 async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 	const { baseImage, collectionFolder, remoteUser, cliHost } = args;
@@ -153,7 +109,7 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 	log(`features:          ${features.join(', ')}`);
 
 	// 1. Generate temporary project with 'baseImage' and all the 'features..'
-	const workspaceFolder = await generateProjectFromFeatures(
+	const workspaceFolder = await generateDefaultProjectFromFeatures(
 		cliHost,
 		baseImage,
 		collectionFolder,
@@ -166,11 +122,14 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 
 	log('Starting test(s)...\n', { prefix: '\n🏃', info: true });
 
-	// 3. Exec test script for each feature, in the provided order.
-	const testResults = [];
+	let testResults: TestResult[] | undefined = [];
+
+	// 3. Exec default 'test.sh' script for each feature, in the provided order.
+	//    Also exec a test's test scenarios, if a scenarios.json is present in the feature's test folder.
 	for (const feature of features) {
 		log(`Executing '${feature}' test...`, { prefix: '🧪' });
-		const testScriptPath = path.join(collectionFolder, 'test', feature, 'test.sh');
+		const featureTestFolder = path.join(collectionFolder, 'test', feature);
+		const testScriptPath = path.join(featureTestFolder, 'test.sh');
 		if (!(await cliHost.isFile(testScriptPath))) {
 			fail(`Feature ${feature} does not have a test script!`);
 		}
@@ -189,10 +148,73 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 			testName: feature,
 			result,
 		});
+
+		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
+		// Collect the results into the 'testResults' array.
+		testResults = await doScenario(featureTestFolder, args, testResults);
+		if (!testResults) {
+			fail(`Failed to run scenarios in ${featureTestFolder}`);
+			return 1; // We never reach here, we exit via fail().
+		}
+
 	}
 
 	// Pretty-prints results and returns a status code to indicate success or failure.
 	return analyzeTestResults(testResults);
+}
+
+async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[] | undefined> {
+	const { collectionFolder, cliHost } = args;
+	const scenariosPath = path.join(pathToTestDir, 'scenarios.json');
+
+	if (!(await cliHost.isFile(scenariosPath))) {
+		fail(`scenarios.json not found, expected at:  ${scenariosPath}`);
+		return;
+	}
+
+	// Read in scenarios.json
+	const scenariosBuffer = await cliHost.readFile(scenariosPath);
+	// Parse to json
+	let scenarios: Scenarios = {};
+	try {
+		scenarios = JSON.parse(scenariosBuffer.toString());
+	} catch (e) {
+		fail(`Failed to parse scenarios.json:  ${e.message}`);
+		return; // We never reach here, we exit via fail().
+	}
+
+	// For EACH scenario: Spin up a container and exec the scenario test script
+	for (const [scenarioName, scenarioConfig] of Object.entries(scenarios)) {
+		log(`Running scenario:  ${scenarioName}`);
+
+		// Check if we have a scenario test script, otherwise skip.
+		const scenarioTestScript = path.join(pathToTestDir, `${scenarioName}.sh`);
+		if (!(await cliHost.isFile(scenarioTestScript))) {
+			log(`No scenario test script found at path ${scenarioTestScript}, skipping scenario...`);
+			continue;
+		}
+
+		// Create Container
+		const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig);
+		const params = await generateDockerParams(workspaceFolder, args);
+		await createContainerFromWorkingDirectory(params, workspaceFolder, args);
+
+		// Execute test script
+		// Move the test script into the workspaceFolder
+		const testScript = await cliHost.readFile(scenarioTestScript);
+		const remoteTestScriptName = `${scenarioName}-test-${Date.now()}.sh`;
+		await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
+
+		// Move the test library script into the workspaceFolder
+		await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
+
+		// Execute Test
+		testResults.push({
+			testName: scenarioName,
+			result: await execTest(params, remoteTestScriptName, workspaceFolder)
+		});
+	}
+	return testResults;
 }
 
 function analyzeTestResults(testResults: { testName: string; result: boolean }[]): number {
@@ -246,7 +268,7 @@ async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
 	return tmpFolder;
 }
 
-async function generateProjectFromFeatures(
+async function generateDefaultProjectFromFeatures(
 	cliHost: CLIHost,
 	baseImage: string,
 	collectionsDirectory: string,
@@ -256,7 +278,7 @@ async function generateProjectFromFeatures(
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
 	const features = featuresToTest
-		.map((x) => `"${collectionsDirectory}/src/${x}": "latest"`)
+		.map((x) => `"${collectionsDirectory}/src/${x}": {}`)
 		.join(',\n');
 
 	let template = devcontainerTemplate
