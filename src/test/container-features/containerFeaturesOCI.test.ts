@@ -15,6 +15,7 @@ describe('Test OCI Pull', () => {
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/codspace/features/ruby');
         assert.equal(feat.version, '1');
+        assert.equal(feat.path, 'codspace/features/ruby');
     });
 
     it('Get a manifest by tag', async () => {

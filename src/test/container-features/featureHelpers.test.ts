@@ -205,7 +205,8 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: 'latest',
-				resource: 'ghcr.io/codspace/features/ruby'
+				resource: 'ghcr.io/codspace/features/ruby',
+				path: 'codspace/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -238,7 +239,8 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: '1.0.13',
-				resource: 'ghcr.io/codspace/features/ruby'
+				resource: 'ghcr.io/codspace/features/ruby',
+				path: 'codspace/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {

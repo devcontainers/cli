@@ -4,7 +4,6 @@ import { Feature } from '../../spec-configuration/containerFeaturesConfiguration
 import { LogLevel } from '../../spec-utils/log';
 import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
-
 export interface SourceInformation {
 	source: string;
 	owner?: string;
@@ -47,7 +46,6 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	// Write the metadata to a file
 	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
-
 	return 0;
 }
 
@@ -105,7 +103,7 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 
 			const featureMetadata: Feature = JSON.parse(await readLocalFile(featureJsonPath, 'utf-8'));
 			if (!featureMetadata.id || !featureMetadata.version) {
-				output.write(`Feature '${f}' is missing an id or verion in its devcontainer-feature.json`, LogLevel.Error);
+				output.write(`Feature '${f}' is missing an id or version in its devcontainer-feature.json`, LogLevel.Error);
 				return;
 			}
 			metadatas.push(featureMetadata);
