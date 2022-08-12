@@ -192,7 +192,7 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
 		buildOverrideContent += `      dockerfile: ${finalDockerfilePath}\n`;
 		// remove the target setting as we reference any previous target in the generated override content
-		buildOverrideContent += '      target: \'\'\n';
+		buildOverrideContent += `      target: ${featureBuildInfo.overrideTarget}\n`;
 
 		if (!serviceInfo.build?.context) {
 			// need to supply a context as we don't have one inherited

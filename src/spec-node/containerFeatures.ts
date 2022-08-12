@@ -74,6 +74,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	const emptyTempDir = cliHost.path.join(await cliHost.tmpdir(), '__dev-containers-build-empty');
 	cliHost.mkdirp(emptyTempDir);
 	args.push(
+		'--target', featureBuildInfo.overrideTarget,
 		'-t', updatedImageName,
 		'-f', dockerfilePath,
 		emptyTempDir
@@ -172,7 +173,7 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 	await createExit; // Allow errors to surface.
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: () => Promise<string>): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: () => Promise<string>): Promise<{ dstFolder: string; dockerfileContent: string; overrideTarget: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -287,6 +288,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 	return {
 		dstFolder,
 		dockerfileContent: dockerfile,
+		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent,
 		buildArgs: {
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,

@@ -202,7 +202,7 @@ export function getContainerFeaturesBaseDockerFile() {
 
 #{nonBuildKitFeatureContentFallback}
 
-FROM $_DEV_CONTAINERS_BASE_IMAGE
+FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
