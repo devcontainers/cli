@@ -25,6 +25,19 @@ The specification repo uses the following [labels](https://github.com/microsoft/
 
 [Milestones](https://github.com/microsoft/dev-container-spec/milestones) use a "month year" pattern (i.e. January 2022). If a finalized proposal is added to a milestone, it is intended to be merged during that milestone.
 
+## Release CLI package
+
+- Create a PR:
+	- Updating the package version in the `package.json`.
+	- Updating the `vscode-dev-containers` version in the `package.json`'s dependencies (if there is an update).
+		- Run `yarn` to update `yarn.lock`.
+	- List notable changes in the `CHANGELOG.md`.
+- After the PR is merged to `main` wait for the CI workflow to succeed (this builds the artifact that will be published). (TBD: Let the `publish-dev-containers` workflow wait for the CI workflow.)
+- Push a new tag, e.g., v0.10.0:
+	- `git tag v0.10.0`
+	- `git push origin v0.10.0`
+- Pushing of a tag will trigger the `publish-dev-containers` workflow which will publish the new version to npm: https://www.npmjs.com/package/@devcontainers/cli
+
 ## Miscellaneous
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).

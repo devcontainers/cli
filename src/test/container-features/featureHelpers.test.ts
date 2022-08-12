@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
-import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getBackwardCompatibleFeatureId, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
@@ -70,7 +70,9 @@ describe('validate processFeatureIdentifier', async function () {
 			assertFeatureIdInvariant(featureId);
 
 			assert.strictEqual(featureId, 'docker-in-docker');
-			assert.strictEqual(featureSet?.sourceInformation.type, 'local-cache');
+
+			// Automapping feature ids from old shorthand syntax to ghcr.io/devcontainers/features/*
+			assert.strictEqual(featureSet?.sourceInformation.type, 'oci');
 		});
 
 		it('should process github-repo (without version)', async function () {
@@ -203,7 +205,8 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: 'latest',
-				resource: 'ghcr.io/codspace/features/ruby'
+				resource: 'ghcr.io/codspace/features/ruby',
+				path: 'codspace/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -236,7 +239,8 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				version: '1.0.13',
-				resource: 'ghcr.io/codspace/features/ruby'
+				resource: 'ghcr.io/codspace/features/ruby',
+				path: 'codspace/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -339,4 +343,69 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.notExists(result);
 		});
 	});
+});
+
+
+describe('validate function getBackwardCompatibleFeatureId', () => {
+    it('should map the migrated (old shorthand syntax) features to ghcr.io/devcontainers/features/*', () => {
+        let id = 'node';
+        let expectedId = 'ghcr.io/devcontainers/features/node:1';
+		let mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+
+        id = 'python';
+        expectedId = 'ghcr.io/devcontainers/features/python:1';
+		mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+    });
+
+    it('should map the renamed (old shorthand syntax) features to ghcr.io/devcontainers/features/*', () => {
+        let id = 'golang';
+        let expectedId = 'ghcr.io/devcontainers/features/go:1';
+		let mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+
+        id = 'common';
+        expectedId = 'ghcr.io/devcontainers/features/common-utils:1';
+		mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+    });
+
+    it('should keep the deprecated (old shorthand syntax) features id intact', () => {
+        let id = 'fish';
+        let expectedId = 'fish';
+		let mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+
+        id = 'maven';
+        expectedId = 'maven';
+		mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+    });
+
+    it('should keep all other features id intact', () => {
+        let id = 'ghcr.io/devcontainers/features/node:1';
+        let expectedId = id;
+		let mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+
+        id = 'ghcr.io/user/repo/go:1';
+        expectedId = id;
+		mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+
+        id = 'ghcr.io/user/repo/go';
+        expectedId = id;
+		mappedId = getBackwardCompatibleFeatureId(id);
+
+        assert.strictEqual(mappedId, expectedId);
+    });
 });

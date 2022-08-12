@@ -12,7 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
-import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExists, OCIManifest } from './containerFeaturesOCI';
+import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, OCIManifest } from './containerFeaturesOCI';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -383,7 +383,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
 	const { output } = params;
 
 	const workspaceCwd = params.cwd;
@@ -412,7 +412,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, params.env, workspaceCwd, userFeatures, featuresConfig);
+	featuresConfig = await processUserFeatures(params.output, params.env, workspaceCwd, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -461,9 +461,9 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
+async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, env, workspaceCwd, userFeature);
+		const newFeatureSet = await processFeatureIdentifier(output, env, workspaceCwd, userFeature, skipFeatureAutoMapping);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -505,7 +505,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 		return { type: 'github-repo', manifest: undefined };
 	}
 
-	const manifest = await fetchOCIFeatureManifestIfExists(output, env, userFeatureId);
+	const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(output, env, userFeatureId);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	} else {
@@ -515,14 +515,50 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 	}
 }
 
+export function getBackwardCompatibleFeatureId(id: string) {
+	const migratedfeatures = ['aws-cli', 'azure-cli', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
+	const renamedFeatures = new Map();
+	renamedFeatures.set('golang', 'go');
+	renamedFeatures.set('common', 'common-utils');
+	// TODO: Add warning log messages only when auto-mapping is ready to be put in Remote-Containers STABLE version.  
+	// const deprecatedFeatures = ['fish', 'gradle', 'homebrew', 'jupyterlab', 'maven'];
+
+	const newFeaturePath = 'ghcr.io/devcontainers/features';
+	// Note: Pin the versionBackwardComp to '1' to avoid breaking changes.
+	const versionBackwardComp = '1';
+
+	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (migratedfeatures.includes(id)) {
+		return `${newFeaturePath}/${id}:${versionBackwardComp}`;
+	}
+
+	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
+	if (renamedFeatures.get(id) !== undefined) {
+		return `${newFeaturePath}/${renamedFeatures.get(id)}:${versionBackwardComp}`;
+	}
+
+	// if (deprecatedFeatures.includes(id)) {
+	// 	output.write(`(!) WARNING: Falling back to deprecated '${id}' feature.`, LogLevel.Warning);
+	// }
+
+	// Deprecated and all other features references (eg. fish, ghcr.io/devcontainers/features/go, ghcr.io/owner/repo/id etc)
+	return id;
+}
+
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
+
+	// Adding backward compatibility
+	if (!skipFeatureAutoMapping) {
+		userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
+	}
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
 
 	// cached feature
+	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
 	if (type === 'local-cache') {
 		output.write(`Cached feature found.`);
 
@@ -986,4 +1022,3 @@ function getFeatureValueDefaults(feature: Feature) {
 			return defaults;
 		}, {} as Record<string, string | boolean | undefined>);
 }
-

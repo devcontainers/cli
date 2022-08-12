@@ -2,6 +2,36 @@
 
 Notable changes.
 
+## August 2022
+
+### [0.11.0]
+
+- WIP on features v2:
+	- Auto map old feature ids to OCI features. (https://github.com/devcontainers/cli/pull/100)
+
+### [0.10.0]
+
+- Implement optional default values in localEnv/containerEnv expansions. (https://github.com/devcontainers/cli/issues/50)
+- Log version and install location at the end of `--help`. (https://github.com/devcontainers/cli/issues/114)
+- WIP on features v2:
+	- Update `direct-tarball` to follow spec. (https://github.com/devcontainers/cli/pull/105)
+	- Add `features package` command. (https://github.com/devcontainers/cli/pull/93)
+	- Fix cwd for building with local features. (https://github.com/devcontainers/cli/issues/116)
+
+### [0.9.0]
+
+- WIP on features v2:
+	- Contributable features in OCI registries.
+
+## July 2022
+
+### [0.8.0]
+
+- Build command: Support multiple --image-name parameters  (#61)
+- WIP on features v2:
+	- Contributable features.
+	- `features test` command.
+
 ## June 2022
 
 ### [0.7.0]
