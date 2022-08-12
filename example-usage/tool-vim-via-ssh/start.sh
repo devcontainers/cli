@@ -17,7 +17,7 @@ cd ..
 devcontainer up $remove_flag --mount "type=bind,source=$(pwd)/server,target=/server" --workspace-folder ../workspace
 
 # Install vim (if needed) and add pub key to SSH allow list
-devcontainer exec --workspace-folder workspace /server/init-vim.sh
+devcontainer exec --workspace-folder ../workspace /server/init-vim.sh
 
 # Connect
 ssh -t -i server/temp-ssh-key -o NoHostAuthenticationForLocalhost=yes -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -p 2222 vscode@localhost exec bash -c vim
