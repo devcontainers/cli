@@ -114,7 +114,7 @@ reportResults() {
         exit 1
     else
         echo -e "\n"
-        echo -e "💯 Passed!"
+        echo -e "Test Passed!"
         exit 0
     fi
 }`;

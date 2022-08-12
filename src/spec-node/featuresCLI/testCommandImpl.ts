@@ -19,10 +19,10 @@ function fail(msg: string) {
 type Scenarios = { [key: string]: DevContainerConfig };
 type TestResult = { testName: string; result: boolean };
 
-function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: boolean }) {
+function log(msg: string, options?: { omitPrefix?: boolean; prefix?: string; info?: boolean; stderr?: boolean }) {
 
 	const prefix = options?.prefix || '> ';
-	const output = `${prefix} ${msg}\n`;
+	const output = `${options?.omitPrefix ? '' : `${prefix} `}${msg}\n`;
 
 	if (options?.stderr) {
 		process.stderr.write(chalk.red(output));
@@ -33,18 +33,13 @@ function log(msg: string, options?: { prefix?: string; info?: boolean; stderr?: 
 	}
 }
 
-function printFailedTest(feature: string) {
-	log(`TEST FAILED:  ${feature}`, { prefix: '[-]', stderr: true });
-}
-
-
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
 	const { pkg, scenariosFolder } = args;
 
 	process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
 |    dev container 'features' |   
-│           v${pkg.version}            │
+│           v${pkg.version}           │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
 	// There are two modes. 
@@ -220,14 +215,16 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 function analyzeTestResults(testResults: { testName: string; result: boolean }[]): number {
 	// 4. Print results
 	const allPassed = testResults.every((x) => x.result);
-	if (!allPassed) {
-		testResults.filter((x) => !x.result).forEach((x) => {
-			printFailedTest(x.testName);
-		});
-	} else {
-		log('All tests passed!', { prefix: '\n✅', info: true });
-	}
-
+	process.stdout.write('\n\n\n');
+	log('================== TEST REPORT ==================', { 'info': true, 'prefix': ' ' });
+	testResults.forEach(t => {
+		if (t.result) {
+			log(`Passed:      '${t.testName}'`, { 'prefix': '✅', 'info': true });
+		} else {
+			log(`Failed:      '${t.testName}'`, { 'prefix': '❌', 'info': true });
+		}
+	});
+	process.stdout.write('\n');
 	return allPassed ? 0 : 1;
 }
 
