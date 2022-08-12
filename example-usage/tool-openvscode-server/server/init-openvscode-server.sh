@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname $0)"
 
-if [ ! -e "$HOME/.openvscodeserver" ]; then
+if [ ! -e "$HOME/.openvscodeserver/bin" ]; then
     echo "Downloading openvscode-server..."
     curl -fsSL https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-v1.69.2/openvscode-server-v1.69.2-linux-x64.tar.gz -o /tmp/openvscode-server.tar.gz
     mkdir -p "$HOME/.openvscodeserver"
@@ -12,6 +12,7 @@ if [ ! -e "$HOME/.openvscodeserver" ]; then
 fi
 
 if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
+    # Process customizations.openvscodeserver and features configuration
     if ! type jq > /dev/null 2>&1; then
         sudo apt-get -y install jq
     fi
@@ -22,7 +23,8 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
     # Install extensions
     jq -M '.configuration.customizations?."openvscodeserver"?.extensions?' /server/configuration.json > "${tmp_dir}"/extensions1.json
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions2.json
-    extensions=( $(jq -s -M '.[0] + .[1]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json | jq -r -M '.[]') )
+    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions3.json # Legacy locaiton - backwards compat
+    extensions=( $(jq -s -M '.[0] + .[1] + .[2]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json "${tmp_dir}"/extensions3.json | jq -r -M '.[]') )
     if [ "${extensions[0]}" != "null" ]; then 
         set +e
         for extension in "${extensions[@]}"; do
@@ -34,13 +36,15 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
     # Add machine settings.json
     jq -M '.configuration.customizations?."openvscodeserver"?.settings?' /server/configuration.json > "${tmp_dir}"/settings1.json
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?' /server/configuration.json > "${tmp_dir}"/settings2.json
-    settings="$(jq -s -M '.[0] + .[1]' "${tmp_dir}"/settings1.json "${tmp_dir}"/settings2.json)"
+    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.settings?' /server/configuration.json  > "${tmp_dir}"/settings3.json # Legacy locaiton - backwards compat
+    settings="$(jq -s -M '.[0] + .[1] + .[2]' "${tmp_dir}"/settings1.json "${tmp_dir}"/settings2.json "${tmp_dir}"/settings3.json)"
     if [ "${settings}" != "null" ]; then
         echo "${settings}" >  "$HOME"/.openvscode-server/data/Machine/settings.json
     fi
     
     rm -rf "${tmp_dir}" /server/configuration.json
 
+    # Start server
     "$HOME"/.openvscodeserver/bin/openvscode-server serve-local --without-connection-token --host 0.0.0.0 --port 8000
 else
     echo -e "\ncode-server is already running.\n\nConnect using: http://localhost:8000\n"

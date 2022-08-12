@@ -25,6 +25,7 @@ if [ ! -e "$INSTALL_LOCATION"/code-server ]; then
 fi
 
 if ! pidof code-server > /dev/null 2>&1; then
+    # Process customizations.vscode and features configuration
     if ! type jq > /dev/null 2>&1; then
         sudo apt-get -y install jq
     fi
@@ -35,7 +36,9 @@ if ! pidof code-server > /dev/null 2>&1; then
     # Install extensions
     jq -M '.configuration.customizations?.vscode?.extensions?' /server/configuration.json > "${tmp_dir}"/extensions1.json
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions2.json
-    extensions=( $(jq -s -M '.[0] + .[1]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json | jq -r -M '.[]') )
+    jq -M '.configuration.extensions?' /server/configuration.json > "${tmp_dir}"/extensions3.json                                      # Legacy locaiton - backwards compat
+    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions4.json # Legacy locaiton - backwards compat
+    extensions=( $(jq -s -M '.[0] + .[1] + .[2] + .[3]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json ${tmp_dir}"/extensions3.json ${tmp_dir}"/extensions4.json | jq -r -M '.[]') )
     if [ "${extensions[0]}" != "null" ]; then 
         set +e
         for extension in "${extensions[@]}"; do
@@ -47,7 +50,9 @@ if ! pidof code-server > /dev/null 2>&1; then
     # Add machine settings.json
     jq -M '.configuration.customizations?.vscode?.settings?' /server/configuration.json > "${tmp_dir}"/settings1.json
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?' /server/configuration.json > "${tmp_dir}"/settings2.json
-    settings="$(jq -s -M '.[0] + .[1]' "${tmp_dir}"/settings1.json "${tmp_dir}"/settings2.json)"
+    jq -M '.configuration.settings?' /server/configuration.json  > "${tmp_dir}"/settings3.json                                      # Legacy locaiton - backwards compat
+    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.settings?' /server/configuration.json  > "${tmp_dir}"/settings4.json  # Legacy locaiton - backwards compat
+    settings="$(jq -s -M '.[0] + .[1] + .[2] + .[3]' "${tmp_dir}"/settings1.json "${tmp_dir}"/settings2.json "${tmp_dir}"/settings3.json "${tmp_dir}"/settings4.json)"
     if [ "${settings}" != "null" ]; then
         echo "${settings}" > "${HOME}"/.vscode-server/data/Machine/settings.json
     fi
