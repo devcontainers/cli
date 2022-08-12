@@ -6,8 +6,10 @@ import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { FeaturesPackageArgs, featuresPackage } from './package';
-import { DevContainerCollectionMetadata } from './packageCommandImpl';
-import { doFeaturesPublishCommand, getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
+import { DevContainerCollectionMetadata, getFeatureArchiveName, OCIFeatureCollectionFileName } from './packageCommandImpl';
+import { getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
+import { pushFeatureCollectionMetadata, pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
+import { getFeatureRef, OCIFeatureCollectionRef } from '../../spec-configuration/containerFeaturesOCI';
 
 const targetPositionalDescription = `
 Package and publish features at provided [target] (default is cwd), where [target] is either:
@@ -83,15 +85,29 @@ async function featuresPublish({
         }
 
         output.write(`Fetching published versions...`, LogLevel.Info);
+        const resource = `${registry}/${namespace}/${f.id}`;
+        const ociFeatureRef = getFeatureRef(output, resource);
         const publishedVersions: string[] = await getPublishedVersions(f.id, registry, namespace, output);
         const semanticVersions: string[] | undefined = getSermanticVersions(f.version, publishedVersions, output);
 
         if (semanticVersions !== undefined) {
             output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-            exitCode = doFeaturesPublishCommand();
+            const pathToTgz = path.join(outputDir, getFeatureArchiveName(f.id));
+            await pushOCIFeature(output, ociFeatureRef, pathToTgz, semanticVersions);
             output.write(`Published feature: ${f.id}...`, LogLevel.Info);
         }
     }
+
+    // Publishing Feature Collection Metadata
+    output.write('Publishing collection metadata...', LogLevel.Info);
+    const featureCollectionRef: OCIFeatureCollectionRef = {
+        registry,
+        path: namespace,
+        version: 'latest'
+    };
+    const pathToFeatureCollectionFile = path.join(outputDir, OCIFeatureCollectionFileName);
+    await pushFeatureCollectionMetadata(output, featureCollectionRef, pathToFeatureCollectionFile);
+    output.write('Published collection metadata...', LogLevel.Info);
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });

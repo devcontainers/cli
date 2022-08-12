@@ -87,37 +87,66 @@ describe('CLI features subcommands', async function () {
 	});
 });
 
-describe('features publish subcommand', () => {
-	it('should generate correct semantic versions', async () => {
-		// First publish
+describe('test function getSermanticVersions', () => {
+	it('should generate correct semantic versions for first publishing', async () => {
 		let version = '1.0.0';
 		let publishedVersions: string[] = [];
 		let expectedSemVer = ['1', '1.0', '1.0.0', 'latest'];
 
 		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
 
-		// Publish new major version
-		version = '2.0.0';
-		publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
-		expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
+	it('should generate correct semantic versions for publishing new patch version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let expectedSemVer = ['1', '1.0', '1.0.1', 'latest'];
 
-		semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
 
-		// Publish hotfix version
-		version = '1.0.1';
-		publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
-		expectedSemVer = ['1', '1.0', '1.0.1'];
+	it('should generate correct semantic versions for publishing new minor version', async () => {
+		let version = '1.1.0';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', 'latest'];
+		let expectedSemVer = ['1', '1.1', '1.1.0', 'latest'];
 
-		semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
 
-		// Re-publish version
-		version = '1.0.1';
-		publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
+	it('should generate correct semantic versions for publishing new major version', async () => {
+		let version = '2.0.0';
+		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
 
-		semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing hotfix patch version', async () => {
+		let version = '1.0.2';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '1.1', '1.1.0', '2', '2.0', '2.0.0', 'latest'];
+		let expectedSemVer = ['1.0', '1.0.2'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing hotfix minor version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
+		let expectedSemVer = ['1', '1.0', '1.0.1'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should return undefined for already published version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
 		assert.isUndefined(semanticVersions);
 	});
 
@@ -127,8 +156,13 @@ describe('features publish subcommand', () => {
 			assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 		});
 
-		it('should return empty list for a non-published feature', async () => {
-			const versionsList = await getPublishedVersions('not-available', 'test.io', 'test/features', output);
+		it('should return empty list for a non-published feature with existing resource', async () => {
+			const versionsList = await getPublishedVersions('not-available', 'ghcr.io', 'devcontainers/features', output);
+			assert.isEmpty(versionsList);
+		});
+
+		it('should return empty list for a non-published feature with non-existing resource', async () => {
+			const versionsList = await getPublishedVersions('not-available', 'ghcr.io', 'not/available', output);
 			assert.isEmpty(versionsList);
 		});
 	});

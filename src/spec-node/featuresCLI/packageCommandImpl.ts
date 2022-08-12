@@ -17,6 +17,8 @@ export interface DevContainerCollectionMetadata {
 	features: Feature[];
 }
 
+export const OCIFeatureCollectionFileName = 'devcontainer-collection.json';
+
 export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
 	const { output, isSingleFeature } = args;
 
@@ -44,7 +46,7 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	};
 
 	// Write the metadata to a file
-	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
+	const metadataOutputPath = path.join(args.outputDir, OCIFeatureCollectionFileName);
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
 	return 0;
 }
@@ -53,7 +55,7 @@ async function tarDirectory(featureFolder: string, archiveName: string, outputDi
 	return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: featureFolder }, ['.'])));
 }
 
-const getArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
+export const getFeatureArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
 
 export async function packageSingleFeature(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
 	const { output, targetFolder, outputDir } = args;
@@ -65,7 +67,7 @@ export async function packageSingleFeature(args: FeaturesPackageCommandInput): P
 		output.write(`Feature is missing an id or version in its devcontainer-feature.json`, LogLevel.Error);
 		return;
 	}
-	const archiveName = getArchiveName(featureMetadata.id);
+	const archiveName = getFeatureArchiveName(featureMetadata.id);
 
 	await tarDirectory(targetFolder, archiveName, outputDir);
 	output.write(`Packaged feature '${featureMetadata.id}'`, LogLevel.Info);
@@ -85,7 +87,7 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 		output.write(`Processing feature: ${f}...`, LogLevel.Info);
 		if (!f.startsWith('.')) {
 			const featureFolder = path.join(srcFolder, f);
-			const archiveName = getArchiveName(f);
+			const archiveName = getFeatureArchiveName(f);
 
 			// Validate minimal feature folder structure
 			const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
