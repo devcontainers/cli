@@ -1,15 +1,15 @@
 import path from 'path';
+import * as os from 'os';
 import { Argv } from 'yargs';
 import { LogLevel, mapLogLevel } from '../../spec-utils/log';
-import { isLocalFile, readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { FeaturesPackageArgs, featuresPackage } from './package';
-import { DevContainerCollectionMetadata, getFeatureArchiveName, OCIFeatureCollectionFileName } from './packageCommandImpl';
-import { getPublishedVersions, getSermanticVersions } from './publishCommandImpl';
-import { pushFeatureCollectionMetadata, pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
-import { getFeatureRef, OCIFeatureCollectionRef } from '../../spec-configuration/containerFeaturesOCI';
+import { OCIFeatureCollectionFileName } from './packageCommandImpl';
+import { doFeaturesPublishCommand } from './publishCommandImpl';
+import { getFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 
 const targetPositionalDescription = `
 Package and publish features at provided [target] (default is cwd), where [target] is either:
@@ -57,7 +57,7 @@ async function featuresPublish({
     }, pkg, new Date(), disposables, true);
 
     // Package features
-    const outputDir = '/tmp/features-output';
+    const outputDir = os.tmpdir();
 
     const packageArgs: FeaturesPackageArgs = {
         'target': targetFolder,
@@ -66,51 +66,29 @@ async function featuresPublish({
         'force-clean-output-folder': true,
     };
 
-    await featuresPackage(packageArgs, false);
+    const metadata = await featuresPackage(packageArgs, false);
 
-    const metadataOutputPath = path.join(outputDir, 'devcontainer-collection.json');
-    if (!isLocalFile(metadataOutputPath)) {
-        output.write(`(!) ERR: Failed to fetch ${metadataOutputPath}`, LogLevel.Error);
+    if (!metadata) {
+        output.write(`(!) ERR: Failed to fetch ${OCIFeatureCollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 
     let exitCode = 0;
-    const metadata: DevContainerCollectionMetadata = JSON.parse(await readLocalFile(metadataOutputPath, 'utf-8'));
     for (const f of metadata.features) {
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
-        if (f.version === undefined) {
+        if (!f.version) {
             output.write(`(!) WARNING: Version does not exist, skipping ${f.id}...`, LogLevel.Warning);
             continue;
         }
 
-        output.write(`Fetching published versions...`, LogLevel.Info);
         const resource = `${registry}/${namespace}/${f.id}`;
-        const ociFeatureRef = getFeatureRef(output, resource);
-        const publishedVersions: string[] = await getPublishedVersions(f.id, registry, namespace, output);
-        const semanticVersions: string[] | undefined = getSermanticVersions(f.version, publishedVersions, output);
+        const featureRef = getFeatureRef(output, resource);
+        exitCode = await doFeaturesPublishCommand(f.version, featureRef, outputDir, output);
 
-        if (semanticVersions !== undefined) {
-            output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-            const pathToTgz = path.join(outputDir, getFeatureArchiveName(f.id));
-            await pushOCIFeature(output, ociFeatureRef, pathToTgz, semanticVersions);
-            output.write(`Published feature: ${f.id}...`, LogLevel.Info);
-        }
+        // Cleanup
+        await rmLocal(outputDir, { recursive: true, force: true });
+        await dispose();
+        process.exit(exitCode);
     }
-
-    // Publishing Feature Collection Metadata
-    output.write('Publishing collection metadata...', LogLevel.Info);
-    const featureCollectionRef: OCIFeatureCollectionRef = {
-        registry,
-        path: namespace,
-        version: 'latest'
-    };
-    const pathToFeatureCollectionFile = path.join(outputDir, OCIFeatureCollectionFileName);
-    await pushFeatureCollectionMetadata(output, featureCollectionRef, pathToFeatureCollectionFile);
-    output.write('Published collection metadata...', LogLevel.Info);
-
-    // Cleanup
-    await rmLocal(outputDir, { recursive: true, force: true });
-    await dispose();
-    process.exit(exitCode);
 }

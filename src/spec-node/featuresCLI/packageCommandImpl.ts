@@ -19,7 +19,7 @@ export interface DevContainerCollectionMetadata {
 
 export const OCIFeatureCollectionFileName = 'devcontainer-collection.json';
 
-export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
+export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<DevContainerCollectionMetadata | undefined> {
 	const { output, isSingleFeature } = args;
 
 	// For each feature, package each feature and write to 'outputDir/{f}.tgz'
@@ -35,7 +35,7 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 
 	if (!metadataOutput) {
 		output.write('Failed to package features', LogLevel.Error);
-		return 1;
+		return undefined;
 	}
 
 	const collection: DevContainerCollectionMetadata = {
@@ -48,7 +48,7 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	// Write the metadata to a file
 	const metadataOutputPath = path.join(args.outputDir, OCIFeatureCollectionFileName);
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
-	return 0;
+	return collection;
 }
 
 async function tarDirectory(featureFolder: string, archiveName: string, outputDir: string) {

@@ -1,52 +1,9 @@
-import { fetchRegistryAuthToken, HEADERS } from '../../spec-configuration/containerFeaturesOCI';
-import { request } from '../../spec-utils/httpRequest';
+import path from 'path';
+import * as semver from 'semver';
+import { getPublishedVersions, OCIFeatureCollectionRef, OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+import { pushFeatureCollectionMetadata, pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
 import { Log, LogLevel } from '../../spec-utils/log';
-
-const semver = require('semver');
-
-interface versions {
-    name: string;
-    tags: string[];
-}
-
-export async function getPublishedVersions(featureId: string, registry: string, namespace: string, output: Log) {
-    try {
-        const url = `https://${registry}/v2/${namespace}/${featureId}/tags/list`;
-        const resource = `${registry}/${namespace}/${featureId}`;
-
-        let authToken = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
-
-        if (!authToken) {
-            output.write(`(!) ERR: Failed to publish feature: ${resource}`, LogLevel.Error);
-            process.exit(1);
-        }
-
-        const headers: HEADERS = {
-            'user-agent': 'devcontainer',
-            'accept': 'application/json',
-            'authorization': `Bearer ${authToken}`
-        };
-
-        const options = {
-            type: 'GET',
-            url: url,
-            headers: headers
-        };
-
-        const response = await request(options);
-        const publishedVersionsResponse: versions = JSON.parse(response.toString());
-
-        return publishedVersionsResponse.tags;
-    } catch (e) {
-        // Publishing for the first time
-        if (e?.message.includes('HTTP 404: Not Found')) {
-            return [];
-        }
-
-        output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
-        process.exit(1);
-    }
-}
+import { getFeatureArchiveName, OCIFeatureCollectionFileName } from './packageCommandImpl';
 
 let semanticVersions: string[] = [];
 
@@ -65,19 +22,52 @@ export function getSermanticVersions(version: string, publishedVersions: string[
         return undefined;
     }
 
-    if (semver.valid(version) === null) {
+    const parsedVersion = semver.parse(version);
+    if (!parsedVersion) {
         output.write(`(!) ERR: Version ${version} is not a valid semantic version...`, LogLevel.Error);
         process.exit(1);
     }
 
-    // Adds semantic versions depending upon the existings (published) version tags
-    // eg. 1.2.3 --> [1, 1.2, 1.2.3, latest]
-    const parsedVersion = semver.parse(version);
     semanticVersions = [];
-    updateSemanticVersionsList(publishedVersions, version, `${parsedVersion.major}.x.x`, parsedVersion.major);
+
+    // Adds semantic versions depending upon the existings (published) versions
+    // eg. 1.2.3 --> [1, 1.2, 1.2.3, latest]
+    updateSemanticVersionsList(publishedVersions, version, `${parsedVersion.major}.x.x`, `${parsedVersion.major}`);
     updateSemanticVersionsList(publishedVersions, version, `${parsedVersion.major}.${parsedVersion.minor}.x`, `${parsedVersion.major}.${parsedVersion.minor}`);
     semanticVersions.push(version);
     updateSemanticVersionsList(publishedVersions, version, `x.x.x`, 'latest');
 
     return semanticVersions;
+}
+
+export async function doFeaturesPublishCommand(version: string, featureRef: OCIFeatureRef, outputDir: string, output: Log): Promise<number> {
+    output.write(`Fetching published versions...`, LogLevel.Info);
+    const publishedVersions: string[] = await getPublishedVersions(featureRef, output);
+    const semanticVersions: string[] | undefined = getSermanticVersions(version, publishedVersions, output);
+
+    if (!!semanticVersions) {
+        output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
+        const pathToTgz = path.join(outputDir, getFeatureArchiveName(featureRef.id));
+        if (! await pushOCIFeature(output, featureRef, pathToTgz, semanticVersions)) {
+            output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
+            return 1;
+        }
+        output.write(`Published feature: ${featureRef.id}...`, LogLevel.Info);
+    }
+
+    // Publishing Feature Collection Metadata
+    output.write('Publishing collection metadata...', LogLevel.Info);
+    const featureCollectionRef: OCIFeatureCollectionRef = {
+        registry: featureRef.registry,
+        path: featureRef.namespace,
+        version: 'latest'
+    };
+    const pathToFeatureCollectionFile = path.join(outputDir, OCIFeatureCollectionFileName);
+    if (! await pushFeatureCollectionMetadata(output, featureCollectionRef, pathToFeatureCollectionFile)) {
+        output.write(`(!) ERR: Failed to publish collection metadata: ${OCIFeatureCollectionFileName}`, LogLevel.Error);
+        return 1;
+    }
+    output.write('Published collection metadata...', LogLevel.Info);
+
+    return 0;
 }

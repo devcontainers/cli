@@ -110,11 +110,17 @@ export async function featuresPackage({
 		isSingleFeature,
 	};
 
-	const exitCode = await doFeaturesPackageCommand(args);
+	const collectionMetadata = await doFeaturesPackageCommand(args);
 
 	await dispose();
 
 	if (shouldExit) {
-        process.exit(exitCode);
-    }
+		if (collectionMetadata) {
+			process.exit(0);
+		} else {
+			process.exit(1);
+		}
+	}
+
+	return collectionMetadata;
 }

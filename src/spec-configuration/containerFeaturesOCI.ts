@@ -50,6 +50,11 @@ export interface OCIManifest {
 	annotations?: {};
 }
 
+interface versions {
+	name: string;
+	tags: string[];
+}
+
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest): FeatureSet {
 
 	const featureRef = getFeatureRef(output, identifier);
@@ -155,7 +160,7 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 		throw new Error('FeatureSet is not an OCI featureSet.');
 	}
 
-	const { featureRef } = featureSet.sourceInformation; 
+	const { featureRef } = featureSet.sourceInformation;
 
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
@@ -292,4 +297,43 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		return undefined;
 	}
 	return token;
+}
+
+// Lists published versions of a feature
+export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log) {
+	try {
+		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
+
+		let authToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.resource, process.env, 'pull');
+
+		if (!authToken) {
+			output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
+			process.exit(1);
+		}
+
+		const headers: HEADERS = {
+			'user-agent': 'devcontainer',
+			'accept': 'application/json',
+			'authorization': `Bearer ${authToken}`
+		};
+
+		const options = {
+			type: 'GET',
+			url: url,
+			headers: headers
+		};
+
+		const response = await request(options);
+		const publishedVersionsResponse: versions = JSON.parse(response.toString());
+
+		return publishedVersionsResponse.tags;
+	} catch (e) {
+		// Publishing for the first time
+		if (e?.message.includes('HTTP 404: Not Found')) {
+			return [];
+		}
+
+		output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
+		process.exit(1);
+	}
 }
