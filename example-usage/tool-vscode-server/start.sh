@@ -8,4 +8,4 @@ if [ "$1" = "true" ]; then
 fi
 
 devcontainer up $remove_flag --mount "type=bind,source=$(pwd)/server,target=/server" --workspace-folder ../workspace
-devcontainer exec --workspace-folder . /server/init-vscode-server.sh
+devcontainer exec --workspace-folder ../workspace /server/init-vscode-server.sh
