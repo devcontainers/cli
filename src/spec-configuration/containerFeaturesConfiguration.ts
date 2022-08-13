@@ -7,7 +7,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
-import { DevContainerConfig, DevContainerFeature } from './configuration';
+import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile, isLocalFolder } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
@@ -45,6 +45,8 @@ export interface Feature {
 	exclude?: string[];
 	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
 	included: boolean; // set programmatically
+	customizations?: VSCodeCustomizations;
+	installsAfter?: string[];
 }
 
 export type FeatureOption = {
@@ -230,19 +232,19 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 && ./install.sh
 
 `;
-  });
+	});
 	// Features version 2
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
-				result += generateContainerEnvs(feature);
-				result += `
+			result += generateContainerEnvs(feature);
+			result += `
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && export $(cat devcontainer-features.env | xargs) \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-`;	
+`;
 		});
 	});
 	return result;
@@ -251,8 +253,7 @@ RUN cd /tmp/build-features/${feature.consecutiveId} \\
 // Features version two export their environment variables as part of the Dockerfile to make them available to subsequent features.
 export function generateContainerEnvs(feature: Feature) {
 	let result = '';
-	if(!feature.containerEnv)
-	{
+	if (!feature.containerEnv) {
 		return result;
 	}
 	let keys = Object.keys(feature.containerEnv);
@@ -351,7 +352,7 @@ export async function loadV1FeaturesJsonFromDisk(pathToDirectory: string, output
 	return loadFeaturesJson(jsonBuffer, filePath, output);
 }
 
-function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: { vscode?: { extensions?: string[]; settings?: object } } })[] }>(original: T): T {
+function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: VSCodeCustomizations })[] }>(original: T): T {
 	// https://github.com/microsoft/dev-container-spec/issues/1
 	if (!original.features.find(f => f.extensions || f.settings)) {
 		return original;
@@ -419,7 +420,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
+	featuresConfig = await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
 	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
@@ -440,8 +441,7 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined
-{
+function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined {
 	if (!config.features) {
 		return undefined;
 	}
@@ -735,10 +735,10 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
-	for (const featureSet of featuresConfig.featureSets) {
+	for (let i = 0; i < featuresConfig.featureSets.length ; i++) {
 		try {
-			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
-			{
+			const featureSet = featuresConfig.featureSets[i];
+			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
 				continue;
 			}
 
@@ -746,7 +746,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			const { output } = params; 
+			const { output } = params;
 
 			const feature = featureSet.features[0];
 			const consecutiveId = feature.id + '_' + getCounter();
@@ -769,11 +769,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					throw new Error(err);
 				}
 
-				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
+				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
+				if (!updatedFeature) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
 
+				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
 
@@ -782,23 +784,29 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
 
-				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
+				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
+				if (!updatedFeature) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
+
+				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
-		
+
 			if (sourceInfoType === 'file-path') {
 				output.write(`Detected local file path`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
 				const executionPath = featureSet.sourceInformation.resolvedFilePath;
 				await cpDirectoryLocal(executionPath, featCachePath);
 
-				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
+				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath)
+				if (!updatedFeature) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
-				}				
+				}
+
+				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
 
@@ -839,10 +847,13 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 				if (didSucceed) {
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
-					if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
+					let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
+					if (!updatedFeature) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 						throw new Error(err);
 					}
+
+					featuresConfig.featureSets[i].features[0] = updatedFeature;
 					break;
 				}
 			}
@@ -857,6 +868,8 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			throw e;
 		}
 	}
+
+	return featuresConfig;
 }
 
 async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, dstFolder: string, output: Log): Promise<boolean> {
@@ -878,7 +891,7 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 
 		// Filter what gets emitted from the tar.extract().
 		const filter = (file: string, _: tar.FileStat) => {
-				// Don't include .dotfiles or the archive itself.
+			// Don't include .dotfiles or the archive itself.
 			if (file.startsWith('./.') || file === `./${V1_ASSET_NAME}` || file === './.') {
 				return false;
 			}
@@ -912,7 +925,7 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 // 		Implements the latest ('internalVersion' = '2') parsing logic, 
 // 		Falls back to earlier implementation(s) if requirements not present.
 // 		Returns a boolean indicating whether the feature was successfully parsed.
-async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
+async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<Feature | undefined> {
 	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
@@ -926,29 +939,28 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 	const jsonString: Buffer = await readLocalFile(innerJsonPath);
 	const featureJson = jsonc.parse(jsonString.toString());
 
-	// TODO: Use spread operator {..., } to avoid needing to explicitly set each property.
 
-	feature.containerEnv = featureJson.containerEnv;
-	feature.buildArg = featureJson.buildArg;
-	feature.options = featureJson.options;
-	feature.installAfter = featureJson.installAfter;
-	feature.init = featureJson.init;
-	feature.privileged = featureJson.privileged;
-	feature.capAdd = featureJson.capAdd;
-	feature.securityOpt = featureJson.securityOpt;
-	feature.mounts = featureJson.mounts;
-	feature.entrypoint = featureJson.entrypoint;
+	feature = {
+		...featureJson,
+		...feature
+	};
 
-	return true;
+	let updatedFeature = updateFromOldProperties({ features: [feature] }).features[0];
+
+	feature = {
+		...updatedFeature
+	};
+
+	return feature;
 }
 
-async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
+async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<Feature | undefined> {
 
 	const pathToV1DevContainerFeatureJson = path.join(featCachePath, V1_DEVCONTAINER_FEATURES_FILE_NAME);
 
 	if (!(await isLocalFile(pathToV1DevContainerFeatureJson))) {
 		output.write(`Failed to find ${V1_DEVCONTAINER_FEATURES_FILE_NAME} metadata file (v1)`, LogLevel.Error);
-		return false;
+		return undefined;
 	}
 	featureSet.internalVersion = '1';
 	feature.cachePath = featCachePath;
@@ -958,19 +970,21 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 	const seekedFeature = featureJson?.features.find(f => f.id === feature.id);
 	if (!seekedFeature) {
 		output.write(`Failed to find feature '${feature.id}' in provided v1 metadata file`, LogLevel.Error);
-		return false;
+		return undefined;
 	}
 
-	feature.buildArg = seekedFeature?.buildArg;
-	feature.options = seekedFeature?.options;
-	feature.init = seekedFeature?.init;
-	feature.privileged = seekedFeature?.privileged;
-	feature.capAdd = seekedFeature?.capAdd;
-	feature.securityOpt = seekedFeature?.securityOpt;
-	feature.mounts = seekedFeature?.mounts;
-	feature.entrypoint = seekedFeature?.entrypoint;
+	feature = {
+		...seekedFeature,
+		...feature
+	};
 
-	return true;
+	let updatedFeature = updateFromOldProperties({ features: [feature] }).features[0];
+
+	feature = {
+		...updatedFeature
+	};
+
+	return feature;
 }
 
 export function getFeatureMainProperty(feature: Feature) {
