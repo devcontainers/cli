@@ -800,7 +800,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				const executionPath = featureSet.sourceInformation.resolvedFilePath;
 				await cpDirectoryLocal(executionPath, featCachePath);
 
-				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath)
+				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
 				if (!updatedFeature) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
