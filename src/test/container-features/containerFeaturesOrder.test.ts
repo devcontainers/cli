@@ -162,7 +162,7 @@ describe('Container features install order', function () {
         return {
             sourceInformation: {
                 type: 'local-cache',
-                referenceId: id
+                userFeatureId: id
             },
             features: [{
                 id,
@@ -176,8 +176,8 @@ describe('Container features install order', function () {
 
     function getOCIFeatureSet(id: string): FeatureSet {
         // example - ghcr.io/devcontainers/features/node:1
-        const splitOnCollon = id.split(':');
-        const spiltOnSlash = splitOnCollon[0].split('/');
+        const splitOnColon = id.split(':');
+        const spiltOnSlash = splitOnColon[0].split('/');
         return {
             sourceInformation: {
                 type: 'oci',
@@ -186,8 +186,8 @@ describe('Container features install order', function () {
                     namespace: `${spiltOnSlash[1]}/${spiltOnSlash[2]}`,
                     owner: spiltOnSlash[1],
                     registry: spiltOnSlash[0],
-                    resource: splitOnCollon[0],
-                    version: splitOnCollon[1]
+                    resource: splitOnColon[0],
+                    version: splitOnColon[1]
                 },
                 manifest: {
                     schemaVersion: 123,
@@ -199,7 +199,7 @@ describe('Container features install order', function () {
                     },
                     layers: []
                 },
-                referenceId: id
+                userFeatureId: id
             },
             features: [{
                 id: spiltOnSlash[3],

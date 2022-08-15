@@ -4,10 +4,12 @@
 		"github-cli": "latest",
 		"codspace/myfeatures/helloworld": {
 			"greeting": "howdy"
-		}
+		},
+		"codspace/features/devcontainer-feature-go@tarball02": {}
 	},
 	"overrideFeatureInstallOrder": [
 		"github-cli",
-		"codspace/myfeatures/helloworld"
+		"codspace/myfeatures/helloworld",
+		"codspace/features/devcontainer-feature-go"
 	]
 }

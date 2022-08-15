@@ -73,31 +73,31 @@ export type SourceInformation = LocalCacheSourceInformation | GithubSourceInform
 
 interface BaseSourceInformation {
 	type: string;
-	referenceId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	userFeatureId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
 	type: 'local-cache';
-	referenceId: string;
+	userFeatureId: string;
 }
 
 export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
 	featureRef: OCIFeatureRef;
 	manifest: OCIManifest;
-	referenceId: string;
+	userFeatureId: string;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
 	type: 'direct-tarball';
 	tarballUri: string;
-	referenceId: string;
+	userFeatureId: string;
 }
 
 export interface FilePathSourceInformation extends BaseSourceInformation {
 	type: 'file-path';
 	resolvedFilePath: string; // Resolved, absolute file path
-	referenceId: string;
+	userFeatureId: string;
 }
 
 // deprecated
@@ -111,7 +111,7 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
-	referenceId: string;
+	userFeatureId: string;
 }
 
 export interface GithubSourceInformationInput {
@@ -431,7 +431,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	output.write('--- Computed order ----', LogLevel.Trace);
 	for (const feature of orderedFeatures) {
-		output.write(`${feature.sourceInformation.referenceId}`, LogLevel.Trace);
+		output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
 	}
 
 	featuresConfig.featureSets = orderedFeatures;
@@ -542,7 +542,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
-				referenceId: userFeature.id
+				userFeatureId: userFeature.id
 			},
 			features: [feat],
 		};
@@ -584,7 +584,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 			sourceInformation: {
 				type: 'direct-tarball',
 				tarballUri: tarballUri.toString(),
-				referenceId: userFeature.id
+				userFeatureId: userFeature.id
 			},
 			features: [feat],
 		};
@@ -626,7 +626,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 			sourceInformation: {
 				type: 'file-path',
 				resolvedFilePath: resolvedFilePathToFeatureFolder,
-				referenceId: userFeature.id
+				userFeatureId: userFeature.id
 			},
 			features: [feat],
 		};
@@ -682,7 +682,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				owner,
 				repo,
 				isLatest: true,
-				referenceId: userFeature.id
+				userFeatureId: userFeature.id
 			},
 			features: [feat],
 		};
@@ -698,7 +698,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				repo,
 				tag: version,
 				isLatest: false,
-				referenceId: userFeature.id
+				userFeatureId: userFeature.id
 			},
 			features: [feat],
 		};

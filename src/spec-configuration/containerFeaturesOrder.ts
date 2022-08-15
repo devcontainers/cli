@@ -31,7 +31,7 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
     for (const featureId of config.overrideFeatureInstallOrder!) {
-        const feature = automaticOrder.find(feature => (feature.sourceInformation.type === 'oci' && feature.sourceInformation.referenceId.split(':')[0] === featureId) || feature.sourceInformation.referenceId === featureId);
+        const feature = automaticOrder.find(feature => (feature.sourceInformation.type === 'oci' && feature.sourceInformation.userFeatureId.split(':')[0] === featureId) || (feature.sourceInformation.type === 'github-repo' && feature.sourceInformation.userFeatureId.split('@')[0] === featureId) || feature.sourceInformation.userFeatureId === featureId);
         if (!feature) {
             throw new Error(`Feature ${featureId} not found`);
         }
@@ -48,7 +48,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         feature,
         before: new Set(),
         after: new Set(),
-    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.referenceId, feature), new Map<string, FeatureNode>());
+    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.userFeatureId, feature), new Map<string, FeatureNode>());
 
     const nodes = [...nodesById.values()];
     for (const later of nodes) {
@@ -87,19 +87,19 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         }
         orderedFeatures.push(
             ...current.map(node => node.feature)
-                .sort((a, b) => a.sourceInformation.referenceId.localeCompare(b.sourceInformation.referenceId)) // stable order
+                .sort((a, b) => a.sourceInformation.userFeatureId.localeCompare(b.sourceInformation.userFeatureId)) // stable order
         );
         current = next;
     }
 
     orderedFeatures.push(
         ...islands.map(node => node.feature)
-            .sort((a, b) => a.sourceInformation.referenceId.localeCompare(b.sourceInformation.referenceId)) // stable order
+            .sort((a, b) => a.sourceInformation.userFeatureId.localeCompare(b.sourceInformation.userFeatureId)) // stable order
     );
 
     const missing = new Set(nodesById.keys());
     for (const feature of orderedFeatures) {
-        missing.delete(feature.sourceInformation.referenceId);
+        missing.delete(feature.sourceInformation.userFeatureId);
     }
 
     if (missing.size !== 0) {
