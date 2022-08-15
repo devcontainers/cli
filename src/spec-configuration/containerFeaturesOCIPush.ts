@@ -157,7 +157,8 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 	for await (const tag of tags) {
 		const url = `https://${featureRef.registry}/v2/${featureRef.path}/manifests/${tag}`;
 		output.write(`PUT -> '${url}'`, LogLevel.Trace);
-		const { statusCode, resHeaders } = await requestResolveHeaders({
+
+		const options = {
 			type: 'PUT',
 			url,
 			headers: {
@@ -165,7 +166,18 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 				'Content-Type': 'application/vnd.oci.image.manifest.v1+json',
 			},
 			data: Buffer.from(manifestStr),
-		});
+		};
+
+		let { statusCode, resHeaders } = await requestResolveHeaders(options);
+
+		// Retry logic: when request fails with HTTP 429: too many requests
+		if (statusCode === 429) {
+			output.write(`Failed to PUT manifest for tag ${tag} due to too many requests. Retrying...`, LogLevel.Warning);
+			let response = await requestResolveHeaders(options);
+			statusCode = response.statusCode;
+			resHeaders = response.resHeaders;
+		}
+
 		if (statusCode !== 201) {
 			output.write(`Failed to PUT manifest for tag ${tag}`, LogLevel.Error);
 			return false;
