@@ -931,13 +931,8 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 		...feature
 	};
 
-	let updatedFeature = updateFromOldProperties({ features: [feature] }).features[0];
+	featureSet.features[0] = updateFromOldProperties({ features: [feature] }).features[0];
 
-	feature = {
-		...updatedFeature
-	};
-
-	featureSet.features[0] = feature;
 	return true;
 }
 
@@ -965,13 +960,9 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 		...feature
 	};
 
-	let updatedFeature = updateFromOldProperties({ features: [feature] }).features[0];
+	featureSet.features[0] = updateFromOldProperties({ features: [feature] }).features[0];
 
-	feature = {
-		...updatedFeature
-	};
 
-	featureSet.features[0] = feature;
 	return true;
 }
 
