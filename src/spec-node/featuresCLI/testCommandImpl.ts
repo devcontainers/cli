@@ -34,7 +34,7 @@ function log(msg: string, options?: { omitPrefix?: boolean; prefix?: string; inf
 }
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-	const { pkg, scenariosFolder } = args;
+	const { pkg, globalScenariosOnly } = args;
 
 	process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -42,43 +42,37 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 │           v${pkg.version}           │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
-	// There are two modes. 
-	// 1.  '--features ...'  - A user-provided set of features to test (we expect a parallel 'test' subfolder for each feature)
-	// 2.  '--scenarios ...' - A JSON file codifying a set of features to test (potentially with options & with its own test script)
-	if (!!scenariosFolder) {
-		return await runScenarioFeatureTests(args);
+	let testResults: TestResult[] = [];
+	if (globalScenariosOnly) {
+		testResults = await runGlobalFeatureTests(args, testResults);
 	} else {
-		return await runImplicitFeatureTests(args);
-	}
-}
+		testResults = await runImplicitFeatureTests(args, testResults);
+		testResults = await runGlobalFeatureTests(args, testResults);
 
-async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<number> {
-	const { scenariosFolder, cliHost, collectionFolder } = args;
-
-	const srcDir = `${collectionFolder}/src`;
-
-	if (! await cliHost.isFolder(srcDir)) {
-		fail(`Folder '${collectionFolder}' does not contain the required 'src' folder.`);
 	}
 
-	if (!scenariosFolder) {
-		fail('Must supply a scenarios test folder via --scenarios');
-		return 1; // We never reach here, we exit via fail().
-	}
-
-	log(`Scenarios:         ${scenariosFolder}\n`, { prefix: '\n📊', info: true });
-	const testResults = await doScenario(scenariosFolder, args);
-	if (!testResults) {
-		fail(`Failed to run scenarios in ${scenariosFolder}`);
-		return 1; // We never reach here, we exit via fail().
-	}
-
-	// Pretty-prints results and returns a status code to indicate success or failure.
+	// Pretty-print test results and exit with 0 or 1 exit code.
 	return analyzeTestResults(testResults);
+
+}
+
+async function runGlobalFeatureTests(args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
+	const {  collectionFolder } = args;
+
+	const globalTestsFolder = `${collectionFolder}/test/_global`;
+
+	log(`Scenarios:         ${globalTestsFolder}\n`, { prefix: '\n📊', info: true });
+	testResults = await doScenario(globalTestsFolder, args, testResults);
+	if (!testResults) {
+		fail(`Failed to run scenarios in ${globalTestsFolder}`);
+		return []; // We never reach here, we exit via fail().
+	}
+
+	return testResults;
 }
 
 
-async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
+async function runImplicitFeatureTests(args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { baseImage, collectionFolder, remoteUser, cliHost } = args;
 	let { features } = args;
 
@@ -117,8 +111,6 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 
 	log('Starting test(s)...\n', { prefix: '\n🏃', info: true });
 
-	let testResults: TestResult[] | undefined = [];
-
 	// 3. Exec default 'test.sh' script for each feature, in the provided order.
 	//    Also exec a test's test scenarios, if a scenarios.json is present in the feature's test folder.
 	for (const feature of features) {
@@ -149,21 +141,19 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 		await doScenario(featureTestFolder, args, testResults);
 		if (!testResults) {
 			fail(`Failed to run scenarios in ${featureTestFolder}`);
-			return 1; // We never reach here, we exit via fail().
+			return []; // We never reach here, we exit via fail().
 		}
-
 	}
 
-	// Pretty-prints results and returns a status code to indicate success or failure.
-	return analyzeTestResults(testResults);
+	return testResults;
 }
 
-async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[] | undefined> {
+async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { collectionFolder, cliHost } = args;
 	const scenariosPath = path.join(pathToTestDir, 'scenarios.json');
 
 	if (!(await cliHost.isFile(scenariosPath))) {
-		return;
+		return [];
 	}
 
 	// Read in scenarios.json
@@ -174,7 +164,7 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 		scenarios = JSON.parse(scenariosBuffer.toString());
 	} catch (e) {
 		fail(`Failed to parse scenarios.json:  ${e.message}`);
-		return; // We never reach here, we exit via fail().
+		return []; // We never reach here, we exit via fail().
 	}
 
 	// For EACH scenario: Spin up a container and exec the scenario test script
@@ -212,6 +202,9 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 }
 
 function analyzeTestResults(testResults: { testName: string; result: boolean }[]): number {
+	if (!testResults || testResults.length === 0) {
+		fail('No test results found!');
+	}
 	// 4. Print results
 	const allPassed = testResults.every((x) => x.result);
 	process.stdout.write('\n\n\n');
