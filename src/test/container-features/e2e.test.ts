@@ -58,7 +58,11 @@ describe('Dev Container Features E2E (remote)', function () {
         describe(`dockerfile-with-v2-oci-features`, () => {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
-            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            beforeEach(async () => {
+                const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-feature-auto-mapping` );
+                const response = JSON.parse(res.stdout);
+                containerId = response.containerId;
+            });
             afterEach(async () => await devContainerDown({ containerId }));
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
@@ -67,6 +71,16 @@ describe('Dev Container Features E2E (remote)', function () {
                 console.log(res.stderr);
                 assert.equal(response.outcome, 'success');
                 assert.match(res.stderr, /CONTAINER ID/);
+            });
+
+            it('should read configuration with features', async () => {
+                const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration  --skip-feature-auto-mapping`);
+                const response = JSON.parse(res.stdout);
+                console.log(res.stderr);
+                assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.id, 'docker-in-docker');
+                assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.customizations?.vscode?.extensions[0], 'ms-azuretools.vscode-docker');
+                assert.equal(response?.featuresConfiguration?.featureSets[2]?.features[0]?.id, 'node');
+                assert.equal(response?.featuresConfiguration?.featureSets[2]?.features[0]?.customizations?.vscode?.extensions[0], 'dbaeumer.vscode-eslint');
             });
         });
     });
