@@ -7,21 +7,24 @@ import { getPackageConfig, PackageConfiguration } from '../../spec-utils/product
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { doFeaturesTestCommand } from './testCommandImpl';
 
-// -- 'features test' command
 export function featuresTestOptions(y: Argv) {
 	return y
 		.options({
-			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Base Image' },
-			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to auto-detect all features in collection directory.  Cannot be combined with \'-s\'.', },
-			'scenarios': { type: 'string', alias: 's', description: 'Path to scenario test directory (containing scenarios.json).  Cannot be combined with \'-f\'.' },
-			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user', },
-			'collection-folder': { type: 'string', alias: 'c', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
+			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to auto-detect all features in the collection test directory.', },
+			'global-only': { type: 'boolean', alias: 'g', default: false, describe: 'Only test global features (not nested under a folder). Cannot be combined with --features.' },
+			// Auto generate configuration
+			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Set a custom base image.  Does not apply to scenarios.' },
+			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Set the remote user. Does not apply to scenarios.', },
+			// Flags
+			'run-test-scenarios': { type: 'boolean', alias: 's', default: true, description: 'Flag to toggle running \'scenarios.json\' style tests.' },
+			'run-global-tests': { type: 'boolean', alias: 'g', default: false, description: 'Flag to toggle running tests not associated with a single feature.' },
+			// Metadata
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
 		})
 		.check(argv => {
-			if (argv['scenarios'] && argv['features']) {
-				throw new Error('Cannot combine --scenarios and --features');
+			if (argv['global-only'] && argv['features']) {
+				throw new Error('Cannot combine --global-only and --features');
 			}
 			return true;
 		});
@@ -34,7 +37,6 @@ export interface FeaturesTestCommandInput {
 	baseImage: string;
 	collectionFolder: string;
 	features?: string[];
-	scenariosFolder: string | undefined;
 	remoteUser: string;
 	quiet: boolean;
 	logLevel: LogLevel;
@@ -47,9 +49,8 @@ export function featuresTestHandler(args: FeaturesTestArgs) {
 
 async function featuresTest({
 	'base-image': baseImage,
-	'collection-folder': collectionFolder,
+	'target': collectionFolder,
 	features,
-	scenarios: scenariosFolder,
 	'remote-user': remoteUser,
 	quiet,
 	'log-level': inputLogLevel,
@@ -74,7 +75,6 @@ async function featuresTest({
 		pkg,
 		collectionFolder: cliHost.path.resolve(collectionFolder),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
-		scenariosFolder: scenariosFolder ? cliHost.path.resolve(scenariosFolder) : undefined,
 		remoteUser,
 		disposables
 	};
@@ -84,4 +84,3 @@ async function featuresTest({
 	await dispose();
 	process.exit(exitCode);
 }
-// -- End: 'features test' command
