@@ -58,6 +58,7 @@ export interface ResolverParameters {
 	remoteEnv: Record<string, string>;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	skipFeatureAutoMapping: boolean;
 }
 
 export interface PostCreate {

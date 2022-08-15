@@ -309,6 +309,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 			`devcontainer.local_folder=${workspaceFolder}`
 		],
 		remoteEnv: common.remoteEnv,
+		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		log: text => quiet ? null : process.stderr.write(text),
 	};
 
@@ -357,6 +358,7 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
 	const execArgs = {
 		...staticExecParams,
 		'workspace-folder': workspaceFolder,
+		'skip-feature-auto-mapping': false,
 		cmd,
 		args,
 		_: [
@@ -400,5 +402,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		useBuildKit: 'auto',
 		buildxPlatform: undefined,
 		buildxPush: false,
+		skipFeatureAutoMapping: false,
 	}, disposables);
 }
