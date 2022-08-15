@@ -420,7 +420,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	featuresConfig = await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
 	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
@@ -735,9 +735,8 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
-	for (let i = 0; i < featuresConfig.featureSets.length ; i++) {
+	for (const featureSet of featuresConfig.featureSets) {
 		try {
-			const featureSet = featuresConfig.featureSets[i];
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
 				continue;
 			}
@@ -769,13 +768,11 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					throw new Error(err);
 				}
 
-				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
-				if (!updatedFeature) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
 
-				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
 
@@ -784,13 +781,10 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				await mkdirpLocal(featCachePath);
 				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
 
-				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
-				if (!updatedFeature) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
-
-				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
 
@@ -800,13 +794,10 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				const executionPath = featureSet.sourceInformation.resolvedFilePath;
 				await cpDirectoryLocal(executionPath, featCachePath);
 
-				let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
-				if (!updatedFeature) {
+				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
-
-				featuresConfig.featureSets[i].features[0] = updatedFeature;
 				continue;
 			}
 
@@ -847,13 +838,10 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 				if (didSucceed) {
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
-					let updatedFeature = await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath);
-					if (!updatedFeature) {
+					if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 						throw new Error(err);
 					}
-
-					featuresConfig.featureSets[i].features[0] = updatedFeature;
 					break;
 				}
 			}
@@ -868,8 +856,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			throw e;
 		}
 	}
-
-	return featuresConfig;
 }
 
 async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, dstFolder: string, output: Log): Promise<boolean> {
@@ -925,7 +911,7 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 // 		Implements the latest ('internalVersion' = '2') parsing logic, 
 // 		Falls back to earlier implementation(s) if requirements not present.
 // 		Returns a boolean indicating whether the feature was successfully parsed.
-async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<Feature | undefined> {
+async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
 	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
@@ -951,16 +937,17 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 		...updatedFeature
 	};
 
-	return feature;
+	featureSet.features[0] = feature;
+	return true;
 }
 
-async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<Feature | undefined> {
+async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string): Promise<boolean> {
 
 	const pathToV1DevContainerFeatureJson = path.join(featCachePath, V1_DEVCONTAINER_FEATURES_FILE_NAME);
 
 	if (!(await isLocalFile(pathToV1DevContainerFeatureJson))) {
 		output.write(`Failed to find ${V1_DEVCONTAINER_FEATURES_FILE_NAME} metadata file (v1)`, LogLevel.Error);
-		return undefined;
+		return false;
 	}
 	featureSet.internalVersion = '1';
 	feature.cachePath = featCachePath;
@@ -970,7 +957,7 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 	const seekedFeature = featureJson?.features.find(f => f.id === feature.id);
 	if (!seekedFeature) {
 		output.write(`Failed to find feature '${feature.id}' in provided v1 metadata file`, LogLevel.Error);
-		return undefined;
+		return false;
 	}
 
 	feature = {
@@ -984,7 +971,8 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 		...updatedFeature
 	};
 
-	return feature;
+	featureSet.features[0] = feature;
+	return true;
 }
 
 export function getFeatureMainProperty(feature: Feature) {
