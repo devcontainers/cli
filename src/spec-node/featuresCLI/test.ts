@@ -10,18 +10,20 @@ import { doFeaturesTestCommand } from './testCommandImpl';
 export function featuresTestOptions(y: Argv) {
 	return y
 		.options({
+			// Primary Options
 			'features': { type: 'array', alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to auto-detect all features in the collection test directory.', },
 			'global-only': { type: 'boolean', alias: 'g', default: false, describe: 'Only test global features (not nested under a folder). Cannot be combined with --features.' },
 			// Auto generate configuration
-			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Set a custom base image.  Does not apply to scenarios.' },
-			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Set the remote user. Does not apply to scenarios.', },
+			'base-image': { type: 'string', alias: 'i', default: 'ubuntu:focal', description: 'Set a custom base image.  By default, does not apply scenarios' },
+			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Set the remote user. By default, does not apply to scenarios.', },
 			// Flags
-			'run-test-scenarios': { type: 'boolean', alias: 's', default: true, description: 'Flag to toggle running \'scenarios.json\' style tests.' },
-			'run-global-tests': { type: 'boolean', alias: 'g', default: false, description: 'Flag to toggle running tests not associated with a single feature.' },
+			'disable-test-scenarios': { type: 'boolean', alias: 's', default: false, description: 'Flag to toggle running \'scenarios.json\' style tests.' },
+			'override-scenarios-with-cmdline-configuration': { type: 'boolean', default: false, description: 'If set, command line configuration (like \'--base-image\' will override a preset value in a given scenario.' },
 			// Metadata
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
 		})
+		.positional('target', { type: 'string', default: '.', description: 'Path to collection folder containing \'src\' and \'test\' folders.' })
 		.check(argv => {
 			if (argv['global-only'] && argv['features']) {
 				throw new Error('Cannot combine --global-only and --features');
@@ -32,14 +34,17 @@ export function featuresTestOptions(y: Argv) {
 
 export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
 export interface FeaturesTestCommandInput {
-	cliHost: CLIHost;
-	pkg: PackageConfiguration;
-	baseImage: string;
 	collectionFolder: string;
 	features?: string[];
+	globalOnly: boolean;
+	baseImage: string;
 	remoteUser: string;
-	quiet: boolean;
+	disableTestScenarios: boolean;
+	overrideScenariosWithCmdlineConfiguration: boolean;
 	logLevel: LogLevel;
+	quiet: boolean;
+	cliHost: CLIHost;
+	pkg: PackageConfiguration;
 	disposables: (() => Promise<unknown> | undefined)[];
 }
 
@@ -51,9 +56,12 @@ async function featuresTest({
 	'base-image': baseImage,
 	'target': collectionFolder,
 	features,
+	'global-only': globalOnly,
 	'remote-user': remoteUser,
 	quiet,
 	'log-level': inputLogLevel,
+	'disable-test-scenarios': disableTestScenarios,
+	'override-scenarios-with-cmdline-configuration': overrideScenariosWithCmdlineConfiguration,
 }: FeaturesTestArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -71,8 +79,11 @@ async function featuresTest({
 		baseImage,
 		cliHost,
 		logLevel,
+		globalOnly,
 		quiet,
 		pkg,
+		disableTestScenarios,
+		overrideScenariosWithCmdlineConfiguration,
 		collectionFolder: cliHost.path.resolve(collectionFolder),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
 		remoteUser,

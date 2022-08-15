@@ -34,7 +34,7 @@ function log(msg: string, options?: { omitPrefix?: boolean; prefix?: string; inf
 }
 
 export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Promise<number> {
-	const { pkg, scenariosFolder } = args;
+	const { pkg } = args;
 
 	process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
@@ -42,45 +42,13 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 │           v${pkg.version}           │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
-	// There are two modes. 
-	// 1.  '--features ...'  - A user-provided set of features to test (we expect a parallel 'test' subfolder for each feature)
-	// 2.  '--scenarios ...' - A JSON file codifying a set of features to test (potentially with options & with its own test script)
-	if (!!scenariosFolder) {
-		return await runScenarioFeatureTests(args);
-	} else {
-		return await runImplicitFeatureTests(args);
-	}
-}
-
-async function runScenarioFeatureTests(args: FeaturesTestCommandInput): Promise<number> {
-	const { scenariosFolder, cliHost, collectionFolder } = args;
-
-	const srcDir = `${collectionFolder}/src`;
-
-	if (! await cliHost.isFolder(srcDir)) {
-		fail(`Folder '${collectionFolder}' does not contain the required 'src' folder.`);
-	}
-
-	if (!scenariosFolder) {
-		fail('Must supply a scenarios test folder via --scenarios');
-		return 1; // We never reach here, we exit via fail().
-	}
-
-	log(`Scenarios:         ${scenariosFolder}\n`, { prefix: '\n📊', info: true });
-	const testResults = await doScenario(scenariosFolder, args);
-	if (!testResults) {
-		fail(`Failed to run scenarios in ${scenariosFolder}`);
-		return 1; // We never reach here, we exit via fail().
-	}
-
-	// Pretty-prints results and returns a status code to indicate success or failure.
-	return analyzeTestResults(testResults);
+	return await runFeatureTests(args);
 }
 
 
-async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
+async function runFeatureTests(args: FeaturesTestCommandInput) {
 	const { baseImage, collectionFolder, remoteUser, cliHost } = args;
-	let { features } = args;
+	let { features, disableTestScenarios } = args;
 
 	const srcDir = `${collectionFolder}/src`;
 	const testsDir = `${collectionFolder}/test`;
@@ -94,8 +62,12 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 
 	// Parse comma separated list of features
 	// If a set of '--features' isn't specified, run all features with a 'test' subfolder in random order.
-	if (!features) {
+	if (args.globalOnly) {
+		features = ['_global']; // Only run global tests that don't nicely scope to a single feature.
+	}
+	else if (!features) {
 		features = await cliHost.readDir(testsDir);
+		features.push('_global'); // Run global tests that don't nicely scope to a single feature.
 		if (features.length === 0) {
 			fail(`No features specified and no test folders found in '${testsDir}'`);
 		}
@@ -145,8 +117,12 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput) {
 		});
 
 		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
-		// Pass  'testResults' array reference in to capture results.
-		await doScenario(featureTestFolder, args, testResults);
+		// Pass 'testResults' array reference in to capture results.
+		// Executing scenarios be disabled via the --disable-test-scenarios flag, or omit a scenarios.json file.
+		if (!disableTestScenarios) {
+			await doScenario(featureTestFolder, args, testResults);
+		}
+
 		if (!testResults) {
 			fail(`Failed to run scenarios in ${featureTestFolder}`);
 			return 1; // We never reach here, we exit via fail().
