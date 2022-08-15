@@ -1,0 +1,13 @@
+{
+	"custom_options" :{
+		"image": "base:ubuntu",
+		"features" : {
+			"hello": {
+				"greeting": "Ciao"
+			},
+			"color": {
+				"favorite": "Magenta"
+			}
+		}
+	}
+}

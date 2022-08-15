@@ -24,7 +24,19 @@ describe('CLI features subcommands', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features test -c ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+			await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`);
+			success = true;
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+		assert.isTrue(success);
+	});
+
+	it('features test subcommand with --global-scenarios-only', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
+		let success = false;
+		try {
+			await shellExec(`${cli} features test --global-scenarios-only --log-level trace ${collectionFolder}`);
 			success = true;
 		} catch (error) {
 			assert.fail('features test sub-command should not throw');
