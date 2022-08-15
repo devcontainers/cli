@@ -159,18 +159,4 @@ describe('test function getPublishedVersions', async () => {
 		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
-
-	it('should return empty list for a non-published feature with existing resource', async () => {
-		const resource = 'ghcr.io/devcontainers/features/not-available';
-		const featureRef = getFeatureRef(output, resource);
-		const versionsList = await getPublishedVersions(featureRef, output);
-		assert.isEmpty(versionsList);
-	});
-
-	it('should return empty list for a non-published feature with non-existing resource', async () => {
-		const resource = 'ghcr.io/not/available/not-available';
-		const featureRef = getFeatureRef(output, resource);
-		const versionsList = await getPublishedVersions(featureRef, output);
-		assert.isEmpty(versionsList);
-	});
 });

@@ -329,7 +329,7 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 		return publishedVersionsResponse.tags;
 	} catch (e) {
 		// Publishing for the first time
-		if (e?.message.includes('HTTP 404: Not Found') || e?.message.includes('HTTP 403: Forbidden')) {
+		if (e?.message.includes('HTTP 404: Not Found')) {
 			return [];
 		}
 
