@@ -89,7 +89,9 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput, testResul
 	// Parse comma separated list of features
 	// If a set of '--features' isn't specified, run all features with a 'test' subfolder in random order.
 	if (!features) {
-		features = await cliHost.readDir(testsDir);
+		features = (await cliHost.readDir(testsDir))
+			.filter(f => f !== '_global');
+
 		if (features.length === 0) {
 			fail(`No features specified and no test folders found in '${testsDir}'`);
 		}
@@ -138,7 +140,9 @@ async function runImplicitFeatureTests(args: FeaturesTestCommandInput, testResul
 
 		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
 		// Pass  'testResults' array reference in to capture results.
+		if (args.skipScenarios) {
 		await doScenario(featureTestFolder, args, testResults);
+		}
 		if (!testResults) {
 			fail(`Failed to run scenarios in ${featureTestFolder}`);
 			return []; // We never reach here, we exit via fail().
