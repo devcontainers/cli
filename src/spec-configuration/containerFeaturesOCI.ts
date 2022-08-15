@@ -300,7 +300,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 }
 
 // Lists published versions of a feature
-export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log) {
+export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log): Promise<string[] | undefined> {
 	try {
 		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
 
@@ -308,7 +308,7 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 
 		if (!authToken) {
 			output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
-			process.exit(1);
+			return undefined;
 		}
 
 		const headers: HEADERS = {
@@ -334,6 +334,6 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 		}
 
 		output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
-		process.exit(1);
+		return undefined;
 	}
 }

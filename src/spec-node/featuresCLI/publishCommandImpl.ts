@@ -24,8 +24,8 @@ export function getSermanticVersions(version: string, publishedVersions: string[
 
     const parsedVersion = semver.parse(version);
     if (!parsedVersion) {
-        output.write(`(!) ERR: Version ${version} is not a valid semantic version...`, LogLevel.Error);
-        process.exit(1);
+        output.write(`(!) ERR: Version ${version} is not a valid semantic version, skipping ${version}...`, LogLevel.Error);
+        return undefined;
     }
 
     semanticVersions = [];
@@ -40,9 +40,14 @@ export function getSermanticVersions(version: string, publishedVersions: string[
     return semanticVersions;
 }
 
-export async function doFeaturesPublishCommand(version: string, featureRef: OCIFeatureRef, outputDir: string, output: Log): Promise<number> {
+export async function doFeaturesPublishCommand(version: string, featureRef: OCIFeatureRef, outputDir: string, output: Log) {
     output.write(`Fetching published versions...`, LogLevel.Info);
-    const publishedVersions: string[] = await getPublishedVersions(featureRef, output);
+    const publishedVersions = await getPublishedVersions(featureRef, output);
+
+    if (!publishedVersions) {
+        process.exit(1);
+    }
+
     const semanticVersions: string[] | undefined = getSermanticVersions(version, publishedVersions, output);
 
     if (!!semanticVersions) {
@@ -50,24 +55,20 @@ export async function doFeaturesPublishCommand(version: string, featureRef: OCIF
         const pathToTgz = path.join(outputDir, getFeatureArchiveName(featureRef.id));
         if (! await pushOCIFeature(output, featureRef, pathToTgz, semanticVersions)) {
             output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
-            return 1;
+            process.exit(1);
         }
         output.write(`Published feature: ${featureRef.id}...`, LogLevel.Info);
     }
+}
 
+export async function doFeaturesPublishMetadata(featureCollectionRef: OCIFeatureCollectionRef, outputDir: string, output: Log) {
     // Publishing Feature Collection Metadata
     output.write('Publishing collection metadata...', LogLevel.Info);
-    const featureCollectionRef: OCIFeatureCollectionRef = {
-        registry: featureRef.registry,
-        path: featureRef.namespace,
-        version: 'latest'
-    };
+    
     const pathToFeatureCollectionFile = path.join(outputDir, OCIFeatureCollectionFileName);
     if (! await pushFeatureCollectionMetadata(output, featureCollectionRef, pathToFeatureCollectionFile)) {
         output.write(`(!) ERR: Failed to publish collection metadata: ${OCIFeatureCollectionFileName}`, LogLevel.Error);
-        return 1;
+        process.exit(1);
     }
     output.write('Published collection metadata...', LogLevel.Info);
-
-    return 0;
 }

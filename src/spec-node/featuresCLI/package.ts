@@ -2,8 +2,7 @@ import path from 'path';
 import { Argv } from 'yargs';
 import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
-import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
-import { isLocalFile, isLocalFolder, mkdirpLocal, rmLocal } from '../../spec-utils/pfs';
+import { Log, mapLogLevel } from '../../spec-utils/log';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { getPackageConfig } from '../utils';
@@ -37,19 +36,20 @@ export interface FeaturesPackageCommandInput {
 	outputDir: string;
 	output: Log;
 	disposables: (() => Promise<unknown> | undefined)[];
-	isSingleFeature: boolean; // Packaging a collection of many features. Should autodetect.
+	isSingleFeature?: boolean; // Packaging a collection of many features. Should autodetect.
+	forceCleanOutputDir?: boolean;
 }
 
 export function featuresPackageHandler(args: FeaturesPackageArgs) {
 	(async () => await featuresPackage(args))().catch(console.error);
 }
 
-export async function featuresPackage({
+async function featuresPackage({
 	'target': targetFolder,
 	'log-level': inputLogLevel,
 	'output-folder': outputDir,
 	'force-clean-output-folder': forceCleanOutputDir,
-}: FeaturesPackageArgs, shouldExit: boolean = true) {
+}: FeaturesPackageArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
@@ -67,60 +67,18 @@ export async function featuresPackage({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-	const targetFolderResolved = cliHost.path.resolve(targetFolder);
-	if (!(await isLocalFolder(targetFolderResolved))) {
-		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
-	}
-
-	const outputDirResolved = cliHost.path.resolve(outputDir);
-	if (await isLocalFolder(outputDirResolved)) {
-		// Output dir exists. Delete it automatically if '-f' is true
-		if (forceCleanOutputDir) {
-			await rmLocal(outputDirResolved, { recursive: true, force: true });
-		}
-		else {
-			output.write(`Output directory '${outputDirResolved}' already exists. Manually delete, or pass '-f' to continue.`, LogLevel.Warning);
-			process.exit(1);
-		}
-	}
-
-	// Detect if we're packaging a collection or a single feature
-	const isValidFolder = await isLocalFolder(cliHost.path.join(targetFolderResolved));
-	const isSingleFeature = await isLocalFile(cliHost.path.join(targetFolderResolved, 'devcontainer-feature.json'));
-
-	if (!isValidFolder) {
-		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
-	}
-
-	if (isSingleFeature) {
-		output.write('Packaging single feature...', LogLevel.Info);
-	} else {
-		output.write('Packaging feature collection...', LogLevel.Info);
-	}
-
-	// Generate output folder.
-	await mkdirpLocal(outputDirResolved);
 
 	const args: FeaturesPackageCommandInput = {
 		cliHost,
-		targetFolder: targetFolderResolved,
-		outputDir: outputDirResolved,
+		targetFolder,
+		outputDir,
 		output,
 		disposables,
-		isSingleFeature,
+		forceCleanOutputDir: forceCleanOutputDir
 	};
 
-	const collectionMetadata = await doFeaturesPackageCommand(args);
+	const exitCode = !!(await doFeaturesPackageCommand(args)) ? 0 : 1;
 
 	await dispose();
-
-	if (shouldExit) {
-		if (collectionMetadata) {
-			process.exit(0);
-		} else {
-			process.exit(1);
-		}
-	}
-
-	return collectionMetadata;
+	process.exit(exitCode);
 }

@@ -6,10 +6,12 @@ import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { FeaturesPackageArgs, featuresPackage } from './package';
-import { OCIFeatureCollectionFileName } from './packageCommandImpl';
-import { doFeaturesPublishCommand } from './publishCommandImpl';
-import { getFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+import { FeaturesPackageCommandInput } from './package';
+import { OCIFeatureCollectionFileName, doFeaturesPackageCommand } from './packageCommandImpl';
+import { doFeaturesPublishCommand, doFeaturesPublishMetadata } from './publishCommandImpl';
+import { getFeatureRef, OCIFeatureCollectionRef } from '../../spec-configuration/containerFeaturesOCI';
+import { getCLIHost } from '../../spec-common/cliHost';
+import { loadNativeModule } from '../../spec-common/commonUtils';
 
 const targetPositionalDescription = `
 Package and publish features at provided [target] (default is cwd), where [target] is either:
@@ -49,31 +51,35 @@ async function featuresPublish({
 
     const extensionPath = path.join(__dirname, '..', '..', '..');
     const pkg = await getPackageConfig(extensionPath);
+
+    const cwd = process.cwd();
+    const cliHost = await getCLIHost(cwd, loadNativeModule);
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
         log: (str) => process.stdout.write(str),
         terminalDimensions: undefined,
-    }, pkg, new Date(), disposables, true);
+    }, pkg, new Date(), disposables);
 
     // Package features
-    const outputDir = os.tmpdir();
+    const outputDir = path.join(os.tmpdir(), '/features-output');
 
-    const packageArgs: FeaturesPackageArgs = {
-        'target': targetFolder,
-        'log-level': inputLogLevel,
-        'output-folder': outputDir,
-        'force-clean-output-folder': true,
+    const packageArgs: FeaturesPackageCommandInput = {
+        cliHost,
+        targetFolder,
+        outputDir,
+        output,
+        disposables,
+        forceCleanOutputDir: true,
     };
 
-    const metadata = await featuresPackage(packageArgs, false);
+    const metadata = await doFeaturesPackageCommand(packageArgs);
 
     if (!metadata) {
         output.write(`(!) ERR: Failed to fetch ${OCIFeatureCollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 
-    let exitCode = 0;
     for (const f of metadata.features) {
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
@@ -84,11 +90,19 @@ async function featuresPublish({
 
         const resource = `${registry}/${namespace}/${f.id}`;
         const featureRef = getFeatureRef(output, resource);
-        exitCode = await doFeaturesPublishCommand(f.version, featureRef, outputDir, output);
-
-        // Cleanup
-        await rmLocal(outputDir, { recursive: true, force: true });
-        await dispose();
-        process.exit(exitCode);
+        await doFeaturesPublishCommand(f.version, featureRef, outputDir, output);
     }
+
+    const featureCollectionRef: OCIFeatureCollectionRef = {
+        registry: registry,
+        path: namespace,
+        version: 'latest'
+    };
+
+    await doFeaturesPublishMetadata(featureCollectionRef, outputDir, output);
+
+    // Cleanup
+    await rmLocal(outputDir, { recursive: true, force: true });
+    await dispose();
+    process.exit();
 }
