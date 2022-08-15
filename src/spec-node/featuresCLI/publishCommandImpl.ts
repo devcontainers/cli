@@ -25,7 +25,7 @@ export function getSermanticVersions(version: string, publishedVersions: string[
     const parsedVersion = semver.parse(version);
     if (!parsedVersion) {
         output.write(`(!) ERR: Version ${version} is not a valid semantic version, skipping ${version}...`, LogLevel.Error);
-        return undefined;
+        process.exit(1);
     }
 
     semanticVersions = [];

@@ -304,7 +304,7 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 	try {
 		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
 
-		let authToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.resource, process.env, 'pull');
+		let authToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.path, process.env, 'pull');
 
 		if (!authToken) {
 			output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
