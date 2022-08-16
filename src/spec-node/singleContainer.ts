@@ -184,7 +184,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	baseImageNames.map(imageName => args.push('-t', imageName));
 
-	const target = config.build?.target;
+	const target = extendImageBuildInfo ? extendImageBuildInfo.featureBuildInfo.overrideTarget : config.build?.target;
 	if (target) {
 		args.push('--target', target);
 	}

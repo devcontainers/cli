@@ -408,6 +408,13 @@ describe('Dev Containers CLI', function () {
 					assert.equal(response.outcome, 'success');
 					assert.match(res.stderr, /||test-content||/);
 				});
+				it('should have access to installed features (hello)', async () => {
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
+					const response = JSON.parse(res.stdout);
+					console.log(res.stderr);
+					assert.equal(response.outcome, 'success');
+					assert.match(res.stderr, /howdy, root/);
+				});
 			});
 
 			describe(`with valid (docker-compose with image) config containing v1 features [${text}]`, () => {
