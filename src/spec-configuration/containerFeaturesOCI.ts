@@ -50,7 +50,7 @@ export interface OCIManifest {
 	annotations?: {};
 }
 
-export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest): FeatureSet {
+export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
 
 	const featureRef = getFeatureRef(output, identifier);
 
@@ -61,14 +61,14 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 		value: options
 	};
 
-    const userFeatureIdWithoutVersion = identifier.split(':')[0];
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split(':')[0];
 	let featureSet: FeatureSet = {
 		sourceInformation: {
 			type: 'oci',
 			manifest: manifest,
 			featureRef: featureRef,
-            userFeatureId: identifier,
-            userFeatureIdWithoutVersion
+			userFeatureId: originalUserFeatureId,
+			userFeatureIdWithoutVersion
 
 		},
 		features: [feat],
@@ -158,7 +158,7 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 		throw new Error('FeatureSet is not an OCI featureSet.');
 	}
 
-	const { featureRef } = featureSet.sourceInformation; 
+	const { featureRef } = featureSet.sourceInformation;
 
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);

@@ -201,9 +201,18 @@ describe('test overrideFeatureInstall option', function() {
     });
 
     describe('image-with-v1-features-with-overrideFeatureInstallOrder', function () {
-        it('should succeed', async () => {
+        it('should succeed with --skip-feature-auto-mapping', async () => {
             const testFolder = `${__dirname}/configs/image-with-v1-features-with-overrideFeatureInstallOrder`;
             const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --skip-feature-auto-mapping`);
+            const response = JSON.parse(res.stdout);
+            assert.equal(response.outcome, 'success');
+            const containerId = response.containerId;
+            await devContainerDown({ containerId });
+        });
+
+        it('should succeed without --skip-feature-auto-mapping', async () => {
+            const testFolder = `${__dirname}/configs/image-with-v1-features-with-overrideFeatureInstallOrder`;
+            const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
             const response = JSON.parse(res.stdout);
             assert.equal(response.outcome, 'success');
             const containerId = response.containerId;
