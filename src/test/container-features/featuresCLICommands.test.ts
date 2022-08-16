@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
-import { shellExec } from '../testUtils';
+import { ExecResult, shellExec } from '../testUtils';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
@@ -20,42 +20,80 @@ describe('CLI features subcommands', async function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
-	it('features test subcommand', async function () {
+	it('features test subcommand with defaults', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
+		let result: ExecResult | undefined = undefined;
 		try {
-			const result = await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`);
+			result = await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`);
 			success = true;
-
-			const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'color'
-✅ Passed:      'hello'
-✅ Passed:      'custom_options'`;
-			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
-			assert.isTrue(hasExpectedTestReport);
 
 		} catch (error) {
 			assert.fail('features test sub-command should not throw');
 		}
+
 		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'color'
+✅ Passed:      'hello'
+✅ Passed:      'custom_options'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+
+		assert.isTrue(result.stderr.includes('my favorite color is red'));
+		assert.isTrue(result.stderr.includes('hey, root!'));
+
+		assert.isTrue(result.stderr.includes('my favorite color is Magenta'));
+		assert.isTrue(result.stderr.includes('Ciao, root!'));
 	});
 
 	it('features test subcommand with --global-scenarios-only', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
+		let result: ExecResult | undefined = undefined;
 		try {
-			const result = await shellExec(`${cli} features test --global-scenarios-only --log-level trace ${collectionFolder}`);
+			result = await shellExec(`${cli} features test --global-scenarios-only --log-level trace ${collectionFolder}`);
 			success = true;
-
-			const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'custom_options'`;
-			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
-			assert.isTrue(hasExpectedTestReport);
 		} catch (error) {
 			assert.fail('features test sub-command should not throw');
 		}
+
 		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'custom_options'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+
+		// With --global-scenarios-only, 
+		// the default values should NOT be included in the test
+		// and therefore we should NOT see the following outputs.
+		assert.isFalse(result.stderr.includes('my favorite color is red'));
+		assert.isFalse(result.stderr.includes('hey, root!'));
+
+		assert.isTrue(result.stderr.includes('my favorite color is Magenta'));
+		assert.isTrue(result.stderr.includes('Ciao, root!'));
+
 	});
+
+	it('features test subcommand with a failing test', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/failing-test`;
+		// shellExec's doNotThrow set to 'true'
+		const result = await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`, undefined, undefined, true);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+❌ Failed:      'hello'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+
+		assert.isTrue(result.stderr.includes('❌ testThatShouldFail check failed.'));
+		assert.isDefined(result.error);
+	});
+
+	// -- Packaging
 
 	it('features package subcommand by collection', async function () {
 		const srcFolder = `${__dirname}/example-v2-features-sets/simple/src`;

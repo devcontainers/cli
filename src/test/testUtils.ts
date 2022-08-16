@@ -12,23 +12,24 @@ export interface UpResult {
     composeProjectName: string | undefined;
 }
 
-interface ExecResult {
+export interface ExecResult {
     error: Error | null;
     stdout: string;
     stderr: string;
 }
 
-export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false) {
+export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
     return new Promise<ExecResult>((resolve, reject) => {
         cp.exec(command, options, (error, stdout, stderr) => {
             if (!suppressOutput) {
                 console.log(stdout);
                 console.error(stderr);
             }
-            (error ? reject : resolve)({ error, stdout, stderr });
+            ((error && !doNotThrow) ? reject : resolve)({ error, stdout, stderr });
         });
     });
 }
+
 
 export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string }): Promise<UpResult> {
     const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
