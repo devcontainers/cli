@@ -31,7 +31,8 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
     for (const featureId of config.overrideFeatureInstallOrder!) {
-        const feature = automaticOrder.find(feature => (feature.sourceInformation.type === 'oci' && feature.sourceInformation.userFeatureId.split(':')[0] === featureId) || (feature.sourceInformation.type === 'github-repo' && feature.sourceInformation.userFeatureId.split('@')[0] === featureId) || feature.sourceInformation.userFeatureId === featureId);
+        // Reference: https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#1-overridefeatureinstallorder
+        const feature = automaticOrder.find(feature => feature.sourceInformation.userFeatureIdWithoutVersion === featureId || feature.sourceInformation.userFeatureId === featureId);
         if (!feature) {
             throw new Error(`Feature ${featureId} not found`);
         }

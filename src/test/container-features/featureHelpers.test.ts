@@ -98,7 +98,8 @@ describe('validate processFeatureIdentifier', async function () {
 				apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest',
 				unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download',
 				isLatest: true,
-				userFeatureId: 'octocat/myfeatures/helloworld'
+				userFeatureId: 'octocat/myfeatures/helloworld',
+				userFeatureIdWithoutVersion: 'octocat/myfeatures/helloworld'
 			});
 		});
 
@@ -126,7 +127,8 @@ describe('validate processFeatureIdentifier', async function () {
 				apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4',
 				unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4',
 				isLatest: false,
-				userFeatureId: 'octocat/myfeatures/helloworld@v0.0.4'
+				userFeatureId: 'octocat/myfeatures/helloworld@v0.0.4',
+				userFeatureIdWithoutVersion: 'octocat/myfeatures/helloworld'
 			});
 		});
 

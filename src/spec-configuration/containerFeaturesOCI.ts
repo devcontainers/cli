@@ -61,12 +61,14 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 		value: options
 	};
 
+    const userFeatureIdWithoutVersion = identifier.split(':')[0];
 	let featureSet: FeatureSet = {
 		sourceInformation: {
 			type: 'oci',
 			manifest: manifest,
 			featureRef: featureRef,
-            userFeatureId: identifier
+            userFeatureId: identifier,
+            userFeatureIdWithoutVersion
 
 		},
 		features: [feat],

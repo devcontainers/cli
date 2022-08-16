@@ -164,7 +164,8 @@ describe('Container features install order', function () {
                     },
                     layers: []
                 },
-                userFeatureId: id
+                userFeatureId: id,
+                userFeatureIdWithoutVersion: splitOnColon[0]
             },
             features: [{
                 id: spiltOnSlash[3],

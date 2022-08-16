@@ -74,6 +74,7 @@ export type SourceInformation = LocalCacheSourceInformation | GithubSourceInform
 interface BaseSourceInformation {
 	type: string;
 	userFeatureId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	userFeatureIdWithoutVersion?: string;
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
@@ -86,6 +87,7 @@ export interface OCISourceInformation extends BaseSourceInformation {
 	featureRef: OCIFeatureRef;
 	manifest: OCIManifest;
 	userFeatureId: string;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
@@ -112,6 +114,7 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	ref?: string;
 	sha?: string;
 	userFeatureId: string;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface GithubSourceInformationInput {
@@ -709,6 +712,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		included: true,
 	};
 
+	const userFeatureIdWithoutVersion = userFeature.id.split('@')[0];
 	if (version === 'latest') {
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -718,7 +722,8 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				owner,
 				repo,
 				isLatest: true,
-				userFeatureId: userFeature.id
+				userFeatureId: userFeature.id,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};
@@ -734,7 +739,8 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				repo,
 				tag: version,
 				isLatest: false,
-				userFeatureId: userFeature.id
+				userFeatureId: userFeature.id,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};
