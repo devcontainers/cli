@@ -176,11 +176,24 @@ describe('Dev Container Features E2E (local-path)', function () {
             assert.match(res.stderr, /buongiorno, root!/);
         });
 
-        it('should read configuration with features', async () => {
+        it('should read configuration with features with customizations', async () => {
             const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration`);
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.id, 'localFeatureA', `localFeatureA not found: ${JSON.stringify(response, undefined, '  ')}`);
+
+            const featureA = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureA');
+            assert.exists(featureA);
+            assert.includeMembers(featureA.features[0].customizations.vscode.extensions, ['dbaeumer.vscode-eslint']);
+            const featureASettings = featureA?.features[0]?.customizations?.vscode?.settings;
+            assert.isObject(featureASettings);
+
+            // With top level "extensions" and "settings"
+            const featureB = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureB');
+            assert.exists(featureB);
+            assert.includeMembers(featureB.features[0].customizations.vscode.extensions, ['ms-dotnettools.csharp']);
+            const featureBSettings = featureB?.features[0]?.customizations?.vscode?.settings;
+            assert.isObject(featureBSettings);
         });
     });
 });
