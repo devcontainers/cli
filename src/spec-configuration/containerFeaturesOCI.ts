@@ -117,7 +117,6 @@ export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(output: 
 // Validate if a manifest exists and is reachable about the declared feature.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
 export async function fetchOCIFeatureManifestIfExists(output: Log, env: NodeJS.ProcessEnv, featureRef: OCIFeatureRef | OCIFeatureCollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
-
     // Simple mechanism to avoid making a DNS request for 
     // something that is not a domain name.
     if (featureRef.registry.indexOf('.') < 0) {

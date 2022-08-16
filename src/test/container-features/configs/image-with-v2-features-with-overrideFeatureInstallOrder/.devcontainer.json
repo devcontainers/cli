@@ -1,11 +1,11 @@
 {
-	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"image": "mcr.microsoft.com/devcontainers/python",
 	"features": {
-		"ghcr.io/devcontainers/features/ruby:1": {
-			"version": "3.1"
+		"ghcr.io/devcontainers/features/python:1": {
+			"version": "none"
 		},
-		"ghcr.io/codspace/features/ruby:1": {
-			"version": "3.0"
+		"ghcr.io/codspace/features/python:1": {
+			"version": "none"
 		},
 		"./local-features/localFeatureA": {
 			"greeting": "buongiorno"
@@ -13,11 +13,13 @@
 		"./local/localFeatureA": {
 			"greeting": "buongiorno"
 		},
-		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {}
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
+			"version": "latest"
+		}
 	},
 	"overrideFeatureInstallOrder": [
 		"./local-features/localFeatureA",
 		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
-		"ghcr.io/devcontainers/features/ruby"
+		"ghcr.io/devcontainers/features/python"
 	]
 }
