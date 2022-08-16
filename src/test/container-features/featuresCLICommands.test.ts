@@ -37,6 +37,7 @@ describe('CLI features subcommands', async function () {
 
 		const expectedTestReport = `  ================== TEST REPORT ==================
 ✅ Passed:      'color'
+✅ Passed:      'specific_color_scenario'
 ✅ Passed:      'hello'
 ✅ Passed:      'custom_options'`;
 		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
