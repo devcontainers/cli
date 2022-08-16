@@ -1,6 +1,6 @@
 {
 	"custom_options" :{
-		"image": "base:ubuntu",
+		"image": "ubuntu",
 		"features" : {
 			"hello": {
 				"greeting": "Ciao"
