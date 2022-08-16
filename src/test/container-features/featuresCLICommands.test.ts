@@ -24,8 +24,16 @@ describe('CLI features subcommands', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`);
+			const result = await shellExec(`${cli} features test --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace ${collectionFolder}`);
 			success = true;
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'color'
+✅ Passed:      'hello'
+✅ Passed:      'custom_options'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+
 		} catch (error) {
 			assert.fail('features test sub-command should not throw');
 		}
@@ -36,8 +44,13 @@ describe('CLI features subcommands', async function () {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
 		try {
-			await shellExec(`${cli} features test --global-scenarios-only --log-level trace ${collectionFolder}`);
+			const result = await shellExec(`${cli} features test --global-scenarios-only --log-level trace ${collectionFolder}`);
 			success = true;
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'custom_options'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
 		} catch (error) {
 			assert.fail('features test sub-command should not throw');
 		}
