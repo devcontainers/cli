@@ -8,8 +8,8 @@
 		"codspace/features/devcontainer-feature-go@tarball02": {}
 	},
 	"overrideFeatureInstallOrder": [
-		"github-cli",
+		"codspace/features/devcontainer-feature-go",
 		"codspace/myfeatures/helloworld",
-		"codspace/features/devcontainer-feature-go"
+		"github-cli"
 	]
 }

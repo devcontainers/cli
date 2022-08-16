@@ -714,7 +714,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		included: true,
 	};
 
-	const userFeatureIdWithoutVersion = userFeature.id.split('@')[0];
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split('@')[0];
 	if (version === 'latest') {
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
