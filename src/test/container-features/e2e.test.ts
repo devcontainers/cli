@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import { assert } from 'chai';
 import * as path from 'path';
+import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
 
 const pkg = require('../../../package.json');
@@ -59,7 +60,7 @@ describe('Dev Container Features E2E (remote)', function () {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
             beforeEach(async () => {
-                const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-feature-auto-mapping` );
+                const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-feature-auto-mapping`);
                 const response = JSON.parse(res.stdout);
                 containerId = response.containerId;
             });
@@ -77,10 +78,16 @@ describe('Dev Container Features E2E (remote)', function () {
                 const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration  --skip-feature-auto-mapping`);
                 const response = JSON.parse(res.stdout);
                 console.log(res.stderr);
-                assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.id, 'docker-in-docker');
-                assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.customizations?.vscode?.extensions[0], 'ms-azuretools.vscode-docker');
-                assert.equal(response?.featuresConfiguration?.featureSets[2]?.features[0]?.id, 'node');
-                assert.equal(response?.featuresConfiguration?.featureSets[2]?.features[0]?.customizations?.vscode?.extensions[0], 'dbaeumer.vscode-eslint');
+
+                assert.strictEqual(response.featuresConfiguration?.featureSets.length, 3);
+
+                const dind = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'docker-in-docker');
+                assert.exists(dind);
+                assert.includeMembers(dind.features[0].customizations.vscode.extensions, ['ms-azuretools.vscode-docker']);
+
+                const node = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'node');
+                assert.exists(node);
+                assert.includeMembers(node.features[0].customizations.vscode.extensions, ['dbaeumer.vscode-eslint']);
             });
         });
     });
