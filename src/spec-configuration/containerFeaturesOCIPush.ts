@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { delay } from '../spec-common/async';
 import { headRequest, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
@@ -173,6 +174,8 @@ export async function putManifestWithTags(output: Log, manifestStr: string, feat
 		// Retry logic: when request fails with HTTP 429: too many requests
 		if (statusCode === 429) {
 			output.write(`Failed to PUT manifest for tag ${tag} due to too many requests. Retrying...`, LogLevel.Warning);
+			await delay(2000);
+			
 			let response = await requestResolveHeaders(options);
 			statusCode = response.statusCode;
 			resHeaders = response.resHeaders;
