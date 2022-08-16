@@ -34,7 +34,7 @@ async function prepPackageCommand(args: FeaturesPackageCommandInput): Promise<Fe
 			await rmLocal(outputDirResolved, { recursive: true, force: true });
 		}
 		else {
-			output.write(`Output directory '${outputDirResolved}' already exists. Manually delete, or pass '-f' to continue.`, LogLevel.Warning);
+			output.write(`(!) ERR: Output directory '${outputDirResolved}' already exists. Manually delete, or pass '-f' to continue.`, LogLevel.Error);
 			process.exit(1);
 		}
 	}
