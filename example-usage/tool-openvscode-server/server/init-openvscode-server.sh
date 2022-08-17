@@ -13,19 +13,24 @@ fi
 
 if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
     # Process customizations.openvscodeserver and features configuration
+    # Logic could be simplified with https://github.com/devcontainers/cli/issues/113
+
     if ! type jq > /dev/null 2>&1; then
         sudo apt-get -y install jq
     fi
     tmp_dir="$(mktemp -d)"
     mkdir -p "${tmp_dir}" "$HOME"/.openvscode-server/data/Machine
 
-    # Logic could be simplified with https://github.com/devcontainers/cli/issues/113
+    # Get list of extensions to install - Also include VS Code list for features and legacy location
+    extensions=( $(jq -r -M '[
+        .configuration.customizations?.openvscodeserver?.extensions[]?,
+        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.openvscodeserver?.extensions[]?,
+        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions[]?,
+        .featuresConfiguration?.featureSets[]?.features[]?.extensions[]?
+        ] | .[]
+    ' /server/configuration.json ) )
     # Install extensions
-    jq -M '.configuration.customizations?."openvscodeserver"?.extensions?' /server/configuration.json > "${tmp_dir}"/extensions1.json
-    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions2.json
-    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions3.json # Legacy locaiton - backwards compat
-    extensions=( $(jq -s -M '.[0] + .[1] + .[2]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json "${tmp_dir}"/extensions3.json | jq -r -M '.[]') )
-    if [ "${extensions[0]}" != "null" ]; then 
+    if [ "${extensions[0]}" != "" ] && [ "${extensions[0]}" != "null" ] ; then 
         set +e
         for extension in "${extensions[@]}"; do
             "$HOME"/.openvscodeserver/bin/openvscode-server --install-extension ${extension}
@@ -33,18 +38,22 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
         set -e
     fi
 
-    # Add machine settings.json
-    jq -M '.configuration.customizations?."openvscodeserver"?.settings?' /server/configuration.json > "${tmp_dir}"/settings1.json
-    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?' /server/configuration.json > "${tmp_dir}"/settings2.json
-    jq -M '.featuresConfiguration?.featureSets[]?.features[]?.settings?' /server/configuration.json  > "${tmp_dir}"/settings3.json # Legacy locaiton - backwards compat
-    settings="$(jq -s -M '.[0] + .[1] + .[2]' "${tmp_dir}"/settings1.json "${tmp_dir}"/settings2.json "${tmp_dir}"/settings3.json)"
-    if [ "${settings}" != "null" ]; then
+    # Get openvscode-server machine settings.json - Also include VS Code settings for features and legacy location
+    settings="$(jq -M '[
+        .configuration.customizations?.openvscodeserver?.settings?,
+        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.openvscodeserver?.settings?,
+        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?,
+        .featuresConfiguration?.featureSets[]?.features[]?.settings?
+        ] | add
+    ' /server/configuration.json)"
+    # Place settings in right spot
+    if [ "${settings}" != "" ] && [ "${settings}" != "null" ]; then
         echo "${settings}" >  "$HOME"/.openvscode-server/data/Machine/settings.json
     fi
     
     rm -rf "${tmp_dir}" /server/configuration.json
 
-    # Start server
+    # Start openvscode-server
     "$HOME"/.openvscodeserver/bin/openvscode-server serve-local --without-connection-token --host 0.0.0.0 --port 8000
 else
     echo -e "\ncode-server is already running.\n\nConnect using: http://localhost:8000\n"
