@@ -79,27 +79,23 @@ interface BaseSourceInformation {
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
 	type: 'local-cache';
-	userFeatureId: string;
 }
 
 export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
 	featureRef: OCIFeatureRef;
 	manifest: OCIManifest;
-	userFeatureId: string;
 	userFeatureIdWithoutVersion: string;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
 	type: 'direct-tarball';
 	tarballUri: string;
-	userFeatureId: string;
 }
 
 export interface FilePathSourceInformation extends BaseSourceInformation {
 	type: 'file-path';
 	resolvedFilePath: string; // Resolved, absolute file path
-	userFeatureId: string;
 }
 
 // deprecated
@@ -113,7 +109,6 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
-	userFeatureId: string;
 	userFeatureIdWithoutVersion: string;
 }
 
