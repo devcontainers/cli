@@ -7,6 +7,7 @@
 	},
 	"features": {
 		"github-cli": "latest",
-		"ghcr.io/codspace/features/docker-in-docker:1": {}
+		"ghcr.io/codspace/features/docker-in-docker:1": {},
+		"node": "16"
 	}
 }
