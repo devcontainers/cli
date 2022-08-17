@@ -13,5 +13,13 @@
             "default": "red",
             "description": "Choose your favorite color."
         }
+    },
+    "extensions": [
+        "ms-dotnettools.csharp"
+    ],
+    "settings": {
+        "files.watcherExclude": {
+            "**/test/**": true
+        }
     }
 }

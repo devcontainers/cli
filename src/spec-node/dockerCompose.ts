@@ -192,7 +192,7 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
 		buildOverrideContent += `      dockerfile: ${finalDockerfilePath}\n`;
 		// remove the target setting as we reference any previous target in the generated override content
-		buildOverrideContent += '      target: \'\'\n';
+		buildOverrideContent += `      target: ${featureBuildInfo.overrideTarget}\n`;
 
 		if (!serviceInfo.build?.context) {
 			// need to supply a context as we don't have one inherited
@@ -643,8 +643,10 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 				}, 'compose', 'version', '--short')).stdout;
 				v2 = true;
 			}
+			const version = stdout.toString().trim();
+			params.output.write(`Docker Compose version: ${version}`);
 			return {
-				version: stdout.toString().trim(),
+				version,
 				cmd: v2 ? dockerCLICmd : dockerComposeCLICmd,
 				args: v2 ? ['compose'] : [],
 			};

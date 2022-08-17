@@ -150,7 +150,11 @@ interface DevContainerVSCodeConfig {
 	devPort?: number;
 }
 
-export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: { vscode?: DevContainerVSCodeConfig } }>(original: T): T {
+export interface VSCodeCustomizations {
+	vscode?: DevContainerVSCodeConfig;
+}
+
+export function updateFromOldProperties<T extends DevContainerConfig & DevContainerVSCodeConfig & { customizations?: VSCodeCustomizations }>(original: T): T {
 	// https://github.com/microsoft/dev-container-spec/issues/1
 	if (!(original.extensions || original.settings || original.devPort !== undefined)) {
 		return original;

@@ -50,6 +50,11 @@ export interface OCIManifest {
 	annotations?: {};
 }
 
+interface OCITagList {
+	name: string;
+	tags: string[];
+}
+
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
 
 	const featureRef = getFeatureRef(output, identifier);
@@ -295,4 +300,44 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		return undefined;
 	}
 	return token;
+}
+
+// Lists published versions/tags of a feature 
+// Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
+export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log): Promise<string[] | undefined> {
+	try {
+		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
+
+		let authToken = await fetchRegistryAuthToken(output, featureRef.registry, featureRef.path, process.env, 'pull');
+
+		if (!authToken) {
+			output.write(`(!) ERR: Failed to publish feature: ${featureRef.resource}`, LogLevel.Error);
+			return undefined;
+		}
+
+		const headers: HEADERS = {
+			'user-agent': 'devcontainer',
+			'accept': 'application/json',
+			'authorization': `Bearer ${authToken}`
+		};
+
+		const options = {
+			type: 'GET',
+			url: url,
+			headers: headers
+		};
+
+		const response = await request(options);
+		const publishedVersionsResponse: OCITagList = JSON.parse(response.toString());
+
+		return publishedVersionsResponse.tags;
+	} catch (e) {
+		// Publishing for the first time
+		if (e?.message.includes('HTTP 404: Not Found')) {
+			return [];
+		}
+
+		output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
+		return undefined;
+	}
 }

@@ -1,5 +1,7 @@
 import { assert } from 'chai';
 import path from 'path';
+import { getFeatureRef, getPublishedVersions } from '../../spec-configuration/containerFeaturesOCI';
+import { getSermanticVersions } from '../../spec-node/featuresCLI/publishCommandImpl';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { shellExec } from '../testUtils';
@@ -83,5 +85,78 @@ describe('CLI features subcommands', async function () {
 		const json = JSON.parse((await readLocalFile(`${tmp}/output/test02/devcontainer-collection.json`)).toString());
 		assert.strictEqual(json.features.length, 1);
 		assert.isTrue(collectionFileExists);
+	});
+});
+
+describe('test function getSermanticVersions', () => {
+	it('should generate correct semantic versions for first publishing', async () => {
+		let version = '1.0.0';
+		let publishedVersions: string[] = [];
+		let expectedSemVer = ['1', '1.0', '1.0.0', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing new patch version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let expectedSemVer = ['1', '1.0', '1.0.1', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing new minor version', async () => {
+		let version = '1.1.0';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', 'latest'];
+		let expectedSemVer = ['1', '1.1', '1.1.0', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing new major version', async () => {
+		let version = '2.0.0';
+		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing hotfix patch version', async () => {
+		let version = '1.0.2';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '1.1', '1.1.0', '2', '2.0', '2.0.0', 'latest'];
+		let expectedSemVer = ['1.0', '1.0.2'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should generate correct semantic versions for publishing hotfix minor version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
+		let expectedSemVer = ['1', '1.0', '1.0.1'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
+	});
+
+	it('should return undefined for already published version', async () => {
+		let version = '1.0.1';
+		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
+
+		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		assert.isUndefined(semanticVersions);
+	});
+});
+
+describe('test function getPublishedVersions', async () => {
+	it('should list published versions', async () => {
+		const resource = 'ghcr.io/devcontainers/features/node';
+		const featureRef = getFeatureRef(output, resource);
+		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
+		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
 });

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import { assert } from 'chai';
 import * as path from 'path';
+import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
 
 const pkg = require('../../../package.json');
@@ -58,7 +59,11 @@ describe('Dev Container Features E2E (remote)', function () {
         describe(`dockerfile-with-v2-oci-features`, () => {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
-            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            beforeEach(async () => {
+                const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-feature-auto-mapping`);
+                const response = JSON.parse(res.stdout);
+                containerId = response.containerId;
+            });
             afterEach(async () => await devContainerDown({ containerId }));
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
@@ -67,6 +72,22 @@ describe('Dev Container Features E2E (remote)', function () {
                 console.log(res.stderr);
                 assert.equal(response.outcome, 'success');
                 assert.match(res.stderr, /CONTAINER ID/);
+            });
+
+            it('should read configuration with features', async () => {
+                const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration  --skip-feature-auto-mapping`);
+                const response = JSON.parse(res.stdout);
+                console.log(res.stderr);
+
+                assert.strictEqual(response.featuresConfiguration?.featureSets.length, 3);
+
+                const dind = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'docker-in-docker');
+                assert.exists(dind);
+                assert.includeMembers(dind.features[0].customizations.vscode.extensions, ['ms-azuretools.vscode-docker']);
+
+                const node = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'node');
+                assert.exists(node);
+                assert.includeMembers(node.features[0].customizations.vscode.extensions, ['dbaeumer.vscode-eslint']);
             });
         });
     });
@@ -155,11 +176,24 @@ describe('Dev Container Features E2E (local-path)', function () {
             assert.match(res.stderr, /buongiorno, root!/);
         });
 
-        it('should read configuration with features', async () => {
+        it('should read configuration with features with customizations', async () => {
             const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration`);
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.id, 'localFeatureA', `localFeatureA not found: ${JSON.stringify(response, undefined, '  ')}`);
+
+            const featureA = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureA');
+            assert.exists(featureA);
+            assert.includeMembers(featureA.features[0].customizations.vscode.extensions, ['dbaeumer.vscode-eslint']);
+            const featureASettings = featureA?.features[0]?.customizations?.vscode?.settings;
+            assert.isObject(featureASettings);
+
+            // With top level "extensions" and "settings"
+            const featureB = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureB');
+            assert.exists(featureB);
+            assert.includeMembers(featureB.features[0].customizations.vscode.extensions, ['ms-dotnettools.csharp']);
+            const featureBSettings = featureB?.features[0]?.customizations?.vscode?.settings;
+            assert.isObject(featureBSettings);
         });
     });
 });
