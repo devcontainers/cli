@@ -2,7 +2,7 @@ import path from 'path';
 import tar from 'tar';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../../spec-utils/log';
-import { isLocalFile, readLocalDir, readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
+import { isLocalFile, isLocalFolder, mkdirpLocal, readLocalDir, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
 import { FeaturesPackageCommandInput } from './package';
 export interface SourceInformation {
 	source: string;
@@ -17,8 +17,59 @@ export interface DevContainerCollectionMetadata {
 	features: Feature[];
 }
 
-export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<number> {
-	const { output, isSingleFeature } = args;
+export const OCIFeatureCollectionFileName = 'devcontainer-collection.json';
+
+async function prepPackageCommand(args: FeaturesPackageCommandInput): Promise<FeaturesPackageCommandInput> {
+	const { cliHost, targetFolder, outputDir, forceCleanOutputDir, output, disposables } = args;
+
+	const targetFolderResolved = cliHost.path.resolve(targetFolder);
+	if (!(await isLocalFolder(targetFolderResolved))) {
+		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
+	}
+
+	const outputDirResolved = cliHost.path.resolve(outputDir);
+	if (await isLocalFolder(outputDirResolved)) {
+		// Output dir exists. Delete it automatically if '-f' is true
+		if (forceCleanOutputDir) {
+			await rmLocal(outputDirResolved, { recursive: true, force: true });
+		}
+		else {
+			output.write(`(!) ERR: Output directory '${outputDirResolved}' already exists. Manually delete, or pass '-f' to continue.`, LogLevel.Error);
+			process.exit(1);
+		}
+	}
+
+	// Detect if we're packaging a collection or a single feature
+	const isValidFolder = await isLocalFolder(cliHost.path.join(targetFolderResolved));
+	const isSingleFeature = await isLocalFile(cliHost.path.join(targetFolderResolved, 'devcontainer-feature.json'));
+
+	if (!isValidFolder) {
+		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
+	}
+
+	if (isSingleFeature) {
+		output.write('Packaging single feature...', LogLevel.Info);
+	} else {
+		output.write('Packaging feature collection...', LogLevel.Info);
+	}
+
+	// Generate output folder.
+	await mkdirpLocal(outputDirResolved);
+
+	return {
+		cliHost,
+		targetFolder: targetFolderResolved,
+		outputDir: outputDirResolved,
+		forceCleanOutputDir,
+		output,
+		disposables,
+		isSingleFeature: isSingleFeature
+	};
+}
+
+export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput): Promise<DevContainerCollectionMetadata | undefined> {
+	args = await prepPackageCommand(args);
+	const { output, isSingleFeature, outputDir } = args;
 
 	// For each feature, package each feature and write to 'outputDir/{f}.tgz'
 	// Returns an array of feature metadata from each processed feature
@@ -33,7 +84,7 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 
 	if (!metadataOutput) {
 		output.write('Failed to package features', LogLevel.Error);
-		return 1;
+		return undefined;
 	}
 
 	const collection: DevContainerCollectionMetadata = {
@@ -44,16 +95,16 @@ export async function doFeaturesPackageCommand(args: FeaturesPackageCommandInput
 	};
 
 	// Write the metadata to a file
-	const metadataOutputPath = path.join(args.outputDir, 'devcontainer-collection.json');
+	const metadataOutputPath = path.join(outputDir, OCIFeatureCollectionFileName);
 	await writeLocalFile(metadataOutputPath, JSON.stringify(collection, null, 4));
-	return 0;
+	return collection;
 }
 
 async function tarDirectory(featureFolder: string, archiveName: string, outputDir: string) {
 	return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: featureFolder }, ['.'])));
 }
 
-const getArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
+export const getFeatureArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
 
 export async function packageSingleFeature(args: FeaturesPackageCommandInput): Promise<Feature[] | undefined> {
 	const { output, targetFolder, outputDir } = args;
@@ -65,7 +116,7 @@ export async function packageSingleFeature(args: FeaturesPackageCommandInput): P
 		output.write(`Feature is missing an id or version in its devcontainer-feature.json`, LogLevel.Error);
 		return;
 	}
-	const archiveName = getArchiveName(featureMetadata.id);
+	const archiveName = getFeatureArchiveName(featureMetadata.id);
 
 	await tarDirectory(targetFolder, archiveName, outputDir);
 	output.write(`Packaged feature '${featureMetadata.id}'`, LogLevel.Info);
@@ -85,7 +136,7 @@ export async function packageCollection(args: FeaturesPackageCommandInput): Prom
 		output.write(`Processing feature: ${f}...`, LogLevel.Info);
 		if (!f.startsWith('.')) {
 			const featureFolder = path.join(srcFolder, f);
-			const archiveName = getArchiveName(f);
+			const archiveName = getFeatureArchiveName(f);
 
 			// Validate minimal feature folder structure
 			const featureJsonPath = path.join(featureFolder, 'devcontainer-feature.json');
