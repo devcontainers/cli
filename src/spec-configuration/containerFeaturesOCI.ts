@@ -50,7 +50,7 @@ export interface OCIManifest {
 	annotations?: {};
 }
 
-interface versions {
+interface OCITagList {
 	name: string;
 	tags: string[];
 }
@@ -325,7 +325,7 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 		};
 
 		const response = await request(options);
-		const publishedVersionsResponse: versions = JSON.parse(response.toString());
+		const publishedVersionsResponse: OCITagList = JSON.parse(response.toString());
 
 		return publishedVersionsResponse.tags;
 	} catch (e) {
