@@ -4,6 +4,11 @@ Notable changes.
 
 ## August 2022
 
+### [0.10.1]
+
+- Fixes regression where some dev container feature properties were not being applied properly (https://github.com/devcontainers/cli/pull/126)
+- Fixes undesired behavior with dev container features and multi-styage builds (https://github.com/devcontainers/cli/issues/120)
+
 ### [0.10.0]
 
 - Implement optional default values in localEnv/containerEnv expansions. (https://github.com/devcontainers/cli/issues/50)
