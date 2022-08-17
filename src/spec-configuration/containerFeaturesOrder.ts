@@ -88,14 +88,14 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         }
         orderedFeatures.push(
             ...current.map(node => node.feature)
-                .sort((a, b) => a.sourceInformation.userFeatureId.localeCompare(b.sourceInformation.userFeatureId)) // stable order
+                .sort((a, b) => a.sourceInformation.userFeatureId < b.sourceInformation.userFeatureId ? -1 : 1) // stable order
         );
         current = next;
     }
 
     orderedFeatures.push(
         ...islands.map(node => node.feature)
-            .sort((a, b) => a.sourceInformation.userFeatureId.localeCompare(b.sourceInformation.userFeatureId)) // stable order
+            .sort((a, b) => a.sourceInformation.userFeatureId < b.sourceInformation.userFeatureId ? -1 : 1) // stable order
     );
 
     const missing = new Set(nodesById.keys());
