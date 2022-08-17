@@ -38,7 +38,7 @@ if ! pidof code-server > /dev/null 2>&1; then
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions2.json
     jq -M '.configuration.extensions?' /server/configuration.json > "${tmp_dir}"/extensions3.json                                      # Legacy locaiton - backwards compat
     jq -M '.featuresConfiguration?.featureSets[]?.features[]?.extensions?' /server/configuration.json  > "${tmp_dir}"/extensions4.json # Legacy locaiton - backwards compat
-    extensions=( $(jq -s -M '.[0] + .[1] + .[2] + .[3]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json ${tmp_dir}"/extensions3.json ${tmp_dir}"/extensions4.json | jq -r -M '.[]') )
+    extensions=( $(jq -s -M '.[0] + .[1] + .[2] + .[3]' "${tmp_dir}"/extensions1.json "${tmp_dir}"/extensions2.json "${tmp_dir}"/extensions3.json "${tmp_dir}"/extensions4.json | jq -r -M '.[]') )
     if [ "${extensions[0]}" != "null" ]; then 
         set +e
         for extension in "${extensions[@]}"; do
