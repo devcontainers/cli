@@ -108,8 +108,6 @@ RUN cd /tmp/build-features/second_2 \\
             },
         };
 
-        params.skipFeatureAutoMapping = true;
-
         const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, getContainerFeaturesFolder);
         if (!featuresConfig) {
             assert.fail();
