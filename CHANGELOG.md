@@ -7,7 +7,7 @@ Notable changes.
 ### [0.10.1]
 
 - Fixes regression where some dev container feature properties were not being applied properly (https://github.com/devcontainers/cli/pull/126)
-- Fixes undesired behavior with dev container features and multi-styage builds (https://github.com/devcontainers/cli/issues/120)
+- Fixes undesired behavior with dev container features and multi-stage builds (https://github.com/devcontainers/cli/issues/120)
 
 ### [0.10.0]
 
