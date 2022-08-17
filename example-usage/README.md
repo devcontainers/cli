@@ -44,7 +44,7 @@ These examples demonstrate the use of the dev container CLI to:
 2. How the dev container CLI can be used to inject tools without building them into the base image:
 
     1. Use `devcontainer up` to spin up the container and mount a `server` and `workspace` folder into the container.
-    2. Use `devcontainer exec` to run a script from this mounted folder to set up the appropriate server.
+    2. Use `devcontainer exec` to run a script from this mounted folder to set up the appropriate server (and apply tool specific settings/customizations).
     3. In the `vim` example, a temporary SSH key is set up and configured, and then SSH is used from the command line to connect to the container once it is up and running. See `tool-vim-via-ssh/start.sh` for details.
 
 Currently the `appPort` property is used in `devcontainer.json` instead of `forwardPorts` due to a gap in the current dev container CLI ([see here](https://github.com/devcontainers/cli/issues/22)).
