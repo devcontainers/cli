@@ -60,7 +60,7 @@ describe('Dev Container Features E2E (remote)', function () {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-oci-features`;
             beforeEach(async () => {
-                const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-feature-auto-mapping`);
+                const res = await shellExec(`${cli} up --workspace-folder ${testFolder}`);
                 const response = JSON.parse(res.stdout);
                 containerId = response.containerId;
             });
@@ -75,7 +75,7 @@ describe('Dev Container Features E2E (remote)', function () {
             });
 
             it('should read configuration with features', async () => {
-                const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration  --skip-feature-auto-mapping`);
+                const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration`);
                 const response = JSON.parse(res.stdout);
                 console.log(res.stderr);
 
