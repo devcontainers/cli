@@ -4,10 +4,20 @@ Notable changes.
 
 ## August 2022
 
+### [0.12.0]
+
+- Native implementation for pushing a dev container feature to an OCI registry
+- `features publish` command
+
 ### [0.11.0]
 
 - WIP on features v2:
 	- Auto map old feature ids to OCI features. (https://github.com/devcontainers/cli/pull/100)
+
+### [0.10.1]
+
+- Fixes regression where some dev container feature properties were not being applied properly (https://github.com/devcontainers/cli/pull/126)
+- Fixes undesired behavior with dev container features and multi-stage builds (https://github.com/devcontainers/cli/issues/120)
 
 ### [0.10.0]
 
