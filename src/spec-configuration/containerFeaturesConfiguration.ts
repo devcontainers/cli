@@ -75,6 +75,8 @@ export type SourceInformation = LocalCacheSourceInformation | GithubSourceInform
 
 interface BaseSourceInformation {
 	type: string;
+	userFeatureId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	userFeatureIdWithoutVersion?: string;
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
@@ -85,6 +87,7 @@ export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
 	featureRef: OCIFeatureRef;
 	manifest: OCIManifest;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
@@ -108,6 +111,7 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface GithubSourceInformationInput {
@@ -426,7 +430,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	output.write('--- Computed order ----', LogLevel.Trace);
 	for (const feature of orderedFeatures) {
-		output.write(`${feature.features[0].id}`, LogLevel.Trace);
+		output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
 	}
 
 	featuresConfig.featureSets = orderedFeatures;
@@ -550,6 +554,8 @@ export function getBackwardCompatibleFeatureId(id: string) {
 export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
+	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
+	const originalUserFeatureId = userFeature.id;
 	// Adding backward compatibility
 	if (!skipFeatureAutoMapping) {
 		userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
@@ -572,6 +578,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -612,7 +619,8 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'direct-tarball',
-				tarballUri: tarballUri.toString()
+				tarballUri: tarballUri.toString(),
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -654,6 +662,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 			sourceInformation: {
 				type: 'file-path',
 				resolvedFilePath: resolvedFilePathToFeatureFolder,
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -663,7 +672,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
+		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
 		return newFeaturesSet;
 	}
 
@@ -700,6 +709,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		included: true,
 	};
 
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split('@')[0];
 	if (version === 'latest') {
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -708,7 +718,9 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
 				owner,
 				repo,
-				isLatest: true
+				isLatest: true,
+				userFeatureId: originalUserFeatureId,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};
@@ -723,7 +735,9 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				owner,
 				repo,
 				tag: version,
-				isLatest: false
+				isLatest: false,
+				userFeatureId: originalUserFeatureId,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};

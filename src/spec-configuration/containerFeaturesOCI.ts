@@ -55,7 +55,7 @@ interface OCITagList {
 	tags: string[];
 }
 
-export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest): FeatureSet {
+export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
 
 	const featureRef = getFeatureRef(output, identifier);
 
@@ -66,11 +66,14 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 		value: options
 	};
 
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split(':')[0];
 	let featureSet: FeatureSet = {
 		sourceInformation: {
 			type: 'oci',
 			manifest: manifest,
 			featureRef: featureRef,
+			userFeatureId: originalUserFeatureId,
+			userFeatureIdWithoutVersion
 
 		},
 		features: [feat],
@@ -299,7 +302,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 	return token;
 }
 
-// Lists published versions of a 
+// Lists published versions/tags of a feature 
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
 export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log): Promise<string[] | undefined> {
 	try {
