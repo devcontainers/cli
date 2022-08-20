@@ -119,7 +119,8 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
 		// We only need to generate this ENV references for the initial features specification.
-		if(fSet.internalVersion !== '2')
+		result += '\n';
+		if (fSet.internalVersion !== '2')
 		{
 			result += fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)

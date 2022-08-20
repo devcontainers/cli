@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"features": {
+		"node": "latest",
+		"python": "os-provided"
+	}
+}

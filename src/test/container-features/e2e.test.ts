@@ -111,6 +111,34 @@ describe('Dev Container Features E2E (remote)', function () {
     });
 });
 
+describe('Dev Container Features E2E - local cache/short-hand notation', function () {
+    this.timeout('240s');
+
+    const tmp = path.resolve(process.cwd(), path.join(__dirname, 'tmp3'));
+    const cli = `npx --prefix ${tmp} devcontainer`;
+
+    before('Install', async () => {
+        await shellExec(`rm -rf ${tmp}/node_modules`);
+        await shellExec(`mkdir -p ${tmp}`);
+        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+    });
+
+    describe(`image-with-v1-features-node-python-local-cache with --skipFeatureAutoMapping`, () => {
+        let containerId: string | null = null;
+        const testFolder = `${__dirname}/configs/image-with-v1-features-node-python-local-cache`;
+        beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', 'extraArgs': '--skipFeatureAutoMapping' })).containerId);
+        afterEach(async () => await devContainerDown({ containerId }));
+
+        it('should exec a PATH without the string \'ENV\'', async () => {
+            const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} echo \${PATH}`);
+            const response = JSON.parse(res.stdout);
+            console.log(res.stderr);
+            assert.equal(response.outcome, 'success');
+            assert.notMatch(res.stderr, /ENV/);
+        });
+    });
+});
+
 
 describe('Dev Container Features E2E (local-path)', function () {
     this.timeout('120s');
