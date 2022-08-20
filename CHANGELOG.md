@@ -4,6 +4,10 @@ Notable changes.
 
 ## August 2022
 
+### [0.12.1]
+
+- Pick up v0.10.2 related to container ENV output.
+
 ### [0.12.0]
 
 - Native implementation for pushing a dev container feature to an OCI registry
