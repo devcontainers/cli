@@ -14,6 +14,10 @@ Notable changes.
 - WIP on features v2:
 	- Auto map old feature ids to OCI features. (https://github.com/devcontainers/cli/pull/100)
 
+### [0.10.2]
+
+- Fix malformed container ENV output for 'v1' features (https://github.com/devcontainers/cli/issues/131) 
+
 ### [0.10.1]
 
 - Fixes regression where some dev container feature properties were not being applied properly (https://github.com/devcontainers/cli/pull/126)
