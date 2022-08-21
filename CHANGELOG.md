@@ -4,6 +4,10 @@ Notable changes.
 
 ## August 2022
 
+### [0.12.1]
+
+- Pick up v0.10.2 related to container ENV output.
+
 ### [0.12.0]
 
 - Native implementation for pushing a dev container feature to an OCI registry
@@ -13,6 +17,10 @@ Notable changes.
 
 - WIP on features v2:
 	- Auto map old feature ids to OCI features. (https://github.com/devcontainers/cli/pull/100)
+
+### [0.10.2]
+
+- Fix malformed container ENV output for 'v1' features (https://github.com/devcontainers/cli/issues/131) 
 
 ### [0.10.1]
 
