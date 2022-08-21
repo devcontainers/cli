@@ -27,6 +27,7 @@ import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-conf
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
+import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -56,6 +57,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 		y.command('test', 'Test features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish features', featuresPublishOptions, featuresPublishHandler);
+		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.epilog(`devcontainer@${version} ${packageFolder}`);
