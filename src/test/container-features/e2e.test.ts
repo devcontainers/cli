@@ -123,10 +123,10 @@ describe('Dev Container Features E2E - local cache/short-hand notation', functio
         await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
     });
 
-    describe(`image-with-v1-features-node-python-local-cache with --skipFeatureAutoMapping`, () => {
+    describe(`image-with-v1-features-node-python-local-cache`, () => {
         let containerId: string | null = null;
         const testFolder = `${__dirname}/configs/image-with-v1-features-node-python-local-cache`;
-        beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', 'extraArgs': '--skipFeatureAutoMapping' })).containerId);
+        beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
         afterEach(async () => await devContainerDown({ containerId }));
 
         it('should exec a PATH without the string \'ENV\'', async () => {
