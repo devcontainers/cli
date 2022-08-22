@@ -74,6 +74,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	const emptyTempDir = cliHost.path.join(await cliHost.tmpdir(), '__dev-containers-build-empty');
 	cliHost.mkdirp(emptyTempDir);
 	args.push(
+		'--target', featureBuildInfo.overrideTarget,
 		'-t', updatedImageName,
 		'-f', dockerfilePath,
 		emptyTempDir
@@ -118,8 +119,9 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
 		// We only need to generate this ENV references for the initial features specification.
-		if(fSet.internalVersion !== '2')
+		if (fSet.internalVersion !== '2')
 		{
+			result += '\n';
 			result += fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 				.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
@@ -172,7 +174,7 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 	await createExit; // Allow errors to surface.
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: () => Promise<string>): Promise<{ dstFolder: string; dockerfileContent: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageUser: () => Promise<string>): Promise<{ dstFolder: string; dockerfileContent: string; overrideTarget: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -287,6 +289,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 	return {
 		dstFolder,
 		dockerfileContent: dockerfile,
+		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent,
 		buildArgs: {
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,

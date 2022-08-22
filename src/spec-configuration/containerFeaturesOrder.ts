@@ -31,7 +31,8 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
     for (const featureId of config.overrideFeatureInstallOrder!) {
-        const feature = automaticOrder.find(feature => feature.features[0].name === featureId);
+        // Reference: https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#1-overridefeatureinstallorder
+        const feature = automaticOrder.find(feature => feature.sourceInformation.userFeatureIdWithoutVersion === featureId || feature.sourceInformation.userFeatureId === featureId);
         if (!feature) {
             throw new Error(`Feature ${featureId} not found`);
         }
@@ -48,7 +49,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         feature,
         before: new Set(),
         after: new Set(),
-    })).reduce((map, feature) => map.set(feature.feature.features[0].name, feature), new Map<string, FeatureNode>());
+    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.userFeatureId, feature), new Map<string, FeatureNode>());
 
     const nodes = [...nodesById.values()];
     for (const later of nodes) {
@@ -87,19 +88,19 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         }
         orderedFeatures.push(
             ...current.map(node => node.feature)
-                .sort((a, b) => a.features[0].name.localeCompare(b.features[0].name)) // stable order
+                .sort((a, b) => a.sourceInformation.userFeatureId < b.sourceInformation.userFeatureId ? -1 : 1) // stable order
         );
         current = next;
     }
 
     orderedFeatures.push(
         ...islands.map(node => node.feature)
-            .sort((a, b) => a.features[0].name.localeCompare(b.features[0].name)) // stable order
+            .sort((a, b) => a.sourceInformation.userFeatureId < b.sourceInformation.userFeatureId ? -1 : 1) // stable order
     );
 
     const missing = new Set(nodesById.keys());
     for (const feature of orderedFeatures) {
-        missing.delete(feature.features[0].name);
+        missing.delete(feature.sourceInformation.userFeatureId);
     }
 
     if (missing.size !== 0) {

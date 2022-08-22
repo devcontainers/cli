@@ -26,6 +26,7 @@ import { loadNativeModule } from '../spec-common/commonUtils';
 import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
+import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -54,6 +55,7 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test <target>', 'Test features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
+		y.command('publish <target>', 'Package and publish features', featuresPublishOptions, featuresPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.epilog(`devcontainer@${version} ${packageFolder}`);

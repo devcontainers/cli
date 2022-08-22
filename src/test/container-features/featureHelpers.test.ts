@@ -97,7 +97,9 @@ describe('validate processFeatureIdentifier', async function () {
 				repo: 'myfeatures',
 				apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/latest',
 				unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/latest/download',
-				isLatest: true
+				isLatest: true,
+				userFeatureId: 'octocat/myfeatures/helloworld',
+				userFeatureIdWithoutVersion: 'octocat/myfeatures/helloworld'
 			});
 		});
 
@@ -125,6 +127,8 @@ describe('validate processFeatureIdentifier', async function () {
 				apiUri: 'https://api.github.com/repos/octocat/myfeatures/releases/tags/v0.0.4',
 				unauthenticatedUri: 'https://github.com/octocat/myfeatures/releases/download/v0.0.4',
 				isLatest: false,
+				userFeatureId: 'octocat/myfeatures/helloworld@v0.0.4',
+				userFeatureIdWithoutVersion: 'octocat/myfeatures/helloworld'
 			});
 		});
 
@@ -143,7 +147,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'ruby');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz', userFeatureId: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
 		});
 
 		it('should parse when provided a local-filesystem relative path', async function () {
@@ -155,7 +159,7 @@ describe('validate processFeatureIdentifier', async function () {
 			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.exists(result);
 			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld') });
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld'), userFeatureId: './some/long/path/to/helloworld' });
 		});
 
 
@@ -169,7 +173,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(result);
 			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld') });
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld'), userFeatureId: '../some/long/path/to/helloworld' });
 		});
 
 		it('should parse when provided a local-filesystem absolute path', async function () {
@@ -180,7 +184,7 @@ describe('validate processFeatureIdentifier', async function () {
 			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
 			assert.exists(result);
 			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld' });
+			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld', userFeatureId: '/some/long/path/to/helloworld' });
 		});
 
 		it('should process oci registry (without tag)', async function () {

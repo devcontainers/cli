@@ -7,7 +7,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
-import { DevContainerConfig, DevContainerFeature } from './configuration';
+import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile, isLocalFolder } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
@@ -45,6 +45,8 @@ export interface Feature {
 	exclude?: string[];
 	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
 	included: boolean; // set programmatically
+	customizations?: VSCodeCustomizations;
+	installsAfter?: string[];
 }
 
 export type FeatureOption = {
@@ -73,6 +75,8 @@ export type SourceInformation = LocalCacheSourceInformation | GithubSourceInform
 
 interface BaseSourceInformation {
 	type: string;
+	userFeatureId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
+	userFeatureIdWithoutVersion?: string;
 }
 
 export interface LocalCacheSourceInformation extends BaseSourceInformation {
@@ -83,6 +87,7 @@ export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
 	featureRef: OCIFeatureRef;
 	manifest: OCIManifest;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface DirectTarballSourceInformation extends BaseSourceInformation {
@@ -106,6 +111,7 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	tag?: string;
 	ref?: string;
 	sha?: string;
+	userFeatureIdWithoutVersion: string;
 }
 
 export interface GithubSourceInformationInput {
@@ -202,7 +208,7 @@ export function getContainerFeaturesBaseDockerFile() {
 
 #{nonBuildKitFeatureContentFallback}
 
-FROM $_DEV_CONTAINERS_BASE_IMAGE
+FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
@@ -230,19 +236,19 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 && ./install.sh
 
 `;
-  });
+	});
 	// Features version 2
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
-				result += generateContainerEnvs(feature);
-				result += `
+			result += generateContainerEnvs(feature);
+			result += `
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && export $(cat devcontainer-features.env | xargs) \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-`;	
+`;
 		});
 	});
 	return result;
@@ -251,8 +257,7 @@ RUN cd /tmp/build-features/${feature.consecutiveId} \\
 // Features version two export their environment variables as part of the Dockerfile to make them available to subsequent features.
 export function generateContainerEnvs(feature: Feature) {
 	let result = '';
-	if(!feature.containerEnv)
-	{
+	if (!feature.containerEnv) {
 		return result;
 	}
 	let keys = Object.keys(feature.containerEnv);
@@ -351,7 +356,7 @@ export async function loadV1FeaturesJsonFromDisk(pathToDirectory: string, output
 	return loadFeaturesJson(jsonBuffer, filePath, output);
 }
 
-function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: { vscode?: { extensions?: string[]; settings?: object } } })[] }>(original: T): T {
+function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: VSCodeCustomizations })[] }>(original: T): T {
 	// https://github.com/microsoft/dev-container-spec/issues/1
 	if (!original.features.find(f => f.extensions || f.settings)) {
 		return original;
@@ -425,7 +430,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	output.write('--- Computed order ----', LogLevel.Trace);
 	for (const feature of orderedFeatures) {
-		output.write(`${feature.features[0].id}`, LogLevel.Trace);
+		output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
 	}
 
 	featuresConfig.featureSets = orderedFeatures;
@@ -440,8 +445,7 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined
-{
+function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined {
 	if (!config.features) {
 		return undefined;
 	}
@@ -550,6 +554,8 @@ export function getBackwardCompatibleFeatureId(id: string) {
 export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
+	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
+	const originalUserFeatureId = userFeature.id;
 	// Adding backward compatibility
 	if (!skipFeatureAutoMapping) {
 		userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
@@ -572,6 +578,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -612,7 +619,8 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'direct-tarball',
-				tarballUri: tarballUri.toString()
+				tarballUri: tarballUri.toString(),
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -654,6 +662,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 			sourceInformation: {
 				type: 'file-path',
 				resolvedFilePath: resolvedFilePathToFeatureFolder,
+				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
 		};
@@ -663,7 +672,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest);
+		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
 		return newFeaturesSet;
 	}
 
@@ -700,6 +709,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		included: true,
 	};
 
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split('@')[0];
 	if (version === 'latest') {
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -708,7 +718,9 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				unauthenticatedUri: `https://github.com/${owner}/${repo}/releases/latest/download`, // v1/v2 implementations append name of relevant asset
 				owner,
 				repo,
-				isLatest: true
+				isLatest: true,
+				userFeatureId: originalUserFeatureId,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};
@@ -723,7 +735,9 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 				owner,
 				repo,
 				tag: version,
-				isLatest: false
+				isLatest: false,
+				userFeatureId: originalUserFeatureId,
+				userFeatureIdWithoutVersion
 			},
 			features: [feat],
 		};
@@ -737,8 +751,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
 	for (const featureSet of featuresConfig.featureSets) {
 		try {
-			if (!featureSet || !featureSet.features || !featureSet.sourceInformation)
-			{
+			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
 				continue;
 			}
 
@@ -746,7 +759,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				continue;
 			}
 
-			const { output } = params; 
+			const { output } = params;
 
 			const feature = featureSet.features[0];
 			const consecutiveId = feature.id + '_' + getCounter();
@@ -788,7 +801,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				}
 				continue;
 			}
-		
+
 			if (sourceInfoType === 'file-path') {
 				output.write(`Detected local file path`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
@@ -798,7 +811,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
-				}				
+				}
 				continue;
 			}
 
@@ -878,7 +891,7 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 
 		// Filter what gets emitted from the tar.extract().
 		const filter = (file: string, _: tar.FileStat) => {
-				// Don't include .dotfiles or the archive itself.
+			// Don't include .dotfiles or the archive itself.
 			if (file.startsWith('./.') || file === `./${V1_ASSET_NAME}` || file === './.') {
 				return false;
 			}
@@ -926,18 +939,13 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 	const jsonString: Buffer = await readLocalFile(innerJsonPath);
 	const featureJson = jsonc.parse(jsonString.toString());
 
-	// TODO: Use spread operator {..., } to avoid needing to explicitly set each property.
 
-	feature.containerEnv = featureJson.containerEnv;
-	feature.buildArg = featureJson.buildArg;
-	feature.options = featureJson.options;
-	feature.installAfter = featureJson.installAfter;
-	feature.init = featureJson.init;
-	feature.privileged = featureJson.privileged;
-	feature.capAdd = featureJson.capAdd;
-	feature.securityOpt = featureJson.securityOpt;
-	feature.mounts = featureJson.mounts;
-	feature.entrypoint = featureJson.entrypoint;
+	feature = {
+		...featureJson,
+		...feature
+	};
+
+	featureSet.features[0] = updateFromOldProperties({ features: [feature] }).features[0];
 
 	return true;
 }
@@ -961,14 +969,13 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 		return false;
 	}
 
-	feature.buildArg = seekedFeature?.buildArg;
-	feature.options = seekedFeature?.options;
-	feature.init = seekedFeature?.init;
-	feature.privileged = seekedFeature?.privileged;
-	feature.capAdd = seekedFeature?.capAdd;
-	feature.securityOpt = seekedFeature?.securityOpt;
-	feature.mounts = seekedFeature?.mounts;
-	feature.entrypoint = seekedFeature?.entrypoint;
+	feature = {
+		...seekedFeature,
+		...feature
+	};
+
+	featureSet.features[0] = updateFromOldProperties({ features: [feature] }).features[0];
+
 
 	return true;
 }
