@@ -4,6 +4,12 @@ Notable changes.
 
 ## August 2022
 
+### [0.13.0]
+
+- Updates to `devcontainer features test` command
+	- Can now specify a `scenarios.json` per-feature
+- Introduces `devcontainer features info` command
+
 ### [0.12.1]
 
 - Pick up v0.10.2 related to container ENV output.
