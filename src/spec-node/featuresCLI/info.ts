@@ -43,7 +43,7 @@ async function featuresInfo({
 
 	const featureOciRef = getFeatureRef(output, featureId);
 
-	const publishedVersions = await getPublishedVersions(featureOciRef, output);
+	const publishedVersions = await getPublishedVersions(featureOciRef, output, true);
 	if (!publishedVersions || publishedVersions.length === 0) {
 		if (outputFormat === 'json') {
 			output.raw(JSON.stringify({}), LogLevel.Info);

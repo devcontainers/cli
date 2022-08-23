@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as tar from 'tar';
+import * as semver from 'semver';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
@@ -304,7 +305,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 
 // Lists published versions/tags of a feature 
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
-export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log): Promise<string[] | undefined> {
+export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log, filteredAndSorted: boolean = false): Promise<string[] | undefined> {
 	try {
 		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
 
@@ -330,14 +331,25 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 		const response = await request(options);
 		const publishedVersionsResponse: OCITagList = JSON.parse(response.toString());
 
-		return publishedVersionsResponse.tags;
+		if (!filteredAndSorted) {
+			return publishedVersionsResponse.tags;
+		}
+
+		// Sort tags in descending order, removing latest.
+		const hasLatest = publishedVersionsResponse.tags.includes('latest');
+		const sortedVersions = publishedVersionsResponse.tags
+			.filter(f => f !== 'latest')
+			.sort((a, b) => semver.compareIdentifiers(a, b));
+
+
+		return hasLatest ? ['latest', ...sortedVersions] : sortedVersions;
 	} catch (e) {
 		// Publishing for the first time
 		if (e?.message.includes('HTTP 404: Not Found')) {
 			return [];
 		}
 
-		output.write(`(!) ERR: Failed to publish feature: ${e?.message ?? ''} `, LogLevel.Error);
+		output.write(`(!) ERR: Could not fetch published tags for '${featureRef.namespace}/${featureRef.id}' : ${e?.message ?? ''} `, LogLevel.Trace);
 		return undefined;
 	}
 }
