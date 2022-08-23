@@ -305,7 +305,7 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 
 // Lists published versions/tags of a feature 
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
-export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log, filteredAndSorted: boolean = false): Promise<string[] | undefined> {
+export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Log, sorted: boolean = false): Promise<string[] | undefined> {
 	try {
 		const url = `https://${featureRef.registry}/v2/${featureRef.namespace}/${featureRef.id}/tags/list`;
 
@@ -331,7 +331,7 @@ export async function getPublishedVersions(featureRef: OCIFeatureRef, output: Lo
 		const response = await request(options);
 		const publishedVersionsResponse: OCITagList = JSON.parse(response.toString());
 
-		if (!filteredAndSorted) {
+		if (!sorted) {
 			return publishedVersionsResponse.tags;
 		}
 
