@@ -1,6 +1,5 @@
 import path from 'path';
 import { Argv } from 'yargs';
-import { CLIHost } from '../../spec-common/cliHost';
 import { getFeatureRef, getPublishedVersions } from '../../spec-configuration/containerFeaturesOCI';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { createLog } from '../devContainers';
@@ -11,20 +10,12 @@ export function featuresInfoOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'json': { type: 'boolean', default: false, description: 'Output in JSON format' },
+			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		})
-		.positional('featureId', { type: 'string', demandOption: true, description: 'Feature Id' })
-		.check(_argv => {
-			return true;
-		});
+		.positional('featureId', { type: 'string', demandOption: true, description: 'Feature Id' });
 }
 
 export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>>;
-export interface FeaturesInfoCommandInput {
-	cliHost: CLIHost;
-	json: boolean;
-	featureId: string;
-}
 
 export function featuresInfoHandler(args: FeaturesInfoArgs) {
 	(async () => await featuresInfo(args))().catch(console.error);
@@ -33,7 +24,7 @@ export function featuresInfoHandler(args: FeaturesInfoArgs) {
 async function featuresInfo({
 	'featureId': featureId,
 	'log-level': inputLogLevel,
-	'json': asJson,
+	'output-format': outputFormat,
 }: FeaturesInfoArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -54,7 +45,7 @@ async function featuresInfo({
 
 	const publishedVersions = await getPublishedVersions(featureOciRef, output);
 	if (!publishedVersions || publishedVersions.length === 0) {
-		if (asJson) {
+		if (outputFormat === 'json') {
 			output.raw(JSON.stringify({}), LogLevel.Info);
 		} else {
 			output.raw(`No published versions found for feature '${featureId}'\n`, LogLevel.Error);
@@ -66,7 +57,7 @@ async function featuresInfo({
 		publishedVersions
 	};
 
-	if (asJson) {
+	if (outputFormat === 'json') {
 		printAsJson(output, data);
 	} else {
 		printAsPlainText(output, data);
