@@ -1,0 +1,10 @@
+{
+	"specific_color_scenario": {
+		"image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+		"features": {
+			"color": {
+				"favorite": "green"
+			}
+		}
+	}
+}

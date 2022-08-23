@@ -76,10 +76,12 @@ check() {
     echo -e "\n"
     echo -e "🔄 Testing '$LABEL'"
     echo -e '\\033[37m'
-    if "$@"; then 
+    if "$@"; then
+        echo -e "\n" 
         echo "✅  Passed '$LABEL'!"
         return 0
     else
+        echo -e "\n"
         echoStderr "❌ $LABEL check failed."
         FAILED+=("$LABEL")
         return 1
@@ -98,9 +100,11 @@ checkMultiple() {
         shift; EXPRESSION=$1
     done
     if [ $PASSED -ge $MINIMUMPASSED ]; then
+        echo -e "\n"
         echo "✅ Passed!"
         return 0
     else
+        echo -e "\n"
         echoStderr "❌ '$LABEL' check failed."
         FAILED+=("$LABEL")
         return 1
@@ -114,7 +118,7 @@ reportResults() {
         exit 1
     else
         echo -e "\n"
-        echo -e "💯 Passed!"
+        echo -e "Test Passed!"
         exit 0
     fi
 }`;
