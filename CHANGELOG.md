@@ -4,6 +4,10 @@ Notable changes.
 
 ## August 2022
 
+### [0.14.0]
+
+- Update to vscode-dev-containers 0.245.2.
+
 ### [0.13.0]
 
 - Updates to `devcontainer features test` command
