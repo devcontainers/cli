@@ -417,7 +417,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, params.env, workspaceCwd, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
+	featuresConfig = await processUserFeatures(params.output, config, params.env, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -465,9 +465,9 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
+async function processUserFeatures(output: Log, config: DevContainerConfig, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, env, workspaceCwd, userFeature, skipFeatureAutoMapping);
+		const newFeatureSet = await processFeatureIdentifier(output, config, env, userFeature, skipFeatureAutoMapping);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -551,7 +551,7 @@ export function getBackwardCompatibleFeatureId(id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(output: Log, config: DevContainerConfig, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
@@ -633,23 +633,33 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
 
-		let resolvedFilePathToFeatureFolder = '';
 		if (path.isAbsolute(userFeature.id)) {
-			resolvedFilePathToFeatureFolder = userFeature.id;
-		} else {
-			// A relative path to a feature directory is 
-			// computed relative to the `--workspace-folder`
-			resolvedFilePathToFeatureFolder = path.join(workspaceCwd, userFeature.id);
-		}
+			// TODO: This is invalid now!
+			//       (but we might want to support it with a special flag for the 'devcontainer features test' cmd)
 
-		output.write(`Resolved: ${userFeature.id}  ->  ${resolvedFilePathToFeatureFolder}`, LogLevel.Trace);
-
-		if (!resolvedFilePathToFeatureFolder || !isLocalFolder(resolvedFilePathToFeatureFolder)) {
-			output.write(`Local file path parse error. Resolved path to feature folder: ${resolvedFilePathToFeatureFolder}`, LogLevel.Error);
+			// resolvedFilePathToFeatureeFolder = userFeature.id;
 			return undefined;
 		}
 
-		const id = path.basename(resolvedFilePathToFeatureFolder);
+		const folderContainingDevContainerConfig = path.dirname(config.configFilePath.path);
+		const expectedAbsoluteFeaturePath = path.resolve(folderContainingDevContainerConfig, userFeature.id);
+
+		if (!(await isLocalFolder(expectedAbsoluteFeaturePath))) {
+			output.write(`Local file path parse error. Resolved path to feature folder: ${expectedAbsoluteFeaturePath}`, LogLevel.Error);
+			return undefined;
+		}
+
+		// Ensure we aren't escaping the .devcontainer/ folder
+		const id = path.basename(expectedAbsoluteFeaturePath);
+		const relative = path.relative(folderContainingDevContainerConfig, expectedAbsoluteFeaturePath);
+		output.write(`Parsed id from basepath = '${id}', Calculated Relative distance from .devcontainer/ = '${relative}'`, LogLevel.Trace);
+		if (relative.indexOf('..') !== -1 || id !== relative) {
+			output.write(`Local file path parse error. Resolved path must be a child of the .devcontainer/ folder.  Parsed: ${expectedAbsoluteFeaturePath}`, LogLevel.Error);
+			return undefined;
+		}
+
+		output.write(`Resolved: ${userFeature.id}  ->  ${expectedAbsoluteFeaturePath}`, LogLevel.Trace);
+
 		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
 		let feat: Feature = {
 			id,
@@ -661,7 +671,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'file-path',
-				resolvedFilePath: resolvedFilePathToFeatureFolder,
+				resolvedFilePath: expectedAbsoluteFeaturePath,
 				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],

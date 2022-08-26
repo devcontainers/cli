@@ -3,10 +3,10 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
-		"./local-features/localFeatureA": {
+		"./localFeatureA": {
 			"greeting": "buongiorno"
 		},
-		"./local-features/localFeatureB": {
+		"./localFeatureB": {
 			"favorite": "gold"
 		}
 	}
