@@ -243,7 +243,7 @@ export async function generateCompleteManifestForIndividualFeature(output: Log, 
 	// in the manifest, in this case for UI presentation.
 	if (ociFeatureRef.registry === 'ghcr.io') {
 		annotations = {
-			'com.github.package.type': 'devcontainer-feature',
+			'com.github.package.type': 'devcontainer_feature',
 		};
 	}
 	return await calculateManifestAndContentDigest(output, tgzLayer, annotations);
