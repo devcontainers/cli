@@ -8,6 +8,7 @@ import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScrip
 import { DockerResolverParameters } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
+import { cpDirectoryLocal } from '../../spec-utils/pfs';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -300,8 +301,15 @@ async function generateDefaultProjectFromFeatures(
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
 	const features = featuresToTest
-		.map((x) => `"${collectionsDirectory}/src/${x}": {}`)
+		.map((x) => `"./${x}": {}`)
 		.join(',\n');
+
+	for (const featureId of featuresToTest) {
+		// Copy the feature source code to the temp folder
+		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
+		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
+		process.stdout.write('AFTER\n');
+	}
 
 	let template = devcontainerTemplate
 		.replace('#{IMAGE}', baseImage)
@@ -329,8 +337,13 @@ async function generateProjectFromScenario(
 
 	// Prefix the local path to the collections directory
 	let updatedFeatures: Record<string, string | boolean | Record<string, string | boolean>> = {};
-	for (const [featureName, featureValue] of Object.entries(features)) {
-		updatedFeatures[`${collectionsDirectory}/src/${featureName}`] = featureValue;
+	for (const [featureId, featureValue] of Object.entries(features)) {
+		// Copy the feature source code to the temp folder
+		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
+		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
+
+		// Reference Feature in the devcontainer.json
+		updatedFeatures[`./${featureId}`] = featureValue;
 	}
 	scenarioObject.features = updatedFeatures;
 
