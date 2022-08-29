@@ -265,9 +265,10 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	await patchEtcEnvironment(params, containerProperties);
 	await patchEtcProfile(params, containerProperties);
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.postCreate.enabled;
-	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, config) : Promise.resolve({});
+	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
+	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
 	if (params.postCreate.enabled) {
-		await runPostCreateCommands(params, containerProperties, config, remoteEnv, false);
+		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
@@ -279,7 +280,7 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 		.then<Record<string, string>>(shellEnv => ({
 			...shellEnv,
 			...params.remoteEnv,
-			...config.remoteEnv ? containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config.remoteEnv) : {},
+			...config.remoteEnv,
 		} as Record<string, string>));
 }
 
