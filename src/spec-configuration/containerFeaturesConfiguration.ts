@@ -649,8 +649,8 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 		// Local-path features are expected to be a sub-folder of the '$WORKSPACE_ROOT/.devcontainer' folder.
 		const featureFolderPath = path.join(path.dirname(configPath), userFeature.id);
 
-		// Ensure we aren't escaping the folder that contains the devcontainer.json
-		const parent = path.dirname(configPath);
+		// Ensure we aren't escaping .devcontainer folder
+		const parent = path.join(_workspaceRoot, '.devcontainer');
 		const child = featureFolderPath;
 		const relative = path.relative(parent, child);
 		output.write(`${parent} -> ${child}:   Relative Distance = '${relative}'`, LogLevel.Trace);
