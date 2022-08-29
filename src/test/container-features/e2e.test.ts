@@ -152,21 +152,34 @@ describe('Dev Container Features E2E (local-path)', function () {
         await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
     });
 
-    describe(`dockerfile-with-v2-local-features-no-dev-container-folder `, () => {
+    describe(`dockerfile-with-v2-local-features-config-inside-dev-container-folder `, () => {
         let containerId: string | null = null;
-        const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-no-dev-container-folder`;
+        const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-inside-dev-container-folder`;
         beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
         afterEach(async () => await devContainerDown({ containerId }));
 
-        it('should exec the color commmand', async () => {
+        it('should exec the color command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response.outcome, 'success');
             assert.match(res.stderr, /my favorite color is gold/);
         });
+        describe(`dockerfile-with-v2-local-features-config-outside-dev-container-folder `, () => {
+            let containerId: string | null = null;
+            const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-outside-dev-container-folder`;
+            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+            afterEach(async () => await devContainerDown({ containerId }));
 
-        it('should exec the helloworld commmand', async () => {
+            it('should exec the color command', async () => {
+                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
+                const response = JSON.parse(res.stdout);
+                console.log(res.stderr);
+                assert.equal(response.outcome, 'success');
+                assert.match(res.stderr, /my favorite color is gold/);
+            });
+
+            it('should exec the helloworld command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
