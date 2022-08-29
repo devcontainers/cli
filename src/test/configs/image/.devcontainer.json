@@ -1,3 +1,7 @@
 {
-	"image": "ubuntu:latest"
+	"image": "ubuntu:latest",
+	"remoteEnv": {
+		"LOCAL_PATH": "${localEnv:PATH}",
+		"CONTAINER_PATH": "${containerEnv:PATH}"
+	}
 }
