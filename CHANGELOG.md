@@ -4,6 +4,10 @@ Notable changes.
 
 ## August 2022
 
+### [0.14.1]
+
+- Replace containerEnv in entire config and in read-configuration command. (https://github.com/microsoft/vscode-remote-release/issues/7121)
+
 ### [0.14.0]
 
 - Update to vscode-dev-containers 0.245.2.
