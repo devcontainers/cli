@@ -7,7 +7,7 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, getPackageConfig, isDockerFileConfig } from './utils';
+import { createContainerProperties, createFeaturesTempFolder, envListToObj, getPackageConfig, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -16,7 +16,7 @@ import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe }
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
-import { buildAndExtendDockerCompose, getDefaultImageName, getProjectName, readDockerComposeConfig } from './dockerCompose';
+import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig } from './dockerCompose';
 import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
@@ -605,8 +605,12 @@ async function doRunUserCommands({
 function readConfigurationOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
+		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
+		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'override-config': { type: 'string', description: 'devcontainer.json path to override any devcontainer.json in the workspace folder (or built-in configuration). This is required when there is no devcontainer.json otherwise.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
@@ -615,7 +619,14 @@ function readConfigurationOptions(y: Argv) {
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'include-features-configuration': { type: 'boolean', default: false, description: 'Include features configuration.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-	});
+	})
+		.check(argv => {
+			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
+				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
+			}
+			return true;
+		});
 }
 
 type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>>;
@@ -626,10 +637,14 @@ function readConfigurationHandler(args: ReadConfigurationArgs) {
 
 async function readConfiguration({
 	// 'user-data-folder': persistedFolder,
+	'docker-path': dockerPath,
+	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
 	config: configParam,
 	'override-config': overrideConfig,
+	'container-id': containerId,
+	'id-label': idLabel,
 	'log-level': logLevel,
 	'log-format': logFormat,
 	'terminal-rows': terminalRows,
@@ -644,6 +659,7 @@ async function readConfiguration({
 	let output: Log | undefined;
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder);
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
@@ -667,10 +683,30 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
+		let { config: configuration } = configs;
+
+		const dockerCLI = dockerPath || 'docker';
+		const dockerComposeCLI = dockerComposeCLIConfig({
+			exec: cliHost.exec,
+			env: cliHost.env,
+			output,
+		}, dockerCLI, dockerComposePath || 'docker-compose');
+		const params: DockerCLIParameters = {
+			cliHost,
+			dockerCLI,
+			dockerComposeCLI,
+			env: cliHost.env,
+			output
+		};
+		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
+		if (container) {
+			configuration = containerSubstitute(cliHost.platform, configuration.configFilePath, envListToObj(container.Config.Env), configuration);
+		}
+
 		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env, skipFeatureAutoMapping }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
-				configuration: configs.config,
+				configuration,
 				workspace: configs.workspaceConfig,
 				featuresConfiguration,
 			}) + '\n', err => err ? reject(err) : resolve());
