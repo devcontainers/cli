@@ -151,7 +151,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz', userFeatureId: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
 		});
 
-		it('should parse when provided a local-filesystem relative path with Config file in $WORKSPACE_ROOT/.devcontainer', async function () {
+		it('local-path should parse when provided a relative path with Config file in $WORKSPACE_ROOT/.devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				id: './featureA',
 				options: {},
@@ -166,7 +166,7 @@ describe('validate processFeatureIdentifier', async function () {
 		});
 
 
-		it('should parse when provided a local-filesystem relative path with config file in $WORKSPACE_ROOT', async function () {
+		it('local-path should parse when provided relative path with config file in $WORKSPACE_ROOT', async function () {
 			const userFeature: DevContainerFeature = {
 				id: './.devcontainer/featureB',
 				options: {},
@@ -251,7 +251,7 @@ describe('validate processFeatureIdentifier', async function () {
 	});
 
 	describe('INVALID processFeatureIdentifier examples', async function () {
-		it('should parse when provided a local-filesystem absolute path and defaultConfigPath with a .devcontainer', async function () {
+		it('local-path should fail to parse when provided  absolute path and defaultConfigPath with a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				id: '/some/long/path/to/helloworld',
 				options: {},
@@ -262,7 +262,8 @@ describe('validate processFeatureIdentifier', async function () {
 			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
 			assert.notExists(featureSet);
 		});
-		it('should parse when provided a local-filesystem absolute path and defaultConfigPath without a .devcontainer', async function () {
+
+		it('local-path should fail to parse when provided an absolute path and defaultConfigPath without a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				id: '/some/long/path/to/helloworld',
 				options: {},
@@ -274,6 +275,17 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.notExists(featureSet);
 		});
 
+		it('local-path should fail to parse when provided an a relative path breaking out of the .devcontainer folder', async function () {
+			const userFeature: DevContainerFeature = {
+				id: '../featureC',
+				options: {},
+			};
+
+			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
+		});
 
 		it('should fail parsing a generic tar with no feature and trailing slash', async function () {
 			const userFeature: DevContainerFeature = {

@@ -165,6 +165,14 @@ describe('Dev Container Features E2E (local-path)', function () {
             assert.equal(response.outcome, 'success');
             assert.match(res.stderr, /my favorite color is gold/);
         });
+        it('should read configuration with features', async () => {
+            const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration`);
+            const response = JSON.parse(res.stdout);
+            console.log(res.stderr);
+            assert.equal(response?.featuresConfiguration?.featureSets[0]?.features[0]?.id, 'localFeatureA', `localFeatureA not found: ${JSON.stringify(response, undefined, '  ')}`);
+        });
+    });
+
         describe(`dockerfile-with-v2-local-features-config-outside-dev-container-folder `, () => {
             let containerId: string | null = null;
             const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-outside-dev-container-folder`;

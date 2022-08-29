@@ -551,7 +551,7 @@ export function getBackwardCompatibleFeatureId(id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, configPath: string, workspaceRoot: string, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(output: Log, configPath: string, _workspaceRoot: string, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
@@ -646,20 +646,20 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 			return undefined;
 		}
 
-		// Local-path features should be contained within the '$WORKSPACE_ROOT/.devcontainer' folder.
-		const expectedFeatureFolderPath = path.join(workspaceRoot, '.devcontainer', id);
+		// Local-path features are expected to be a sub-folder of the '$WORKSPACE_ROOT/.devcontainer' folder.
+		const featureFolderPath = path.join(path.dirname(configPath), userFeature.id);
 
-		// Local-path features are referenced relative to the folder containing the devcontainer.json
-		const folderContainingDevContainerConfig = path.dirname(configPath);
 		// Ensure we aren't escaping the folder that contains the devcontainer.json
-		const relative = path.relative(folderContainingDevContainerConfig, expectedFeatureFolderPath);
-		output.write(`Parsed id from basepath = '${id}', Calculated Relative distance from .devcontainer/ = '${relative}'`, LogLevel.Trace);
+		const parent = path.dirname(configPath);
+		const child = featureFolderPath;
+		const relative = path.relative(parent, child);
+		output.write(`${parent} -> ${child}:   Relative Distance = '${relative}'`, LogLevel.Trace);
 		if (relative.indexOf('..') !== -1) {
-			output.write(`Local file path parse error. Resolved path must be a child of the .devcontainer/ folder.  Parsed: ${expectedFeatureFolderPath}`, LogLevel.Error);
+			output.write(`Local file path parse error. Resolved path must be a child of the .devcontainer/ folder.  Parsed: ${featureFolderPath}`, LogLevel.Error);
 			return undefined;
 		}
 
-		output.write(`Resolved: ${userFeature.id}  ->  ${expectedFeatureFolderPath}`, LogLevel.Trace);
+		output.write(`Resolved: ${userFeature.id}  ->  ${featureFolderPath}`, LogLevel.Trace);
 
 		// -- All parsing and validation steps complete at this point.
 
@@ -674,7 +674,7 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'file-path',
-				resolvedFilePath: expectedFeatureFolderPath,
+				resolvedFilePath: featureFolderPath,
 				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
