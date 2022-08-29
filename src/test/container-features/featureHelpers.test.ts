@@ -162,7 +162,7 @@ describe('validate processFeatureIdentifier', async function () {
 			const featureSet = await processFeatureIdentifier(output, customConfigPath, workspaceRoot, process.env, userFeature);
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'featureA');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, 'featureA'), userFeatureId: './featureA' });
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureA'), userFeatureId: './featureA' });
 		});
 
 
@@ -178,7 +178,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'featureB');
-			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(workspaceRoot), '.devcontainer', 'featureB'), userFeatureId: './.devcontainer/featureB' });
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureB'), userFeatureId: './.devcontainer/featureB' });
 		});
 
 		it('should process oci registry (without tag)', async function () {

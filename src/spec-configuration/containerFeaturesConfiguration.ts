@@ -647,7 +647,7 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 		}
 
 		// Local-path features should be contained within the '$WORKSPACE_ROOT/.devcontainer' folder.
-		const expectedFeatureFolderPath = path.join(workspaceRoot, '.devcontainer', userFeature.id);
+		const expectedFeatureFolderPath = path.join(workspaceRoot, '.devcontainer', id);
 
 		// Local-path features are referenced relative to the folder containing the devcontainer.json
 		const folderContainingDevContainerConfig = path.dirname(configPath);
