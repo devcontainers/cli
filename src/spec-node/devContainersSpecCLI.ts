@@ -28,6 +28,7 @@ import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
+import { containerSubstitute } from '../spec-common/variableSubstitution';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -574,8 +575,9 @@ async function doRunUserCommands({
 			bailOut(common.output, 'Dev container not found.');
 		}
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, config);
-		const result = await runPostCreateCommands(common, containerProperties, config, remoteEnv, stopForPersonalization);
+		const updatedConfig = containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, config);
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
+		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
@@ -826,7 +828,8 @@ export async function doExec({
 			bailOut(common.output, 'Dev container not found.');
 		}
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, config);
+		const updatedConfig = containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, config);
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		const infoOutput = makeLog(output, LogLevel.Info);
 		await runRemoteCommand({ ...common, output: infoOutput }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });

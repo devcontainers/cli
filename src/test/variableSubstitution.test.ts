@@ -4,7 +4,7 @@
 
 import * as assert from 'assert';
 
-import { substitute } from '../spec-common/variableSubstitution';
+import { containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { URI } from 'vscode-uri';
 
 describe('Variable substitution', function () {
@@ -103,7 +103,7 @@ describe('Variable substitution', function () {
 		assert.strictEqual(result.foo, 'barbar');
 	});
 
-	it(`environment variables with default value if they do not exist`, async () => {
+	it(`environment variables with default value if they do exist`, async () => {
 		const raw = {
 			foo: 'bar${localEnv:baz:default}bar'
 		};
@@ -119,7 +119,7 @@ describe('Variable substitution', function () {
 		assert.strictEqual(result.foo, 'barsomevaluebar');
 	});
 
-	it(`environment variables without default value if they do not exist`, async () => {
+	it(`environment variables with default value if they do not exist`, async () => {
 		const raw = {
 			foo: 'bar${localEnv:baz:default:a:b:c}bar'
 		};
@@ -131,6 +131,14 @@ describe('Variable substitution', function () {
 			env: {
 			},
 		}, raw);
+		assert.strictEqual(result.foo, 'bardefaultbar');
+	});
+
+	it(`container environment variables with default value if they do not exist`, async () => {
+		const raw = {
+			foo: 'bar${containerEnv:baz:default}bar'
+		};
+		const result = containerSubstitute('linux', URI.file('/foo/bar/baz.json'), {}, raw);
 		assert.strictEqual(result.foo, 'bardefaultbar');
 	});
 });
