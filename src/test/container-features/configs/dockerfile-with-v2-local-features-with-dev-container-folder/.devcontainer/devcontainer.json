@@ -4,7 +4,7 @@
 	},
 	"features": {
 		"./local-features/localFeatureA": {
-			"greeting": "buongiorno"
+			"greeting": "Hello there"
 		},
 		"./local-features/localFeatureB": {
 			"favorite": "gold"
