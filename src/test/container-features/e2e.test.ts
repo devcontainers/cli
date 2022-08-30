@@ -203,9 +203,9 @@ describe('Dev Container Features E2E (local-path)', function () {
         });
     });
 
-    describe(`dockerfile-with-v2-local-features-with-dev-container-folder `, () => {
+    describe(`dockerfile-with-v2-local-features-config-inside-dev-container-folder `, () => {
         let containerId: string | null = null;
-        const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-with-dev-container-folder`;
+        const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-inside-dev-container-folder`;
         beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
         afterEach(async () => await devContainerDown({ containerId }));
 

@@ -87,7 +87,7 @@ RUN cd /tmp/build-features/second_2 \\
         await mkdirpLocal(tmpFolder);
 
         const config: DevContainerConfig = {
-            configFilePath: URI.from({ 'scheme': 'https' }),
+            configFilePath: URI.from({ 'path': './src/test/container-features/configs/dockerfile-with-v2-local-features-config-inside-dev-container-folder', scheme: 'file' }),
             dockerFile: '.',
             features: {
                 node: {
@@ -99,10 +99,10 @@ RUN cd /tmp/build-features/second_2 \\
                 'ghcr.io/devcontainers/features/java:1': {
                     'version': 'none'
                 },
-                './src/test/container-features/configs/dockerfile-with-v2-local-features-with-dev-container-folder/local-features/localFeatureA': {
+                '/local-features/localFeatureA': {
                     'greeting': 'buongiorno'
                 },
-                './src/test/container-features/configs/dockerfile-with-v2-local-features-with-dev-container-folder/local-features/localFeatureB': {
+                './src/test/container-features/configs/dockerfile-with-v2-local-features-config-inside-dev-container-folder/local-features/localFeatureB': {
                     'favorite': 'gold'
                 }
             },
