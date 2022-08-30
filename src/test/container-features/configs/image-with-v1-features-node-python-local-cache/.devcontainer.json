@@ -1,7 +1,8 @@
 {
-	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
 	"features": {
 		"node": "latest",
 		"python": "os-provided"
 	}
+
 }
