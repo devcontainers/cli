@@ -3,6 +3,7 @@
 echo "Activating feature 'localFeatureA'"
 
 GREETING=${GREETING:-undefined}
+PUNCTUATION=${PUNCTUATION:-?????}
 echo "The provided greeting is: $GREETING"
 
 tee /usr/hello.sh > /dev/null \
@@ -10,7 +11,7 @@ tee /usr/hello.sh > /dev/null \
 #!/bin/bash
 RED='\033[0;91m'
 NC='\033[0m' # No Color
-echo -e -n "\${RED}${GREETING}, \$(whoami)!"
+echo -e -n "\${RED}${GREETING}, \$(whoami)${PUNCTUATION}"
 echo -e -n "\${NC}"
 EOF
 

@@ -346,10 +346,10 @@ function getFeatureEnvVariables(f: Feature) {
 	} else {
 		if (values) {
 			variables.push(...Object.keys(values)
-				.map(name => `${getSafeId(name)}="${values[name]}"`));
+				.map(name => `export ${getSafeId(name)}="${values[name]}"`));
 		}
 		if (f.buildArg) {
-			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+			variables.push(`export ${f.buildArg}=${getFeatureMainValue(f)}`);
 		}
 		return variables;
 	}	
