@@ -7,10 +7,10 @@
 		"ghcr.io/codspace/features/python:1": {
 			"version": "none"
 		},
-		"./local-features/localFeatureA": {
+		"./.devcontainer/localFeatureA": {
 			"greeting": "buongiorno"
 		},
-		"./local/localFeatureA": {
+		"./.devcontainer/localFeatureB": {
 			"greeting": "buongiorno"
 		},
 		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
@@ -18,7 +18,7 @@
 		}
 	},
 	"overrideFeatureInstallOrder": [
-		"./local-features/localFeatureA",
+		"./.devcontainer/localFeatureA",
 		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
 		"ghcr.io/devcontainers/features/python"
 	]
