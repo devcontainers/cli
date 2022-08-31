@@ -1,9 +1,19 @@
 import * as assert from 'assert';
 import * as cp from 'child_process';
 
-export const buildKitOptions = [
-    { text: 'non-BuildKit', options: { useBuildKit: false }, },
-    { text: 'BuildKit', options: { useBuildKit: true }, },
+export interface BuildKitOption {
+    text: string;
+    options: {
+        useBuildKit: boolean;
+    };
+}
+
+export const nonBuildKitOption: BuildKitOption = { text: 'non-BuildKit', options: { useBuildKit: false }, };
+export const buildKitOption: BuildKitOption = { text: 'BuildKit', options: { useBuildKit: true }, };
+
+export const buildKitOptions: ReadonlyArray<BuildKitOption> = [
+    nonBuildKitOption,
+    buildKitOption,
 ] as const;
 
 export interface UpResult {
