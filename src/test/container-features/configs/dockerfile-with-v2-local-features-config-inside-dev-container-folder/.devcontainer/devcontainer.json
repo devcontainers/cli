@@ -4,7 +4,8 @@
 	},
 	"features": {
 		"./localFeatureA": {
-			"greeting": "buongiorno"
+			"greeting": "buongiorno",
+			"punctuation": "!!!!"
 		},
 		"./localFeatureB": {
 			"favorite": "gold"

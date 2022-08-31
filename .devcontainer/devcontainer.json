@@ -20,7 +20,7 @@
 	"remoteUser": "node",
 	
 	"features": {
-		"docker-in-docker": "latest"
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {}
 	},
 	
 	"customizations": {

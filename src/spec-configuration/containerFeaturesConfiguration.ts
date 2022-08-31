@@ -244,7 +244,9 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 			result += `
 				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
-&& export $(cat devcontainer-features.env | xargs) \\
+&& set -a \\
+&& . ./devcontainer-features.env \\
+&& set +a \\
 && chmod +x ./install.sh \\
 && ./install.sh
 

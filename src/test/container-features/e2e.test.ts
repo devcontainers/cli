@@ -192,7 +192,7 @@ describe('Dev Container Features E2E (local-path)', function () {
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /buongiorno, root!/);
+            assert.match(res.stderr, /Hello there, root!!!!/);
         });
 
         it('should read configuration with features', async () => {
@@ -222,7 +222,7 @@ describe('Dev Container Features E2E (local-path)', function () {
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /buongiorno, root!/);
+            assert.match(res.stderr, /Hello there, root!!!!/);
         });
 
         it('should read configuration with features with customizations', async () => {
