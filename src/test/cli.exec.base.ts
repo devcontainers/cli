@@ -5,25 +5,26 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import { buildKitOptions, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, shellExec } from './testUtils';
+import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
 
-describe('Dev Containers CLI', function () {
-	this.timeout('120s');
+export function describeTests({ text, options }: BuildKitOption) {
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	describe('Dev Containers CLI', function () {
+		this.timeout('120s');
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-	});
+		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+		const cli = `npx --prefix ${tmp} devcontainer`;
 
-	describe('Command exec', () => {
+		before('Install', async () => {
+			await shellExec(`rm -rf ${tmp}/node_modules`);
+			await shellExec(`mkdir -p ${tmp}`);
+			await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+		});
 
-		buildKitOptions.forEach(({ text, options }) => {
+		describe('Command exec', () => {
+
 			describe(`with valid (image) config [${text}]`, () => {
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/image`;
@@ -263,41 +264,43 @@ describe('Dev Containers CLI', function () {
 					});
 				});
 			});
-		});
 
-		describe('with valid (Dockerfile) config containing #syntax (BuildKit)', () => { // ensure existing '# syntax' lines are handled
-			let containerId: string | null = null;
-			const testFolder = `${__dirname}/configs/dockerfile-with-syntax`;
-			beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { useBuildKit: true })).containerId);
-			afterEach(async () => await devContainerDown({ containerId }));
-			it('should have access to installed features (docker)', async () => {
-				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
-				const response = JSON.parse(res.stdout);
-				console.log(res.stderr);
-				assert.equal(response.outcome, 'success');
-				assert.match(res.stderr, /Docker version/);
-			});
-			it('should have access to installed features (hello)', async () => {
-				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-				const response = JSON.parse(res.stdout);
-				console.log(res.stderr);
-				assert.equal(response.outcome, 'success');
-				assert.match(res.stderr, /howdy, root/);
-			});
-		});
-
-		it('should fail with "not found" error when config is not found', async () => {
-			let success = false;
-			try {
-				await shellExec(`${cli} exec --workspace-folder path-that-does-not-exist echo hi`);
-				success = true;
-			} catch (error) {
-				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-				const res = JSON.parse(error.stdout);
-				assert.equal(res.outcome, 'error');
-				assert.match(res.message, /Dev container config \(.*\) not found./);
-			}
-			assert.equal(success, false, 'expect non-successful call');
+			if (options.useBuildKit) {
+				describe('with valid (Dockerfile) config containing #syntax (BuildKit)', () => { // ensure existing '# syntax' lines are handled
+					let containerId: string | null = null;
+					const testFolder = `${__dirname}/configs/dockerfile-with-syntax`;
+					beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { useBuildKit: true })).containerId);
+					afterEach(async () => await devContainerDown({ containerId }));
+					it('should have access to installed features (docker)', async () => {
+						const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
+						const response = JSON.parse(res.stdout);
+						console.log(res.stderr);
+						assert.equal(response.outcome, 'success');
+						assert.match(res.stderr, /Docker version/);
+					});
+					it('should have access to installed features (hello)', async () => {
+						const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
+						const response = JSON.parse(res.stdout);
+						console.log(res.stderr);
+						assert.equal(response.outcome, 'success');
+						assert.match(res.stderr, /howdy, root/);
+					});
+				});
+		
+				it('should fail with "not found" error when config is not found', async () => {
+					let success = false;
+					try {
+						await shellExec(`${cli} exec --workspace-folder path-that-does-not-exist echo hi`);
+						success = true;
+					} catch (error) {
+						assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+						const res = JSON.parse(error.stdout);
+						assert.equal(res.outcome, 'error');
+						assert.match(res.message, /Dev container config \(.*\) not found./);
+					}
+					assert.equal(success, false, 'expect non-successful call');
+				});
+					}
 		});
 	});
-});
+}
