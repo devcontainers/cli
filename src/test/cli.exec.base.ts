@@ -9,10 +9,10 @@ import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop,
 
 const pkg = require('../../package.json');
 
-export function describeTests({ text, options }: BuildKitOption) {
+export function describeTests1({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('120s');
+		this.timeout('180s');
 
 		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 		const cli = `npx --prefix ${tmp} devcontainer`;
@@ -141,6 +141,25 @@ export function describeTests({ text, options }: BuildKitOption) {
 					assert.match(res.stderr, /howdy, node/);
 				});
 			});
+		});
+	});
+}
+
+export function describeTests2({ text, options }: BuildKitOption) {
+
+	describe('Dev Containers CLI', function () {
+		this.timeout('180s');
+
+		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+		const cli = `npx --prefix ${tmp} devcontainer`;
+
+		before('Install', async () => {
+			await shellExec(`rm -rf ${tmp}/node_modules`);
+			await shellExec(`mkdir -p ${tmp}`);
+			await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+		});
+
+		describe('Command exec', () => {
 
 			describe(`with valid (docker-compose with Dockerfile and target) config containing features [${text}]`, () => {
 				let composeProjectName: string | undefined = undefined;
@@ -300,7 +319,7 @@ export function describeTests({ text, options }: BuildKitOption) {
 					}
 					assert.equal(success, false, 'expect non-successful call');
 				});
-					}
+			}
 		});
 	});
 }
