@@ -1,1 +1,0 @@
-This is a README in a project.
