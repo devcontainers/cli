@@ -630,11 +630,6 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 		return newFeaturesSet;
 	}
 
-	// If it matches the path syntax, it is a 'local' feature pointing to source code.
-	// Resolves the absolute path/
-	//
-	// Note this is just parsing the path syntax.  It does not check if the path is valid by design.
-	//
 	// Spec: https://containers.dev/implementors/features-distribution/#addendum-locally-referenced
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
