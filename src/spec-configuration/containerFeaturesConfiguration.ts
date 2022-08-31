@@ -638,7 +638,6 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 
 		// Fail on Absolute paths.
 		if (path.isAbsolute(userFeature.id)) {
-			// TODO: Might want to conditionally support this for 'devcontainer test'
 			output.write('An Absolute path to a local feature is not allowed.', LogLevel.Error);
 			return undefined;
 		}
@@ -939,7 +938,7 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
-		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Warning);
+		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Trace);
 		output.write(`For v2, expected devcontainer-feature.json at ${innerJsonPath}`, LogLevel.Trace);
 		return await parseDevContainerFeature_v1Impl(output, featureSet, feature, featCachePath);
 	}
