@@ -4,7 +4,7 @@
 	},
 	"features": {
 		"./localFeatureA": {
-			"greeting": "buongiorno",
+			"greeting": "Hello there",
 			"punctuation": "!!!!"
 		},
 		"./localFeatureB": {
