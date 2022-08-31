@@ -308,7 +308,6 @@ async function generateDefaultProjectFromFeatures(
 		// Copy the feature source code to the temp folder
 		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
 		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
-		process.stdout.write('AFTER\n');
 	}
 
 	let template = devcontainerTemplate
