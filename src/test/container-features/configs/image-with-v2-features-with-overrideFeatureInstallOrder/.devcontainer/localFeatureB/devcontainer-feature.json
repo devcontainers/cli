@@ -1,7 +1,7 @@
 {
-    "id": "localFeatureA",
+    "id": "localFeatureB",
     "version": "1.0.0",
-    "name": "A hello world feature",
+    "name": "Another hello world feature",
     "options": {
         "greeting": {
             "type": "string",

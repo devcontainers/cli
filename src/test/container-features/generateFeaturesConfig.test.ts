@@ -87,7 +87,7 @@ RUN cd /tmp/build-features/second_2 \\
         await mkdirpLocal(tmpFolder);
 
         const config: DevContainerConfig = {
-            configFilePath: URI.from({ 'scheme': 'https' }),
+            configFilePath: URI.from({ 'path': './.devcontainer/devcontainer.json', scheme: 'file' }),
             dockerFile: '.',
             features: {
                 node: {
@@ -98,12 +98,6 @@ RUN cd /tmp/build-features/second_2 \\
                 },
                 'ghcr.io/devcontainers/features/java:1': {
                     'version': 'none'
-                },
-                './src/test/container-features/configs/dockerfile-with-v2-local-features-with-dev-container-folder/local-features/localFeatureA': {
-                    'greeting': 'buongiorno'
-                },
-                './src/test/container-features/configs/dockerfile-with-v2-local-features-with-dev-container-folder/local-features/localFeatureB': {
-                    'favorite': 'gold'
                 }
             },
         };
@@ -115,7 +109,7 @@ RUN cd /tmp/build-features/second_2 \\
             assert.fail();
         }
 
-        assert.strictEqual(featuresConfig?.featureSets.length, 5);
+        assert.strictEqual(featuresConfig?.featureSets.length, 3);
 
         const dind = featuresConfig.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'docker-in-docker');
         assert.exists(dind);
@@ -133,20 +127,5 @@ RUN cd /tmp/build-features/second_2 \\
         assert.includeMembers(javaExtensions, ['vscjava.vscode-java-pack']);
         const javaSettings = java?.features[0]?.customizations?.vscode?.settings;
         assert.isObject(javaSettings);
-
-        const featureA = featuresConfig.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureA');
-        assert.exists(featureA);
-        const featureAExtensions = featureA?.features[0]?.customizations?.vscode?.extensions || [''];
-        assert.includeMembers(featureAExtensions, ['dbaeumer.vscode-eslint']);
-        const featureASettings = featureA?.features[0]?.customizations?.vscode?.settings;
-        assert.isObject(featureASettings);
-
-        // With top level "extensions" and "settings"
-        const featureB = featuresConfig.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'localFeatureB');
-        assert.exists(featureB);
-        const featureBExtensions = featureB?.features[0]?.customizations?.vscode?.extensions || [''];
-        assert.includeMembers(featureBExtensions, ['ms-dotnettools.csharp']);
-        const featureBSettings = featureB?.features[0]?.customizations?.vscode?.settings;
-        assert.isObject(featureBSettings);
     });
 });

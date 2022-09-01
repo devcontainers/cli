@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Activating feature 'color'"
+echo "Activating feature 'localFeatureB'"
 echo "The provided favorite color is: ${FAVORITE}"
 
 cat > /usr/local/bin/color \

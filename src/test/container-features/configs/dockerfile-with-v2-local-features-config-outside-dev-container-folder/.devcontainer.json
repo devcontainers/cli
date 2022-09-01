@@ -3,11 +3,11 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
-		"./local-features/localFeatureA": {
+		"./.devcontainer/localFeatureA": {
 			"greeting": "Hello there",
 			"punctuation": "!!!!"
 		},
-		"./local-features/localFeatureB": {
+		"./.devcontainer/localFeatureB": {
 			"favorite": "gold"
 		}
 	}

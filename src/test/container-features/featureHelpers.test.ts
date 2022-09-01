@@ -48,18 +48,19 @@ describe('validate processFeatureIdentifier', async function () {
 
 	// In the real implementation, the cwd is passed by the calling function with the value of `--workspace-folder`.
 	// See: https://github.com/devcontainers/cli/blob/45541ba21437bf6c16826762f084ab502157789b/src/spec-node/devContainersSpecCLI.ts#L152-L153
-	const cwd = process.cwd();
-	console.log(`cwd: ${cwd}`);
+	const workspaceRoot = '/workspace/myProject';
+	const defaultConfigPath = path.join(workspaceRoot, '.devcontainer', 'devcontainer.json');
+	console.log(`workspaceRoot = ${workspaceRoot}, defaultConfigPath = ${defaultConfigPath}`);
 
 	describe('VALID processFeatureIdentifier examples', async function () {
 
-		it('should process local-cache', async function () {
+		it('should process v1 local-cache', async function () {
 			// Parsed out of a user's devcontainer.json
 			let userFeature: DevContainerFeature = {
 				id: 'docker-in-docker',
 				options: {}
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, userFeature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -76,11 +77,11 @@ describe('validate processFeatureIdentifier', async function () {
 		});
 
 		it('should process github-repo (without version)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures/helloworld',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -104,11 +105,11 @@ describe('validate processFeatureIdentifier', async function () {
 		});
 
 		it('should process github-repo (with version)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures/helloworld@v0.0.4',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -133,12 +134,12 @@ describe('validate processFeatureIdentifier', async function () {
 		});
 
 		it('should process direct-tarball (v2 with direct tar download)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -150,50 +151,43 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'direct-tarball', tarballUri: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz', userFeatureId: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz' });
 		});
 
-		it('should parse when provided a local-filesystem relative path', async function () {
-			const feature: DevContainerFeature = {
-				id: './some/long/path/to/helloworld',
+		it('local-path should parse when provided a relative path with Config file in $WORKSPACE_ROOT/.devcontainer', async function () {
+			const userFeature: DevContainerFeature = {
+				id: './featureA',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.exists(result);
-			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(cwd, '/some/long/path/to/helloworld'), userFeatureId: './some/long/path/to/helloworld' });
+			const customConfigPath = path.join(workspaceRoot, '.devcontainer', 'devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(output, customConfigPath, workspaceRoot, process.env, userFeature);
+			assert.exists(featureSet);
+			assert.strictEqual(featureSet?.features[0].id, 'featureA');
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureA'), userFeatureId: './featureA' });
 		});
 
 
-		it('should parse when provided a local-filesystem relative path, starting with ../', async function () {
-			const feature: DevContainerFeature = {
-				id: '../some/long/path/to/helloworld',
+		it('local-path should parse when provided relative path with config file in $WORKSPACE_ROOT', async function () {
+			const userFeature: DevContainerFeature = {
+				id: './.devcontainer/featureB',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const customConfigPath = path.join(workspaceRoot, 'devcontainer.json');
 
-			assert.exists(result);
-			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(path.dirname(cwd), '/some/long/path/to/helloworld'), userFeatureId: '../some/long/path/to/helloworld' });
-		});
+			const featureSet = await processFeatureIdentifier(output, customConfigPath, workspaceRoot, process.env, userFeature);
 
-		it('should parse when provided a local-filesystem absolute path', async function () {
-			const feature: DevContainerFeature = {
-				id: '/some/long/path/to/helloworld',
-				options: {},
-			};
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.exists(result);
-			assert.strictEqual(result?.features[0].id, 'helloworld');
-			assert.deepEqual(result?.sourceInformation, { type: 'file-path', resolvedFilePath: '/some/long/path/to/helloworld', userFeatureId: '/some/long/path/to/helloworld' });
+			assert.exists(featureSet);
+			assert.strictEqual(featureSet?.features[0].id, 'featureB');
+			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureB'), userFeatureId: './.devcontainer/featureB' });
 		});
 
 		it('should process oci registry (without tag)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'ghcr.io/codspace/features/ruby',
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -222,12 +216,12 @@ describe('validate processFeatureIdentifier', async function () {
 		});
 
 		it('should process oci registry (with a tag)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'ghcr.io/codspace/features/ruby:1.0.13',
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, process.env, cwd, feature);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -257,94 +251,130 @@ describe('validate processFeatureIdentifier', async function () {
 	});
 
 	describe('INVALID processFeatureIdentifier examples', async function () {
+		it('local-path should fail to parse when provided  absolute path and defaultConfigPath with a .devcontainer', async function () {
+			const userFeature: DevContainerFeature = {
+				id: '/some/long/path/to/helloworld',
+				options: {},
+			};
+
+			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer', 'devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
+		});
+
+		it('local-path should fail to parse when provided an absolute path and defaultConfigPath without a .devcontainer', async function () {
+			const userFeature: DevContainerFeature = {
+				id: '/some/long/path/to/helloworld',
+				options: {},
+			};
+
+			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
+		});
+
+		it('local-path should fail to parse when provided an a relative path breaking out of the .devcontainer folder', async function () {
+			const userFeature: DevContainerFeature = {
+				id: '../featureC',
+				options: {},
+			};
+
+			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
+		});
+
 		it('should fail parsing a generic tar with no feature and trailing slash', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'https://example.com/some/long/path/devcontainer-features.tgz/',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should not parse gitHub without triple slash', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures#helloworld',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a generic tar with no feature and no trailing slash', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'https://example.com/some/long/path/devcontainer-features.tgz',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a generic tar with a hash but no feature', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'https://example.com/some/long/path/devcontainer-features.tgz#',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a marketplace shorthand with only two segments and a hash with no feature', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures#',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a marketplace shorthand with only two segments (no feature)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a marketplace shorthand with an invalid feature name (1)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures/@mycoolfeature',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a marketplace shorthand with an invalid feature name (2)', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures/MY_$UPER_COOL_FEATURE',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 
 		it('should fail parsing a marketplace shorthand with only two segments, no hash, and with a version', async function () {
-			const feature: DevContainerFeature = {
+			const userFeature: DevContainerFeature = {
 				id: 'octocat/myfeatures@v0.0.1',
 				options: {},
 			};
 
-			const result = await processFeatureIdentifier(output, process.env, cwd, feature);
-			assert.notExists(result);
+			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			assert.notExists(featureSet);
 		});
 	});
 });

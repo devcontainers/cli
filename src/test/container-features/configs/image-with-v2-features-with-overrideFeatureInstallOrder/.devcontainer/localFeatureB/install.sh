@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Activating feature 'localFeatureA'"
+echo "Activating feature 'localFeatureB'"
 
 GREETING=${GREETING:-undefined}
 PUNCTUATION=${PUNCTUATION:-?????}

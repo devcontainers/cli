@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
 import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
-import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile, isLocalFolder } from '../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
@@ -393,8 +393,8 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
 	const { output } = params;
 
-	const workspaceCwd = params.cwd;
-	output.write(`workspaceCwd: ${workspaceCwd}`, LogLevel.Trace);
+	const workspaceRoot = params.cwd;
+	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
 	const userFeatures = featuresToArray(config);
 	if (!userFeatures) {
@@ -419,7 +419,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, params.env, workspaceCwd, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
+	featuresConfig = await processUserFeatures(params.output, config, workspaceRoot, params.env, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -467,9 +467,9 @@ function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | un
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
+async function processUserFeatures(output: Log, config: DevContainerConfig, workspaceRoot: string, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, env, workspaceCwd, userFeature, skipFeatureAutoMapping);
+		const newFeatureSet = await processFeatureIdentifier(output, config.configFilePath.path, workspaceRoot, env, userFeature, skipFeatureAutoMapping);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -553,7 +553,7 @@ export function getBackwardCompatibleFeatureId(id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessEnv, workspaceCwd: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(output: Log, configPath: string, _workspaceRoot: string, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
@@ -630,28 +630,35 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		return newFeaturesSet;
 	}
 
-	// If it matches the path syntax, it is a 'local' feature pointing to source code.
-	// Resolves the absolute path and ensures that the directory exists.
+	// Spec: https://containers.dev/implementors/features-distribution/#addendum-locally-referenced
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
 
-		let resolvedFilePathToFeatureFolder = '';
+		const id = path.basename(userFeature.id);
+
+		// Fail on Absolute paths.
 		if (path.isAbsolute(userFeature.id)) {
-			resolvedFilePathToFeatureFolder = userFeature.id;
-		} else {
-			// A relative path to a feature directory is 
-			// computed relative to the `--workspace-folder`
-			resolvedFilePathToFeatureFolder = path.join(workspaceCwd, userFeature.id);
-		}
-
-		output.write(`Resolved: ${userFeature.id}  ->  ${resolvedFilePathToFeatureFolder}`, LogLevel.Trace);
-
-		if (!resolvedFilePathToFeatureFolder || !isLocalFolder(resolvedFilePathToFeatureFolder)) {
-			output.write(`Local file path parse error. Resolved path to feature folder: ${resolvedFilePathToFeatureFolder}`, LogLevel.Error);
+			output.write('An Absolute path to a local feature is not allowed.', LogLevel.Error);
 			return undefined;
 		}
 
-		const id = path.basename(resolvedFilePathToFeatureFolder);
+		// Local-path features are expected to be a sub-folder of the '$WORKSPACE_ROOT/.devcontainer' folder.
+		const featureFolderPath = path.join(path.dirname(configPath), userFeature.id);
+
+		// Ensure we aren't escaping .devcontainer folder
+		const parent = path.join(_workspaceRoot, '.devcontainer');
+		const child = featureFolderPath;
+		const relative = path.relative(parent, child);
+		output.write(`${parent} -> ${child}:   Relative Distance = '${relative}'`, LogLevel.Trace);
+		if (relative.indexOf('..') !== -1) {
+			output.write(`Local file path parse error. Resolved path must be a child of the .devcontainer/ folder.  Parsed: ${featureFolderPath}`, LogLevel.Error);
+			return undefined;
+		}
+
+		output.write(`Resolved: ${userFeature.id}  ->  ${featureFolderPath}`, LogLevel.Trace);
+
+		// -- All parsing and validation steps complete at this point.
+
 		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
 		let feat: Feature = {
 			id,
@@ -663,7 +670,7 @@ export async function processFeatureIdentifier(output: Log, env: NodeJS.ProcessE
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'file-path',
-				resolvedFilePath: resolvedFilePathToFeatureFolder,
+				resolvedFilePath: featureFolderPath,
 				userFeatureId: originalUserFeatureId
 			},
 			features: [feat],
@@ -931,7 +938,7 @@ async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, 
 	const innerJsonPath = path.join(featCachePath, DEVCONTAINER_FEATURE_FILE_NAME);
 
 	if (!(await isLocalFile(innerJsonPath))) {
-		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Warning);
+		output.write(`Feature ${feature.id} is not a 'v2' feature. Attempting fallback to 'v1' implementation.`, LogLevel.Trace);
 		output.write(`For v2, expected devcontainer-feature.json at ${innerJsonPath}`, LogLevel.Trace);
 		return await parseDevContainerFeature_v1Impl(output, featureSet, feature, featCachePath);
 	}
