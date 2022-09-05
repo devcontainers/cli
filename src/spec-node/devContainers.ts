@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 
 import { DockerResolverParameters, getPackageConfig, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
 import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
@@ -169,7 +170,7 @@ export interface LogOptions {
 }
 
 export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
-	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}.`;
+	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
 	disposables.push(() => output.join());
