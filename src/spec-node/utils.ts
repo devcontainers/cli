@@ -48,6 +48,28 @@ export async function uriToWSLFsPath(uri: URI, cliHost: CLIHost): Promise<string
 	return uriToFsPath(uri, cliHost.platform);
 }
 
+export async function logUMask(params: DockerResolverParameters): Promise<string | undefined> {
+	// process.umask() is deprecated: https://nodejs.org/api/process.html#processumask
+	const { common } = params;
+	const { cliHost, output } = common;
+	if (cliHost.platform === 'win32') {
+		return undefined;
+	}
+	try {
+		const { stdout } = await runCommandNoPty({
+			exec: cliHost.exec,
+			cmd: 'umask',
+			cwd: cliHost.cwd,
+			env: cliHost.env,
+			output,
+			print: true,
+		});
+		return stdout.toString().trim();
+	} catch {
+		return undefined;
+	}
+}
+
 export type ParsedAuthority = DevContainerAuthority;
 
 export type UpdateRemoteUserUIDDefault = 'never' | 'on' | 'off';
