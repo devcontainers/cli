@@ -1,7 +1,7 @@
 {
 	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
 	"features": {
-		"github-cli": "latest",
+		"terraform": "latest",
 		"codspace/myfeatures/helloworld": {
 			"greeting": "howdy"
 		},
@@ -10,6 +10,6 @@
 	"overrideFeatureInstallOrder": [
 		"codspace/features/devcontainer-feature-go",
 		"codspace/myfeatures/helloworld",
-		"github-cli"
+		"terraform"
 	]
 }
