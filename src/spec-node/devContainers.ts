@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 
-import { DockerResolverParameters, getPackageConfig, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
 import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
@@ -16,7 +16,7 @@ import { promisify } from 'util';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { PackageConfiguration } from '../spec-utils/product';
+import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 
 export interface ProvisionOptions {
@@ -85,7 +85,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
-	const pkg = await getPackageConfig(extensionPath);
+	const pkg = getPackageConfig();
 	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
 
 	const appRoot = undefined;

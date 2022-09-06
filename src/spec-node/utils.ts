@@ -28,7 +28,6 @@ import { PackageConfiguration } from '../spec-utils/product';
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
-export { getPackageConfig } from '../spec-utils/product';
 
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
