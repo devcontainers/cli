@@ -7,7 +7,7 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, envListToObj, getPackageConfig, isDockerFileConfig } from './utils';
+import { createContainerProperties, createFeaturesTempFolder, envListToObj, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -29,13 +29,14 @@ import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/pa
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { containerSubstitute } from '../spec-common/variableSubstitution';
+import { getPackageConfig } from '../spec-utils/product';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 (async () => {
 
 	const packageFolder = path.join(__dirname, '..', '..');
-	const version = (await getPackageConfig(packageFolder)).version;
+	const version = getPackageConfig().version;
 	const argv = process.argv.slice(2);
 	const restArgs = argv[0] === 'exec' && argv[1] !== '--help'; // halt-at-non-option doesn't work in subcommands: https://github.com/yargs/yargs/issues/1417
 	const y = yargs([])
@@ -666,7 +667,7 @@ async function readConfiguration({
 		const cliHost = await getCLIHost(cwd, loadNativeModule);
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
-		const pkg = await getPackageConfig(extensionPath);
+		const pkg = getPackageConfig();
 		output = createLog({
 			logLevel: mapLogLevel(logLevel),
 			logFormat,

@@ -1,11 +1,10 @@
-import path from 'path';
 import { Argv } from 'yargs';
 import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { Log, mapLogLevel } from '../../spec-utils/log';
+import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { getPackageConfig } from '../utils';
 import { doFeaturesPackageCommand } from './packageCommandImpl';
 
 const targetPositionalDescription = `
@@ -55,8 +54,7 @@ async function featuresPackage({
 		await Promise.all(disposables.map(d => d()));
 	};
 
-	const extensionPath = path.join(__dirname, '..', '..', '..');
-	const pkg = await getPackageConfig(extensionPath);
+	const pkg = getPackageConfig();
 
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);

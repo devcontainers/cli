@@ -1,4 +1,3 @@
-import * as path from 'path';
 import { Argv } from 'yargs';
 import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
@@ -70,8 +69,7 @@ async function featuresTest({
 
 	const cwd = process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const extensionPath = path.join(__dirname, '..', '..', '..');
-	const pkg = await getPackageConfig(extensionPath);
+	const pkg = getPackageConfig();
 
 	const logLevel = mapLogLevel(inputLogLevel);
 

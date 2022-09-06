@@ -49,8 +49,7 @@ async function featuresPublish({
         await Promise.all(disposables.map(d => d()));
     };
 
-    const extensionPath = path.join(__dirname, '..', '..', '..');
-    const pkg = await getPackageConfig(extensionPath);
+    const pkg = getPackageConfig();
 
     const cwd = process.cwd();
     const cliHost = await getCLIHost(cwd, loadNativeModule);
