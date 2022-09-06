@@ -6,7 +6,7 @@
 		}
 	},
 	"features": {
-		"github-cli": "latest",
+		"terraform": "latest",
 		"ghcr.io/codspace/features/docker-in-docker:1": {},
 		"node": "16"
 	}
