@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.3.0",
+	"version": "0.14.2",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -24,23 +24,36 @@
 		"tsc-b-w": "tsc -b -w",
 		"precommit": "node build/hygiene.js",
 		"definitions": "npm-run-all definitions-clean definitions-copy",
-		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --ext .ts ./src ./test",
+		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --max-warnings 0 --ext .ts ./src",
 		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
 		"definitions-copy": "copyfiles --all \"node_modules/vscode-dev-containers/**/*\" dist",
 		"package": "npm-run-all compile npm-pack",
+		"bundle": "npm-run-all clean definitions esbuild npm-pack",
+		"esbuild": "node esbuild.js --production",
 		"npm-pack": "npm pack",
 		"clean": "rimraf dist",
 		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
-		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.test.ts",
-		"test-container-features-offline": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.offline.test.ts",
-		"test-container-features-online": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/**/*.online.test.ts"
+		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
+		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts"
 	},
+	"files": [
+		"CHANGELOG.md",
+		"LICENSE.txt",
+		"README.md",
+		"ThirdPartyNotices.txt",
+		"devcontainer.js",
+		"dist",
+		"package.json",
+		"scripts/updateUID.Dockerfile"
+	],
 	"devDependencies": {
 		"@types/chai": "^4.3.0",
+		"@types/chalk": "^2.2.0",
 		"@types/follow-redirects": "^1.13.1",
 		"@types/js-yaml": "^4.0.5",
 		"@types/mocha": "^9.1.0",
 		"@types/node": "^16.11.7",
+		"@types/ncp": "^2.0.5",
 		"@types/pull-stream": "^3.6.2",
 		"@types/semver": "^7.3.9",
 		"@types/shell-quote": "^1.7.1",
@@ -50,6 +63,7 @@
 		"@typescript-eslint/parser": "^4.31.2",
 		"chai": "^4.3.4",
 		"copyfiles": "^2.4.1",
+		"esbuild": "^0.13.14",
 		"eslint": "^7.32.0",
 		"event-stream": "^4.0.1",
 		"gulp-eslint": "^6.0.0",
@@ -65,16 +79,18 @@
 		"vinyl-fs": "^3.0.3"
 	},
 	"dependencies": {
+		"chalk": "^4",
 		"follow-redirects": "^1.14.8",
 		"js-yaml": "^4.1.0",
 		"jsonc-parser": "^3.0.0",
+		"ncp": "^2.0.0",
 		"node-pty": "^0.10.1",
 		"pull-stream": "^3.6.14",
 		"semver": "^7.3.5",
 		"shell-quote": "^1.7.3",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.11",
-		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.236.0/vscode-dev-containers-0.236.0.tgz",
+		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.3",
 		"yargs": "~17.0.1"
 	}

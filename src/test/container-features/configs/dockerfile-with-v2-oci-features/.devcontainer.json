@@ -1,0 +1,13 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"VARIANT": "16-bullseye"
+		}
+	},
+	"features": {
+		"terraform": "latest",
+		"ghcr.io/codspace/features/docker-in-docker:1": {},
+		"node": "16"
+	}
+}

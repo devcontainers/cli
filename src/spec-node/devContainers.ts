@@ -5,8 +5,9 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 
-import { DockerResolverParameters, getPackageConfig, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
 import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
@@ -15,7 +16,7 @@ import { promisify } from 'util';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { PackageConfiguration } from '../spec-utils/product';
+import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 
 export interface ProvisionOptions {
@@ -46,6 +47,10 @@ export interface ProvisionOptions {
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
 	useBuildKit: 'auto' | 'never';
+	omitLoggerHeader?: boolean | undefined;
+	buildxPlatform: string | undefined;
+	buildxPush: boolean;
+	skipFeatureAutoMapping: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -53,6 +58,7 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
+
 	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
@@ -79,8 +85,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
-	const pkg = await getPackageConfig(extensionPath);
-	const output = createLog(options, pkg, sessionStart, disposables);
+	const pkg = getPackageConfig();
+	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
@@ -113,6 +119,9 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await cliHost.tmpdir(), // Fallback to tmpDir(), even though that isn't 'persistent'
 		remoteEnv,
+		buildxPlatform: options.buildxPlatform,
+		buildxPush: options.buildxPush,
+		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
@@ -148,6 +157,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
 		isTTY: process.stdin.isTTY || options.logFormat === 'json',
+		buildxPlatform: common.buildxPlatform,
+		buildxPush: common.buildxPush,
 	};
 }
 
@@ -158,8 +169,8 @@ export interface LogOptions {
 	terminalDimensions: LogDimensions | undefined;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[]) {
-	const header = `${pkg.name} ${pkg.version}.`;
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
+	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
 	disposables.push(() => output.join());

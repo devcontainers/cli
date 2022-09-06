@@ -1,0 +1,13 @@
+{
+	"custom_options": {
+		"image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+		"features" : {
+			"hello": {
+				"greeting": "Ciao"
+			},
+			"color": {
+				"favorite": "Magenta"
+			}
+		}
+	}
+}

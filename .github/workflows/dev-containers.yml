@@ -26,8 +26,8 @@ jobs:
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - run: yarn
+    - run: yarn lint
     - run: yarn package
-    - run: yarn test --forbid-only
     - name: TGZ name
       if: ${{ matrix.tgz }}
       run: |
@@ -40,12 +40,25 @@ jobs:
       with:
         name: ${{ env.TGZ_UPLOAD }}
         path: ${{ env.TGZ }}
-  container-features:
-    name: Test container-features
+  tests-matrix:
+    name: Tests Matrix
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        mocha-args: [
+          "src/test/container-features/e2e.test.ts",
+          "src/test/container-features/featuresCLICommands.test.ts",
+          "src/test/container-features/containerFeaturesOrder.test.ts",
+          "src/test/cli.build.test.ts",
+          "src/test/cli.exec.buildKit.1.test.ts",
+          "src/test/cli.exec.buildKit.2.test.ts",
+          "src/test/cli.exec.nonBuildKit.1.test.ts",
+          "src/test/cli.exec.nonBuildKit.2.test.ts",
+          "src/test/cli.test.ts",
+          "src/test/cli.up.test.ts",
+          # Run all except the above:
+          "--exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts 'src/test/**/*.test.ts'",
+        ]
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -59,5 +72,14 @@ jobs:
       run: yarn
     - name: Compile
       run: yarn compile
-    - name: Run Offline Tests
-      run: yarn test-container-features-offline --forbid-only
+    - name: Package
+      run: yarn package
+    - name: Run Tests
+      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
+  tests:
+    name: Tests
+    needs: tests-matrix
+    runs-on: ubuntu-latest
+    steps:
+    - name: Done
+      run: echo Test Matrix done.

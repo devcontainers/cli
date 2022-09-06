@@ -1,0 +1,15 @@
+{
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"features": {
+		"terraform": "latest",
+		"codspace/myfeatures/helloworld": {
+			"greeting": "howdy"
+		},
+		"codspace/features/devcontainer-feature-go@tarball02": {}
+	},
+	"overrideFeatureInstallOrder": [
+		"codspace/features/devcontainer-feature-go",
+		"codspace/myfeatures/helloworld",
+		"terraform"
+	]
+}

@@ -20,7 +20,7 @@
 	"remoteUser": "node",
 	
 	"features": {
-		"docker-in-docker": "latest"
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {}
 	},
 	
 	"customizations": {
@@ -29,6 +29,16 @@
 				"dbaeumer.vscode-eslint",
 				"GitHub.vscode-pull-request-github"
 			]
+		},
+		"codespaces": {
+			"repositories": {
+				"devcontainers/features": {
+					"permissions": {
+						"contents": "write",
+						"workflows": "write"
+					}
+				}
+			}
 		}
 	}
 }

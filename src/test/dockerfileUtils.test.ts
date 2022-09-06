@@ -1,5 +1,6 @@
 import { assert } from 'chai';
-import { ensureDockerfileHasFinalStageName } from '../spec-node/singleContainer';
+import { ensureDockerfileHasFinalStageName, internalGetImageUser } from '../spec-node/utils';
+import { ImageDetails } from '../spec-shutdown/dockerUtils';
 
 describe('ensureDockerfileHasFinalStageName', () => {
 
@@ -138,5 +139,38 @@ RUN another command
 `);
             });
         });
+    });
+});
+
+describe('getImageUser', () => {
+
+    it('for a simple FROM line', async () => {
+        const dockerfile = `FROM debian:latest as base
+FROM ubuntu:latest as dev
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: null,
+                Entrypoint: null,
+                Cmd: null
+            }
+        };
+        assert.strictEqual(await internalGetImageUser(async imageName => {
+            assert.strictEqual(imageName, 'debian:latest');
+            return details;
+        }, dockerfile), 'imageUser');
+    });
+
+    it('for a USER', async () => {
+        const dockerfile = `FROM ubuntu:latest as base
+USER dockerfileUserA
+USER dockerfileUserB
+`;
+        assert.strictEqual(await internalGetImageUser(() => {
+            throw new Error('ooops');
+        }, dockerfile), 'dockerfileUserB');
     });
 });

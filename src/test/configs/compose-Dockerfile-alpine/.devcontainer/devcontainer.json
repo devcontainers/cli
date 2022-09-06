@@ -1,0 +1,20 @@
+{
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "test",
+	"workspaceFolder": "/",
+	"postCreateCommand": "touch /tmp/postCreateCommand.testmarker",
+	"postStartCommand": "touch /tmp/postStartCommand.testmarker",
+	"postAttachCommand": "touch /tmp/postAttachCommand.testmarker",
+	"remoteUser": "bar",
+	"remoteEnv": {
+		"bar": "baz"
+	},
+	"settings": {
+		"search.followSymlinks": false
+	},
+	"extensions": [
+		"dbaeumer.vscode-eslint"
+	],
+	"userEnvProbe": "interactiveShell",
+	"devPort": 1234
+}

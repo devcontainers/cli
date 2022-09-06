@@ -1,0 +1,30 @@
+{
+    "id": "localFeatureA",
+    "version": "1.0.0",
+    "name": "A hello world feature",
+    "options": {
+        "greeting": {
+            "type": "string",
+            "proposals": [
+                "hey",
+                "hello",
+                "hi",
+                "howdy"
+            ],
+            "default": "hey",
+            "description": "Select a pre-made greeting, or enter your own"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "dbaeumer.vscode-eslint"
+            ],
+            "settings": {
+                "files.watcherExclude": {
+                    "**/target/**": true
+                }
+            }
+        }
+    }
+}
