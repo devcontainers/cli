@@ -33,6 +33,8 @@ import { getPackageConfig } from '../spec-utils/product';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
+const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
+
 (async () => {
 
 	const packageFolder = path.join(__dirname, '..', '..');
@@ -68,8 +70,6 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 })().catch(console.error);
 
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
-
-const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
 function provisionOptions(y: Argv) {
 	return y.options({
