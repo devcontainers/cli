@@ -15,7 +15,7 @@
 	},
 	"license": "SEE LICENSE IN LICENSE.txt",
 	"engines": {
-		"node": ">=14.0.0"
+		"node": ">=14.14.0"
 	},
 	"scripts": {
 		"compile": "npm-run-all clean definitions tsc-b",
