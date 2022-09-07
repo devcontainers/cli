@@ -532,6 +532,7 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 	deprecatedFeaturesIntoOptions.set('maven', 'java');
 	deprecatedFeaturesIntoOptions.set('jupyterlab', 'python');
 
+	// TODO: add warning logs once we have context on the new location for these Features.
 	// const deprecatedFeatures = ['fish', 'homebrew'];
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
@@ -540,18 +541,18 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 
 	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
 	if (migratedfeatures.includes(id)) {
-		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${id}#example-usage for updated specification.`, LogLevel.Warning);
+		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${id}#example-usage for the updated Feature.`, LogLevel.Warning);
 		return `${newFeaturePath}/${id}:${versionBackwardComp}`;
 	}
 
 	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
 	if (renamedFeatures.get(id) !== undefined) {
-		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${renamedFeatures.get(id)}#example-usage for updated specification.`, LogLevel.Warning);
+		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${renamedFeatures.get(id)}#example-usage for the updated Feature.`, LogLevel.Warning);
 		return `${newFeaturePath}/${renamedFeatures.get(id)}:${versionBackwardComp}`;
 	}
 
 	if (deprecatedFeaturesIntoOptions.get(id) !== undefined) {
-		output.write(`(!) WARNING: Falling back to the deprecated '${id}' Feature. It is now part of the '${deprecatedFeaturesIntoOptions.get(id)}' Feature. See https://github.com/devcontainers/features/tree/main/src/${deprecatedFeaturesIntoOptions.get(id)}#options for updated specification.`, LogLevel.Warning);
+		output.write(`(!) WARNING: Falling back to the deprecated '${id}' Feature. It is now part of the '${deprecatedFeaturesIntoOptions.get(id)}' Feature. See https://github.com/devcontainers/features/tree/main/src/${deprecatedFeaturesIntoOptions.get(id)}#options for the updated Feature.`, LogLevel.Warning);
 	}
 
 	// Deprecated and all other features references (eg. fish, ghcr.io/devcontainers/features/go, ghcr.io/owner/repo/id etc)
