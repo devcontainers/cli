@@ -13,7 +13,7 @@ import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, inspectDockerImage } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, inspectDockerImage, getEmptyContextFolder } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 
 // Escapes environment variable keys.
@@ -71,7 +71,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 	// Once this is step merged with the user Dockerfile (or working against the base image),
 	// the path will be the dev container context
 	// Set empty dir under temp path as the context for now to ensure we don't have dependencies on the features content
-	const emptyTempDir = cliHost.path.join(await cliHost.tmpdir(), '__dev-containers-build-empty');
+	const emptyTempDir = getEmptyContextFolder(common);
 	cliHost.mkdirp(emptyTempDir);
 	args.push(
 		'--target', featureBuildInfo.overrideTarget,
@@ -397,6 +397,8 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, conf
 	await cliHost.mkdirp(cliHost.path.dirname(tmpDockerfile));
 	await cliHost.writeFile(tmpDockerfile, await readLocalFile(srcDockerfile));
 	await cliHost.rename(tmpDockerfile, destDockerfile);
+	const emptyFolder = getEmptyContextFolder(common);
+	await cliHost.mkdirp(emptyFolder);
 	const args = [
 		'build',
 		'-f', destDockerfile,
@@ -406,7 +408,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, conf
 		'--build-arg', `NEW_UID=${await cliHost.getuid()}`,
 		'--build-arg', `NEW_GID=${await cliHost.getgid()}`,
 		'--build-arg', `IMAGE_USER=${imageUser}`,
-		cliHost.path.dirname(destDockerfile)
+		emptyFolder,
 	];
 	if (params.isTTY) {
 		await dockerPtyCLI(params, ...args);

@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser, getEmptyContextFolder } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -196,7 +196,7 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 
 		if (!serviceInfo.build?.context) {
 			// need to supply a context as we don't have one inherited
-			const emptyDir = cliHost.path.join(await cliHost.tmpdir(), '__devcontainers_cli_empty__');
+			const emptyDir = getEmptyContextFolder(common);
 			await cliHost.mkdirp(emptyDir);
 			buildOverrideContent += `      context: ${emptyDir}\n`;
 		}

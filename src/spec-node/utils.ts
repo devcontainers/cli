@@ -353,6 +353,10 @@ export async function getLocalCacheFolder() {
 	return path.join(os.tmpdir(), process.platform === 'linux' ? `devcontainercli-${await getLocalUsername()}` : 'devcontainercli');
 }
 
+export function getEmptyContextFolder(common: ResolverParameters) {
+	return common.cliHost.path.join(common.persistedFolder, 'empty-folder');
+}
+
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 const findUserLines = new RegExp(/^\s*USER\s+(?<user>\S+)/, 'gm');
