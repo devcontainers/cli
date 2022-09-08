@@ -50,6 +50,8 @@ export interface ProvisionOptions {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
+	buildxOutputType: string | undefined;
+	buildxOutputDest: string | undefined;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -121,6 +123,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
+		buildxOutputType: options.buildxOutputType,
+		buildxOutputDest: options.buildxOutputDest,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
@@ -158,6 +162,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		isTTY: process.stdin.isTTY || options.logFormat === 'json',
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
+		buildxOutputType: common.buildxOutputType,
+		buildxOutputDest: common.buildxOutputDest,
 	};
 }
 

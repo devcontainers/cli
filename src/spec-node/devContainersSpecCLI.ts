@@ -203,6 +203,8 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		skipFeatureAutoMapping,
+		buildxOutputType: undefined,
+		buildxOutputDest: undefined,
 	};
 
 	const result = await doProvision(options);
@@ -263,6 +265,8 @@ function buildOptions(y: Argv) {
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'output-type': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry.' },
+		'output-dest': { type: 'string', description: 'Destination for output files, used in conjunction with --output-type.' },
 	});
 }
 
@@ -294,6 +298,8 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'output-type': buildxOutputType,
+	'output-dest': buildxOutputDest,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -334,6 +340,8 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			skipFeatureAutoMapping,
+			buildxOutputType,
+			buildxOutputDest,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -350,6 +358,14 @@ async function doBuild({
 		const { config } = configs;
 		let imageNameResult: string[] = [''];
 
+		if ((buildxOutputType && !buildxOutputDest) || (!buildxOutputType && buildxOutputDest)) {
+			throw new ContainerError({ description: '--output-type and --output-dest must be used together.' });
+		}
+
+		if ((buildxOutputType || buildxOutputDest) && (buildxPush)) {
+			throw new ContainerError({ description: '--push true cannot be used with --output-type or --output-dest.' });
+		}
+
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
@@ -359,7 +375,7 @@ async function doBuild({
 			let { updatedImageName } = await buildNamedImageAndExtend(params, config, imageNames);
 
 			if (imageNames) {
-				if (!buildxPush) {
+				if (!buildxPush && !buildxOutputType) {
 					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
 				}
 				imageNameResult = imageNames;
@@ -370,6 +386,10 @@ async function doBuild({
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push not supported.' });
+			}
+
+			if (buildxOutputType || buildxOutputDest) {
+				throw new ContainerError({ description: '--output-type or --output-dest not supported.' });
 			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
@@ -410,6 +430,9 @@ async function doBuild({
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
+			}
+			if (buildxOutputType || buildxOutputDest) {
+				throw new ContainerError({ description: '--output-type or --output-dest require dockerfilePath.' });
 			}
 			if (imageNames) {
 				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
@@ -555,6 +578,8 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			skipFeatureAutoMapping,
+			buildxOutputType: undefined,
+			buildxOutputDest: undefined,
 		}, disposables);
 
 		const { common } = params;
@@ -844,6 +869,8 @@ export async function doExec({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			skipFeatureAutoMapping,
+			buildxOutputType: undefined,
+			buildxOutputDest: undefined,
 		}, disposables);
 
 		const { common } = params;

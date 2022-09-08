@@ -22,6 +22,8 @@ export const staticProvisionParams = {
     useBuildKit: 'auto' as 'auto',
     buildxPlatform: undefined,
     buildxPush: false,
+    buildxOutputType: undefined,
+    buildxOutputDest: undefined,
 };
 
 export const staticExecParams = {
