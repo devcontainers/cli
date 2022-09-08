@@ -286,7 +286,7 @@ async function createContainerFromWorkingDirectory(params: DockerResolverParamet
 
 async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
 	const systemTmpDir = tmpdir();
-	const tmpFolder = path.join(systemTmpDir, 'vsch', 'container-features-test', Date.now().toString());
+	const tmpFolder = path.join(systemTmpDir, 'devcontainercli', 'container-features-test', Date.now().toString());
 	await cliHost.mkdirp(`${tmpFolder}/.devcontainer`);
 	return tmpFolder;
 }
