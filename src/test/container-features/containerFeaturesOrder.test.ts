@@ -122,7 +122,7 @@ describe('Container features install order', function () {
         }, { message: 'Feature node not found' });
     });
 
-    function installAfter(id: string, ...installAfter: string[]): FeatureSet {
+    function installAfter(id: string, ...installsAfter: string[]): FeatureSet {
         return {
             sourceInformation: {
                 type: 'local-cache',
@@ -131,7 +131,7 @@ describe('Container features install order', function () {
             features: [{
                 id,
                 name: id,
-                installAfter,
+                installsAfter,
                 value: true,
                 included: true,
             }],
