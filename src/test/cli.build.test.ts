@@ -186,9 +186,9 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-		it('file output.tgz should exist when using --output type=oci,dest=output.tgz', async () => {
+		it('file output.tgz should exist when using --output type=oci,dest=output.tar', async () => {
 			const testFolder = `${__dirname}/configs/image`;
-			const outputPath = `${process.cwd()}/output.tgz`;
+			const outputPath = `/tmp/output.tar`;
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output type=oci,dest=${outputPath}'`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
