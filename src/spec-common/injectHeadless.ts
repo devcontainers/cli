@@ -59,8 +59,7 @@ export interface ResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
-	buildxOutputType: string | undefined;
-	buildxOutputDest: string | undefined;
+	buildxOutput: string | undefined;
 }
 
 export interface PostCreate {

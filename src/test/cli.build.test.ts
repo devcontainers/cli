@@ -171,39 +171,11 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.imageName[1], image2);
 		});
 
-		it('should fail with only --output-type and no --output-dest', async () => {
+		it('should fail with --push true and --output', async () => {
 			let success = false;
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			try {
-				await shellExec(`${cli} build --workspace-folder ${testFolder} --output-type oci --platform linux/amd64`);
-			} catch (error) {
-				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-				const res = JSON.parse(error.stdout);
-				assert.equal(res.outcome, 'error');
-				assert.match(res.message, /must be used together/);
-			}
-			assert.equal(success, false, 'expect non-successful call');
-		});
-
-		it('should fail with only --output-dest and no --output-type', async () => {
-			let success = false;
-			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
-			try {
-				await shellExec(`${cli} build --workspace-folder ${testFolder} --output-dest output.tar`);
-			} catch (error) {
-				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-				const res = JSON.parse(error.stdout);
-				assert.equal(res.outcome, 'error');
-				assert.match(res.message, /must be used together/);
-			}
-			assert.equal(success, false, 'expect non-successful call');
-		});
-
-		it('should fail with --push true and --output-type', async () => {
-			let success = false;
-			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
-			try {
-				await shellExec(`${cli} build --workspace-folder ${testFolder} --output-type oci --push true`);
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --output type=oci,dest=output.tar --push true`);
 			} catch (error) {
 				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
 				const res = JSON.parse(error.stdout);
@@ -213,18 +185,5 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-		it('should fail with --push true and --output-dest', async () => {
-			let success = false;
-			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
-			try {
-				await shellExec(`${cli} build --workspace-folder ${testFolder} --output-dest output.tar --push true`);
-			} catch (error) {
-				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-				const res = JSON.parse(error.stdout);
-				assert.equal(res.outcome, 'error');
-				assert.match(res.message, /cannot be used with/);
-			}
-			assert.equal(success, false, 'expect non-successful call');
-		});
 	});
 });

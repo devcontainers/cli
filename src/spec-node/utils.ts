@@ -73,8 +73,7 @@ export interface DockerResolverParameters {
 	isTTY: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	buildxOutputType: string | undefined;
-	buildxOutputDest: string | undefined;
+	buildxOutput: string | undefined;
 }
 
 export interface ResolverResult {
