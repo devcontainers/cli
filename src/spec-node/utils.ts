@@ -346,11 +346,11 @@ export async function createFeaturesTempFolder(params: { cliHost: CLIHost; packa
 }
 
 export async function getCacheFolder(cliHost: CLIHost): Promise<string> {
-	return cliHost.path.join(await cliHost.tmpdir(), cliHost.platform === 'linux' ? `vsch-${await cliHost.getUsername()}` : 'vsch');
+	return cliHost.path.join(await cliHost.tmpdir(), cliHost.platform === 'linux' ? `devcontainercli-${await cliHost.getUsername()}` : 'devcontainercli');
 }
 
 export async function getLocalCacheFolder() {
-	return path.join(os.tmpdir(), process.platform === 'linux' ? `vsch-${await getLocalUsername()}` : 'vsch');
+	return path.join(os.tmpdir(), process.platform === 'linux' ? `devcontainercli-${await getLocalUsername()}` : 'devcontainercli');
 }
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
