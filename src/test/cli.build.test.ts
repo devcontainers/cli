@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as assert from 'assert';
 import * as path from 'path';
 import { buildKitOptions, shellExec } from './testUtils';
@@ -183,6 +184,15 @@ describe('Dev Containers CLI', function () {
 				assert.match(res.message, /cannot be used with/);
 			}
 			assert.equal(success, false, 'expect non-successful call');
+		});
+
+		it('file output.tgz should exist when using --output type=oci,dest=output.tgz', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const outputPath = `${process.cwd()}/output.tgz`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output type=oci,dest=${outputPath}'`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(fs.existsSync(outputPath), true);
 		});
 
 	});
