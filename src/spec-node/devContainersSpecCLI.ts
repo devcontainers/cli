@@ -265,7 +265,7 @@ function buildOptions(y: Argv) {
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'output-type': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry.' },
+		'output-type': { choices: ['local' as 'local', 'tar' as 'tar', 'oci' as 'oci', 'docker' as 'docker', 'image' as 'image', 'registry' as 'registry'], type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry.' },
 		'output-dest': { type: 'string', description: 'Destination for output files, used in conjunction with --output-type.' },
 	});
 }
