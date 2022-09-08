@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 
-import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
 import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
@@ -117,7 +117,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		loadNativeModule,
 		shutdowns: [],
 		backgroundTasks: [],
-		persistedFolder: persistedFolder || await cliHost.tmpdir(), // Fallback to tmpDir(), even though that isn't 'persistent'
+		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
