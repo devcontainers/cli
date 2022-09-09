@@ -40,7 +40,6 @@ export interface Feature {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
-	installAfter?: string[];
 	include?: string[];
 	exclude?: string[];
 	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
