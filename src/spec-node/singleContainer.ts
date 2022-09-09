@@ -16,7 +16,7 @@ import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
-export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[]): Promise<ResolverResult> {
+export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common } = params;
 	const { config } = configWithRaw;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
@@ -40,7 +40,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, common.experimentalImageMetadata, common.output).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
-			const res = await buildNamedImageAndExtend(params, configWithRaw);
+			const res = await buildNamedImageAndExtend(params, configWithRaw, undefined, additionalFeatures);
 			const imageMetadata = res.imageMetadata.config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 			const { containerUser } = mergedConfig;
@@ -110,18 +110,18 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, argImageNames?: string[]) {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, argImageNames?: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { config } = configWithRaw;
 	const imageNames = argImageNames ?? [getDefaultName(config, params)];
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false);
+		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false, additionalFeatures);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, configWithRaw, imageNames[0]);
+	return await extendImage(params, configWithRaw, imageNames[0], additionalFeatures);
 }
 
-async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean) {
+async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { cliHost, output } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -147,7 +147,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, additionalFeatures);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];

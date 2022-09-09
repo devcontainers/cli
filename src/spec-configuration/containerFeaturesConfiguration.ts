@@ -435,13 +435,13 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string) {
+export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = featuresToArray(config);
+	const userFeatures = featuresToArray(config, additionalFeatures);
 	if (!userFeatures) {
 		return undefined;
 	}
@@ -492,19 +492,38 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-function featuresToArray(config: DevContainerConfig): DevContainerFeature[] | undefined {
-	if (!config.features) {
+function featuresToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+	if (!config.features && !additionalFeatures) {
 		return undefined;
 	}
 
 	const userFeatures: DevContainerFeature[] = [];
-	for (const userFeatureKey of Object.keys(config.features)) {
-		const userFeatureValue = config.features[userFeatureKey];
-		const feature: DevContainerFeature = {
-			id: userFeatureKey,
-			options: userFeatureValue
-		};
-		userFeatures.push(feature);
+	const userFeatureKeys = new Set<string>();
+
+	if (config.features) {
+		for (const userFeatureKey of Object.keys(config.features)) {
+			const userFeatureValue = config.features[userFeatureKey];
+			const feature: DevContainerFeature = {
+				id: userFeatureKey,
+				options: userFeatureValue
+			};
+			userFeatures.push(feature);
+			userFeatureKeys.add(userFeatureKey);
+		}
+	}
+
+	if (additionalFeatures) {
+		for (const userFeatureKey of Object.keys(additionalFeatures)) {
+			// add the additional feature if it hasn't already been added from the config features
+			if (!userFeatureKeys.has(userFeatureKey)) {
+				const userFeatureValue = additionalFeatures[userFeatureKey];
+				const feature: DevContainerFeature = {
+					id: userFeatureKey,
+					options: userFeatureValue
+				};
+				userFeatures.push(feature);
+			}
+		}
 	}
 
 	return userFeatures;

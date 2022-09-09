@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
@@ -63,7 +64,7 @@ export async function launch(options: ProvisionOptions, disposables: (() => Prom
 	const text = 'Resolving Remote';
 	const start = output.start(text);
 
-	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels);
+	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels, options.additionalFeatures);
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {

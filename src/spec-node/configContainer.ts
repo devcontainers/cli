@@ -21,19 +21,19 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 
 export { getWellKnownDevContainerPaths as getPossibleDevContainerPaths } from '../spec-configuration/configurationCommonUtils';
 
-export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[]): Promise<ResolverResult> {
+export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	if (configFile && !/\/\.?devcontainer\.json$/.test(configFile.path)) {
 		throw new Error(`Filename must be devcontainer.json or .devcontainer.json (${uriToFsPath(configFile, params.common.cliHost.platform)}).`);
 	}
 	const parsedAuthority = params.parsedAuthority;
 	if (!parsedAuthority || isDevContainerAuthority(parsedAuthority)) {
-		return resolveWithLocalFolder(params, parsedAuthority, configFile, overrideConfigFile, idLabels);
+		return resolveWithLocalFolder(params, parsedAuthority, configFile, overrideConfigFile, idLabels, additionalFeatures);
 	} else {
 		throw new Error(`Unexpected authority: ${JSON.stringify(parsedAuthority)}`);
 	}
 }
 
-async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[]): Promise<ResolverResult> {
+async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common, workspaceMountConsistencyDefault } = params;
 	const { cliHost, output } = common;
 
@@ -59,12 +59,12 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 
 	let result: ResolverResult;
 	if (isDockerFileConfig(config) || 'image' in config) {
-		result = await openDockerfileDevContainer(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, configs.workspaceConfig, idLabels);
+		result = await openDockerfileDevContainer(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, configs.workspaceConfig, idLabels, additionalFeatures);
 	} else if ('dockerComposeFile' in config) {
 		if (!workspace) {
 			throw new ContainerError({ description: `A Dev Container using Docker Compose requires a workspace folder.` });
 		}
-		result = await openDockerComposeDevContainer(params, workspace, configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels);
+		result = await openDockerComposeDevContainer(params, workspace, configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels, additionalFeatures);
 	} else {
 		throw new ContainerError({ description: `Dev container config (${(config as DevContainerConfig).configFilePath}) is missing one of "image", "dockerFile" or "dockerComposeFile" properties.` });
 	}
