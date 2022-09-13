@@ -269,7 +269,7 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
 	if (params.postCreate.enabled) {
-		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false, params.skipPostAttach);
+		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
@@ -285,7 +285,7 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 		} as Record<string, string>));
 }
 
-export async function runPostCreateCommands(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean, skipPostAttach: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
+export async function runPostCreateCommands(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
 	const skipNonBlocking = params.postCreate.skipNonBlocking;
 	const waitFor = config.waitFor || defaultWaitFor;
 	if (skipNonBlocking && waitFor === 'initializeCommand') {
@@ -320,7 +320,7 @@ export async function runPostCreateCommands(params: ResolverParameters, containe
 		return 'skipNonBlocking';
 	}
 
-	if (!skipPostAttach) {
+	if (!params.skipPostAttach) {
 		await runPostAttachCommand(params, containerProperties, config, remoteEnv);
 	}
 	return 'done';

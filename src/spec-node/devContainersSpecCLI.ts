@@ -585,7 +585,7 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, config);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization, skipPostAttach);
+		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
