@@ -212,6 +212,30 @@ export function describeTests2({ text, options }: BuildKitOption) {
 					// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
 					// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
 				});
+				it('should not run postAttachCommand when --skip-post-attach is given', async () => {
+					const testOptions = { ...options, extraArgs: '--skip-post-attach' };
+					containerId = (await devContainerUp(cli, testFolder, testOptions)).containerId;
+					// Should have all markers (Create + Start + Attach)
+					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on first create');
+
+					// Clear markers and stop
+					await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					await devContainerStop({ containerId });
+
+					// Restart container - should have Start
+					containerId = (await devContainerUp(cli, testFolder, testOptions)).containerId;
+					await commandMarkerTests(cli, testFolder, { postCreate: false, postStart: true, postAttach: false }, 'Markers on restart');
+
+					await devContainerDown({ containerId });
+
+					containerId = (await devContainerUp(cli, testFolder, { ...options, extraArgs: '--skip-post-create' })).containerId;
+					await commandMarkerTests(cli, testFolder, { postCreate: false, postStart: false, postAttach: false }, 'Markers on --skip-post-create');
+
+					const res = await shellExec(`${cli} run-user-commands --skip-post-attach --workspace-folder ${testFolder}`);
+					const response = JSON.parse(res.stdout);
+					assert.equal(response.outcome, 'success');
+					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on run-user-commands');
+				});
 			});
 			describe(`docker-compose with post*Commands specified [${text}]`, () => {
 				let composeProjectName: string | undefined = undefined;

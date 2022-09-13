@@ -51,6 +51,7 @@ export interface ProvisionOptions {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
+	skipPostAttach: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -122,6 +123,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
+		skipPostAttach: options.skipPostAttach,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
