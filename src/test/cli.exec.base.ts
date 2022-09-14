@@ -215,7 +215,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 				it('should not run postAttachCommand when --skip-post-attach is given', async () => {
 					const testOptions = { ...options, extraArgs: '--skip-post-attach' };
 					containerId = (await devContainerUp(cli, testFolder, testOptions)).containerId;
-					// Should have all markers (Create + Start + Attach)
+					// Should have Create + Start but not Attach
 					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on first create');
 
 					// Clear markers and stop
@@ -228,9 +228,11 @@ export function describeTests2({ text, options }: BuildKitOption) {
 
 					await devContainerDown({ containerId });
 
+					// Shouldn't have any markers
 					containerId = (await devContainerUp(cli, testFolder, { ...options, extraArgs: '--skip-post-create' })).containerId;
 					await commandMarkerTests(cli, testFolder, { postCreate: false, postStart: false, postAttach: false }, 'Markers on --skip-post-create');
 
+					// Should have Create + Start but not Attach
 					const res = await shellExec(`${cli} run-user-commands --skip-post-attach --workspace-folder ${testFolder}`);
 					const response = JSON.parse(res.stdout);
 					assert.equal(response.outcome, 'success');
