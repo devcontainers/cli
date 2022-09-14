@@ -193,7 +193,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 			describe(`Dockerfile with post*Commands specified [${text}]`, () => {
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
-				after(async () => await devContainerDown({ containerId }));
+				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have all command markers at appropriate times', async () => {
 					containerId = (await devContainerUp(cli, testFolder, options)).containerId;
 					// Should have all markers (Create + Start + Attach)
