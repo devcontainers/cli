@@ -34,7 +34,6 @@ jobs:
         path: ${{ env.TGZ }}
   tests-matrix:
     name: Tests Matrix
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         mocha-args: [
@@ -51,6 +50,8 @@ jobs:
           # Run all except the above:
           "--exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts 'src/test/**/*.test.ts'",
         ]
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout
       uses: actions/checkout@v2
