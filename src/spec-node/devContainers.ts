@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
+	experimentalImageMetadata: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -124,6 +125,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPush: options.buildxPush,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
+		experimentalImageMetadata: options.experimentalImageMetadata,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
