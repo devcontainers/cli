@@ -101,6 +101,7 @@ function provisionOptions(y: Argv) {
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -160,6 +161,7 @@ async function provision({
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'skip-post-attach': skipPostAttach,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -204,6 +206,7 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		skipFeatureAutoMapping,
+		skipPostAttach,
 	};
 
 	const result = await doProvision(options);
@@ -335,6 +338,7 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			skipFeatureAutoMapping,
+			skipPostAttach: true,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -466,6 +470,7 @@ function runUserCommandsOptions(y: Argv) {
 		'stop-for-personalization': { type: 'boolean', default: false, description: 'Stop for personalization.' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -515,6 +520,7 @@ async function doRunUserCommands({
 	'stop-for-personalization': stopForPersonalization,
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'skip-post-attach': skipPostAttach,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -556,6 +562,7 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			skipFeatureAutoMapping,
+			skipPostAttach,
 		}, disposables);
 
 		const { common } = params;
@@ -845,6 +852,7 @@ export async function doExec({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			skipFeatureAutoMapping,
+			skipPostAttach: false,
 		}, disposables);
 
 		const { common } = params;

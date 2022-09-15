@@ -59,6 +59,7 @@ export interface ResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
+	skipPostAttach: boolean;
 }
 
 export interface PostCreate {
@@ -319,7 +320,9 @@ export async function runPostCreateCommands(params: ResolverParameters, containe
 		return 'skipNonBlocking';
 	}
 
-	await runPostAttachCommand(params, containerProperties, config, remoteEnv);
+	if (!params.skipPostAttach) {
+		await runPostAttachCommand(params, containerProperties, config, remoteEnv);
+	}
 	return 'done';
 }
 
