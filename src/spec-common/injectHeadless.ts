@@ -60,6 +60,7 @@ export interface ResolverParameters {
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
+	experimentalImageMetadata: boolean;
 }
 
 export interface PostCreate {

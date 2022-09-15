@@ -221,6 +221,8 @@ COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/b
 
 ARG _DEV_CONTAINERS_IMAGE_USER=root
 USER $_DEV_CONTAINERS_IMAGE_USER
+
+#{devcontainerMetadata}
 `;
 }
 

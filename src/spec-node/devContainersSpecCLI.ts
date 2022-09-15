@@ -17,21 +17,23 @@ import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } 
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig } from './dockerCompose';
-import { getDockerComposeFilePaths } from '../spec-configuration/configuration';
+import { DevContainerConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
-import { generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { containerSubstitute } from '../spec-common/variableSubstitution';
-import { getPackageConfig } from '../spec-utils/product';
+import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
+import { getImageBuildInfo } from './imageMetadata';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
+const experimentalImageMetadataDefault = true; // TODO
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
@@ -102,6 +104,7 @@ function provisionOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
+		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -162,6 +165,7 @@ async function provision({
 	'buildkit': buildkit,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
+	'experimental-image-metadata': experimentalImageMetadata,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -207,6 +211,7 @@ async function provision({
 		buildxPush: false,
 		skipFeatureAutoMapping,
 		skipPostAttach,
+		experimentalImageMetadata,
 	};
 
 	const result = await doProvision(options);
@@ -267,6 +272,7 @@ function buildOptions(y: Argv) {
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	});
 }
 
@@ -298,6 +304,7 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'experimental-image-metadata': experimentalImageMetadata,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -339,6 +346,7 @@ async function doBuild({
 			buildxPush,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
+			experimentalImageMetadata,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -411,7 +419,7 @@ async function doBuild({
 		} else {
 
 			await dockerPtyCLI(params, 'pull', config.image);
-			const { updatedImageName } = await extendImage(params, config, config.image, 'image' in config);
+			const { updatedImageName } = await extendImage(params, config, config.image);
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
@@ -471,6 +479,7 @@ function runUserCommandsOptions(y: Argv) {
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
+		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -521,6 +530,7 @@ async function doRunUserCommands({
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
+	'experimental-image-metadata': experimentalImageMetadata,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -563,6 +573,7 @@ async function doRunUserCommands({
 			buildxPush: false,
 			skipFeatureAutoMapping,
 			skipPostAttach,
+			experimentalImageMetadata,
 		}, disposables);
 
 		const { common } = params;
@@ -627,6 +638,7 @@ function readConfigurationOptions(y: Argv) {
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'include-features-configuration': { type: 'boolean', default: false, description: 'Include features configuration.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -659,6 +671,7 @@ async function readConfiguration({
 	'terminal-columns': terminalColumns,
 	'include-features-configuration': includeFeaturesConfig,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'experimental-image-metadata': experimentalImageMetadata,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -711,7 +724,7 @@ async function readConfiguration({
 			configuration = containerSubstitute(cliHost.platform, configuration.configFilePath, envListToObj(container.Config.Env), configuration);
 		}
 
-		const featuresConfiguration = includeFeaturesConfig ? await generateFeaturesConfig({ extensionPath, cwd, output, env: cliHost.env, skipFeatureAutoMapping }, (await createFeaturesTempFolder({ cliHost, package: pkg })), configs.config, getContainerFeaturesFolder) : undefined;
+	const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configs.config, extensionPath, skipFeatureAutoMapping, experimentalImageMetadata) : undefined;
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration,
@@ -730,6 +743,34 @@ async function readConfiguration({
 	}
 	await dispose();
 	process.exit(0);
+}
+
+async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, experimentalImageMetadata: boolean): Promise<FeaturesConfig | undefined> {
+	const { cliHost, output } = params;
+	const { cwd, env } = cliHost;
+	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
+	const configs = await generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder);
+	if (!experimentalImageMetadata) {
+		return configs;
+	}
+	// TODO: Move to separate property or command. For demoing experimental image metadata.
+	const imageBuildInfo = await getImageBuildInfo(params, config, experimentalImageMetadata);
+	if (!imageBuildInfo.metadata.length) {
+		return configs;
+	}
+	return {
+		...configs,
+		featureSets: [
+			{
+				features: imageBuildInfo.metadata as any,
+				sourceInformation: {
+					type: 'local-cache',
+					userFeatureId: 'none'
+				}
+			},
+			...configs?.featureSets || [],
+		]
+	};
 }
 
 function execOptions(y: Argv) {
@@ -752,6 +793,7 @@ function execOptions(y: Argv) {
 		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.positional('cmd', {
 			type: 'string',
@@ -809,6 +851,7 @@ export async function doExec({
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'experimental-image-metadata': experimentalImageMetadata,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -853,6 +896,7 @@ export async function doExec({
 			buildxPush: false,
 			skipFeatureAutoMapping,
 			skipPostAttach: false,
+			experimentalImageMetadata,
 		}, disposables);
 
 		const { common } = params;
