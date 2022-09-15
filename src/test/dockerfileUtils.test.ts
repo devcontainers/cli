@@ -1,6 +1,8 @@
 import { assert } from 'chai';
-import { ensureDockerfileHasFinalStageName, internalGetImageUser } from '../spec-node/utils';
+import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../spec-node/imageMetadata';
+import { ensureDockerfileHasFinalStageName } from '../spec-node/utils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { nullLog } from '../spec-utils/log';
 
 describe('ensureDockerfileHasFinalStageName', () => {
 
@@ -142,11 +144,37 @@ RUN another command
     });
 });
 
-describe('getImageUser', () => {
+describe('getImageBuildInfo', () => {
 
     it('for a simple FROM line', async () => {
         const dockerfile = `FROM debian:latest as base
 FROM ubuntu:latest as dev
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: {
+                    [imageMetadataLabel]: '[{"id":"testid"}]'
+                },
+                Entrypoint: null,
+                Cmd: null
+            }
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'debian:latest');
+            return details;
+        }, dockerfile, true, nullLog);
+        assert.strictEqual(info.user, 'imageUser');
+        assert.strictEqual(info.metadata.length, 1);
+        assert.strictEqual(info.metadata[0].id, 'testid');
+    });
+
+    it('for a USER', async () => {
+        const dockerfile = `FROM ubuntu:latest as base
+USER dockerfileUserA
+USER dockerfileUserB
 `;
         const details: ImageDetails = {
             Id: '123',
@@ -158,19 +186,11 @@ FROM ubuntu:latest as dev
                 Cmd: null
             }
         };
-        assert.strictEqual(await internalGetImageUser(async imageName => {
-            assert.strictEqual(imageName, 'debian:latest');
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile), 'imageUser');
-    });
-
-    it('for a USER', async () => {
-        const dockerfile = `FROM ubuntu:latest as base
-USER dockerfileUserA
-USER dockerfileUserB
-`;
-        assert.strictEqual(await internalGetImageUser(() => {
-            throw new Error('ooops');
-        }, dockerfile), 'dockerfileUserB');
+        }, dockerfile, true, nullLog);
+        assert.strictEqual(info.user, 'dockerfileUserB');
+        assert.strictEqual(info.metadata.length, 0);
     });
 });

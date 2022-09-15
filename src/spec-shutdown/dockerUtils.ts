@@ -286,7 +286,7 @@ export async function isPodman(params: DockerCLIParameters | DockerResolverParam
 	}
 }
 
-export async function dockerPtyCLI(params: PartialPtyExecParameters | DockerResolverParameters, ...args: string[]) {
+export async function dockerPtyCLI(params: PartialPtyExecParameters | DockerResolverParameters | DockerCLIParameters, ...args: string[]) {
 	const partial = toPtyExecParameters(params);
 	return runCommand({
 		...partial,
