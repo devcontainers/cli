@@ -59,6 +59,7 @@ export interface ResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	skipFeatureAutoMapping: boolean;
+	experimentalImageMetadata: boolean;
 }
 
 export interface PostCreate {

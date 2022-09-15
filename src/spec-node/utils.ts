@@ -15,7 +15,7 @@ import { ContainerProperties, getContainerProperties, ResolverParameters } from 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -157,7 +157,7 @@ async function hasLabels(params: DockerResolverParameters, info: any, expectedLa
 		.every(name => actualLabels[name] === expectedLabels[name]);
 }
 
-export async function inspectDockerImage(params: DockerResolverParameters, imageName: string, pullImageOnError: boolean) {
+export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
 	} catch (err) {
@@ -167,11 +167,12 @@ export async function inspectDockerImage(params: DockerResolverParameters, image
 		try {
 			await dockerPtyCLI(params, 'pull', imageName);
 		} catch (_err) {
+			const output = 'cliHost' in params ? params.output : params.common.output;
 			if (err.stdout) {
-				params.common.output.write(err.stdout.toString());
+				output.write(err.stdout.toString());
 			}
 			if (err.stderr) {
-				params.common.output.write(toErrorText(err.stderr.toString()));
+				output.write(toErrorText(err.stderr.toString()));
 			}
 			throw err;
 		}
@@ -357,27 +358,25 @@ const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 const findUserLines = new RegExp(/^\s*USER\s+(?<user>\S+)/, 'gm');
 
-export async function getImageUser(params: DockerResolverParameters, dockerfile: string) {
-	return internalGetImageUser(imageName => inspectDockerImage(params, imageName, true), dockerfile);
-}
-
-export async function internalGetImageUser(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfile: string) {
-	// TODO: Other targets.
+export function findUserStatement(dockerfile: string) {
 	const userLines = [...dockerfile.matchAll(findUserLines)];
 	if (userLines.length) {
 		const user = userLines[userLines.length - 1].groups?.user;
-		if (user && user.indexOf('$') === -1) { // Ignore variables.
+		if (user?.indexOf('$') === -1) { // Ignore variables.
 			return user;
 		}
 	}
+	return undefined;
+}
+
+export function findBaseImage(dockerfile: string) {
 	const fromLine = [...dockerfile.matchAll(findFromLines)][0];
 	const fromMatch = fromLine?.groups?.line?.match(parseFromLine);
 	const imageName = fromMatch?.groups?.image;
-	if (!(imageName && imageName.indexOf('$') === -1)) { // Ignore variables.
-		return 'root';
+	if (imageName?.indexOf('$') === -1) { // Ignore variables.
+		return imageName;
 	}
-	const imageDetails = await inspectDockerImage(imageName);
-	return imageDetails.Config.User || 'root';
+	return undefined;
 }
 
 // not expected to be called externally (exposed for testing)

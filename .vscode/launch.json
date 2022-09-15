@@ -12,9 +12,9 @@
             "cwd": "${workspaceFolder}",
             // "envFile": "${workspaceFolder}/.env",  // Create .env file in the workspace folder to pass environment variables to the CLI.
             "args": [
-                "up",
+                "build",
                 "--workspace-folder",
-                "${workspaceFolder}/src/test/configs/example", // Edit this example config to test the CLI against a custom configuration.
+                "${workspaceFolder}/../../smktst", // Edit this example config to test the CLI against a custom configuration.
                 "--log-level",
                 "debug",
             ],

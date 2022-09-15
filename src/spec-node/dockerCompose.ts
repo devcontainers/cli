@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -15,9 +15,9 @@ import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
-import { includeAllConfiguredFeatures } from '../spec-utils/product';
+import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, ImageMetadataEntry } from './imageMetadata';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -175,7 +175,8 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 
 	// determine whether we need to extend with features
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, () => getImageUser(params, originalDockerfile));
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, common.experimentalImageMetadata);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, imageBuildInfo);
 
 	let buildOverrideContent = null;
 	if (extendImageBuildInfo) {
@@ -259,7 +260,10 @@ ${cacheFromOverrideContent}
 	}
 
 	return {
-		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
+		imageMetadata: [
+			...imageBuildInfo.metadata,
+			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
+		],
 		additionalComposeOverrideFiles,
 	};
 }
@@ -355,7 +359,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const noBuild = !!container; //if we have an existing container, just recreate override files but skip the build
 
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { collapsedFeaturesConfig, additionalComposeOverrideFiles } = await buildAndExtendDockerCompose(config, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles } = await buildAndExtendDockerCompose(config, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		let cache: Promise<ImageDetails> | undefined;
@@ -365,7 +369,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, originalImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -409,7 +413,7 @@ export function getDefaultImageName(dockerComposeCLI: DockerComposeCLI, projectN
 async function writeFeaturesComposeOverrideFile(
 	updatedImageName: string,
 	originalImageName: string,
-	collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined,
+	imageMetadata: ImageMetadataEntry[],
 	config: DevContainerFromDockerComposeConfig,
 	buildParams: DockerCLIParameters,
 	composeFiles: string[],
@@ -422,7 +426,7 @@ async function writeFeaturesComposeOverrideFile(
 	buildCLIHost: CLIHost,
 	output: Log,
 ) {
-	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, collapsedFeaturesConfig, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file:\n${composeOverrideContent}`, LogLevel.Trace);
@@ -444,7 +448,7 @@ async function writeFeaturesComposeOverrideFile(
 async function generateFeaturesComposeOverrideContent(
 	updatedImageName: string,
 	originalImageName: string,
-	collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined,
+	imageMetadata: ImageMetadataEntry[],
 	config: DevContainerFromDockerComposeConfig,
 	buildParams: DockerCLIParameters,
 	composeFiles: string[],
@@ -459,21 +463,19 @@ async function generateFeaturesComposeOverrideContent(
 
 	const overrideImage = updatedImageName !== originalImageName;
 
-	const featureCaps = [...new Set(([] as string[]).concat(...(collapsedFeaturesConfig?.allFeatures || [])
-		.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
+	const featureCaps = [...new Set(([] as string[]).concat(...imageMetadata
 		.map(f => f.capAdd || [])))];
-	const featureSecurityOpts = [...new Set(([] as string[]).concat(...(collapsedFeaturesConfig?.allFeatures || [])
-		.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
+	const featureSecurityOpts = [...new Set(([] as string[]).concat(...imageMetadata
 		.map(f => f.securityOpt || [])))];
 	const featureMounts = ([] as Mount[]).concat(
-		...(collapsedFeaturesConfig?.allFeatures || [])
-			.map(f => (includeAllConfiguredFeatures || f.included) && f.value && f.mounts)
+		...imageMetadata
+			.map(f => f.mounts)
 			.filter(Boolean) as Mount[][],
 		additionalMounts,
 	);
 	const volumeMounts = featureMounts.filter(m => m.type === 'volume');
-	const customEntrypoints = (collapsedFeaturesConfig?.allFeatures || [])
-		.map(f => (includeAllConfiguredFeatures || f.included) && f.value && f.entrypoint)
+	const customEntrypoints = imageMetadata
+		.map(f => f.entrypoint)
 		.filter(Boolean) as string[];
 	const composeEntrypoint: string[] | undefined = typeof service.entrypoint === 'string' ? shellQuote.parse(service.entrypoint) : service.entrypoint;
 	const composeCommand: string[] | undefined = typeof service.command === 'string' ? shellQuote.parse(service.command) : service.command;
@@ -490,8 +492,8 @@ trap \\"exit 0\\" 15\\n
 ${customEntrypoints.join('\\n\n')}\\n
 exec \\"$$@\\"\\n
 while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.stringify(a)}`).join('')}]${userCommand !== composeCommand ? `
-    command: ${JSON.stringify(userCommand)}` : ''}${(collapsedFeaturesConfig?.allFeatures || []).some(f => (includeAllConfiguredFeatures || f.included) && f.value && f.init) ? `
-    init: true` : ''}${(collapsedFeaturesConfig?.allFeatures || []).some(f => (includeAllConfiguredFeatures || f.included) && f.value && f.privileged) ? `
+    command: ${JSON.stringify(userCommand)}` : ''}${imageMetadata.some(f => f.init) ? `
+    init: true` : ''}${imageMetadata.some(f => f.privileged) ? `
     privileged: true` : ''}${featureCaps.length ? `
     cap_add:${featureCaps.map(cap => `
       - ${cap}`).join('')}` : ''}${featureSecurityOpts.length ? `

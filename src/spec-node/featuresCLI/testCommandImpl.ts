@@ -366,6 +366,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 		],
 		remoteEnv: common.remoteEnv,
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
+		experimentalImageMetadata: common.experimentalImageMetadata,
 		log: text => quiet ? null : process.stderr.write(text),
 	};
 
@@ -415,6 +416,7 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
 		...staticExecParams,
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
+		'experimental-image-metadata': false,
 		cmd,
 		args,
 		_: [
@@ -459,5 +461,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		buildxPlatform: undefined,
 		buildxPush: false,
 		skipFeatureAutoMapping: false,
+		experimentalImageMetadata: false,
 	}, disposables);
 }
