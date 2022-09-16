@@ -8,6 +8,10 @@ on:
     branches:
       - '**'
 
+defaults:
+  run:
+    shell: bash
+    
 jobs:
   cli:
     name: CLI
