@@ -289,7 +289,8 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
-			result += `RUN cd /tmp/build-features/${feature.consecutiveId} \\
+			result += `
+RUN cd /tmp/build-features/${feature.consecutiveId} \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 

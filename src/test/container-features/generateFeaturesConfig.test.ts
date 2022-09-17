@@ -123,9 +123,11 @@ RUN cd /tmp/build-features/second_2 \\
 
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig);
-        const expectedLayers = `RUN cd /tmp/build-features/color_3 \\
+        const expectedLayers = `
+RUN cd /tmp/build-features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
+
 
 RUN cd /tmp/build-features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
