@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
-import { getBackwardCompatibleFeatureId, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
@@ -379,7 +379,6 @@ describe('validate processFeatureIdentifier', async function () {
 	});
 });
 
-
 describe('validate function getBackwardCompatibleFeatureId', () => {
     it('should map the migrated (old shorthand syntax) features to ghcr.io/devcontainers/features/*', () => {
         let id = 'node';
@@ -441,5 +440,140 @@ describe('validate function getBackwardCompatibleFeatureId', () => {
 		mappedId = getBackwardCompatibleFeatureId(id);
 
         assert.strictEqual(mappedId, expectedId);
+    });
+});
+
+describe('validate function getFeatureInstallWrapperScript', () => {
+	it('returns a valid script when optional feature values do not exist', () => {
+        const feature: Feature = {
+			id: 'test',
+			value: {},
+			included: true,
+			name: undefined,
+			description: undefined,
+			version: undefined,
+			documentationURL: undefined,
+		};
+		const set: FeatureSet = {
+			features: [feature],
+			sourceInformation: {
+				type: 'file-path',
+				resolvedFilePath: '',
+				userFeatureId: './test',
+				userFeatureIdWithoutVersion: './test'
+			}
+		};
+		const options: string[] = [];
+
+		const expected =
+`#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo 'ERROR: Feature "" (./test) failed to install! Look at the documentation at  for help troubleshooting this error.'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+echo 'Feature       : '
+echo 'Description   : '
+echo 'Id            : ./test'
+echo 'Version       : '
+echo 'Documentation : '
+echo 'Options       :'
+echo ''
+echo ===========================================================================
+
+set -a
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+
+		const actual = getFeatureInstallWrapperScript(feature, set, options);
+		assert.equal(actual, expected);
+    });
+
+	it('returns a valid script when expected feature values do exist', () => {
+        const feature: Feature = {
+			id: 'test',
+			value: {
+				version: 'latest',
+				otherOption: true
+			},
+			included: true,
+			name: 'My Test Feature',
+			description: 'This is an awesome feature (with ""quotes" for \'escaping\' test)',
+			version: '1.2.3',
+			documentationURL: 'https://my-test-feature.localhost',
+		};
+		const set: FeatureSet = {
+			features: [feature],
+			sourceInformation: {
+				type: 'oci',
+				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
+				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
+				featureRef: {
+					registry: 'ghcr.io',
+					owner: 'my-org',
+					namespace: 'my-org/my-repo',
+					path: 'my-org/my-repo/test',
+					resource: 'ghcr.io/my-org/my-repo/test',
+					id: 'test',
+					version: '1.2.3',
+				},
+				manifest: {
+					schemaVersion: 1,
+					mediaType: '',
+					config: {
+						digest: '',
+						mediaType: '',
+						size: 0,
+					},
+					layers: [],
+				}
+			}
+		};
+		const options = [
+			'VERSION=latest',
+			'OTHEROPTION=true',
+		];
+
+		const expected =
+`#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo 'ERROR: Feature "My Test Feature" (ghcr.io/my-org/my-repo/test) failed to install! Look at the documentation at https://my-test-feature.localhost for help troubleshooting this error.'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+echo 'Feature       : My Test Feature'
+echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
+echo 'Id            : ghcr.io/my-org/my-repo/test'
+echo 'Version       : 1.2.3'
+echo 'Documentation : https://my-test-feature.localhost'
+echo 'Options       :'
+echo '    VERSION=latest
+    OTHEROPTION=true'
+echo ===========================================================================
+
+set -a
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+
+		const actual = getFeatureInstallWrapperScript(feature, set, options);
+		assert.equal(actual, expected);
     });
 });

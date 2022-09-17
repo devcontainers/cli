@@ -24,7 +24,7 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 export interface Feature {
 	id: string;
 	version?: string;
-	name: string;
+	name?: string;
 	description?: string;
 	cachePath?: string;
 	internalVersion?: string; // set programmatically
@@ -225,6 +225,54 @@ USER $_DEV_CONTAINERS_IMAGE_USER
 `;
 }
 
+function getFeatureInstallWrapperScriptTemplate() {
+    return `#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo 'ERROR: Feature "#{name}" (#{id}) failed to install! Look at the documentation at #{documentation} for help troubleshooting this error.'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+echo 'Feature       : #{name}'
+echo 'Description   : #{description}'
+echo 'Id            : #{id}'
+echo 'Version       : #{version}'
+echo 'Documentation : #{documentation}'
+echo 'Options       :'
+echo '#{options}'
+echo ===========================================================================
+
+set -a
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+}
+
+export function getFeatureInstallWrapperScript(feature: Feature, featureSet: FeatureSet, options: string[]): string {
+	return getFeatureInstallWrapperScriptTemplate()
+		.replace(new RegExp('#\{name\}', 'g'), escapeQuotesForShell(feature.name ?? ''))
+		.replace(new RegExp('#\{description\}', 'g'), escapeQuotesForShell(feature.description ?? ''))
+		.replace(new RegExp('#\{id\}', 'g'), escapeQuotesForShell(featureSet.sourceInformation.userFeatureIdWithoutVersion ?? ''))
+		.replace(new RegExp('#\{version\}', 'g'), escapeQuotesForShell(feature.version ?? ''))
+		.replace(new RegExp('#\{documentation\}', 'g'), escapeQuotesForShell(feature.documentationURL ?? ''))
+		.replace(new RegExp('#\{options\}', 'g'), escapeQuotesForShell(options.map(x => `    ${x}`).join('\n')));
+}
+
+function escapeQuotesForShell(input: string) {
+	// The `input` is expected to be a string which will be printed inside single quotes
+	// by the caller. This means we need to escape any nested single quotes within the string.
+	// We can do this by ending the first string with a single quote ('), printing an escaped
+	// single quote (\'), and then opening a new string (').
+	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
+}
+
 export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	let result = '';
 
@@ -241,14 +289,9 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
-			result += `
-				
-RUN cd /tmp/build-features/${feature.consecutiveId} \\
-&& set -a \\
-&& . ./devcontainer-features.env \\
-&& set +a \\
-&& chmod +x ./install.sh \\
-&& ./install.sh
+			result += `RUN cd /tmp/build-features/${feature.consecutiveId} \\
+&& chmod +x ./devcontainer-features-install.sh \\
+&& ./devcontainer-features-install.sh
 
 `;
 		});
