@@ -225,25 +225,37 @@ USER $_DEV_CONTAINERS_IMAGE_USER
 `;
 }
 
-function getFeatureInstallWrapperScriptTemplate() {
-    return `#!/bin/sh
+export function getFeatureInstallWrapperScript(feature: Feature, featureSet: FeatureSet, options: string[]): string {
+	const id = escapeQuotesForShell(featureSet.sourceInformation.userFeatureIdWithoutVersion ?? 'Unknown');
+	const name = escapeQuotesForShell(feature.name ?? 'Unknown');
+	const description = escapeQuotesForShell(feature.description ?? '');
+	const version = escapeQuotesForShell(feature.version ?? '');
+	const documentation = escapeQuotesForShell(feature.documentationURL ?? '');
+	const optionsIndented = escapeQuotesForShell(options.map(x => `    ${x}`).join('\n'));
+
+	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
+	const troubleshootingMessage = documentation
+		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
+		: '';
+
+	return `#!/bin/sh
 set -e
 
 on_exit () {
 	[ $? -eq 0 ] && exit
-	echo 'ERROR: Feature "#{name}" (#{id}) failed to install! Look at the documentation at #{documentation} for help troubleshooting this error.'
+	echo '${errorMessage}${troubleshootingMessage}'
 }
 
 trap on_exit EXIT
 
 echo ===========================================================================
-echo 'Feature       : #{name}'
-echo 'Description   : #{description}'
-echo 'Id            : #{id}'
-echo 'Version       : #{version}'
-echo 'Documentation : #{documentation}'
+echo 'Feature       : ${name}'
+echo 'Description   : ${description}'
+echo 'Id            : ${id}'
+echo 'Version       : ${version}'
+echo 'Documentation : ${documentation}'
 echo 'Options       :'
-echo '#{options}'
+echo '${optionsIndented}'
 echo ===========================================================================
 
 set -a
@@ -253,16 +265,6 @@ set +a
 chmod +x ./install.sh
 ./install.sh
 `;
-}
-
-export function getFeatureInstallWrapperScript(feature: Feature, featureSet: FeatureSet, options: string[]): string {
-	return getFeatureInstallWrapperScriptTemplate()
-		.replace(new RegExp('#\{name\}', 'g'), escapeQuotesForShell(feature.name ?? ''))
-		.replace(new RegExp('#\{description\}', 'g'), escapeQuotesForShell(feature.description ?? ''))
-		.replace(new RegExp('#\{id\}', 'g'), escapeQuotesForShell(featureSet.sourceInformation.userFeatureIdWithoutVersion ?? ''))
-		.replace(new RegExp('#\{version\}', 'g'), escapeQuotesForShell(feature.version ?? ''))
-		.replace(new RegExp('#\{documentation\}', 'g'), escapeQuotesForShell(feature.documentationURL ?? ''))
-		.replace(new RegExp('#\{options\}', 'g'), escapeQuotesForShell(options.map(x => `    ${x}`).join('\n')));
 }
 
 function escapeQuotesForShell(input: string) {

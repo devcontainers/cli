@@ -471,13 +471,13 @@ set -e
 
 on_exit () {
 	[ $? -eq 0 ] && exit
-	echo 'ERROR: Feature "" (./test) failed to install! Look at the documentation at  for help troubleshooting this error.'
+	echo 'ERROR: Feature "Unknown" (./test) failed to install!'
 }
 
 trap on_exit EXIT
 
 echo ===========================================================================
-echo 'Feature       : '
+echo 'Feature       : Unknown'
 echo 'Description   : '
 echo 'Id            : ./test'
 echo 'Version       : '
