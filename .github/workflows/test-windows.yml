@@ -1,0 +1,61 @@
+name: TEMPORARY Test CI Against Windows
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+defaults:
+  run:
+    shell: bash
+    
+jobs:
+  cli:
+    name: CLI
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@microsoft'
+    - run: yarn
+    - run: yarn lint
+    - run: yarn package
+    - name: TGZ name
+      run: |
+        VERSION=$(jq -r '.version' < package.json)
+        echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
+        echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
+    - name: Store TGZ
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.TGZ_UPLOAD }}
+        path: ${{ env.TGZ }}
+  test:
+    name: Run Sanity Test
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@microsoft'
+    - name: Install Dependencies
+      run: yarn
+    - name: Compile
+      run: yarn compile
+    - name: Package
+      run: yarn package
+    - name: Run Tests
+      run: yarn test-windows

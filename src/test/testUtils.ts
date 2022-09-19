@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import shelljs from 'shelljs';
 
 export interface BuildKitOption {
     text: string;
@@ -29,13 +30,15 @@ export interface ExecResult {
 }
 
 export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
+    console.log("STARTING SHELL EXEC");
     return new Promise<ExecResult>((resolve, reject) => {
-        cp.exec(command, options, (error, stdout, stderr) => {
+        shelljs.exec(command, options, (errorCode, stdout, stderr) => {
             if (!suppressOutput) {
                 console.log(stdout);
                 console.error(stderr);
             }
-            ((error && !doNotThrow) ? reject : resolve)({ error, stdout, stderr });
+            console.log("ShellExec: " + errorCode);
+            ((!!errorCode && !doNotThrow) ? reject : resolve)({ error: errorCode ? new Error(stderr) : null, stdout, stderr });
         });
     });
 }

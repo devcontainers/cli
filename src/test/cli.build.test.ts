@@ -6,25 +6,57 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { buildKitOptions, shellExec } from './testUtils';
+import shelljs from 'shelljs';
 
-const pkg = require('../../package.json');
+const pkg = require(path.join('..', '..', 'package.json'));
+
+
+// const toGitBashPosixPath = (windowsPath: string) => windowsPath.replace(/^(\w):|\\+/g, '/$1').split(path.win32.sep).join(path.posix.sep);
 
 describe('Dev Containers CLI', function () {
-	this.timeout('120');
+	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const cli = path.join(tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js');
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+	before('Install', function () {
+
+		console.log(pkg.version);
+
+		// TODO: For debugging.
+		// const res = await shellExec('/usr/bin/pwd');
+		// console.log(res.stdout);
+
+		shelljs.rm("-rf", path.posix.join(tmp, 'node_modules'));
+		console.log('jospicer 01 ')
+		shelljs.mkdir([tmp]);
+		// await shellExec(`mkdir  ${path.posix.join(tmp, 'node_modules')}`);
+		console.log('jospicer 02 ')
+		const output = shelljs.exec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+		console.log(output);
+
+		console.log('jospicer 03 ')
+
+		return true;
 	});
 
 	describe('Command build', () => {
 
+		it('jospicer sanity check', async () => {
+			console.log("DIRECTLY");
+			const cmd = `${cli} --version`;
+			console.log('cmd = ' + cmd);
+			const output = shelljs.exec(cmd);
+
+			console.log("OUTPUT:");
+			console.log("code" + output.code);
+			console.log("stdout" + output.stdout);
+			console.log("stderr" + output.stderr);
+
+		});
+
 		buildKitOptions.forEach(({ text, options }) => {
-			it(`should execute successfully with valid image config  [${text}]`, async () => {
+			it(`should execute successfully with valid image config jospicer test [${text}]`, async () => {
 				const testFolder = `${__dirname}/configs/image`;
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 				const res = await shellExec(`${cli} build --workspace-folder ${testFolder}${buildKitOption}`);
