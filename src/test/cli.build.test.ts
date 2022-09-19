@@ -17,7 +17,7 @@ describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = path.join(tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js');
+	const cli = path.join('node', tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js');
 
 	before('Install', function () {
 
@@ -37,7 +37,7 @@ describe('Dev Containers CLI', function () {
 
 		console.log('jospicer 03 ');
 
-		return true;
+		assert.strictEqual(output.code, 0);
 	});
 
 	describe('Command build', () => {
@@ -52,6 +52,9 @@ describe('Dev Containers CLI', function () {
 			console.log('code: ' + output.code);
 			console.log('stdout: ' + output.stdout);
 			console.log('stderr: ' + output.stderr);
+
+			assert.strictEqual(output.code, 0);
+			assert.match(output.stdout, /0.14.2/);
 
 		});
 
