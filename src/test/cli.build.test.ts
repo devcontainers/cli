@@ -27,15 +27,15 @@ describe('Dev Containers CLI', function () {
 		// const res = await shellExec('/usr/bin/pwd');
 		// console.log(res.stdout);
 
-		shelljs.rm("-rf", path.posix.join(tmp, 'node_modules'));
-		console.log('jospicer 01 ')
+		shelljs.rm('-rf', path.posix.join(tmp, 'node_modules'));
+		console.log('jospicer 01 ');
 		shelljs.mkdir([tmp]);
 		// await shellExec(`mkdir  ${path.posix.join(tmp, 'node_modules')}`);
-		console.log('jospicer 02 ')
+		console.log('jospicer 02 ');
 		const output = shelljs.exec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 		console.log(output);
 
-		console.log('jospicer 03 ')
+		console.log('jospicer 03 ');
 
 		return true;
 	});
@@ -43,15 +43,15 @@ describe('Dev Containers CLI', function () {
 	describe('Command build', () => {
 
 		it('jospicer sanity check', async () => {
-			console.log("DIRECTLY");
+			console.log('DIRECTLY');
 			const cmd = `${cli} --version`;
 			console.log('cmd = ' + cmd);
 			const output = shelljs.exec(cmd);
 
-			console.log("OUTPUT:");
-			console.log("code" + output.code);
-			console.log("stdout" + output.stdout);
-			console.log("stderr" + output.stderr);
+			console.log('OUTPUT:');
+			console.log('code: ' + output.code);
+			console.log('stdout: ' + output.stdout);
+			console.log('stderr: ' + output.stderr);
 
 		});
 

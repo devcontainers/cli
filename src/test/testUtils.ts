@@ -30,14 +30,14 @@ export interface ExecResult {
 }
 
 export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
-    console.log("STARTING SHELL EXEC");
+    console.log('STARTING SHELL EXEC');
     return new Promise<ExecResult>((resolve, reject) => {
         shelljs.exec(command, options, (errorCode, stdout, stderr) => {
             if (!suppressOutput) {
                 console.log(stdout);
                 console.error(stderr);
             }
-            console.log("ShellExec: " + errorCode);
+            console.log('ShellExec: ' + errorCode);
             ((!!errorCode && !doNotThrow) ? reject : resolve)({ error: errorCode ? new Error(stderr) : null, stdout, stderr });
         });
     });
