@@ -17,7 +17,7 @@ describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = path.join('node', tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js');
+	const cli = `node ${path.join(tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js')}`;
 
 	before('Install', function () {
 
