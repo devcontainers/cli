@@ -62,7 +62,6 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 
 	const feat = {
 		id: featureRef.id,
-		name: featureRef.id,
 		included: true,
 		value: options
 	};

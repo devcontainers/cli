@@ -6,6 +6,7 @@ import { mkdirpLocal } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
+import { shellExec } from '../testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -21,7 +22,7 @@ describe('validate generateFeaturesConfig()', function () {
         return './src/test/container-features/example-v1-features-sets/simple';
     };
 
-    it('should correctly return a featuresConfig with just local features', async function () {
+    it('should correctly return a featuresConfig with v1 local features', async function () {
 
         const version = 'unittest';
         const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
@@ -75,6 +76,62 @@ describe('validate generateFeaturesConfig()', function () {
 RUN cd /tmp/build-features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
+
+`;
+        assert.strictEqual(actualLayers, expectedLayers);
+    });
+
+    it('should correctly return a featuresConfig with v2 local features', async function () {
+        const version = 'unittest';
+        const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
+        await mkdirpLocal(tmpFolder);
+
+        const devcontainerFolder = path.resolve(tmpFolder, '.devcontainer');
+        await mkdirpLocal(devcontainerFolder);
+        await shellExec(`cp -R ./src/test/container-features/example-v2-features-sets/simple/src/* ${devcontainerFolder}`);
+
+        const config: DevContainerConfig = {
+            configFilePath: URI.from({ 'path': path.resolve(devcontainerFolder, 'devcontainer.json'), scheme: 'file' }),
+            dockerFile: '.',
+            features: {
+                './color': {
+                    'favorite': 'gold'
+                },
+                './hello': {
+                    'greeting': 'howdy'
+                },
+            },
+        };
+        
+        const featuresConfig = await generateFeaturesConfig({...params, cwd: tmpFolder}, tmpFolder, config, localFeaturesFolder);
+        if (!featuresConfig) {
+            assert.fail();
+        }
+
+        assert.strictEqual(featuresConfig?.featureSets.length, 2);
+
+        const first = featuresConfig.featureSets[0].features.find((f) => f.id === 'color');
+        assert.exists(first);
+
+        const second = featuresConfig.featureSets[1].features.find((f) => f.id === 'hello');
+        assert.exists(second);
+
+        assert.isObject(first?.value);
+        assert.isObject(second?.value);
+
+        // -- Test containerFeatures.ts helper functions
+
+        // getFeatureLayers
+        const actualLayers = getFeatureLayers(featuresConfig);
+        const expectedLayers = `
+RUN cd /tmp/build-features/color_3 \\
+&& chmod +x ./devcontainer-features-install.sh \\
+&& ./devcontainer-features-install.sh
+
+
+RUN cd /tmp/build-features/hello_4 \\
+&& chmod +x ./devcontainer-features-install.sh \\
+&& ./devcontainer-features-install.sh
 
 `;
         assert.strictEqual(actualLayers, expectedLayers);

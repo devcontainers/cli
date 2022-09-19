@@ -7,7 +7,7 @@
 	},
 	"features": {
 		"terraform": "latest",
-		"ghcr.io/codspace/features/docker-in-docker:1": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {},
 		"node": "16"
 	}
 }

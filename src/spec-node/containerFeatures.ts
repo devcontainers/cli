@@ -10,7 +10,7 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, inspectDockerImage } from './utils';
@@ -224,7 +224,7 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
-	// Build devcontainer-features.env file(s) for each features source folder
+	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
 	for await (const fSet of featuresConfig.featureSets) {
 		let i = 0;
 		if(fSet.internalVersion === '2')
@@ -236,6 +236,10 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 					const envPath = cliHost.path.join(fe.cachePath, 'devcontainer-features.env');
 					const variables = getFeatureEnvVariables(fe);
 					await cliHost.writeFile(envPath, Buffer.from(variables.join('\n')));
+
+					const installWrapperPath = cliHost.path.join(fe.cachePath, 'devcontainer-features-install.sh');
+					const installWrapperContent = getFeatureInstallWrapperScript(fe, fSet, variables);
+					await cliHost.writeFile(installWrapperPath, Buffer.from(installWrapperContent));
 				}
 			}
 		} else {
@@ -326,7 +330,6 @@ RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.s
 	).join('\n\n');
 }
 
-
 function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
 	const idSafe = getSafeId(f.id);
@@ -355,7 +358,6 @@ function getFeatureEnvVariables(f: Feature) {
 	}	
 }
 
-
 export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
@@ -376,6 +378,7 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 		imageUser,
 	};
 }
+
 export async function updateRemoteUserUID(params: DockerResolverParameters, config: DevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
