@@ -25,22 +25,20 @@ export interface UpResult {
 
 export interface ExecResult {
     error: Error | null;
+    code: number;
     stdout: string;
     stderr: string;
 }
 
-export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
-    console.log('STARTING SHELL EXEC');
-    return new Promise<ExecResult>((resolve, reject) => {
-        shelljs.exec(command, options, (errorCode, stdout, stderr) => {
-            if (!suppressOutput) {
-                console.log(stdout);
-                console.error(stderr);
-            }
-            console.log('ShellExec: ' + errorCode);
-            ((!!errorCode && !doNotThrow) ? reject : resolve)({ error: errorCode ? new Error(stderr) : null, stdout, stderr });
-        });
-    });
+export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false): ExecResult {
+    const output = shelljs.exec(command, options);
+    const { code, stdout, stderr } = output;
+    const result = { error: code ? new Error(`Error code:  ${code}`) : null, stdout, stderr, code };
+    if (!suppressOutput) {
+        console.log(stdout);
+        console.error(stderr);
+    }
+    return result;
 }
 
 export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string; extraArgs?: string }): Promise<UpResult> {

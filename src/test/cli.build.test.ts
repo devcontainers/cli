@@ -10,7 +10,6 @@ import shelljs from 'shelljs';
 
 const pkg = require(path.join('..', '..', 'package.json'));
 
-
 // const toGitBashPosixPath = (windowsPath: string) => windowsPath.replace(/^(\w):|\\+/g, '/$1').split(path.win32.sep).join(path.posix.sep);
 
 describe('Dev Containers CLI', function () {
@@ -20,40 +19,26 @@ describe('Dev Containers CLI', function () {
 	const cli = `node ${path.join(tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js')}`;
 
 	before('Install', function () {
-
-		console.log(pkg.version);
-
-		// TODO: For debugging.
-		// const res = await shellExec('/usr/bin/pwd');
-		// console.log(res.stdout);
-
+		console.log("Pkg Version: ", pkg.version);
 		shelljs.rm('-rf', path.posix.join(tmp, 'node_modules'));
-		console.log('jospicer 01 ');
 		shelljs.mkdir([tmp]);
-		// await shellExec(`mkdir  ${path.posix.join(tmp, 'node_modules')}`);
-		console.log('jospicer 02 ');
 		const output = shelljs.exec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-		console.log(output);
-
-		console.log('jospicer 03 ');
-
 		assert.strictEqual(output.code, 0);
 	});
 
 	describe('Command build', () => {
 
 		it('jospicer sanity check', async () => {
-			console.log('DIRECTLY');
 			const cmd = `${cli} --version`;
 			console.log('cmd = ' + cmd);
-			const output = shelljs.exec(cmd);
+			const output = shellExec(cmd);
 
-			console.log('OUTPUT:');
 			console.log('code: ' + output.code);
 			console.log('stdout: ' + output.stdout);
 			console.log('stderr: ' + output.stderr);
 
 			assert.strictEqual(output.code, 0);
+			assert.strictEqual(output.error, null);
 			assert.match(output.stdout, /0.14.2/);
 
 		});
