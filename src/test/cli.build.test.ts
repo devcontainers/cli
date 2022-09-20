@@ -19,7 +19,7 @@ describe('Dev Containers CLI', function () {
 	const cli = `node ${path.join(tmp, 'node_modules', '@devcontainers', 'cli', 'devcontainer.js')}`;
 
 	before('Install', function () {
-		console.log('Pkg Version: ' pkg.version);
+		console.log('Pkg Version: ' + pkg.version);
 		shelljs.rm('-rf', path.posix.join(tmp, 'node_modules'));
 		shelljs.mkdir([tmp]);
 		const output = shelljs.exec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
