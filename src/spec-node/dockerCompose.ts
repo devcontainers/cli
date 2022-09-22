@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getFolderImageName } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -178,10 +178,16 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, common.experimentalImageMetadata);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, imageBuildInfo);
 
-	let buildOverrideContent = null;
+	let overrideImageName: string | undefined;
+	let buildOverrideContent = '';
 	if (extendImageBuildInfo) {
+		// Avoid retagging a previously pulled image.
+		if (!serviceInfo.build) {
+			overrideImageName = getFolderImageName(common);
+			buildOverrideContent += `    image: ${overrideImageName}\n`;
+		}
 		// Create overridden Dockerfile and generate docker-compose build override content
-		buildOverrideContent = '    build:\n';
+		buildOverrideContent += '    build:\n';
 		const { featureBuildInfo } = extendImageBuildInfo;
 		// We add a '# syntax' line at the start, so strip out any existing line
 		const syntaxMatch = dockerfile.match(/^\s*#\s*syntax\s*=.*[\r\n]/g);
@@ -265,6 +271,7 @@ ${cacheFromOverrideContent}
 			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
 		],
 		additionalComposeOverrideFiles,
+		overrideImageName,
 	};
 }
 
@@ -359,17 +366,18 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const noBuild = !!container; //if we have an existing container, just recreate override files but skip the build
 
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { imageMetadata, additionalComposeOverrideFiles } = await buildAndExtendDockerCompose(config, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(config, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
+		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
-		const imageDetails = () => cache || (cache = inspectDockerImage(params, originalImageName, true));
-		const updatedImageName = noBuild ? originalImageName : await updateRemoteUserUID(params, config, originalImageName, imageDetails, service.user);
+		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
+		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, config, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, originalImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
