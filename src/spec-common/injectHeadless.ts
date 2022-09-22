@@ -126,6 +126,17 @@ export interface CommonDevContainerConfig {
 	userEnvProbe?: UserEnvProbe;
 }
 
+export interface CommonContainerMetadata {
+	onCreateCommand?: string | string[];
+	updateContentCommand?: string | string[];
+	postCreateCommand?: string | string[];
+	postStartCommand?: string | string[];
+	postAttachCommand?: string | string[];
+	waitFor?: DevContainerConfigCommand;
+	remoteEnv?: Record<string, string | null>;
+	userEnvProbe?: UserEnvProbe;
+}
+
 export interface OSRelease {
 	hardware: string;
 	id: string;
@@ -263,32 +274,32 @@ export function getSystemVarFolder(params: ResolverParameters): string {
 	return params.containerSystemDataFolder || '/var/devcontainer';
 }
 
-export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig) {
+export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, configs: CommonContainerMetadata[]) {
 	await patchEtcEnvironment(params, containerProperties);
 	await patchEtcProfile(params, containerProperties);
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.postCreate.enabled;
-	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
-	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
+	const updatedConfigs = configs.map(c => containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, c));
+	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfigs) : Promise.resolve({});
 	if (params.postCreate.enabled) {
-		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false);
+		await runPostCreateCommands(params, containerProperties, updatedConfigs, remoteEnv, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
 	};
 }
 
-export function probeRemoteEnv(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig) {
-	return probeUserEnv(params, containerProperties, config)
+export function probeRemoteEnv(params: ResolverParameters, containerProperties: ContainerProperties, configs: CommonContainerMetadata[]) {
+	return probeUserEnv(params, containerProperties, configs)
 		.then<Record<string, string>>(shellEnv => ({
 			...shellEnv,
 			...params.remoteEnv,
-			...config.remoteEnv,
+			...Object.assign({}, ...configs.map(c => c.remoteEnv)),
 		} as Record<string, string>));
 }
 
-export async function runPostCreateCommands(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
+export async function runPostCreateCommands(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonContainerMetadata[], remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
 	const skipNonBlocking = params.postCreate.skipNonBlocking;
-	const waitFor = config.waitFor || defaultWaitFor;
+	const waitFor = config.reverse().find(c => c.waitFor)?.waitFor || defaultWaitFor;
 	if (skipNonBlocking && waitFor === 'initializeCommand') {
 		return 'skipNonBlocking';
 	}
@@ -343,16 +354,16 @@ export async function getOSRelease(shellServer: ShellServer) {
 	return { hardware, id, version };
 }
 
-async function runPostCreateCommand(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand', remoteEnv: Promise<Record<string, string>>, rerun: boolean) {
+async function runPostCreateCommand(params: ResolverParameters, containerProperties: ContainerProperties, configs: CommonContainerMetadata[], postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand', remoteEnv: Promise<Record<string, string>>, rerun: boolean) {
 	const markerFile = path.posix.join(containerProperties.userDataFolder, `.${postCommandName}Marker`);
 	const doRun = !!containerProperties.createdAt && await updateMarkerFile(containerProperties.shellServer, markerFile, containerProperties.createdAt) || rerun;
-	await runPostCommand(params, containerProperties, config, postCommandName, remoteEnv, doRun);
+	await runPostCommands(params, containerProperties, configs, postCommandName, remoteEnv, doRun);
 }
 
-async function runPostStartCommand(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, remoteEnv: Promise<Record<string, string>>) {
+async function runPostStartCommand(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonContainerMetadata[], remoteEnv: Promise<Record<string, string>>) {
 	const markerFile = path.posix.join(containerProperties.userDataFolder, '.postStartCommandMarker');
 	const doRun = !!containerProperties.startedAt && await updateMarkerFile(containerProperties.shellServer, markerFile, containerProperties.startedAt);
-	await runPostCommand(params, containerProperties, config, 'postStartCommand', remoteEnv, doRun);
+	await runPostCommands(params, containerProperties, config, 'postStartCommand', remoteEnv, doRun);
 }
 
 async function updateMarkerFile(shellServer: ShellServer, location: string, content: string) {
@@ -364,8 +375,12 @@ async function updateMarkerFile(shellServer: ShellServer, location: string, cont
 	}
 }
 
-async function runPostAttachCommand(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, remoteEnv: Promise<Record<string, string>>) {
-	await runPostCommand(params, containerProperties, config, 'postAttachCommand', remoteEnv, true);
+async function runPostAttachCommand(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonContainerMetadata[], remoteEnv: Promise<Record<string, string>>) {
+	await runPostCommands(params, containerProperties, config, 'postAttachCommand', remoteEnv, true);
+}
+
+async function runPostCommands(params: ResolverParameters, containerProperties: ContainerProperties, configs: CommonContainerMetadata[], postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
+	return Promise.all(configs.map(config => runPostCommand(params, containerProperties, config, postCommandName, remoteEnv, doRun)));
 }
 
 async function runPostCommand({ postCreate }: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
@@ -586,18 +601,18 @@ async function patchEtcProfile(params: ResolverParameters, containerProperties: 
 	}
 }
 
-async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config?: { userEnvProbe?: UserEnvProbe }) {
-	const env = await runUserEnvProbe(params, containerProperties, config, 'cat /proc/self/environ', '\0');
+async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, configs?: CommonContainerMetadata[]) {
+	const env = await runUserEnvProbe(params, containerProperties, configs, 'cat /proc/self/environ', '\0');
 	if (env) {
 		return env;
 	}
 	params.output.write('userEnvProbe: falling back to printenv');
-	const env2 = await runUserEnvProbe(params, containerProperties, config, 'printenv', '\n');
+	const env2 = await runUserEnvProbe(params, containerProperties, configs, 'printenv', '\n');
 	return env2 || {};
 }
 
-async function runUserEnvProbe(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config: { userEnvProbe?: UserEnvProbe } | undefined, cmd: string, sep: string) {
-	let { userEnvProbe } = config || {};
+async function runUserEnvProbe(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, configs: CommonContainerMetadata[] | undefined, cmd: string, sep: string) {
+	let { userEnvProbe } = configs?.reverse().find(config => config.userEnvProbe) || {};
 	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
 	if (!userEnvProbe) {
 		userEnvProbe = params.defaultUserEnvProbe;

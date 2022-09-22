@@ -15,9 +15,9 @@ import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, ImageMetadataEntry } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry } from './imageMetadata';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -66,11 +66,13 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, config.remoteUser);
+		const configs = getImageMetadataFromContainer(container, config, [], common.experimentalImageMetadata, common.output);
+		const { remoteUser } = configs.reverse().find(config => config.remoteUser) || {};
+		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, remoteUser);
 
 		const {
 			remoteEnv: extensionHostEnv,
-		} = await setupInContainer(common, containerProperties, config);
+		} = await setupInContainer(common, containerProperties, config, configs);
 
 		return {
 			params: common,
@@ -232,6 +234,7 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 ${buildOverrideContent?.trimEnd()}
 ${cacheFromOverrideContent}
 `;
+		output.write(`Docker Compose override file for building image:\n${composeOverrideContent}`);
 		await cliHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
 		additionalComposeOverrideFiles.push(composeOverrideFile);
 		args.push('-f', composeOverrideFile);
@@ -268,7 +271,7 @@ ${cacheFromOverrideContent}
 	return {
 		imageMetadata: [
 			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
+			...getDevcontainerMetadata(config, extendImageBuildInfo?.collapsedFeaturesConfig?.allFeatures || []),
 		],
 		additionalComposeOverrideFiles,
 		overrideImageName,
@@ -372,7 +375,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
 		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
-		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, config, currentImageName, imageDetails, service.user);
+		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, imageMetadata, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
@@ -437,7 +440,7 @@ async function writeFeaturesComposeOverrideFile(
 	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
-		output.write(`Docker Compose override file:\n${composeOverrideContent}`, LogLevel.Trace);
+		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
 
 		const fileName = `${overrideFilePrefix}-${Date.now()}.yml`;
 		const composeFolder = buildCLIHost.path.join(overrideFilePath, 'docker-compose');
@@ -475,21 +478,22 @@ async function generateFeaturesComposeOverrideContent(
 		.map(f => f.capAdd || [])))];
 	const featureSecurityOpts = [...new Set(([] as string[]).concat(...imageMetadata
 		.map(f => f.securityOpt || [])))];
-	const featureMounts = ([] as Mount[]).concat(
+	const featureMounts = ([] as (Mount | string)[]).concat(
 		...imageMetadata
 			.map(f => f.mounts)
-			.filter(Boolean) as Mount[][],
+			.filter(Boolean) as (Mount | string)[][],
 		additionalMounts,
-	);
+	).map(m => typeof m === 'string' ? parseMount(m) : m);
 	const volumeMounts = featureMounts.filter(m => m.type === 'volume');
 	const customEntrypoints = imageMetadata
 		.map(f => f.entrypoint)
 		.filter(Boolean) as string[];
 	const composeEntrypoint: string[] | undefined = typeof service.entrypoint === 'string' ? shellQuote.parse(service.entrypoint) : service.entrypoint;
 	const composeCommand: string[] | undefined = typeof service.command === 'string' ? shellQuote.parse(service.command) : service.command;
-	const userEntrypoint = config.overrideCommand ? [] : composeEntrypoint /* $ already escaped. */
+	const overrideCommand = imageMetadata.reverse().find(m => typeof m.overrideCommand === 'boolean')?.overrideCommand;
+	const userEntrypoint = overrideCommand ? [] : composeEntrypoint /* $ already escaped. */
 		|| ((await imageDetails()).Config.Entrypoint || []).map(c => c.replace(/\$/g, '$$$$')); // $ > $$ to escape docker-compose.yml's interpolation.
-	const userCommand = config.overrideCommand ? [] : composeCommand /* $ already escaped. */
+	const userCommand = overrideCommand ? [] : composeCommand /* $ already escaped. */
 		|| (composeEntrypoint ? [/* Ignore image CMD per docker-compose.yml spec. */] : ((await imageDetails()).Config.Cmd || []).map(c => c.replace(/\$/g, '$$$$'))); // $ > $$ to escape docker-compose.yml's interpolation.
 
 	composeOverrideContent = `services:
