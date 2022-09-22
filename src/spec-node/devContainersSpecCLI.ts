@@ -405,10 +405,10 @@ async function doBuild({
 			}
 
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			await buildAndExtendDockerCompose(config, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(config, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
 
 			const service = composeConfig.services[config.service];
-			const originalImageName = service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
+			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
 
 			if (imageNames) {
 				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', originalImageName, imageName)));
