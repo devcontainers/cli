@@ -238,7 +238,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		updatedImageName: baseImageNames,
 		imageMetadata: [
 			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
+			...getDevcontainerMetadata(config, extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
 		],
 		imageDetails
 	};
@@ -306,8 +306,6 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
-	const mounts = config.mounts ? ([] as string[]).concat(...config.mounts.map(m => ['--mount', m])) : [];
-
 	const envObj = config.containerEnv;
 	const containerEnv = envObj ? Object.keys(envObj)
 		.reduce((args, key) => {
@@ -336,12 +334,12 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	}
 
 	const featureMounts = ([] as string[]).concat(
-		...([] as Mount[]).concat(
+		...([] as (Mount | string)[]).concat(
 			...imageMetadata
 				.map(f => f.mounts)
-				.filter(Boolean) as Mount[][],
+				.filter(Boolean) as (Mount | string)[][],
 			params.additionalMounts,
-		).map(m => ['--mount', `type=${m.type},src=${m.source},dst=${m.target}`])
+		).map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
 	);
 
 	const customEntrypoints = imageMetadata
@@ -366,7 +364,6 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		'-a', 'STDERR',
 		...exposed,
 		...cwdMount,
-		...mounts,
 		...featureMounts,
 		...getLabels(labels),
 		...containerEnv,

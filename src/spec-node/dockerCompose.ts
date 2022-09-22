@@ -15,7 +15,7 @@ import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, ImageMetadataEntry } from './imageMetadata';
 
@@ -262,7 +262,7 @@ ${cacheFromOverrideContent}
 	return {
 		imageMetadata: [
 			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
+			...getDevcontainerMetadata(config, extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
 		],
 		additionalComposeOverrideFiles,
 	};
@@ -467,12 +467,12 @@ async function generateFeaturesComposeOverrideContent(
 		.map(f => f.capAdd || [])))];
 	const featureSecurityOpts = [...new Set(([] as string[]).concat(...imageMetadata
 		.map(f => f.securityOpt || [])))];
-	const featureMounts = ([] as Mount[]).concat(
+	const featureMounts = ([] as (Mount | string)[]).concat(
 		...imageMetadata
 			.map(f => f.mounts)
-			.filter(Boolean) as Mount[][],
+			.filter(Boolean) as (Mount | string)[][],
 		additionalMounts,
-	);
+	).map(m => typeof m === 'string' ? parseMount(m) : m);
 	const volumeMounts = featureMounts.filter(m => m.type === 'volume');
 	const customEntrypoints = imageMetadata
 		.map(f => f.entrypoint)

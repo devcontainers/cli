@@ -90,7 +90,7 @@ export async function extendImage(params: DockerResolverParameters, config: DevC
 		updatedImageName: [ updatedImageName ],
 		imageMetadata: [
 			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(collapsedFeaturesConfig.allFeatures),
+			...getDevcontainerMetadata(config, collapsedFeaturesConfig.allFeatures),
 		],
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
@@ -112,7 +112,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 
 	// Generates the end configuration.
 	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
-	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, featuresConfig, baseName, imageBuildInfo);
+	const featureBuildInfo = await getContainerFeaturesBuildInfo(params, config, featuresConfig, baseName, imageBuildInfo);
 	if (!featureBuildInfo) {
 		return null;
 	}
@@ -180,7 +180,7 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 	await createExit; // Allow errors to surface.
 }
 
-async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<{ dstFolder: string; dockerfileContent: string; overrideTarget: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
+async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, devContainerConfig: DevContainerConfig, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<{ dstFolder: string; dockerfileContent: string; overrideTarget: string; dockerfilePrefixContent: string; buildArgs: Record<string, string>; buildKitContexts: Record<string, string> } | null> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -225,7 +225,7 @@ async function getContainerFeaturesBuildInfo(params: DockerResolverParameters, f
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
-		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageBuildInfo.metadata, featuresConfig, common.experimentalImageMetadata))
+		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageBuildInfo.metadata, devContainerConfig, featuresConfig, common.experimentalImageMetadata))
 		;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts ? '# syntax=docker/dockerfile:1.4' : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder

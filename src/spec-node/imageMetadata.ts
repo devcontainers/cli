@@ -4,12 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
-import { DevContainerConfig, getDockerComposeFilePaths, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
 import { DockerResolverParameters, findBaseImage, findUserStatement, inspectDockerImage, uriToWSLFsPath } from './utils';
+
+const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
+	'onCreateCommand',
+	'updateContentCommand',
+	'postCreateCommand',
+	'postStartCommand',
+	'postAttachCommand',
+	'waitFor',
+	'customizations',
+	'remoteUser',
+	'userEnvProbe',
+	'remoteEnv',
+	'overrideCommand',
+	'portsAttributes',
+	'otherPortsAttributes',
+	'forwardPorts',
+	'shutdownAction',
+	'updateRemoteUserUID',
+	'hostRequirements',
+];
+
+const pickSingleContainerConfigProperties: (keyof DevContainerFromImageConfig & keyof DevContainerFromDockerfileConfig & keyof ImageMetadataEntry)[] = [
+	'mounts',
+	'containerUser',
+	'containerEnv',
+	...pickConfigProperties,
+];
 
 const pickFeatureProperties: (keyof Feature & keyof ImageMetadataEntry)[] = [
 	'id',
@@ -29,16 +56,39 @@ export interface ImageMetadataEntry {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
-	mounts?: Mount[];
+	mounts?: (Mount | string)[];
 	customizations?: Record<string, any>;
+	onCreateCommand?: string | string[];
+	updateContentCommand?: string | string[];
+	postCreateCommand?: string | string[];
+	postStartCommand?: string | string[];
+	postAttachCommand?: string | string[];
+	waitFor?: DevContainerConfigCommand;
+	remoteUser?: string;
+	containerUser?: string;
+	userEnvProbe?: UserEnvProbe;
+	remoteEnv?: Record<string, string | null>;
+	containerEnv?: Record<string, string>;
+	overrideCommand?: boolean;
+	portsAttributes?: Record<string, PortAttributes>;
+	otherPortsAttributes?: PortAttributes;
+	forwardPorts?: (number | string)[];
+	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
+	updateRemoteUserUID?: boolean;
+	hostRequirements?: HostRequirements;
 }
 
-export function getDevcontainerMetadata(featuresConfig: FeaturesConfig | Feature[]) {
+export function getDevcontainerMetadata(devContainerConfig: DevContainerConfig, featuresConfig: FeaturesConfig | Feature[]) {
 	const features = Array.isArray(featuresConfig) ? featuresConfig : ([] as Feature[]).concat(
 		...featuresConfig.featureSets
 			.map(x => x.features)
 	);
-	return features.map(feature => pick(feature, pickFeatureProperties));
+	return [
+		...features.map(feature => pick(feature, pickFeatureProperties)),
+		'dockerComposeFile' in devContainerConfig ?
+			pick(devContainerConfig, pickConfigProperties) :
+			pick(devContainerConfig, pickSingleContainerConfigProperties),
+	];
 }
 
 function pick<T, K extends keyof T>(obj: T, keys: K[]) {
@@ -154,13 +204,13 @@ function getImageMetadata(imageDetails: ImageDetails, experimentalImageMetadata:
 	return [];
 }
 
-export function getDevcontainerMetadataLabel(baseImageMetadata: ImageMetadataEntry[], featuresConfig: FeaturesConfig, experimentalImageMetadata: boolean) {
+export function getDevcontainerMetadataLabel(baseImageMetadata: ImageMetadataEntry[], devContainerConfig: DevContainerConfig, featuresConfig: FeaturesConfig, experimentalImageMetadata: boolean) {
 	if (!experimentalImageMetadata) {
 		return '';
 	}
 	const metadata: ImageMetadataEntry[] = [
 		...baseImageMetadata,
-		...getDevcontainerMetadata(featuresConfig),
+		...getDevcontainerMetadata(devContainerConfig, featuresConfig),
 	];
 	if (!metadata.length) {
 		return '';
