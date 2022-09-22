@@ -12,7 +12,7 @@ import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromI
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, ImageMetadataEntry } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry } from './imageMetadata';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -25,6 +25,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 
 	try {
 		container = await findExistingContainer(params, idLabels);
+		let imageMetadata: ImageMetadataEntry[];
 		if (container) {
 			// let _collapsedFeatureConfig: Promise<CollapsedFeaturesConfig | undefined>;
 			// collapsedFeaturesConfig = async () => {
@@ -35,14 +36,17 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
+			imageMetadata = await getImageMetadataFromContainer(container, config, [], common.experimentalImageMetadata, common.output);
 		} else {
 			const res = await buildNamedImageAndExtend(params, config);
-			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
+			imageMetadata = res.imageMetadata;
+			const { containerUser } = imageMetadata.reverse().find(m => m.containerUser) || {};
+			const updatedImageName = await updateRemoteUserUID(params, imageMetadata, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
 
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, res.imageMetadata, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails);
+				await spawnDevContainer(params, config, res.imageMetadata, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser);
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -53,8 +57,9 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			}
 		}
 
-		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		return await setupContainer(container, params, containerProperties, config);
+		const { remoteUser } = imageMetadata.reverse().find(m => m.remoteUser) || {};
+		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
+		return await setupContainer(container, params, containerProperties, config, imageMetadata);
 
 	} catch (e) {
 		throw createSetupError(e, container, params, containerProperties, config);
@@ -81,11 +86,11 @@ function createSetupError(originalError: any, container: ContainerDetails | unde
 	return err;
 }
 
-async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): Promise<ResolverResult> {
+async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, configs: ImageMetadataEntry[]): Promise<ResolverResult> {
 	const { common } = params;
 	const {
 		remoteEnv: extensionHostEnv,
-	} = await setupInContainer(common, containerProperties, config);
+	} = await setupInContainer(common, containerProperties, config, configs);
 
 	return {
 		params: common,
@@ -238,7 +243,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		updatedImageName: baseImageNames,
 		imageMetadata: [
 			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(extendImageBuildInfo?.collapsedFeaturesConfig.allFeatures || []),
+			...getDevcontainerMetadata(config, extendImageBuildInfo?.collapsedFeaturesConfig?.allFeatures || []),
 		],
 		imageDetails
 	};
@@ -296,7 +301,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 }
 
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, imageMetadata: ImageMetadataEntry[], imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, imageMetadata: ImageMetadataEntry[], imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -306,16 +311,14 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
-	const mounts = config.mounts ? ([] as string[]).concat(...config.mounts.map(m => ['--mount', m])) : [];
-
-	const envObj = config.containerEnv;
-	const containerEnv = envObj ? Object.keys(envObj)
+	const envObj = Object.assign({}, ...imageMetadata.map(m => m.containerEnv));
+	const containerEnv = Object.keys(envObj)
 		.reduce((args, key) => {
 			args.push('-e', `${key}=${envObj[key]}`);
 			return args;
-		}, [] as string[]) : [];
+		}, [] as string[]);
 
-	const containerUser = config.containerUser ? ['-u', config.containerUser] : [];
+	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
 	const featureArgs: string[] = [];
 	if (imageMetadata.some(f => f.init)) {
@@ -336,12 +339,12 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	}
 
 	const featureMounts = ([] as string[]).concat(
-		...([] as Mount[]).concat(
+		...([] as (Mount | string)[]).concat(
 			...imageMetadata
 				.map(f => f.mounts)
-				.filter(Boolean) as Mount[][],
+				.filter(Boolean) as (Mount | string)[][],
 			params.additionalMounts,
-		).map(m => ['--mount', `type=${m.type},src=${m.source},dst=${m.target}`])
+		).map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
 	);
 
 	const customEntrypoints = imageMetadata
@@ -353,7 +356,8 @@ trap "exit 0" 15
 ${customEntrypoints.join('\n')}
 exec "$@"
 while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` to run (synchronous `sleep` would not).
-	if (config.overrideCommand === false && imageDetails) {
+	const overrideCommand = imageMetadata.reverse().find(m => typeof m.overrideCommand === 'boolean')?.overrideCommand;
+	if (overrideCommand === false && imageDetails) {
 		const details = await imageDetails();
 		cmd.push(...details.Config.Entrypoint || []);
 		cmd.push(...details.Config.Cmd || []);
@@ -366,11 +370,10 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		'-a', 'STDERR',
 		...exposed,
 		...cwdMount,
-		...mounts,
 		...featureMounts,
 		...getLabels(labels),
 		...containerEnv,
-		...containerUser,
+		...containerUserArgs,
 		...(config.runArgs || []),
 		...featureArgs,
 		...entrypoint,

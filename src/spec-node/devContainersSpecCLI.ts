@@ -30,10 +30,10 @@ import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/pu
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getImageBuildInfo } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer } from './imageMetadata';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
-const experimentalImageMetadataDefault = true; // TODO
+const experimentalImageMetadataDefault = false;
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
@@ -593,10 +593,12 @@ async function doRunUserCommands({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		const updatedConfig = containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, config);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
+		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output);
+		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
+		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
+		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, m));
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
+		const result = await runPostCreateCommands(common, containerProperties, updatedConfigs, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
@@ -724,12 +726,17 @@ async function readConfiguration({
 			configuration = containerSubstitute(cliHost.platform, configuration.configFilePath, envListToObj(container.Config.Env), configuration);
 		}
 
-	const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configs.config, extensionPath, skipFeatureAutoMapping, experimentalImageMetadata) : undefined;
+		const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configs.config, extensionPath, skipFeatureAutoMapping) : undefined;
+		const imageMetadata = [
+			...(await getImageBuildInfo(params, configs.config, experimentalImageMetadata)).metadata,
+			...getDevcontainerMetadata(configs.config, featuresConfiguration || []),
+		];
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration,
 				workspace: configs.workspaceConfig,
 				featuresConfiguration,
+				imageMetadata,
 			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
@@ -745,32 +752,11 @@ async function readConfiguration({
 	process.exit(0);
 }
 
-async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, experimentalImageMetadata: boolean): Promise<FeaturesConfig | undefined> {
+async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig | undefined> {
 	const { cliHost, output } = params;
 	const { cwd, env } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
-	const configs = await generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder);
-	if (!experimentalImageMetadata) {
-		return configs;
-	}
-	// TODO: Move to separate property or command. For demoing experimental image metadata.
-	const imageBuildInfo = await getImageBuildInfo(params, config, experimentalImageMetadata);
-	if (!imageBuildInfo.metadata.length) {
-		return configs;
-	}
-	return {
-		...configs,
-		featureSets: [
-			{
-				features: imageBuildInfo.metadata as any,
-				sourceInformation: {
-					type: 'local-cache',
-					userFeatureId: 'none'
-				}
-			},
-			...configs?.featureSets || [],
-		]
-	};
+	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder);
 }
 
 function execOptions(y: Argv) {
@@ -916,9 +902,11 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		const updatedConfig = containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, config);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
+		const metadata = await getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output);
+		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
+		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
+		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, m));
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		const infoOutput = makeLog(output, LogLevel.Info);
 		await runRemoteCommand({ ...common, output: infoOutput }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });
