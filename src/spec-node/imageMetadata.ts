@@ -212,9 +212,9 @@ export function getDevcontainerMetadataLabel(baseImageMetadata: ImageMetadataEnt
 		...baseImageMetadata,
 		...getDevcontainerMetadata(devContainerConfig, featuresConfig),
 	];
-	if (!metadata.length) {
-		return '';
-	}
+	// if (!metadata.length) {
+	// 	return '';
+	// }
 	const imageMetadataLabelValue = metadata.length !== 1
 		? `[${metadata
 			.map(feature => ` \\\n${toLabelString(feature)}`)
