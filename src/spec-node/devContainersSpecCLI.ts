@@ -6,8 +6,8 @@
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
-import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, envListToObj, isDockerFileConfig } from './utils';
+import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
+import { createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -33,7 +33,6 @@ import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer } from './imageMetadata';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
-const experimentalImageMetadataDefault = false;
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
@@ -418,7 +417,7 @@ async function doBuild({
 			}
 		} else {
 
-			await dockerPtyCLI(params, 'pull', config.image);
+			await inspectDockerImage(params, config.image, true);
 			const { updatedImageName } = await extendImage(params, config, config.image);
 
 			if (buildxPlatform || buildxPush) {

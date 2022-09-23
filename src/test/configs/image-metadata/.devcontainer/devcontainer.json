@@ -1,0 +1,7 @@
+{
+	"image": "image-metadata-test-base",
+	"features": {
+		"./localFeatureA": "latest",
+		"./localFeatureB": "latest"
+	}
+}
