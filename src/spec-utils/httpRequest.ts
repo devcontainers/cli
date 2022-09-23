@@ -3,87 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { https } from 'follow-redirects';
-import * as url from 'url';
+import fetch, { FetchOptions } from 'make-fetch-happen';
 import { Log, LogLevel } from './log';
 
-export function request(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log) {
-	return new Promise<Buffer>((resolve, reject) => {
-		const parsed = new url.URL(options.url);
-		const reqOptions = {
-			hostname: parsed.hostname,
-			port: parsed.port,
-			path: parsed.pathname + parsed.search,
-			method: options.type,
-			headers: options.headers,
-		};
-		const req = https.request(reqOptions, res => {
-			if (res.statusCode! < 200 || res.statusCode! > 299) {
-				reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-				if (output) {
-					output.write(`HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Error);
-				}
-			} else {
-				res.on('error', reject);
-				const chunks: Buffer[] = [];
-				res.on('data', chunk => chunks.push(chunk as Buffer));
-				res.on('end', () => resolve(Buffer.concat(chunks)));
-			}
-		});
-		req.on('error', reject);
-		if (options.data) {
-			req.write(options.data);
+interface RequestOptions {
+	type: string;
+	url: string;
+	headers: Record<string, string>;
+	data?: Buffer;
+}
+
+export async function request(options: RequestOptions, output?: Log): Promise<Buffer> {
+	const fetchOptions: FetchOptions = {
+		method: options.type,
+		headers: options.headers,
+		body: options.data,
+		cache: 'no-store',
+	};
+	const res = await fetch(options.url, fetchOptions);
+	if (!res.ok) {
+		if (output) {
+			output.write(
+				`HTTP request failed with status code ${res.status}: : ${res.statusText}`,
+				LogLevel.Error
+			);
 		}
-		req.end();
-	});
+		throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+	}
+	return Buffer.from(await res.arrayBuffer());
 }
 
 // HTTP HEAD request that returns status code.
-export function headRequest(options: { url: string; headers: Record<string, string> }, output?: Log) {
-	return new Promise<number>((resolve, reject) => {
-		const parsed = new url.URL(options.url);
-		const reqOptions = {
-			hostname: parsed.hostname,
-			port: parsed.port,
-			path: parsed.pathname + parsed.search,
-			method: 'HEAD',
-			headers: options.headers,
-		};
-		const req = https.request(reqOptions, res => {
-			res.on('error', reject);
-			if (output) {
-				output.write(`HEAD ${options.url} -> ${res.statusCode}`, LogLevel.Trace);
-			}
-			resolve(res.statusCode!);
-		});
-		req.on('error', reject);
-		req.end();
-	});
+export async function headRequest(options: Pick<RequestOptions, 'url' | 'headers'>, output?: Log): Promise<number> {
+	const fetchOptions: FetchOptions = {
+		method: 'HEAD',
+		headers: options.headers,
+		cache: 'no-store',
+	};
+	const res = await fetch(options.url, fetchOptions);
+	if (output) {
+		output.write(`HEAD ${options.url} -> ${res.status}`, LogLevel.Trace);
+	}
+	return res.status;
+}
+
+interface StatusHeaders {
+	statusCode: number;
+	resHeaders: Record<string, string>;
 }
 
 // Send HTTP Request.  Does not throw on status code, but rather always returns 'statusCode' and 'resHeaders'.
-export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
-	return new Promise<{ statusCode: number; resHeaders: Record<string, string> }>((resolve, reject) => {
-		const parsed = new url.URL(options.url);
-		const reqOptions = {
-			hostname: parsed.hostname,
-			port: parsed.port,
-			path: parsed.pathname + parsed.search,
-			method: options.type,
-			headers: options.headers,
-		};
-		const req = https.request(reqOptions, res => {
-			res.on('error', reject);
-			const result = {
-				statusCode: res.statusCode!,
-				resHeaders: res.headers! as Record<string, string>
-			};
-			resolve(result);
-		});
-		req.on('error', reject);
-		if (options.data) {
-			req.write(options.data);
-		}
-		req.end();
-	});
+export async function requestResolveHeaders(options: RequestOptions, _output?: Log): Promise<StatusHeaders> {
+	const fetchOptions: FetchOptions = {
+		method: options.type,
+		headers: options.headers,
+		body: options.data,
+		cache: 'no-store',
+	};
+	const res = await fetch(options.url, fetchOptions);
+	const resHeaders = Object.fromEntries(res.headers.entries());
+	return { statusCode: res.status, resHeaders };
 }
