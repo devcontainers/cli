@@ -88,7 +88,7 @@ export function getDevcontainerMetadata(devContainerConfig: DevContainerConfig, 
 		'dockerComposeFile' in devContainerConfig ?
 			pick(devContainerConfig, pickConfigProperties) :
 			pick(devContainerConfig, pickSingleContainerConfigProperties),
-	];
+	].filter(config => Object.keys(config).length);
 }
 
 function pick<T, K extends keyof T>(obj: T, keys: K[]) {
