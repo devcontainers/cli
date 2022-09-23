@@ -2,6 +2,14 @@
 
 Notable changes.
 
+## September 2022
+
+### [0.15.0]
+
+- Fix typo in 'installsAfter'. (https://github.com/devcontainers/cli/issues/163)
+- Add --skip-post-attach. (https://github.com/devcontainers/cli/pull/174)
+- Improve feature installation logs. (https://github.com/devcontainers/cli/pull/178)
+
 ## August 2022
 
 ### [0.14.2]
