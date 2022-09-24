@@ -3,6 +3,7 @@ import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../
 import { ensureDockerfileHasFinalStageName } from '../spec-node/utils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
+import { testSubstitute } from './testUtils';
 
 describe('ensureDockerfileHasFinalStageName', () => {
 
@@ -165,10 +166,12 @@ FROM ubuntu:latest as dev
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'debian:latest');
             return details;
-        }, dockerfile, true, nullLog);
+        }, dockerfile, testSubstitute, true, nullLog);
         assert.strictEqual(info.user, 'imageUser');
-        assert.strictEqual(info.metadata.length, 1);
-        assert.strictEqual(info.metadata[0].id, 'testid');
+        assert.strictEqual(info.metadata.config.length, 1);
+        assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
+        assert.strictEqual(info.metadata.raw.length, 1);
+        assert.strictEqual(info.metadata.raw[0].id, 'testid');
     });
 
     it('for a USER', async () => {
@@ -189,8 +192,9 @@ USER dockerfileUserB
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, true, nullLog);
+        }, dockerfile, testSubstitute, true, nullLog);
         assert.strictEqual(info.user, 'dockerfileUserB');
-        assert.strictEqual(info.metadata.length, 0);
+        assert.strictEqual(info.metadata.config.length, 0);
+        assert.strictEqual(info.metadata.raw.length, 0);
     });
 });

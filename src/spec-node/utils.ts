@@ -24,6 +24,7 @@ import { StringDecoder } from 'string_decoder';
 import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
+import { ImageMetadataEntry } from './imageMetadata';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -107,6 +108,14 @@ export interface ResolverResult {
 	dockerContainerId: string | undefined;
 	composeProjectName?: string;
 }
+
+export interface SubstitutedConfig<T> {
+	config: T;
+	raw: T;
+	substitute: SubstituteConfig;
+}
+
+export type SubstituteConfig = <U extends DevContainerConfig | ImageMetadataEntry>(value: U) => U;
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
 	const eventsProcess = await getEvents(params, { event: ['start'] });

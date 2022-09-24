@@ -9,7 +9,7 @@ import * as jsonc from 'jsonc-parser';
 
 import { openDockerfileDevContainer } from './singleContainer';
 import { openDockerComposeDevContainer } from './dockerCompose';
-import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runUserCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority } from './utils';
+import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runUserCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig } from './utils';
 import { substitute } from '../spec-common/variableSubstitution';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace, workspaceFromPath, isWorkspacePath } from '../spec-utils/workspaces';
@@ -17,7 +17,7 @@ import { URI } from 'vscode-uri';
 import { CLIHost } from '../spec-common/commonUtils';
 import { Log } from '../spec-utils/log';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn } from '../spec-configuration/configurationCommonUtils';
-import { DevContainerConfig, updateFromOldProperties } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, updateFromOldProperties } from '../spec-configuration/configuration';
 
 export { getWellKnownDevContainerPaths as getPossibleDevContainerPaths } from '../spec-configuration/configurationCommonUtils';
 
@@ -52,18 +52,19 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 			throw new ContainerError({ description: `No dev container config and no workspace found.` });
 		}
 	}
-	const config = configs.config;
+	const configWithRaw = configs.config;
+	const { config } = configWithRaw;
 
 	await runUserCommand({ ...params, common: { ...common, output: common.postCreate.output } }, config.initializeCommand, common.postCreate.onDidInput);
 
 	let result: ResolverResult;
 	if (isDockerFileConfig(config) || 'image' in config) {
-		result = await openDockerfileDevContainer(params, config, configs.workspaceConfig, idLabels);
+		result = await openDockerfileDevContainer(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, configs.workspaceConfig, idLabels);
 	} else if ('dockerComposeFile' in config) {
 		if (!workspace) {
 			throw new ContainerError({ description: `A Dev Container using Docker Compose requires a workspace folder.` });
 		}
-		result = await openDockerComposeDevContainer(params, workspace, config, idLabels);
+		result = await openDockerComposeDevContainer(params, workspace, configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels);
 	} else {
 		throw new ContainerError({ description: `Dev container config (${(config as DevContainerConfig).configFilePath}) is missing one of "image", "dockerFile" or "dockerComposeFile" properties.` });
 	}
@@ -82,13 +83,14 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
 	}
 	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, output, consistency);
-	const config: DevContainerConfig = substitute({
+	const substitute0: SubstituteConfig = value => substitute({
 		platform: cliHost.platform,
 		localWorkspaceFolder: workspace?.rootFolderPath,
 		containerWorkspaceFolder: workspaceConfig.workspaceFolder,
 		configFile,
 		env: cliHost.env,
-	}, updated);
+	}, value);
+	const config: DevContainerConfig = substitute0(updated);
 	if (typeof config.workspaceFolder === 'string') {
 		workspaceConfig.workspaceFolder = config.workspaceFolder;
 	}
@@ -97,7 +99,11 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 	}
 	config.configFilePath = configFile;
 	return {
-		config,
+		config: {
+			config,
+			raw: updated,
+			substitute: substitute0,
+		},
 		workspaceConfig,
 	};
 }

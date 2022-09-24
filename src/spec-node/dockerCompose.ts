@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getEmptyContextFolder, getFolderImageName } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getEmptyContextFolder, getFolderImageName, SubstitutedConfig } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -22,16 +22,17 @@ import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetad
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
 
-export async function openDockerComposeDevContainer(params: DockerResolverParameters, workspace: Workspace, config: DevContainerFromDockerComposeConfig, idLabels: string[]): Promise<ResolverResult> {
+export async function openDockerComposeDevContainer(params: DockerResolverParameters, workspace: Workspace, config: SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels: string[]): Promise<ResolverResult> {
 	const { common, dockerCLI, dockerComposeCLI } = params;
 	const { cliHost, env, output } = common;
 	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
-	return _openDockerComposeDevContainer(params, buildParams, workspace, config, getRemoteWorkspaceFolder(config), idLabels);
+	return _openDockerComposeDevContainer(params, buildParams, workspace, config, getRemoteWorkspaceFolder(config.config), idLabels);
 }
 
-async function _openDockerComposeDevContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, workspace: Workspace, config: DevContainerFromDockerComposeConfig, remoteWorkspaceFolder: string, idLabels: string[]): Promise<ResolverResult> {
+async function _openDockerComposeDevContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, workspace: Workspace, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, remoteWorkspaceFolder: string, idLabels: string[]): Promise<ResolverResult> {
 	const { common } = params;
 	const { cliHost: buildCLIHost } = buildParams;
+	const { config } = configWithRaw;
 
 	let container: ContainerDetails | undefined;
 	let containerProperties: ContainerProperties | undefined;
@@ -57,7 +58,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 
 		// let collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined;
 		if (!container || container.State.Status !== 'running') {
-			const res = await startContainer(params, buildParams, config, projectName, composeFiles, envFile, container, idLabels);
+			const res = await startContainer(params, buildParams, configWithRaw, projectName, composeFiles, envFile, container, idLabels);
 			container = await inspectContainer(params, res.containerId);
 			// 	collapsedFeaturesConfig = res.collapsedFeaturesConfig;
 			// } else {
@@ -66,7 +67,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const configs = getImageMetadataFromContainer(container, config, [], common.experimentalImageMetadata, common.output);
+		const configs = getImageMetadataFromContainer(container, configWithRaw, [], common.experimentalImageMetadata, common.output).config;
 		const { remoteUser } = configs.reverse().find(config => config.remoteUser) || {};
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, remoteUser);
 
@@ -141,10 +142,11 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 	};
 }
 
-export async function buildAndExtendDockerCompose(config: DevContainerFromDockerComposeConfig, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, additionalCacheFroms?: string[], noBuild?: boolean) {
+export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, additionalCacheFroms?: string[], noBuild?: boolean) {
 
 	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
+	const { config } = configWithRaw;
 
 	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output };
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
@@ -177,8 +179,8 @@ export async function buildAndExtendDockerCompose(config: DevContainerFromDocker
 
 	// determine whether we need to extend with features
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, common.experimentalImageMetadata);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, config, baseName, imageBuildInfo);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, configWithRaw.substitute, common.experimentalImageMetadata);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo);
 
 	let overrideImageName: string | undefined;
 	let buildOverrideContent = '';
@@ -269,10 +271,7 @@ ${cacheFromOverrideContent}
 	}
 
 	return {
-		imageMetadata: [
-			...imageBuildInfo.metadata,
-			...getDevcontainerMetadata(config, extendImageBuildInfo?.collapsedFeaturesConfig?.allFeatures || []),
-		],
+		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.collapsedFeaturesConfig?.allFeatures || []),
 		additionalComposeOverrideFiles,
 		overrideImageName,
 	};
@@ -305,10 +304,11 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 		foundLabel: false
 	};
 }
-async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, config: DevContainerFromDockerComposeConfig, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[]) {
+async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[]) {
 	const { common } = params;
 	const { persistedFolder, output } = common;
 	const { cliHost: buildCLIHost } = buildParams;
+	const { config } = configWithRaw;
 	const featuresBuildOverrideFilePrefix = 'docker-compose.devcontainer.build';
 	const featuresStartOverrideFilePrefix = 'docker-compose.devcontainer.containerFeatures';
 
@@ -369,18 +369,18 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const noBuild = !!container; //if we have an existing container, just recreate override files but skip the build
 
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(config, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
 		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
-		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, imageMetadata, currentImageName, imageDetails, service.user);
+		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, imageMetadata.config, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, imageMetadata.config, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
