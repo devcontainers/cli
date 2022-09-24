@@ -138,6 +138,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 			dockerfilePath: (composeBuild.dockerfile as string | undefined) ?? 'Dockerfile',
 			context: (composeBuild.context as string | undefined) ?? cliHostPath.dirname(localComposeFiles[0]),
 			target: composeBuild.target as string | undefined,
+			args: composeBuild.args as Record<string, string> | undefined,
 		}
 	};
 }
@@ -179,7 +180,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine whether we need to extend with features
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, configWithRaw.substitute, common.experimentalImageMetadata);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, configWithRaw.substitute, common.experimentalImageMetadata);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo);
 
 	let overrideImageName: string | undefined;
