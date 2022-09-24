@@ -7,7 +7,7 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig } from './utils';
+import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -17,7 +17,7 @@ import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } 
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig } from './dockerCompose';
-import { DevContainerConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -359,7 +359,8 @@ async function doBuild({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const { config } = configs;
+		const configWithRaw = configs.config;
+		const { config } = configWithRaw;
 		let imageNameResult: string[] = [''];
 
 		// Support multiple use of `--image-name`
@@ -368,7 +369,7 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, config, imageNames);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames);
 
 			if (imageNames) {
 				if (!buildxPush) {
@@ -404,7 +405,7 @@ async function doBuild({
 			}
 
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(config, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -418,7 +419,7 @@ async function doBuild({
 		} else {
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, config, config.image);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image);
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
@@ -592,10 +593,10 @@ async function doRunUserCommands({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output);
+		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
 		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
-		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, m));
+		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, m));
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
 		const result = await runPostCreateCommands(common, containerProperties, updatedConfigs, remoteEnv, stopForPersonalization);
 		return {
@@ -705,7 +706,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		let { config: configuration } = configs;
+		let configuration = configs.config.config;
 
 		const dockerCLI = dockerPath || 'docker';
 		const dockerComposeCLI = dockerComposeCLIConfig({
@@ -725,17 +726,15 @@ async function readConfiguration({
 			configuration = containerSubstitute(cliHost.platform, configuration.configFilePath, envListToObj(container.Config.Env), configuration);
 		}
 
-		const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configs.config, extensionPath, skipFeatureAutoMapping) : undefined;
-		const imageMetadata = [
-			...(await getImageBuildInfo(params, configs.config, experimentalImageMetadata)).metadata,
-			...getDevcontainerMetadata(configs.config, featuresConfiguration || []),
-		];
+		const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration, extensionPath, skipFeatureAutoMapping) : undefined;
+		const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
+		const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration || []);
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration,
 				workspace: configs.workspaceConfig,
 				featuresConfiguration,
-				imageMetadata,
+				imageMetadata: imageMetadata.config,
 			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
@@ -901,10 +900,10 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const metadata = await getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output);
+		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
 		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
-		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.configFilePath, containerProperties.env, m));
+		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, m));
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		const infoOutput = makeLog(output, LogLevel.Info);

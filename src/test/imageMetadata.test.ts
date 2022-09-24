@@ -8,11 +8,20 @@ import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata } from '../spec-node/imageMetadata';
+import { SubstitutedConfig } from '../spec-node/utils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
-import { buildKitOptions, shellExec } from './testUtils';
+import { buildKitOptions, shellExec, testSubstitute } from './testUtils';
 
 const pkg = require('../../package.json');
+
+function configWithRaw<T>(raw: T): SubstitutedConfig<T> {
+	return {
+		config: testSubstitute(raw),
+		raw,
+		substitute: testSubstitute,
+	};
+}
 
 describe('Image Metadata', function () {
 	this.timeout('120s');
@@ -40,24 +49,30 @@ describe('Image Metadata', function () {
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect image-metadata-test`)).stdout)[0] as ImageDetails;
-				const metadata = getImageMetadata(details, true, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
 				assert.strictEqual(metadata.length, 3);
-				assert.strictEqual(metadata[0].id, 'baseFeature');
-				assert.strictEqual(metadata[1].id, 'localFeatureA');
+				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
+				assert.strictEqual(metadata[1].id, 'localFeatureA-substituted');
 				assert.strictEqual(metadata[1].init, true);
-				assert.strictEqual(metadata[2].id, 'localFeatureB');
+				assert.strictEqual(metadata[2].id, 'localFeatureB-substituted');
 				assert.strictEqual(metadata[2].privileged, true);
+				assert.strictEqual(raw.length, 3);
+				assert.strictEqual(raw[0].id, 'baseFeature');
+				assert.strictEqual(raw[1].id, 'localFeatureA');
+				assert.strictEqual(raw[1].init, true);
+				assert.strictEqual(raw[2].id, 'localFeatureB');
+				assert.strictEqual(raw[2].privileged, true);
 			});
 		});
 	});
 
 	describe('Utils', () => {
 		it('should collect metadata from devcontainer.json and features', () => {
-			const metadata = getDevcontainerMetadata({
+			const { config: metadata, raw } = getDevcontainerMetadata(configWithRaw([]), configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
-			}, [
+			}), [
 				{
 					id: 'someFeature',
 					value: 'someValue',
@@ -65,20 +80,23 @@ describe('Image Metadata', function () {
 				}
 			]);
 			assert.strictEqual(metadata.length, 2);
-			assert.strictEqual(metadata[0].id, 'someFeature');
+			assert.strictEqual(metadata[0].id, 'someFeature-substituted');
 			assert.strictEqual(metadata[1].remoteUser, 'testUser');
+			assert.strictEqual(raw.length, 2);
+			assert.strictEqual(raw[0].id, 'someFeature');
+			assert.strictEqual(raw[1].remoteUser, 'testUser');
 		});
 
 		it('should create label for Dockerfile', () => {
-			const label = getDevcontainerMetadataLabel([
+			const label = getDevcontainerMetadataLabel(configWithRaw([
 				{
 					id: 'baseFeature',
 				}
-			], {
+			]), configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
-			}, [
+			}), [
 				{
 					id: 'someFeature',
 					value: 'someValue',
