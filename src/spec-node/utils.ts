@@ -370,26 +370,43 @@ export function getEmptyContextFolder(common: ResolverParameters) {
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 const findUserLines = new RegExp(/^\s*USER\s+(?<user>\S+)/, 'gm');
+const argWithValue = /^\s*ARG\s+(?<name>\S+)=("(?<value1>\S+)"|(?<value2>\S+))/gm;
 
-export function findUserStatement(dockerfile: string) {
+export function findUserStatement(dockerfile: string, dockerBuildArgs: Record<string, string>) {
 	const userLines = [...dockerfile.matchAll(findUserLines)];
 	if (userLines.length) {
 		const user = userLines[userLines.length - 1].groups?.user;
-		if (user?.indexOf('$') === -1) { // Ignore variables.
+		if (!user || user.indexOf('$') === -1) {
 			return user;
 		}
+		return replaceBuildArgs(dockerfile, dockerBuildArgs, user);
 	}
 	return undefined;
 }
 
-export function findBaseImage(dockerfile: string) {
+export function findBaseImage(dockerfile: string, dockerBuildArgs: Record<string, string>) {
 	const fromLine = [...dockerfile.matchAll(findFromLines)][0];
 	const fromMatch = fromLine?.groups?.line?.match(parseFromLine);
 	const imageName = fromMatch?.groups?.image;
-	if (imageName?.indexOf('$') === -1) { // Ignore variables.
+	if (!imageName || imageName.indexOf('$') === -1) {
 		return imageName;
 	}
-	return undefined;
+	return replaceBuildArgs(dockerfile, dockerBuildArgs, imageName);
+}
+
+function replaceBuildArgs(dockerfile: string, dockerBuildArgs: Record<string, string>, imageName: string) {
+	const args = {
+		...[...dockerfile.matchAll(argWithValue)]
+			.reduce((obj, match) => {
+				const groups = match.groups!;
+				obj[groups.name] = groups.value1 || groups.value2;
+				return obj;
+			}, {} as Record<string, string>),
+		...dockerBuildArgs,
+	};
+	return Object.keys(args)
+		.sort((a, b) => b.length - a.length) // Sort by length to replace longest first.
+		.reduce((imageName, arg) => imageName.replace(new RegExp(`\\$${arg}|\\$\\{${arg}\\}`, 'g'), args[arg]), imageName);
 }
 
 // not expected to be called externally (exposed for testing)
