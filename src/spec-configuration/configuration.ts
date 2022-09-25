@@ -6,6 +6,7 @@
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { FileHost, parentURI, uriToFsPath } from './configurationCommonUtils';
+import { Mount } from './containerFeaturesConfiguration';
 import { RemoteDocuments } from './editableFiles';
 
 export type DevContainerConfig = DevContainerFromImageConfig | DevContainerFromDockerfileConfig | DevContainerFromDockerComposeConfig;
@@ -52,10 +53,14 @@ export interface DevContainerFromImageConfig {
 	/** remote path to folder or workspace */
 	workspaceFolder?: string;
 	workspaceMount?: string;
-	mounts?: string[];
+	mounts?: (Mount | string)[];
 	containerEnv?: Record<string, string>;
-	remoteEnv?: Record<string, string | null>;
 	containerUser?: string;
+	init?: boolean;
+	privileged?: boolean;
+	capAdd?: string[];
+	securityOpt?: string[];
+	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
@@ -85,10 +90,14 @@ export type DevContainerFromDockerfileConfig = {
 	/** remote path to folder or workspace */
 	workspaceFolder?: string;
 	workspaceMount?: string;
-	mounts?: string[];
+	mounts?: (Mount | string)[];
 	containerEnv?: Record<string, string>;
-	remoteEnv?: Record<string, string | null>;
 	containerUser?: string;
+	init?: boolean;
+	privileged?: boolean;
+	capAdd?: string[];
+	securityOpt?: string[];
+	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
 	userEnvProbe?: UserEnvProbe;
@@ -137,6 +146,13 @@ export interface DevContainerFromDockerComposeConfig {
 	postAttachCommand?: string | string[];
 	waitFor?: DevContainerConfigCommand;
 	runServices?: string[];
+	mounts?: (Mount | string)[];
+	containerEnv?: Record<string, string>;
+	containerUser?: string;
+	init?: boolean;
+	privileged?: boolean;
+	capAdd?: string[];
+	securityOpt?: string[];
 	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;

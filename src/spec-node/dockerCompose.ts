@@ -476,6 +476,8 @@ async function generateFeaturesComposeOverrideContent(
 
 	const overrideImage = updatedImageName !== originalImageName;
 
+	const user = imageMetadata.reverse().find(m => m.containerUser)?.containerUser;
+	const env = Object.assign({}, ...imageMetadata.map(m => m.containerEnv));
 	const featureCaps = [...new Set(([] as string[]).concat(...imageMetadata
 		.map(f => f.capAdd || [])))];
 	const featureSecurityOpts = [...new Set(([] as string[]).concat(...imageMetadata
@@ -507,7 +509,10 @@ ${customEntrypoints.join('\\n\n')}\\n
 exec \\"$$@\\"\\n
 while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.stringify(a)}`).join('')}]${userCommand !== composeCommand ? `
     command: ${JSON.stringify(userCommand)}` : ''}${imageMetadata.some(f => f.init) ? `
-    init: true` : ''}${imageMetadata.some(f => f.privileged) ? `
+    init: true` : ''}${user ? `
+    user: ${user}` : ''}${Object.keys(env).length ? `
+    environment:${Object.keys(env).map(key => `
+      - ${key}=${env[key]}`).join('')}` : ''}${imageMetadata.some(f => f.privileged) ? `
     privileged: true` : ''}${featureCaps.length ? `
     cap_add:${featureCaps.map(cap => `
       - ${cap}`).join('')}` : ''}${featureSecurityOpts.length ? `
