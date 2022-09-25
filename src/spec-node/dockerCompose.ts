@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, ensureDockerfileHasFinalStageName, getEmptyContextFolder, getFolderImageName, SubstitutedConfig } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -18,6 +18,7 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry } from './imageMetadata';
+import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -180,7 +181,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine whether we need to extend with features
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, configWithRaw.substitute, common.experimentalImageMetadata);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo);
 
 	let overrideImageName: string | undefined;
