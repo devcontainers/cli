@@ -9,7 +9,8 @@ import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerF
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
-import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, findBaseImage, findUserStatement, inspectDockerImage, uriToWSLFsPath } from './utils';
+import { extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
+import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath } from './utils';
 
 const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
 	'onCreateCommand',
@@ -130,7 +131,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 		}
 		const dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
-		return getImageBuildInfoFromDockerfile(params, dockerfile, config.build?.args || {}, configWithRaw.substitute, experimentalImageMetadata);
+		return getImageBuildInfoFromDockerfile(params, dockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, experimentalImageMetadata);
 
 	} else if ('dockerComposeFile' in config) {
 
@@ -151,7 +152,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			const { context, dockerfilePath } = serviceInfo.build;
 			const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
 			const dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, configWithRaw.substitute, experimentalImageMetadata);
+			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute, experimentalImageMetadata);
 		} else {
 			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, experimentalImageMetadata);
 		}
@@ -175,15 +176,15 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 	};
 }
 
-export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, substitute: SubstituteConfig, experimentalImageMetadata: boolean) {
+export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean) {
 	const { output } = 'output' in params ? params : params.common;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, substitute, experimentalImageMetadata, output);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, experimentalImageMetadata, output);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfile: string, dockerBuildArgs: Record<string, string>, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): Promise<ImageBuildInfo> {
-	// TODO: Other targets.
-	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs);
-	const baseImage = findBaseImage(dockerfile, dockerBuildArgs);
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): Promise<ImageBuildInfo> {
+	const extracted = extractDockerfile(dockerfile);
+	const dockerfileUser = findUserStatement(extracted, dockerBuildArgs, targetStage);
+	const baseImage = findBaseImage(extracted, dockerBuildArgs, targetStage);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, experimentalImageMetadata, output) : { config: [], raw: [], substitute };
