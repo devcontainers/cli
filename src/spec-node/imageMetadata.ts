@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
-import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerConfigCommand, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
@@ -20,6 +20,13 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'postAttachCommand',
 	'waitFor',
 	'customizations',
+	'mounts',
+	'containerEnv',
+	'containerUser',
+	'init',
+	'privileged',
+	'capAdd',
+	'securityOpt',
 	'remoteUser',
 	'userEnvProbe',
 	'remoteEnv',
@@ -30,13 +37,6 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'shutdownAction',
 	'updateRemoteUserUID',
 	'hostRequirements',
-];
-
-const pickSingleContainerConfigProperties: (keyof DevContainerFromImageConfig & keyof DevContainerFromDockerfileConfig & keyof ImageMetadataEntry)[] = [
-	'mounts',
-	'containerUser',
-	'containerEnv',
-	...pickConfigProperties,
 ];
 
 const pickFeatureProperties: (keyof Feature & keyof ImageMetadataEntry)[] = [
@@ -89,16 +89,12 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 		config: [
 			...baseImageMetadata.config,
 			...raw.map(devContainerConfig.substitute),
-			'dockerComposeFile' in devContainerConfig.config ?
-				pick(devContainerConfig.config, pickConfigProperties) :
-				pick(devContainerConfig.config, pickSingleContainerConfigProperties),
+			pick(devContainerConfig.config, pickConfigProperties),
 		].filter(config => Object.keys(config).length),
 		raw: [
 			...baseImageMetadata.raw,
 			...raw,
-			'dockerComposeFile' in devContainerConfig.raw ?
-				pick(devContainerConfig.raw, pickConfigProperties) :
-				pick(devContainerConfig.raw, pickSingleContainerConfigProperties),
+			pick(devContainerConfig.raw, pickConfigProperties),
 		].filter(config => Object.keys(config).length),
 		substitute: devContainerConfig.substitute,
 	};
