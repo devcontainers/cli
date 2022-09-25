@@ -19,7 +19,7 @@ import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 
-export const experimentalImageMetadataDefault = false;
+export const experimentalImageMetadataDefault = true;
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
