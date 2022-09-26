@@ -11,8 +11,7 @@ import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainer
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
@@ -27,7 +26,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 
 	try {
 		container = await findExistingContainer(params, idLabels);
-		let imageMetadata: ImageMetadataEntry[];
+		let mergedConfig: MergedDevContainerConfig;
 		if (container) {
 			// let _collapsedFeatureConfig: Promise<CollapsedFeaturesConfig | undefined>;
 			// collapsedFeaturesConfig = async () => {
@@ -38,17 +37,19 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, [], common.experimentalImageMetadata, common.output).config;
+			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, [], common.experimentalImageMetadata, common.output).config;
+			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw);
-			imageMetadata = res.imageMetadata.config;
-			const { containerUser } = imageMetadata.reverse().find(m => m.containerUser) || {};
-			const updatedImageName = await updateRemoteUserUID(params, imageMetadata, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
+			const imageMetadata = res.imageMetadata.config;
+			mergedConfig = mergeConfiguration(config, imageMetadata);
+			const { containerUser } = mergedConfig;
+			const updatedImageName = await updateRemoteUserUID(params, mergedConfig, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
 
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, imageMetadata, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser);
+				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser);
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -59,9 +60,8 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			}
 		}
 
-		const { remoteUser } = imageMetadata.reverse().find(m => m.remoteUser) || {};
-		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
-		return await setupContainer(container, params, containerProperties, config, imageMetadata);
+		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		return await setupContainer(container, params, containerProperties, config, mergedConfig);
 
 	} catch (e) {
 		throw createSetupError(e, container, params, containerProperties, config);
@@ -88,11 +88,11 @@ function createSetupError(originalError: any, container: ContainerDetails | unde
 	return err;
 }
 
-async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, configs: ImageMetadataEntry[]): Promise<ResolverResult> {
+async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig): Promise<ResolverResult> {
 	const { common } = params;
 	const {
 		remoteEnv: extensionHostEnv,
-	} = await setupInContainer(common, containerProperties, config, configs);
+	} = await setupInContainer(common, containerProperties, mergedConfig);
 
 	return {
 		params: common,
@@ -302,7 +302,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 }
 
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, imageMetadata: ImageMetadataEntry[], imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -312,7 +312,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
-	const envObj = Object.assign({}, ...imageMetadata.map(m => m.containerEnv));
+	const envObj = mergedConfig.containerEnv || {};
 	const containerEnv = Object.keys(envObj)
 		.reduce((args, key) => {
 			args.push('-e', `${key}=${envObj[key]}`);
@@ -322,42 +322,34 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
 	const featureArgs: string[] = [];
-	if (imageMetadata.some(f => f.init)) {
+	if (mergedConfig.init) {
 		featureArgs.push('--init');
 	}
-	if (imageMetadata.some(f => f.privileged)) {
+	if (mergedConfig.privileged) {
 		featureArgs.push('--privileged');
 	}
-	const caps = new Set(([] as string[]).concat(...imageMetadata
-		.map(f => f.capAdd || [])));
-	for (const cap of caps) {
+	for (const cap of mergedConfig.capAdd || []) {
 		featureArgs.push('--cap-add', cap);
 	}
-	const securityOpts = new Set(([] as string[]).concat(...imageMetadata
-		.map(f => f.securityOpt || [])));
-	for (const securityOpt of securityOpts) {
+	for (const securityOpt of mergedConfig.securityOpt || []) {
 		featureArgs.push('--security-opt', securityOpt);
 	}
 
 	const featureMounts = ([] as string[]).concat(
-		...([] as (Mount | string)[]).concat(
-			...imageMetadata
-				.map(f => f.mounts)
-				.filter(Boolean) as (Mount | string)[][],
-			params.additionalMounts,
-		).map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
+		...[
+			...mergedConfig.mounts || [],
+			...params.additionalMounts,
+		].map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
 	);
 
-	const customEntrypoints = imageMetadata
-		.map(f => f.entrypoint)
-		.filter(Boolean) as string[];
+	const customEntrypoints = mergedConfig.entrypoints || [];
 	const entrypoint = ['--entrypoint', '/bin/sh'];
 	const cmd = ['-c', `echo Container started
 trap "exit 0" 15
 ${customEntrypoints.join('\n')}
 exec "$@"
 while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` to run (synchronous `sleep` would not).
-	const overrideCommand = imageMetadata.reverse().find(m => typeof m.overrideCommand === 'boolean')?.overrideCommand;
+	const overrideCommand = mergedConfig.overrideCommand;
 	if (overrideCommand === false && imageDetails) {
 		const details = await imageDetails();
 		cmd.push(...details.Config.Entrypoint || []);

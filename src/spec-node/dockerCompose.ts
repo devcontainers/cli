@@ -17,7 +17,7 @@ import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/l
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
@@ -69,12 +69,12 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		}
 
 		const configs = getImageMetadataFromContainer(container, configWithRaw, [], common.experimentalImageMetadata, common.output).config;
-		const { remoteUser } = configs.reverse().find(config => config.remoteUser) || {};
-		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, remoteUser);
+		const mergedConfig = mergeConfiguration(configWithRaw.config, configs);
+		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
 		const {
 			remoteEnv: extensionHostEnv,
-		} = await setupInContainer(common, containerProperties, config, configs);
+		} = await setupInContainer(common, containerProperties, mergedConfig);
 
 		return {
 			params: common,
@@ -377,12 +377,13 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
 		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
-		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, imageMetadata.config, currentImageName, imageDetails, service.user);
+		const mergedConfig = mergeConfiguration(config, imageMetadata.config);
+		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, mergedConfig, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, imageMetadata.config, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -426,7 +427,7 @@ export function getDefaultImageName(dockerComposeCLI: DockerComposeCLI, projectN
 async function writeFeaturesComposeOverrideFile(
 	updatedImageName: string,
 	originalImageName: string,
-	imageMetadata: ImageMetadataEntry[],
+	mergedConfig: MergedDevContainerConfig,
 	config: DevContainerFromDockerComposeConfig,
 	buildParams: DockerCLIParameters,
 	composeFiles: string[],
@@ -439,7 +440,7 @@ async function writeFeaturesComposeOverrideFile(
 	buildCLIHost: CLIHost,
 	output: Log,
 ) {
-	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, imageMetadata, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
@@ -461,7 +462,7 @@ async function writeFeaturesComposeOverrideFile(
 async function generateFeaturesComposeOverrideContent(
 	updatedImageName: string,
 	originalImageName: string,
-	imageMetadata: ImageMetadataEntry[],
+	mergedConfig: MergedDevContainerConfig,
 	config: DevContainerFromDockerComposeConfig,
 	buildParams: DockerCLIParameters,
 	composeFiles: string[],
@@ -476,25 +477,19 @@ async function generateFeaturesComposeOverrideContent(
 
 	const overrideImage = updatedImageName !== originalImageName;
 
-	const user = imageMetadata.reverse().find(m => m.containerUser)?.containerUser;
-	const env = Object.assign({}, ...imageMetadata.map(m => m.containerEnv));
-	const featureCaps = [...new Set(([] as string[]).concat(...imageMetadata
-		.map(f => f.capAdd || [])))];
-	const featureSecurityOpts = [...new Set(([] as string[]).concat(...imageMetadata
-		.map(f => f.securityOpt || [])))];
-	const featureMounts = ([] as (Mount | string)[]).concat(
-		...imageMetadata
-			.map(f => f.mounts)
-			.filter(Boolean) as (Mount | string)[][],
-		additionalMounts,
-	).map(m => typeof m === 'string' ? parseMount(m) : m);
-	const volumeMounts = featureMounts.filter(m => m.type === 'volume');
-	const customEntrypoints = imageMetadata
-		.map(f => f.entrypoint)
-		.filter(Boolean) as string[];
+	const user = mergedConfig.containerUser;
+	const env = mergedConfig.containerEnv || {};
+	const capAdd = mergedConfig.capAdd || [];
+	const securityOpts = mergedConfig.securityOpt || [];
+	const mounts = [
+		...mergedConfig.mounts || [],
+		...additionalMounts,
+	].map(m => typeof m === 'string' ? parseMount(m) : m);
+	const volumeMounts = mounts.filter(m => m.type === 'volume');
+	const customEntrypoints = mergedConfig.entrypoints || [];
 	const composeEntrypoint: string[] | undefined = typeof service.entrypoint === 'string' ? shellQuote.parse(service.entrypoint) : service.entrypoint;
 	const composeCommand: string[] | undefined = typeof service.command === 'string' ? shellQuote.parse(service.command) : service.command;
-	const overrideCommand = imageMetadata.reverse().find(m => typeof m.overrideCommand === 'boolean')?.overrideCommand;
+	const { overrideCommand } = mergedConfig;
 	const userEntrypoint = overrideCommand ? [] : composeEntrypoint /* $ already escaped. */
 		|| ((await imageDetails()).Config.Entrypoint || []).map(c => c.replace(/\$/g, '$$$$')); // $ > $$ to escape docker-compose.yml's interpolation.
 	const userCommand = overrideCommand ? [] : composeCommand /* $ already escaped. */
@@ -508,19 +503,19 @@ trap \\"exit 0\\" 15\\n
 ${customEntrypoints.join('\\n\n')}\\n
 exec \\"$$@\\"\\n
 while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.stringify(a)}`).join('')}]${userCommand !== composeCommand ? `
-    command: ${JSON.stringify(userCommand)}` : ''}${imageMetadata.some(f => f.init) ? `
+    command: ${JSON.stringify(userCommand)}` : ''}${mergedConfig.init ? `
     init: true` : ''}${user ? `
     user: ${user}` : ''}${Object.keys(env).length ? `
     environment:${Object.keys(env).map(key => `
-      - ${key}=${env[key]}`).join('')}` : ''}${imageMetadata.some(f => f.privileged) ? `
-    privileged: true` : ''}${featureCaps.length ? `
-    cap_add:${featureCaps.map(cap => `
-      - ${cap}`).join('')}` : ''}${featureSecurityOpts.length ? `
-    security_opt:${featureSecurityOpts.map(securityOpt => `
+      - ${key}=${env[key]}`).join('')}` : ''}${mergedConfig.privileged ? `
+    privileged: true` : ''}${capAdd.length ? `
+    cap_add:${capAdd.map(cap => `
+      - ${cap}`).join('')}` : ''}${securityOpts.length ? `
+    security_opt:${securityOpts.map(securityOpt => `
       - ${securityOpt}`).join('')}` : ''}${additionalLabels.length ? `
     labels:${additionalLabels.map(label => `
-      - ${label.replace(/\$/g, '$$$$')}`).join('')}` : ''}${featureMounts.length ? `
-    volumes:${featureMounts.map(m => `
+      - ${label.replace(/\$/g, '$$$$')}`).join('')}` : ''}${mounts.length ? `
+    volumes:${mounts.map(m => `
       - ${m.source}:${m.target}`).join('')}` : ''}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
   ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
