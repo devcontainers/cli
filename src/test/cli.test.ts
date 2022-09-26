@@ -78,5 +78,29 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`docker rm -f ${containerId}`);
 			}
 		});
+
+		it('should replace environment variables with merged config', async () => {
+			const res1 = await shellExec(`${cli} read-configuration --workspace-folder ${__dirname}/configs/image --include-merged-configuration`);
+			const response1 = JSON.parse(res1.stdout);
+			const remoteEnv1: Record<string, string> | undefined = response1.mergedConfiguration.remoteEnv;
+			assert.ok(remoteEnv1?.LOCAL_PATH?.startsWith('/'), `localEnv not replaced. (Was: ${remoteEnv1?.LOCAL_PATH})`);
+			assert.strictEqual(remoteEnv1?.CONTAINER_PATH, '${containerEnv:PATH}');
+
+			const res2 = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image`);
+			const response2 = JSON.parse(res2.stdout);
+			assert.equal(response2.outcome, 'success');
+			const containerId: string = response2.containerId;
+			assert.ok(containerId, 'Container id not found.');
+
+			try {
+				const res3 = await shellExec(`${cli} read-configuration --workspace-folder ${__dirname}/configs/image --include-merged-configuration`);
+				const response3 = JSON.parse(res3.stdout);
+				const remoteEnv3: Record<string, string> | undefined = response3.mergedConfiguration.remoteEnv;
+				assert.ok(remoteEnv3?.LOCAL_PATH?.startsWith('/'), `localEnv not replaced. (Was: ${remoteEnv3?.LOCAL_PATH})`);
+				assert.ok(remoteEnv3?.CONTAINER_PATH?.startsWith('/'), `containerEnv not replaced. (Was: ${remoteEnv3?.CONTAINER_PATH})`);
+			} finally {
+				await shellExec(`docker rm -f ${containerId}`);
+			}
+		});
 	});
 });
