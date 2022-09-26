@@ -7,7 +7,7 @@ import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig } from './utils';
+import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -30,7 +30,7 @@ import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/pu
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -593,12 +593,12 @@ async function doRunUserCommands({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
-		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
-		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, m));
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfigs, remoteEnv, stopForPersonalization);
+		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
+		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
@@ -639,6 +639,7 @@ function readConfigurationOptions(y: Argv) {
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'include-features-configuration': { type: 'boolean', default: false, description: 'Include features configuration.' },
+		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
@@ -672,6 +673,7 @@ async function readConfiguration({
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
 	'include-features-configuration': includeFeaturesConfig,
+	'include-merged-configuration': includeMergedConfig,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
 }: ReadConfigurationArgs) {
@@ -706,7 +708,7 @@ async function readConfiguration({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		let configuration = configs.config.config;
+		let configuration = configs.config;
 
 		const dockerCLI = dockerPath || 'docker';
 		const dockerComposeCLI = dockerComposeCLIConfig({
@@ -723,18 +725,35 @@ async function readConfiguration({
 		};
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (container) {
-			configuration = containerSubstitute(cliHost.platform, configuration.configFilePath, envListToObj(container.Config.Env), configuration);
+			const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
+			configuration = {
+				config: substitute2(configuration.config),
+				raw: configuration.raw,
+				substitute: config => substitute2(configuration.substitute(config)),
+			};
 		}
 
-		const featuresConfiguration = includeFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration, extensionPath, skipFeatureAutoMapping) : undefined;
-		const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
-		const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration || []);
+		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && (!container || !experimentalImageMetadata));
+		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping) : undefined;
+		let mergedConfig: MergedDevContainerConfig | undefined;
+		if (includeMergedConfig) {
+			let imageMetadata: ImageMetadataEntry[];
+			if (container) {
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration || [], experimentalImageMetadata, output).config;
+				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
+				imageMetadata = imageMetadata.map(substitute2);
+			} else {
+				const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
+				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration || []).config;
+			}
+			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
+		}
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
-				configuration,
+				configuration: configuration.config,
 				workspace: configs.workspaceConfig,
 				featuresConfiguration,
-				imageMetadata: imageMetadata.config,
+				mergedConfiguration: mergedConfig,
 			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
@@ -900,11 +919,11 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const metadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
-		const { remoteUser } = metadata.reverse().find(m => m.remoteUser) || {};
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, remoteUser);
-		const updatedConfigs = metadata.map(m => containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, m));
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfigs);
+		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
+		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		const infoOutput = makeLog(output, LogLevel.Info);
 		await runRemoteCommand({ ...common, output: infoOutput }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });

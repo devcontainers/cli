@@ -15,7 +15,7 @@ import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry } from './imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, MergedDevContainerConfig } from './imageMetadata';
 
 // Escapes environment variable keys.
 //
@@ -389,16 +389,16 @@ function getFeatureEnvVariables(f: Feature) {
 	}	
 }
 
-export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, imageMetadata: ImageMetadataEntry[], imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
+export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
-	const updateRemoteUserUID = imageMetadata.reverse().find(m => typeof m.updateRemoteUserUID === 'boolean')?.updateRemoteUserUID;
+	const { updateRemoteUserUID } = mergedConfig;
 	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof updateRemoteUserUID === 'boolean' ? updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
 		return null;
 	}
 	const details = await imageDetails();
 	const imageUser = details.Config.User || 'root';
-	const remoteUser = imageMetadata.reverse().find(m => m.remoteUser)?.remoteUser || runArgsUser || imageUser;
+	const remoteUser = mergedConfig.remoteUser || runArgsUser || imageUser;
 	if (remoteUser === 'root' || /^\d+$/.test(remoteUser)) {
 		return null;
 	}
@@ -412,11 +412,11 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 	};
 }
 
-export async function updateRemoteUserUID(params: DockerResolverParameters, imageMetadata: ImageMetadataEntry[], imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
+export async function updateRemoteUserUID(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
 
-	const updateDetails = await getRemoteUserUIDUpdateDetails(params, imageMetadata, imageName, imageDetails, runArgsUser);
+	const updateDetails = await getRemoteUserUIDUpdateDetails(params, mergedConfig, imageName, imageDetails, runArgsUser);
 	if (!updateDetails) {
 		return imageName;
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
-import { DevContainerConfig, DevContainerConfigCommand, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
@@ -77,6 +77,125 @@ export interface ImageMetadataEntry {
 	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
 	updateRemoteUserUID?: boolean;
 	hostRequirements?: HostRequirements;
+}
+
+export type MergedDevContainerConfig = MergedConfig<DevContainerFromImageConfig> | MergedConfig<DevContainerFromDockerfileConfig> | MergedConfig<DevContainerFromDockerComposeConfig>;
+
+type MergedConfig<T extends DevContainerConfig> = Omit<T, typeof replaceProperties[number]> & UpdatedConfigProperties;
+
+const replaceProperties = [
+	'customizations',
+	'entrypoint',
+	'onCreateCommand',
+	'updateContentCommand',
+	'postCreateCommand',
+	'postStartCommand',
+	'postAttachCommand',
+	'shutdownAction'
+] as const;
+
+interface UpdatedConfigProperties {
+	customizations?: Record<string, any[]>;
+	entrypoints?: string[];
+	onCreateCommands?: (string | string[])[];
+	updateContentCommands?: (string | string[])[];
+	postCreateCommands?: (string | string[])[];
+	postStartCommands?: (string | string[])[];
+	postAttachCommands?: (string | string[])[];
+	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
+}
+
+export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[]): MergedDevContainerConfig {
+	const customizations = imageMetadata.reduce((obj, entry) => {
+		for (const key in entry.customizations) {
+			if (key in obj) {
+				obj[key].push(entry.customizations[key]);
+			} else {
+				obj[key] = [entry.customizations[key]];
+			}
+		}
+		return obj;
+	}, {} as Record<string, any[]>);
+	const reversed = imageMetadata.reverse();
+	const copy = { ...config };
+	replaceProperties.forEach(property => delete (copy as any)[property]);
+	const merged: MergedDevContainerConfig = {
+		...copy,
+		init: imageMetadata.some(entry => entry.init),
+		privileged: imageMetadata.some(entry => entry.privileged),
+		capAdd: unionOrUndefined(imageMetadata.map(entry => entry.capAdd)),
+		securityOpt: unionOrUndefined(imageMetadata.map(entry => entry.securityOpt)),
+		entrypoints: collectOrUndefined(imageMetadata, 'entrypoint'),
+		mounts: concatOrUndefined(imageMetadata.map(entry => entry.mounts)),
+		customizations: Object.keys(customizations).length ? customizations : undefined,
+		onCreateCommands: collectOrUndefined(imageMetadata, 'onCreateCommand'),
+		updateContentCommands: collectOrUndefined(imageMetadata, 'updateContentCommand'),
+		postCreateCommands: collectOrUndefined(imageMetadata, 'postCreateCommand'),
+		postStartCommands: collectOrUndefined(imageMetadata, 'postStartCommand'),
+		postAttachCommands: collectOrUndefined(imageMetadata, 'postAttachCommand'),
+		waitFor: reversed.find(entry => entry.waitFor)?.waitFor,
+		remoteUser: reversed.find(entry => entry.remoteUser)?.remoteUser,
+		containerUser: reversed.find(entry => entry.containerUser)?.containerUser,
+		userEnvProbe: reversed.find(entry => entry.userEnvProbe)?.userEnvProbe,
+		remoteEnv: Object.assign({}, ...imageMetadata.map(entry => entry.remoteEnv)),
+		containerEnv: Object.assign({}, ...imageMetadata.map(entry => entry.containerEnv)),
+		overrideCommand: reversed.find(entry => typeof entry.overrideCommand === 'boolean')?.overrideCommand,
+		portsAttributes: Object.assign({}, ...imageMetadata.map(entry => entry.portsAttributes)),
+		otherPortsAttributes: reversed.find(entry => entry.otherPortsAttributes)?.otherPortsAttributes,
+		forwardPorts: mergeForwardPorts(imageMetadata),
+		shutdownAction: reversed.find(entry => entry.shutdownAction)?.shutdownAction,
+		updateRemoteUserUID: reversed.find(entry => entry.updateRemoteUserUID)?.updateRemoteUserUID,
+		hostRequirements: mergeHostRequirements(imageMetadata),
+	};
+	return merged;
+}
+
+function mergeForwardPorts(imageMetadata: ImageMetadataEntry[]): (number | string)[] | undefined {
+	const forwardPorts = [
+		...new Set(
+			([] as (number | string)[]).concat(...imageMetadata.map(entry => entry.forwardPorts || []))
+				.map(port => typeof port === 'number' ? `localhost:${port}` : port)
+		)
+	].map(port => /localhost:\d+/.test(port) ? parseInt(port.substring('localhost:'.length)) : port);
+	return forwardPorts.length ? forwardPorts : undefined;
+}
+
+function mergeHostRequirements(imageMetadata: ImageMetadataEntry[]) {
+	const cpus = Math.max(...imageMetadata.map(m => m.hostRequirements?.cpus || 0));
+	const memory = Math.max(...imageMetadata.map(m => parseBytes(m.hostRequirements?.memory || '0')));
+	const storage = Math.max(...imageMetadata.map(m => parseBytes(m.hostRequirements?.storage || '0')));
+	return cpus || memory || storage ? {
+		cpus,
+		memory: memory ? `${memory}` : undefined,
+		storage: storage ? `${storage}` : undefined,
+	} : undefined;
+}
+
+function parseBytes(str: string) {
+	const m = /^(\d+)([tgmk]b)?$/.exec(str);
+	if (m) {
+		const [, strn, stru] = m;
+		const n = parseInt(strn, 10);
+		const u = stru && { t: 2 ** 40, g: 2 ** 30, m: 2 ** 20, k: 2 ** 10 }[stru[0]] || 1;
+		return n * u;
+	}
+	return 0;
+}
+
+function concatOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
+	const values = ([] as T[]).concat(...entries.filter(entry => !!entry) as T[][]);
+	return values.length ? values : undefined;
+}
+
+function unionOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
+	const values = [...new Set(([] as T[]).concat(...entries.filter(entry => !!entry) as T[][]))];
+	return values.length ? values : undefined;
+}
+
+function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): NonNullable<T[K]>[] | undefined {
+	const values = entries.map(entry => entry[property])
+		.filter(value => !!value) as NonNullable<T[K]>[];
+	return values.length ? values : undefined;
 }
 
 export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | Feature[]): SubstitutedConfig<ImageMetadataEntry[]> {
