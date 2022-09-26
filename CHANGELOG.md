@@ -4,6 +4,10 @@ Notable changes.
 
 ## September 2022
 
+### [0.16.0]
+
+- Image metadata. (https://github.com/devcontainers/cli/issues/188)
+
 ### [0.15.0]
 
 - Fix typo in 'installsAfter'. (https://github.com/devcontainers/cli/issues/163)
