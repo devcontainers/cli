@@ -725,11 +725,12 @@ async function readConfiguration({
 		};
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (container) {
+			const substitute1 = configuration.substitute;
 			const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 			configuration = {
 				config: substitute2(configuration.config),
 				raw: configuration.raw,
-				substitute: config => substitute2(configuration.substitute(config)),
+				substitute: config => substitute2(substitute1(config)),
 			};
 		}
 
