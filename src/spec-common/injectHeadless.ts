@@ -110,6 +110,8 @@ export type DevContainerConfigCommand = 'initializeCommand' | 'onCreateCommand' 
 
 const defaultWaitFor: DevContainerConfigCommand = 'updateContentCommand';
 
+type LifecycleCommand = string | string[];
+
 export interface CommonDevContainerConfig {
 	configFilePath?: URI;
 	remoteEnv?: Record<string, string | null>;
@@ -117,11 +119,11 @@ export interface CommonDevContainerConfig {
 	portsAttributes?: Record<string, PortAttributes>;
 	otherPortsAttributes?: PortAttributes;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
-	onCreateCommand?: string | string[] | Record<string, string | string[]>;
-	updateContentCommand?: string | string[] | Record<string, string | string[]>;
-	postCreateCommand?: string | string[] | Record<string, string | string[]>;
-	postStartCommand?: string | string[] | Record<string, string | string[]>;
-	postAttachCommand?: string | string[] | Record<string, string | string[]>;
+	onCreateCommand?: LifecycleCommand | Record<string, LifecycleCommand>;
+	updateContentCommand?: LifecycleCommand | Record<string, LifecycleCommand>;
+	postCreateCommand?: LifecycleCommand | Record<string, LifecycleCommand>;
+	postStartCommand?: LifecycleCommand | Record<string, LifecycleCommand>;
+	postAttachCommand?: LifecycleCommand | Record<string, LifecycleCommand>;
 	waitFor?: DevContainerConfigCommand;
 	userEnvProbe?: UserEnvProbe;
 }
@@ -440,7 +442,6 @@ async function runPostCommand({ postCreate }: ResolverParameters, containerPrope
 			onDidChangeDimensions: postCreate.output.onDidChangeDimensions,
 		}, LogLevel.Info);
 		try {
-			infoOutput.raw(`\x1b[1mRunning the ${postCommandName} from devcontainer.json...\x1b[0m\r\n\r\n`);
 			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 			async function runSingleCommand(postCommand: string | string[], name?: string) {
 				const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
@@ -452,22 +453,23 @@ async function runPostCommand({ postCreate }: ResolverParameters, containerPrope
 				});
 
 				// If we have a command name then the command is running in parallel and 
-				// we need to hold output until we're done so that the various parallel 
-				// commands' output doesn't get interleaved.
+				// we need to hold output until the command is done so that the output
+				// doesn't get interleaved with the output of other commands.
 				const printMode = name ? 'off' : 'continuous';
 				const { cmdOutput } = await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: await remoteEnv, print: printMode });
 
 				if (name) {
-					infoOutput.raw(`\x1b[1mRunning ${name} from devcontainer.json...\x1b[0m\r\nOutput: ${cmdOutput}\r\n\r\n`);
+					infoOutput.raw(`\x1b[1mRunning ${name} from devcontainer.json...\x1b[0m\r\n${cmdOutput}\r\n`);
 				}
 
-				infoOutput.raw('\r\n');
 				infoOutput.event({
 					type: 'progress',
 					name: progressName,
 					status: 'succeeded',
 				});
 			}
+
+			infoOutput.raw(`\x1b[1mRunning the ${postCommandName} from devcontainer.json...\x1b[0m\r\n\r\n`);
 
 			let commands;
 			if (typeof postCommand === 'string' || Array.isArray(postCommand)) {
@@ -479,9 +481,6 @@ async function runPostCommand({ postCreate }: ResolverParameters, containerPrope
 				});
 			}
 			await Promise.all(commands);
-
-			// roll up: 'command A run: {output}
-			// command B ran: {output}
 		} catch (err) {
 			infoOutput.event({
 				type: 'progress',
