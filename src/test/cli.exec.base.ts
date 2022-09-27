@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, shellExec } from './testUtils';
+import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -237,6 +237,21 @@ export function describeTests2({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					assert.equal(response.outcome, 'success');
 					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on run-user-commands');
+				});
+			});
+			describe(`Dockerfile with parallel post*Commands specified [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/dockerfile-with-parallel-commands`;
+				after(async () => await devContainerDown({ containerId }));
+				it('should have all command markers at appropriate times', async () => {
+					containerId = (await devContainerUp(cli, testFolder, options)).containerId;
+					// Should have all markers (Create + Start + Attach)
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postCreateCommand1.testmarker'));
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postCreateCommand2.testmarker'));
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postStartCommand1.testmarker'));
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postStartCommand2.testmarker'));
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postAttachCommand1.testmarker'));
+					assert.ok(await pathExists(cli, testFolder, '/tmp/postAttachCommand2.testmarker'));
 				});
 			});
 			describe(`docker-compose with post*Commands specified [${text}]`, () => {

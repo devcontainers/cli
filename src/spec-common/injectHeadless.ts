@@ -117,11 +117,11 @@ export interface CommonDevContainerConfig {
 	portsAttributes?: Record<string, PortAttributes>;
 	otherPortsAttributes?: PortAttributes;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
-	onCreateCommand?: string | string[];
-	updateContentCommand?: string | string[];
-	postCreateCommand?: string | string[];
-	postStartCommand?: string | string[];
-	postAttachCommand?: string | string[];
+	onCreateCommand?: string | string[] | Record<string, string | string[]>;
+	updateContentCommand?: string | string[] | Record<string, string | string[]>;
+	postCreateCommand?: string | string[] | Record<string, string | string[]>;
+	postStartCommand?: string | string[] | Record<string, string | string[]>;
+	postAttachCommand?: string | string[] | Record<string, string | string[]>;
 	waitFor?: DevContainerConfigCommand;
 	userEnvProbe?: UserEnvProbe;
 }
@@ -404,9 +404,16 @@ async function runPostCommands(params: ResolverParameters, containerProperties: 
 }
 
 async function runPostCommand({ postCreate }: ResolverParameters, containerProperties: ContainerProperties, postCommand: string | string[], postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
-	if (doRun && postCommand && (typeof postCommand === 'string' ? postCommand.trim() : postCommand.length)) {
+	let hasCommand = false;
+	if (typeof postCommand === 'string') {
+		hasCommand = postCommand.trim().length > 0;
+	} else if (Array.isArray(postCommand)) {
+		hasCommand = postCommand.length > 0;
+	} else if (typeof postCommand === 'object') {
+		hasCommand = Object.keys(postCommand).length > 0;
+	}
+	if (doRun && postCommand && hasCommand) {
 		const progressName = `Running ${postCommandName}...`;
-		const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
 		const infoOutput = makeLog({
 			event(e: LogEvent) {
 				postCreate.output.event(e);
@@ -433,21 +440,48 @@ async function runPostCommand({ postCreate }: ResolverParameters, containerPrope
 			onDidChangeDimensions: postCreate.output.onDidChangeDimensions,
 		}, LogLevel.Info);
 		try {
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'running',
-				stepDetail: progressDetail
-			});
-			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 			infoOutput.raw(`\x1b[1mRunning the ${postCommandName} from devcontainer.json...\x1b[0m\r\n\r\n`);
-			await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });
-			infoOutput.raw('\r\n');
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'succeeded',
-			});
+			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
+			async function runSingleCommand(postCommand: string | string[], name?: string) {
+				const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
+				infoOutput.event({
+					type: 'progress',
+					name: progressName,
+					status: 'running',
+					stepDetail: progressDetail
+				});
+
+				// If we have a command name then the command is running in parallel and 
+				// we need to hold output until we're done so that the various parallel 
+				// commands' output doesn't get interleaved.
+				const printMode = name ? 'off' : 'continuous';
+				const { cmdOutput } = await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: await remoteEnv, print: printMode });
+
+				if (name) {
+					infoOutput.raw(`\x1b[1mRunning ${name} from devcontainer.json...\x1b[0m\r\nOutput: ${cmdOutput}\r\n\r\n`);
+				}
+
+				infoOutput.raw('\r\n');
+				infoOutput.event({
+					type: 'progress',
+					name: progressName,
+					status: 'succeeded',
+				});
+			}
+
+			let commands;
+			if (typeof postCommand === 'string' || Array.isArray(postCommand)) {
+				commands = [runSingleCommand(postCommand)];
+			} else {
+				commands = Object.keys(postCommand).map(name => {
+					const command = postCommand[name];
+					return runSingleCommand(command, name);
+				});
+			}
+			await Promise.all(commands);
+
+			// roll up: 'command A run: {output}
+			// command B ran: {output}
 		} catch (err) {
 			infoOutput.event({
 				type: 'progress',
