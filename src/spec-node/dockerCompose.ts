@@ -144,7 +144,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 	};
 }
 
-export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, additionalCacheFroms?: string[], noBuild?: boolean) {
+export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalCacheFroms?: string[], noBuild?: boolean) {
 
 	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
@@ -233,7 +233,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		await cliHost.mkdirp(composeFolder);
 		const composeOverrideFile = cliHost.path.join(composeFolder, `${overrideFilePrefix}-${Date.now()}.yml`);
 		const cacheFromOverrideContent = (additionalCacheFroms && additionalCacheFroms.length > 0) ? `      cache_from:\n${additionalCacheFroms.map(cacheFrom => `        - ${cacheFrom}\n`).join('\n')}` : '';
-		const composeOverrideContent = `services:
+		const composeOverrideContent = `${versionPrefix}services:
   ${config.service}:
 ${buildOverrideContent?.trimEnd()}
 ${cacheFromOverrideContent}
@@ -370,8 +370,9 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	if (!container || !didRestoreFromPersistedShare) {
 		const noBuild = !!container; //if we have an existing container, just recreate override files but skip the build
 
+		const versionPrefix = await readVersionPrefix(buildCLIHost, localComposeFiles);
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, versionPrefix, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		const currentImageName = overrideImageName || originalImageName;
@@ -383,7 +384,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, buildParams, composeFiles, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -418,6 +419,15 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	};
 }
 
+export async function readVersionPrefix(cliHost: CLIHost, composeFiles: string[]) {
+	if (!composeFiles.length) {
+		return '';
+	}
+	const firstComposeFile = (await cliHost.readFile(composeFiles[0])).toString();
+	const version = (/^\s*(version:.*)$/m.exec(firstComposeFile) || [])[1];
+	return version ? `${version}\n\n` : '';
+}
+
 export function getDefaultImageName(dockerComposeCLI: DockerComposeCLI, projectName: string, serviceName: string) {
 	const version = parseVersion(dockerComposeCLI.version);
 	const separator = version && isEarlierVersion(version, [2, 8, 0]) ? '_' : '-';
@@ -429,8 +439,7 @@ async function writeFeaturesComposeOverrideFile(
 	originalImageName: string,
 	mergedConfig: MergedDevContainerConfig,
 	config: DevContainerFromDockerComposeConfig,
-	buildParams: DockerCLIParameters,
-	composeFiles: string[],
+	versionPrefix: string,
 	imageDetails: () => Promise<ImageDetails>,
 	service: any,
 	additionalLabels: string[],
@@ -440,7 +449,7 @@ async function writeFeaturesComposeOverrideFile(
 	buildCLIHost: CLIHost,
 	output: Log,
 ) {
-	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, buildParams, composeFiles, imageDetails, service, additionalLabels, additionalMounts);
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, additionalMounts);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
@@ -464,17 +473,12 @@ async function generateFeaturesComposeOverrideContent(
 	originalImageName: string,
 	mergedConfig: MergedDevContainerConfig,
 	config: DevContainerFromDockerComposeConfig,
-	buildParams: DockerCLIParameters,
-	composeFiles: string[],
+	versionPrefix: string,
 	imageDetails: () => Promise<ImageDetails>,
 	service: any,
 	additionalLabels: string[],
 	additionalMounts: Mount[],
 ) {
-
-	const { cliHost: buildCLIHost } = buildParams;
-	let composeOverrideContent: string = '';
-
 	const overrideImage = updatedImageName !== originalImageName;
 
 	const user = mergedConfig.containerUser;
@@ -495,7 +499,7 @@ async function generateFeaturesComposeOverrideContent(
 	const userCommand = overrideCommand ? [] : composeCommand /* $ already escaped. */
 		|| (composeEntrypoint ? [/* Ignore image CMD per docker-compose.yml spec. */] : ((await imageDetails()).Config.Cmd || []).map(c => c.replace(/\$/g, '$$$$'))); // $ > $$ to escape docker-compose.yml's interpolation.
 
-	composeOverrideContent = `services:
+	return `${versionPrefix}services:
   '${config.service}':${overrideImage ? `
     image: ${updatedImageName}` : ''}
     entrypoint: ["/bin/sh", "-c", "echo Container started\\n
@@ -520,14 +524,6 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
 volumes:${volumeMounts.map(m => `
   ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
 `;
-	const firstComposeFile = (await buildCLIHost.readFile(composeFiles[0])).toString();
-	const version = (/^\s*(version:.*)$/m.exec(firstComposeFile) || [])[1];
-	if (version) {
-		composeOverrideContent = `${version}
-
-${composeOverrideContent}`;
-	}
-	return composeOverrideContent;
 }
 
 export async function readDockerComposeConfig(params: DockerCLIParameters, composeFiles: string[], envFile: string | undefined) {
