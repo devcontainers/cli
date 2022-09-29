@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata } from '../spec-node/imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
@@ -115,6 +115,42 @@ describe('Image Metadata', function () {
 				}
 			];
 			assert.strictEqual(label.replace(/ \\\n/g, ''), `LABEL devcontainer.metadata="${JSON.stringify(expected).replace(/"/g, '\\"')}"`);
+		});
+
+		it('should merge metadata from devcontainer.json and features', () => {
+			const merged = mergeConfiguration({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteEnv: {
+					ENV1: 'devcontainer.json',
+					ENV3: 'devcontainer.json',
+				},
+			}, [
+				{
+					remoteEnv: {
+						ENV1: 'feature1',
+						ENV2: 'feature1',
+						ENV3: 'feature1',
+						ENV4: 'feature1',
+					}
+				},
+				{
+					remoteEnv: {
+						ENV1: 'feature2',
+						ENV2: 'feature2',
+					}
+				},
+				{
+					remoteEnv: {
+						ENV1: 'devcontainer.json',
+						ENV3: 'devcontainer.json',
+					},
+				}
+			]);
+			assert.strictEqual(merged.remoteEnv?.ENV1, 'devcontainer.json');
+			assert.strictEqual(merged.remoteEnv?.ENV2, 'feature2');
+			assert.strictEqual(merged.remoteEnv?.ENV3, 'devcontainer.json');
+			assert.strictEqual(merged.remoteEnv?.ENV4, 'feature1');
 		});
 	});
 });
