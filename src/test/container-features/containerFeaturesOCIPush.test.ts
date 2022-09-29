@@ -1,7 +1,9 @@
 import { assert } from 'chai';
-import { getFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, fetchRegistryAuthToken, DEVCONTAINER_TAR_LAYER_MEDIATYPE } from '../../spec-configuration/containerFeaturesOCI';
-import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerFeaturesOCIPush';
+import { fetchRegistryAuthToken, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
+import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 const testAssetsDir = `${__dirname}/assets`;
@@ -43,7 +45,7 @@ describe('Test OCI Push', () => {
 	});
 
 	it('Can check whether a blob exists', async () => {
-		const ociFeatureRef = getFeatureRef(output, 'ghcr.io/codspace/features/go:1');
+		const ociFeatureRef = getRef(output, 'ghcr.io/codspace/features/go:1');
 		const { registry, resource } = ociFeatureRef;
 		const sessionAuth = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
 		if (!sessionAuth) {

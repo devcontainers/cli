@@ -1,12 +1,13 @@
 import { assert } from 'chai';
-import { getFeatureBlob, getFeatureManifest, getFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
+import { getRef, getManifest } from '../../spec-configuration/containerCollectionsOCI';
+import { getFeatureBlob } from '../../spec-configuration/containerFeaturesOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 describe('Test OCI Pull', () => {
     it('Parse OCI identifier', async () => {
-        const feat = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1');
+        const feat = getRef(output, 'ghcr.io/codspace/features/ruby:1');
         output.write(`feat: ${JSON.stringify(feat)}`);
 
         assert.equal(feat.id, 'ruby');
@@ -19,8 +20,8 @@ describe('Test OCI Pull', () => {
     });
 
     it('Get a manifest by tag', async () => {
-        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
-        const manifest = await getFeatureManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1.0.13', featureRef);
+        const featureRef = getRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
+        const manifest = await getManifest(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/manifests/1.0.13', featureRef);
         assert.isNotNull(manifest);
         assert.exists(manifest);
 
@@ -41,7 +42,7 @@ describe('Test OCI Pull', () => {
     });
 
     it('Download a feature', async () => {
-        const featureRef = getFeatureRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
+        const featureRef = getRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
         const result = await getFeatureBlob(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/blobs/sha256:8f59630bd1ba6d9e78b485233a0280530b3d0a44338f472206090412ffbd3efb', '/tmp', '/tmp/featureTest', featureRef);
         assert.isTrue(result);
     });

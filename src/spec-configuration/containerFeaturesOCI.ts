@@ -61,7 +61,7 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 }
 
 // Downloads a blob from a registry.
-async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIRef, authToken?: string): Promise<boolean> {
+export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIRef, authToken?: string): Promise<boolean> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 	try {

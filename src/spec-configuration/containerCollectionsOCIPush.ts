@@ -271,7 +271,7 @@ async function generateCompleteManifestForCollectionFile(output: Log, pathToColl
 }
 
 // Generic construction of a layer in the manifest and digest for the generated layer.
-async function calculateDataLayer(output: Log, pathToData: string, mediaType: string): Promise<OCILayer | undefined> {
+export async function calculateDataLayer(output: Log, pathToData: string, mediaType: string): Promise<OCILayer | undefined> {
 	output.write(`Creating manifest from ${pathToData}`, LogLevel.Trace);
 	if (!(await isLocalFile(pathToData))) {
 		output.write(`${pathToData} does not exist.`, LogLevel.Error);
@@ -295,7 +295,7 @@ async function calculateDataLayer(output: Log, pathToData: string, mediaType: st
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#checking-if-content-exists-in-the-registry
 //       Requires registry auth token.
-async function checkIfBlobExists(output: Log, ociRef: OCIRef | OCICollectionRef, digest: string, authToken: string): Promise<boolean> {
+export async function checkIfBlobExists(output: Log, ociRef: OCIRef | OCICollectionRef, digest: string, authToken: string): Promise<boolean> {
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer',
 		'authorization': `Bearer ${authToken}`,
@@ -331,7 +331,7 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 	return undefined;
 }
 
-async function calculateManifestAndContentDigest(output: Log, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined) {
+export async function calculateManifestAndContentDigest(output: Log, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined) {
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
 	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'

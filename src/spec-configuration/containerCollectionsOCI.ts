@@ -120,7 +120,7 @@ export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessE
 	return manifest;
 }
 
-async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: string, ref: OCIRef | OCICollectionRef, authToken?: string): Promise<OCIManifest | undefined> {
+export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: string, ref: OCIRef | OCICollectionRef, authToken?: string): Promise<OCIManifest | undefined> {
 	try {
 		const headers: HEADERS = {
 			'user-agent': 'devcontainer',

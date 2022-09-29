@@ -1,10 +1,10 @@
 import { assert } from 'chai';
 import path from 'path';
-import { getFeatureRef, getPublishedVersions } from '../../spec-configuration/containerFeaturesOCI';
-import { getSermanticVersions } from '../../spec-node/featuresCLI/publishCommandImpl';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
+import { getSermanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
+import { getRef, getPublishedVersions } from '../../spec-configuration/containerCollectionsOCI';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
@@ -247,7 +247,7 @@ describe('test function getSermanticVersions', () => {
 describe('test function getPublishedVersions', async () => {
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
-		const featureRef = getFeatureRef(output, resource);
+		const featureRef = getRef(output, resource);
 		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
