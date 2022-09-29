@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
+import { Feature, FeaturesConfig, FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
@@ -52,15 +53,15 @@ describe('Image Metadata', function () {
 				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
-				assert.strictEqual(metadata[1].id, 'localFeatureA-substituted');
+				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
 				assert.strictEqual(metadata[1].init, true);
-				assert.strictEqual(metadata[2].id, 'localFeatureB-substituted');
+				assert.strictEqual(metadata[2].id, './localFeatureB-substituted');
 				assert.strictEqual(metadata[2].privileged, true);
 				assert.strictEqual(raw.length, 3);
 				assert.strictEqual(raw[0].id, 'baseFeature');
-				assert.strictEqual(raw[1].id, 'localFeatureA');
+				assert.strictEqual(raw[1].id, './localFeatureA');
 				assert.strictEqual(raw[1].init, true);
-				assert.strictEqual(raw[2].id, 'localFeatureB');
+				assert.strictEqual(raw[2].id, './localFeatureB');
 				assert.strictEqual(raw[2].privileged, true);
 			});
 		});
@@ -72,18 +73,18 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
-			}), [
+			}), getFeaturesConfig([
 				{
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
 				}
-			]);
+			]));
 			assert.strictEqual(metadata.length, 2);
-			assert.strictEqual(metadata[0].id, 'someFeature-substituted');
+			assert.strictEqual(metadata[0].id, 'ghcr.io/my-org/my-repo/someFeature:1-substituted');
 			assert.strictEqual(metadata[1].remoteUser, 'testUser');
 			assert.strictEqual(raw.length, 2);
-			assert.strictEqual(raw[0].id, 'someFeature');
+			assert.strictEqual(raw[0].id, 'ghcr.io/my-org/my-repo/someFeature:1');
 			assert.strictEqual(raw[1].remoteUser, 'testUser');
 		});
 
@@ -96,19 +97,19 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
-			}), [
+			}), getFeaturesConfig([
 				{
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
 				}
-			], true);
+			]), true);
 			const expected = [
 				{
 					id: 'baseFeature',
 				},
 				{
-					id: 'someFeature',
+					id: 'ghcr.io/my-org/my-repo/someFeature:1',
 				},
 				{
 					remoteUser: 'testUser',
@@ -154,3 +155,35 @@ describe('Image Metadata', function () {
 		});
 	});
 });
+
+function getFeaturesConfig(features: Feature[]): FeaturesConfig {
+	return {
+		featureSets: features.map((feature): FeatureSet => ({
+			features: [feature],
+			sourceInformation: {
+				type: 'oci',
+				userFeatureId: `ghcr.io/my-org/my-repo/${feature.id}:1`,
+				userFeatureIdWithoutVersion: `ghcr.io/my-org/my-repo/${feature.id}`,
+				featureRef: {
+					registry: 'ghcr.io',
+					owner: 'my-org',
+					namespace: 'my-org/my-repo',
+					path: 'my-org/my-repo/test',
+					resource: 'ghcr.io/my-org/my-repo/test',
+					id: 'test',
+					version: '1.2.3',
+				},
+				manifest: {
+					schemaVersion: 1,
+					mediaType: '',
+					config: {
+						digest: '',
+						mediaType: '',
+						size: 0,
+					},
+					layers: [],
+				}
+			}
+		}))
+	};
+}
