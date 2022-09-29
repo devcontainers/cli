@@ -36,6 +36,7 @@ jobs:
     name: Tests Matrix
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         mocha-args: [
           "src/test/container-features/e2e.test.ts",

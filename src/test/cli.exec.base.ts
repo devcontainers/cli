@@ -53,7 +53,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 			describe(`with valid (Dockerfile) config containing features [${text}]`, () => {
@@ -74,7 +74,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 
@@ -95,7 +95,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 
@@ -328,7 +328,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 						const response = JSON.parse(res.stdout);
 						console.log(res.stderr);
 						assert.equal(response.outcome, 'success');
-						assert.match(res.stderr, /howdy, root/);
+						assert.match(res.stderr, /howdy, node/);
 					});
 				});
 		

@@ -116,7 +116,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		}
 		return obj;
 	}, {} as Record<string, any[]>);
-	const reversed = imageMetadata.reverse();
+	const reversed = imageMetadata.slice().reverse();
 	const copy = { ...config };
 	replaceProperties.forEach(property => delete (copy as any)[property]);
 	const merged: MergedDevContainerConfig = {
