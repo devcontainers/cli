@@ -593,7 +593,7 @@ async function doRunUserCommands({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
@@ -740,12 +740,12 @@ async function readConfiguration({
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
 			if (container) {
-				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration || [], experimentalImageMetadata, output).config;
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, experimentalImageMetadata, output).config;
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
 				const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
-				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration || []).config;
+				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
 		}
@@ -920,7 +920,7 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);

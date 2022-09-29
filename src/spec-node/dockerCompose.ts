@@ -68,7 +68,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const configs = getImageMetadataFromContainer(container, configWithRaw, [], common.experimentalImageMetadata, common.output).config;
+		const configs = getImageMetadataFromContainer(container, configWithRaw, undefined, common.experimentalImageMetadata, common.output).config;
 		const mergedConfig = mergeConfiguration(configWithRaw.config, configs);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
@@ -273,7 +273,7 @@ ${cacheFromOverrideContent}
 	}
 
 	return {
-		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.collapsedFeaturesConfig?.allFeatures || []),
+		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
 		additionalComposeOverrideFiles,
 		overrideImageName,
 	};

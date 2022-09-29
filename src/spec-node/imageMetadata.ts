@@ -39,8 +39,7 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'hostRequirements',
 ];
 
-const pickFeatureProperties: (keyof Feature & keyof ImageMetadataEntry)[] = [
-	'id',
+const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
 	'init',
 	'privileged',
 	'capAdd',
@@ -198,12 +197,11 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | Feature[]): SubstitutedConfig<ImageMetadataEntry[]> {
-	const features = Array.isArray(featuresConfig) ? featuresConfig : ([] as Feature[]).concat(
-		...featuresConfig.featureSets
-			.map(x => x.features)
-	);
-	const raw = features.map(feature => pick(feature, pickFeatureProperties));
+export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined): SubstitutedConfig<ImageMetadataEntry[]> {
+	const raw = featuresConfig?.featureSets.map(featureSet => featureSet.features.map(feature => ({
+		id: featureSet.sourceInformation.userFeatureId,
+		...pick(feature, pickFeatureProperties),
+	}))).flat() || [];
 	return {
 		config: [
 			...baseImageMetadata.config,
@@ -311,7 +309,7 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 
 export const imageMetadataLabel = 'devcontainer.metadata';
 
-export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | Feature[], experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
 	if (!experimentalImageMetadata) {
 		return getDevcontainerMetadata({ config: [], raw: [], substitute: devContainerConfig.substitute }, devContainerConfig, featuresConfig);
 	}
@@ -353,7 +351,7 @@ function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails
 	return [];
 }
 
-export function getDevcontainerMetadataLabel(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | Feature[], experimentalImageMetadata: boolean) {
+export function getDevcontainerMetadataLabel(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, experimentalImageMetadata: boolean) {
 	if (!experimentalImageMetadata) {
 		return '';
 	}

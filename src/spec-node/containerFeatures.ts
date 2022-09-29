@@ -10,7 +10,7 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, collapseFeaturesConfig, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
@@ -42,7 +42,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 			imageDetails: async () => imageBuildInfo.imageDetails,
 		};
 	}
-	const { featureBuildInfo, collapsedFeaturesConfig } = extendImageDetails;
+	const { featureBuildInfo, featuresConfig } = extendImageDetails;
 
 	// Got feature extensions -> build the image
 	const dockerfilePath = cliHost.path.join(featureBuildInfo.dstFolder, 'Dockerfile.extended');
@@ -88,7 +88,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	}
 	return {
 		updatedImageName: [ updatedImageName ],
-		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, collapsedFeaturesConfig?.allFeatures || []),
+		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
 }
@@ -108,12 +108,11 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	}
 
 	// Generates the end configuration.
-	const collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 	const featureBuildInfo = await getFeaturesBuildOptions(params, config, featuresConfig, baseName, imageBuildInfo);
 	if (!featureBuildInfo) {
 		return undefined;
 	}
-	return { featureBuildInfo, collapsedFeaturesConfig };
+	return { featureBuildInfo, featuresConfig };
 
 }
 
@@ -191,7 +190,7 @@ function getImageBuildOptions(params: DockerResolverParameters, config: Substitu
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(imageBuildInfo.metadata, config, [], params.common.experimentalImageMetadata)}
+${getDevcontainerMetadataLabel(imageBuildInfo.metadata, config, { featureSets: [] }, params.common.experimentalImageMetadata)}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `
