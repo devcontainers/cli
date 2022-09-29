@@ -61,7 +61,7 @@ async function tarDirectory(folder: string, archiveName: string, outputDir: stri
 	return new Promise<void>((resolve) => resolve(tar.create({ file: path.join(outputDir, archiveName), cwd: folder }, ['.'])));
 }
 
-const getArchiveName = (f: string, collectionType: string) => `devcontainer-${collectionType}-${f}.tgz`;
+export const getArchiveName = (f: string, collectionType: string) => `devcontainer-${collectionType}-${f}.tgz`;
 
 export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, collectionType: string) {
 	const { output, targetFolder, outputDir } = args;

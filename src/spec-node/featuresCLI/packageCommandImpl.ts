@@ -48,8 +48,6 @@ export async function doFeaturesPackageCommand(args: PackageCommandInput): Promi
 	return collection;
 }
 
-export const getFeatureArchiveName = (f: string) => `devcontainer-feature-${f}.tgz`;
-
 export async function packageSingleFeature(args: PackageCommandInput): Promise<Feature[] | undefined> {
 	return await packageSingleFeatureOrTemplate(args, collectionType);
 }

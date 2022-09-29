@@ -6,32 +6,33 @@ import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { doFeaturesPackageCommand } from './packageCommandImpl';
+import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
-import { publishOptions } from '../collectionCommonUtils/publish';
+import { doTemplatesPackageCommand } from './packageCommandImpl';
 import { getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 
-const collectionType = 'feature';
-export function featuresPublishOptions(y: Argv) {
-    return publishOptions(y, 'feature');
+const collectionType = 'template';
+
+export function templatesPublishOptions(y: Argv) {
+    return publishOptions(y, 'template');
 }
 
-export type FeaturesPublishArgs = UnpackArgv<ReturnType<typeof featuresPublishOptions>>;
+export type TemplatesPublishArgs = UnpackArgv<ReturnType<typeof templatesPublishOptions>>;
 
-export function featuresPublishHandler(args: FeaturesPublishArgs) {
-    (async () => await featuresPublish(args))().catch(console.error);
+export function templatesPublishHandler(args: TemplatesPublishArgs) {
+    (async () => await templatesPublish(args))().catch(console.error);
 }
 
-async function featuresPublish({
+async function templatesPublish({
     'target': targetFolder,
     'log-level': inputLogLevel,
     'registry': registry,
     'namespace': namespace
-}: FeaturesPublishArgs) {
+}: TemplatesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
         await Promise.all(disposables.map(d => d()));
@@ -48,8 +49,8 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    // Package features
-    const outputDir = path.join(os.tmpdir(), '/features-output');
+    // Package templates
+    const outputDir = path.join(os.tmpdir(), '/templates-output');
 
     const packageArgs: PackageCommandInput = {
         cliHost,
@@ -60,33 +61,33 @@ async function featuresPublish({
         forceCleanOutputDir: true,
     };
 
-    const metadata = await doFeaturesPackageCommand(packageArgs);
+    const metadata = await doTemplatesPackageCommand(packageArgs);
 
     if (!metadata) {
         output.write(`(!) ERR: Failed to fetch ${OCICollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 
-    for (const f of metadata.features) {
-        output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
+    for (const t of metadata.templates) {
+        output.write(`Processing template: ${t.id}...`, LogLevel.Info);
 
-        if (!f.version) {
-            output.write(`(!) WARNING: Version does not exist, skipping ${f.id}...`, LogLevel.Warning);
+        if (!t.version) {
+            output.write(`(!) WARNING: Version does not exist, skipping ${t.id}...`, LogLevel.Warning);
             continue;
         }
 
-        const resource = `${registry}/${namespace}/${f.id}`;
-        const featureRef = getRef(output, resource);
-        await doPublishCommand(f.version, featureRef, outputDir, output, collectionType);
+        const resource = `${registry}/${namespace}/${t.id}`;
+        const templateRef = getRef(output, resource);
+        await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
     }
 
-    const featureCollectionRef: OCICollectionRef = {
+    const templateCollectionRef: OCICollectionRef = {
         registry: registry,
         path: namespace,
         version: 'latest'
     };
 
-    await doPublishMetadata(featureCollectionRef, outputDir, output, collectionType);
+    await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType);
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });
