@@ -3,7 +3,8 @@ import * as semver from 'semver';
 import { getPublishedVersions, OCIFeatureCollectionRef, OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { pushFeatureCollectionMetadata, pushOCIFeature } from '../../spec-configuration/containerFeaturesOCIPush';
 import { Log, LogLevel } from '../../spec-utils/log';
-import { getFeatureArchiveName, OCIFeatureCollectionFileName } from './packageCommandImpl';
+import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
+import { getFeatureArchiveName } from './packageCommandImpl';
 
 let semanticVersions: string[] = [];
 
@@ -65,9 +66,9 @@ export async function doFeaturesPublishMetadata(featureCollectionRef: OCIFeature
     // Publishing Feature Collection Metadata
     output.write('Publishing collection metadata...', LogLevel.Info);
     
-    const pathToFeatureCollectionFile = path.join(outputDir, OCIFeatureCollectionFileName);
+    const pathToFeatureCollectionFile = path.join(outputDir, OCICollectionFileName);
     if (! await pushFeatureCollectionMetadata(output, featureCollectionRef, pathToFeatureCollectionFile)) {
-        output.write(`(!) ERR: Failed to publish collection metadata: ${OCIFeatureCollectionFileName}`, LogLevel.Error);
+        output.write(`(!) ERR: Failed to publish collection metadata: ${OCICollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
     output.write('Published collection metadata...', LogLevel.Info);

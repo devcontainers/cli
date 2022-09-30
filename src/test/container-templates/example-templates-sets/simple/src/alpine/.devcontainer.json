@@ -1,0 +1,4 @@
+{
+	"name": "alpine",
+	"image": "mcr.microsoft.com/devcontainers/base:0-alpine-${templateOption:imageVariant}"
+}

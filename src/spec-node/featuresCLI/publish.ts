@@ -6,12 +6,13 @@ import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { FeaturesPackageCommandInput } from './package';
-import { OCIFeatureCollectionFileName, doFeaturesPackageCommand } from './packageCommandImpl';
+import { doFeaturesPackageCommand } from './packageCommandImpl';
 import { doFeaturesPublishCommand, doFeaturesPublishMetadata } from './publishCommandImpl';
 import { getFeatureRef, OCIFeatureCollectionRef } from '../../spec-configuration/containerFeaturesOCI';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
+import { PackageCommandInput } from '../collectionCommonUtils/package';
+import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 
 const targetPositionalDescription = `
 Package and publish features at provided [target] (default is cwd), where [target] is either:
@@ -63,7 +64,7 @@ async function featuresPublish({
     // Package features
     const outputDir = path.join(os.tmpdir(), '/features-output');
 
-    const packageArgs: FeaturesPackageCommandInput = {
+    const packageArgs: PackageCommandInput = {
         cliHost,
         targetFolder,
         outputDir,
@@ -75,7 +76,7 @@ async function featuresPublish({
     const metadata = await doFeaturesPackageCommand(packageArgs);
 
     if (!metadata) {
-        output.write(`(!) ERR: Failed to fetch ${OCIFeatureCollectionFileName}`, LogLevel.Error);
+        output.write(`(!) ERR: Failed to fetch ${OCICollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 
