@@ -6,6 +6,7 @@ export interface Template {
 	documentationURL?: string;
 	licenseURL?: string;
 	type?: string;
+	fileCount?: number;
 	options?: Record<string, TemplateOption>;
 	platforms?: string[];
 	publisher?: string;

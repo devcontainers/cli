@@ -1,7 +1,9 @@
 import tar from 'tar';
 import * as jsonc from 'jsonc-parser';
+import * as os from 'os';
+import * as recursiveDirReader from 'recursive-readdir';
 import { PackageCommandInput } from './package';
-import { isLocalFile, isLocalFolder, mkdirpLocal, readLocalDir, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
+import { cpDirectoryLocal, isLocalFile, isLocalFolder, mkdirpLocal, readLocalDir, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
 import { Log, LogLevel } from '../../spec-utils/log';
 import path from 'path';
 import { DevContainerConfig, isDockerFileConfig } from '../../spec-configuration/configuration';
@@ -70,36 +72,46 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 	const { output, targetFolder, outputDir } = args;
 	let metadatas = [];
 
-	const jsonPath = path.join(targetFolder, `devcontainer-${collectionType}.json`);
+	const devcontainerJsonName = `devcontainer-${collectionType}.json`;
+	const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
+	await cpDirectoryLocal(targetFolder, tmpSrcDir);
+
+	const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
+	if (!(await isLocalFile(jsonPath))) {
+		output.write(`${collectionType} is missing a ${devcontainerJsonName}`, LogLevel.Error);
+		return;
+	}
+
+	if (collectionType === 'template') {
+		if (!(await addsAdditionalTemplateProps(tmpSrcDir, jsonPath, output))) {
+			return;
+		}
+	}
+
 	const metadata = JSON.parse(await readLocalFile(jsonPath, 'utf-8'));
 	if (!metadata.id || !metadata.version) {
 		output.write(`${collectionType} is missing an id or version in its devcontainer-${collectionType}.json`, LogLevel.Error);
 		return;
 	}
 
-	if (collectionType === 'template') {
-		const devcontainerFilePath = await getDevcontainerFilePath(targetFolder);
-
-		if (!devcontainerFilePath) {
-			output.write(`Template is missing a devcontainer.json`, LogLevel.Error);
-			return;
-		}
-
-		if (!(await addsAdditionalTemplateProps(devcontainerFilePath, jsonPath, output))) {
-			return;
-		}
-	}
-
 	const archiveName = getArchiveName(metadata.id, collectionType);
 
-	await tarDirectory(targetFolder, archiveName, outputDir);
+	await tarDirectory(tmpSrcDir, archiveName, outputDir);
 	output.write(`Packaged ${collectionType} '${metadata.id}'`, LogLevel.Info);
 
 	metadatas.push(metadata);
+	await rmLocal(tmpSrcDir, { recursive: true, force: true });
 	return metadatas;
 }
 
-async function addsAdditionalTemplateProps(devcontainerFilePath: string, devcontainerTemplateJsonPath: string, output: Log): Promise<boolean> {
+async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTemplateJsonPath: string, output: Log): Promise<boolean> {
+	const devcontainerFilePath = await getDevcontainerFilePath(srcFolder);
+
+	if (!devcontainerFilePath) {
+		output.write(`Template is missing a devcontainer.json`, LogLevel.Error);
+		return false;
+	}
+
 	const devcontainerJsonString: Buffer = await readLocalFile(devcontainerFilePath);
 	const config: DevContainerConfig = jsonc.parse(devcontainerJsonString.toString());
 
@@ -119,6 +131,8 @@ async function addsAdditionalTemplateProps(devcontainerFilePath: string, devcont
 	}
 
 	templateData.type = type;
+	templateData.fileCount = (await recursiveDirReader.default(srcFolder)).length;
+
 	await writeLocalFile(devcontainerTemplateJsonPath, JSON.stringify(templateData, null, 4));
 
 	return true;
@@ -148,36 +162,32 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 		output.write(`Processing ${collectionType}: ${c}...`, LogLevel.Info);
 		if (!c.startsWith('.')) {
 			const folder = path.join(srcFolder, c);
+			const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
+			await cpDirectoryLocal(folder, tmpSrcDir);
+
 			const archiveName = getArchiveName(c, collectionType);
 
 			// Validate minimal folder structure
 			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
-			const jsonPath = path.join(folder, devcontainerJsonName);
+			const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
 			if (!(await isLocalFile(jsonPath))) {
 				output.write(`${collectionType} '${c}' is missing a ${devcontainerJsonName}`, LogLevel.Error);
 				return;
 			}
 
 			if (collectionType === 'feature') {
-				const installShPath = path.join(folder, 'install.sh');
+				const installShPath = path.join(tmpSrcDir, 'install.sh');
 				if (!(await isLocalFile(installShPath))) {
 					output.write(`Feature '${c}' is missing an install.sh`, LogLevel.Error);
 					return;
 				}
 			} else if (collectionType === 'template') {
-				const devcontainerFilePath = await getDevcontainerFilePath(folder);
-
-				if (!devcontainerFilePath) {
-					output.write(`Template '${c}' is missing a devcontainer.json`, LogLevel.Error);
-					return;
-				}
-
-				if (!(await addsAdditionalTemplateProps(devcontainerFilePath, jsonPath, output))) {
+				if (!(await addsAdditionalTemplateProps(tmpSrcDir, jsonPath, output))) {
 					return;
 				}
 			}
 
-			await tarDirectory(folder, archiveName, outputDir);
+			await tarDirectory(tmpSrcDir, archiveName, outputDir);
 
 			const metadata = JSON.parse(await readLocalFile(jsonPath, 'utf-8'));
 			if (!metadata.id || !metadata.version) {
@@ -185,6 +195,7 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 				return;
 			}
 			metadatas.push(metadata);
+			await rmLocal(tmpSrcDir, { recursive: true, force: true });
 		}
 	}
 

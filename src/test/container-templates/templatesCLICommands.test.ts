@@ -54,18 +54,21 @@ describe('CLI templates subcommands', async function () {
 		assert.strictEqual(json.templates.length, 3);
 		assert.isTrue(collectionFileExists);
 
-		// Checks if the automatically added `type` property is set correctly.
+		// Checks if the automatically added properties are set correctly.
 		const alpineProperties: Template | undefined = json?.templates.find(t => t.id === 'alpine');
 		assert.isNotEmpty(alpineProperties);
 		assert.equal(alpineProperties?.type, 'image');
+		assert.equal(alpineProperties?.fileCount, 2);
 
 		const cppProperties: Template | undefined = json?.templates.find(t => t.id === 'cpp');
 		assert.isNotEmpty(cppProperties);
 		assert.equal(cppProperties?.type, 'dockerfile');
+		assert.equal(cppProperties?.fileCount, 3);
 
 		const nodeProperties: Template | undefined = json?.templates.find(t => t.id === 'node-mongo');
 		assert.isNotEmpty(nodeProperties);
 		assert.equal(nodeProperties?.type, 'dockerCompose');
+		assert.equal(nodeProperties?.fileCount, 3);
 	});
 
 	it('templates package subcommand by single template', async function () {
@@ -95,5 +98,6 @@ describe('CLI templates subcommands', async function () {
 		const alpineProperties: Template | undefined = json?.templates.find(t => t.id === 'alpine');
 		assert.isNotEmpty(alpineProperties);
 		assert.equal(alpineProperties?.type, 'image');
+		assert.equal(alpineProperties?.fileCount, 2);
 	});
 });
