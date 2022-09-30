@@ -208,7 +208,7 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
-		buildxOutput: undefined
+		buildxOutput: undefined,
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
