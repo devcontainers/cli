@@ -162,15 +162,6 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
-export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
-	const collapsed = {
-		allFeatures: original.featureSets
-			.map(fSet => fSet.features)
-			.flat()
-	};
-	return collapsed;
-}
-
 export const multiStageBuildExploration = false;
 
 // Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.

@@ -3,14 +3,14 @@ import * as tar from 'tar';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
-import { FeatureSet } from './containerFeaturesConfiguration';
+import { Feature, FeatureSet } from './containerFeaturesConfiguration';
 import { fetchOCIManifestIfExists, fetchRegistryAuthToken, getRef, HEADERS, OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
 
 	const featureRef = getRef(output, identifier);
 
-	const feat = {
+	const feat: Feature = {
 		id: featureRef.id,
 		included: true,
 		value: options

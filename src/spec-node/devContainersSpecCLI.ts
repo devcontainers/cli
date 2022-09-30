@@ -16,7 +16,7 @@ import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe }
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
-import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig } from './dockerCompose';
+import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
 import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
@@ -410,8 +410,9 @@ async function doBuild({
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
 			}
 
+			const versionPrefix = await readVersionPrefix(cliHost, composeFiles);
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -599,7 +600,7 @@ async function doRunUserCommands({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
@@ -746,12 +747,12 @@ async function readConfiguration({
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
 			if (container) {
-				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration || [], experimentalImageMetadata, output).config;
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, experimentalImageMetadata, output).config;
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
 				const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
-				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration || []).config;
+				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
 		}
@@ -926,7 +927,7 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, [], experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
