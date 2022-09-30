@@ -1,8 +1,8 @@
 import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
+import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
-import { OCIFeatureRef } from '../../spec-configuration/containerFeaturesOCI';
 import { getSafeId } from '../../spec-node/containerFeatures';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
@@ -197,7 +197,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(featureSet);
 
-			const expectedFeatureRef: OCIFeatureRef = {
+			const expectedFeatureRef: OCIRef = {
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',
@@ -231,7 +231,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			assert.exists(featureSet);
 
-			const expectedFeatureRef: OCIFeatureRef = {
+			const expectedFeatureRef: OCIRef = {
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',

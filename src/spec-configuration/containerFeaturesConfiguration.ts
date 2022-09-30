@@ -12,7 +12,8 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
-import { fetchOCIFeature, getOCIFeatureSet, OCIFeatureRef, fetchOCIFeatureManifestIfExistsFromUserIdentifier, OCIManifest } from './containerFeaturesOCI';
+import { fetchOCIFeature, getOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
+import { OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -90,7 +91,7 @@ export interface LocalCacheSourceInformation extends BaseSourceInformation {
 
 export interface OCISourceInformation extends BaseSourceInformation {
 	type: 'oci';
-	featureRef: OCIFeatureRef;
+	featureRef: OCIRef;
 	manifest: OCIManifest;
 	userFeatureIdWithoutVersion: string;
 }

@@ -32,6 +32,7 @@ import { containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPackageHandler, templatesPackageOptions } from './templatesCLI/package';
+import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -67,6 +68,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('package <target>', 'Package templates', templatesPackageOptions, templatesPackageHandler);
+		y.command('publish <target>', 'Package and publish templates', templatesPublishOptions, templatesPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.epilog(`devcontainer@${version} ${packageFolder}`);

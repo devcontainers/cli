@@ -1,5 +1,5 @@
 import { Argv } from 'yargs';
-import { getFeatureRef, getPublishedVersions } from '../../spec-configuration/containerFeaturesOCI';
+import { getPublishedVersions, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
@@ -39,7 +39,7 @@ async function featuresInfo({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const featureOciRef = getFeatureRef(output, featureId);
+	const featureOciRef = getRef(output, featureId);
 
 	const publishedVersions = await getPublishedVersions(featureOciRef, output, true);
 	if (!publishedVersions || publishedVersions.length === 0) {
