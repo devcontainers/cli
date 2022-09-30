@@ -33,7 +33,9 @@ describe('Dev Container Features E2E (remote)', function () {
                 assert.equal(error.error.code, 1, 'Should fail with exit code 1');
                 const res = JSON.parse(error.stdout);
                 assert.equal(res.outcome, 'error');
-                assert.ok(res.message.indexOf('Failed to fetch tarball') > -1, `Actual error msg:  ${res.message}`);
+                // "Failed to fetch tarball" happens if the test is executed without a $GITHUB_TOKEN
+                // "HTTP 404: Not Found" happens if the test is executed with a $GITHUB_TOKEN
+                assert.ok(res.message.indexOf('Failed to fetch tarball') > -1 || res.message.indexOf('HTTP 404: Not Found') > -1, `Actual error msg:  ${res.message}`);
             }
             assert.equal(success, false, 'expect non-successful call');
         });
@@ -192,7 +194,7 @@ describe('Dev Container Features E2E (local-path)', function () {
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /Hello there, root!!!!/);
+            assert.match(res.stderr, /Hello there, vscode!!!!/);
         });
 
         it('should read configuration with features', async () => {
@@ -222,7 +224,7 @@ describe('Dev Container Features E2E (local-path)', function () {
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);
             assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /Hello there, root!!!!/);
+            assert.match(res.stderr, /Hello there, vscode!!!!/);
         });
 
         it('should read configuration with features with customizations', async () => {

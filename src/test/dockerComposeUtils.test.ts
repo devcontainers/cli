@@ -19,6 +19,8 @@ build:
   context: context-path
   dockerfile: my-dockerfile
   target: a-target
+  args:
+    arg1: value1
 `;
         const info = loadYamlAndGetBuildInfoForService(input);
         assert.deepEqual(info, {
@@ -26,7 +28,10 @@ build:
             build: {
                 context: 'context-path',
                 dockerfilePath: 'my-dockerfile',
-                target: 'a-target'
+                target: 'a-target',
+                args: {
+                    arg1: 'value1',
+                },
             }
         });
     });
@@ -67,7 +72,8 @@ build:
             build: {
                 context: './a-path',
                 dockerfilePath: 'Dockerfile',
-                target: undefined
+                target: undefined,
+                args: undefined,
             }
         });
     });
@@ -83,7 +89,8 @@ build:
             build: {
                 context: path.dirname(testComposeFile),
                 dockerfilePath: 'my-dockerfile',
-                target: undefined
+                target: undefined,
+                args: undefined,
             }
         });
     });

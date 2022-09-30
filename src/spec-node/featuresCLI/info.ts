@@ -1,10 +1,9 @@
-import path from 'path';
 import { Argv } from 'yargs';
 import { getFeatureRef, getPublishedVersions } from '../../spec-configuration/containerFeaturesOCI';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { getPackageConfig } from '../utils';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -31,8 +30,7 @@ async function featuresInfo({
 		await Promise.all(disposables.map(d => d()));
 	};
 
-	const extensionPath = path.join(__dirname, '..', '..', '..');
-	const pkg = await getPackageConfig(extensionPath);
+	const pkg = getPackageConfig();
 
 	const output = createLog({
 		logLevel: mapLogLevel(inputLogLevel),

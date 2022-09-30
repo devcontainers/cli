@@ -5,8 +5,9 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 
-import { DockerResolverParameters, getPackageConfig, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
 import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
@@ -15,8 +16,10 @@ import { promisify } from 'util';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { PackageConfiguration } from '../spec-utils/product';
+import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
+
+export const experimentalImageMetadataDefault = true;
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -49,8 +52,10 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	skipFeatureAutoMapping: boolean;
 	buildxOutput: string | undefined;
+	skipFeatureAutoMapping: boolean;
+	skipPostAttach: boolean;
+	experimentalImageMetadata: boolean;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -85,7 +90,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
-	const pkg = await getPackageConfig(extensionPath);
+	const pkg = getPackageConfig();
 	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
 
 	const appRoot = undefined;
@@ -117,12 +122,14 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		loadNativeModule,
 		shutdowns: [],
 		backgroundTasks: [],
-		persistedFolder: persistedFolder || await cliHost.tmpdir(), // Fallback to tmpDir(), even though that isn't 'persistent'
+		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
-		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		buildxOutput: options.buildxOutput,
+		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
+		skipPostAttach: options.skipPostAttach,
+		experimentalImageMetadata: options.experimentalImageMetadata,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
@@ -172,7 +179,7 @@ export interface LogOptions {
 }
 
 export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
-	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}.`;
+	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
 	disposables.push(() => output.join());

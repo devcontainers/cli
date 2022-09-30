@@ -4,7 +4,7 @@ import * as semver from 'semver';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
-import { FeatureSet } from './containerFeaturesConfiguration';
+import { Feature, FeatureSet } from './containerFeaturesConfiguration';
 
 export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string };
 
@@ -60,9 +60,8 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 
 	const featureRef = getFeatureRef(output, identifier);
 
-	const feat = {
+	const feat: Feature = {
 		id: featureRef.id,
-		name: featureRef.id,
 		included: true,
 		value: options
 	};

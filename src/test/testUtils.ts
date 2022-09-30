@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { SubstituteConfig } from '../spec-node/utils';
 
 export interface BuildKitOption {
     text: string;
@@ -85,3 +86,16 @@ export async function commandMarkerTests(cli: string, workspaceFolder: string, e
     };
     assert.deepStrictEqual(actual, expected, message);
 }
+
+export const testSubstitute: SubstituteConfig = value => {
+	if (Array.isArray(value)) {
+		return value.map(s => testSubstitute(s)) as any;
+	}
+	if ('id' in value) {
+		return {
+			...value,
+			id: (value as any).id + '-substituted'
+		};
+	}
+	return value;
+};

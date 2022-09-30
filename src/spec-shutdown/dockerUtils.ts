@@ -232,7 +232,11 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 
 export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<string | null> {
 	try {
-		const result = await dockerCLI(params, 'buildx', 'version');
+		const execParams = {
+			...toExecParameters(params),
+			print: true,
+		};
+		const result = await dockerCLI(execParams, 'buildx', 'version');
 		const versionMatch = result.stdout.toString().match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
 		if (!versionMatch) {
 			return null;
@@ -282,7 +286,7 @@ export async function isPodman(params: DockerCLIParameters | DockerResolverParam
 	}
 }
 
-export async function dockerPtyCLI(params: PartialPtyExecParameters | DockerResolverParameters, ...args: string[]) {
+export async function dockerPtyCLI(params: PartialPtyExecParameters | DockerResolverParameters | DockerCLIParameters, ...args: string[]) {
 	const partial = toPtyExecParameters(params);
 	return runCommand({
 		...partial,

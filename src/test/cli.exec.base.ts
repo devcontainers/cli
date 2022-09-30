@@ -53,7 +53,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 			describe(`with valid (Dockerfile) config containing features [${text}]`, () => {
@@ -74,7 +74,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 
@@ -95,7 +95,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					const response = JSON.parse(res.stdout);
 					console.log(res.stderr);
 					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, root/);
+					assert.match(res.stderr, /howdy, node/);
 				});
 			});
 
@@ -193,7 +193,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 			describe(`Dockerfile with post*Commands specified [${text}]`, () => {
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
-				after(async () => await devContainerDown({ containerId }));
+				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have all command markers at appropriate times', async () => {
 					containerId = (await devContainerUp(cli, testFolder, options)).containerId;
 					// Should have all markers (Create + Start + Attach)
@@ -211,6 +211,32 @@ export function describeTests2({ text, options }: BuildKitOption) {
 					// // Clear markers and re-test - should have Attach
 					// await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
 					// await commandMarkerTests(testFolder, { postCreate: false, postStart: false, postAttach: true }, 'Markers on attach');
+				});
+				it('should not run postAttachCommand when --skip-post-attach is given', async () => {
+					const testOptions = { ...options, extraArgs: '--skip-post-attach' };
+					containerId = (await devContainerUp(cli, testFolder, testOptions)).containerId;
+					// Should have Create + Start but not Attach
+					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on first create');
+
+					// Clear markers and stop
+					await shellExec(`${cli} exec --workspace-folder ${testFolder} /bin/sh -c "rm /tmp/*.testmarker"`);
+					await devContainerStop({ containerId });
+
+					// Restart container - should have Start
+					containerId = (await devContainerUp(cli, testFolder, testOptions)).containerId;
+					await commandMarkerTests(cli, testFolder, { postCreate: false, postStart: true, postAttach: false }, 'Markers on restart');
+
+					await devContainerDown({ containerId });
+
+					// Shouldn't have any markers
+					containerId = (await devContainerUp(cli, testFolder, { ...options, extraArgs: '--skip-post-create' })).containerId;
+					await commandMarkerTests(cli, testFolder, { postCreate: false, postStart: false, postAttach: false }, 'Markers on --skip-post-create');
+
+					// Should have Create + Start but not Attach
+					const res = await shellExec(`${cli} run-user-commands --skip-post-attach --workspace-folder ${testFolder}`);
+					const response = JSON.parse(res.stdout);
+					assert.equal(response.outcome, 'success');
+					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on run-user-commands');
 				});
 			});
 			describe(`docker-compose with post*Commands specified [${text}]`, () => {
@@ -302,7 +328,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 						const response = JSON.parse(res.stdout);
 						console.log(res.stderr);
 						assert.equal(response.outcome, 'success');
-						assert.match(res.stderr, /howdy, root/);
+						assert.match(res.stderr, /howdy, node/);
 					});
 				});
 		

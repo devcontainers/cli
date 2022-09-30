@@ -1,6 +1,9 @@
 import { assert } from 'chai';
-import { ensureDockerfileHasFinalStageName, internalGetImageUser } from '../spec-node/utils';
+import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../spec-node/imageMetadata';
+import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement } from '../spec-node/dockerfileUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { nullLog } from '../spec-utils/log';
+import { testSubstitute } from './testUtils';
 
 describe('ensureDockerfileHasFinalStageName', () => {
 
@@ -142,11 +145,39 @@ RUN another command
     });
 });
 
-describe('getImageUser', () => {
+describe('getImageBuildInfo', () => {
 
     it('for a simple FROM line', async () => {
         const dockerfile = `FROM debian:latest as base
 FROM ubuntu:latest as dev
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: {
+                    [imageMetadataLabel]: '[{"id":"testid"}]'
+                },
+                Entrypoint: null,
+                Cmd: null
+            }
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
+            return details;
+        }, dockerfile, {}, undefined, testSubstitute, true, nullLog);
+        assert.strictEqual(info.user, 'imageUser');
+        assert.strictEqual(info.metadata.config.length, 1);
+        assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
+        assert.strictEqual(info.metadata.raw.length, 1);
+        assert.strictEqual(info.metadata.raw[0].id, 'testid');
+    });
+
+    it('for a USER', async () => {
+        const dockerfile = `FROM ubuntu:latest as base
+USER dockerfileUserA
+USER dockerfileUserB
 `;
         const details: ImageDetails = {
             Id: '123',
@@ -158,19 +189,110 @@ FROM ubuntu:latest as dev
                 Cmd: null
             }
         };
-        assert.strictEqual(await internalGetImageUser(async imageName => {
-            assert.strictEqual(imageName, 'debian:latest');
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile), 'imageUser');
+        }, dockerfile, {}, undefined, testSubstitute, true, nullLog);
+        assert.strictEqual(info.user, 'dockerfileUserB');
+        assert.strictEqual(info.metadata.config.length, 0);
+        assert.strictEqual(info.metadata.raw.length, 0);
+    });
+});
+
+describe('findBaseImage', () => {
+
+    it('simple FROM', async () => {
+        const dockerfile = `FROM image1
+USER user1
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const image = findBaseImage(extracted, {}, undefined);
+        assert.strictEqual(image, 'image1');
     });
 
-    it('for a USER', async () => {
-        const dockerfile = `FROM ubuntu:latest as base
-USER dockerfileUserA
-USER dockerfileUserB
+    it('arg FROM', async () => {
+        const dockerfile = `ARG BASE_IMAGE="image2"
+FROM \${BASE_IMAGE}
+ARG IMAGE_USER=user2
+USER $IMAGE_USER
 `;
-        assert.strictEqual(await internalGetImageUser(() => {
-            throw new Error('ooops');
-        }, dockerfile), 'dockerfileUserB');
+        const extracted = extractDockerfile(dockerfile);
+        const image = findBaseImage(extracted, {}, undefined);
+        assert.strictEqual(image, 'image2');
+    });
+
+    it('arg FROM overwritten', async () => {
+        const dockerfile = `ARG BASE_IMAGE="image2"
+FROM \${BASE_IMAGE}
+ARG IMAGE_USER=user2
+USER $IMAGE_USER
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const image = findBaseImage(extracted, {
+            'BASE_IMAGE': 'image3'
+        }, undefined);
+        assert.strictEqual(image, 'image3');
+    });
+
+    it('Multistage', async () => {
+        const dockerfile = `
+FROM image1 as stage1
+FROM stage3 as stage2
+FROM image3 as stage3
+FROM image4 as stage4
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const image = findBaseImage(extracted, {}, 'stage2');
+        assert.strictEqual(image, 'image3');
+    });
+});
+
+describe('findUserStatement', () => {
+
+    it('simple USER', async () => {
+        const dockerfile = `FROM debian
+USER user1
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user1');
+    });
+
+    it('arg USER', async () => {
+        const dockerfile = `FROM debian
+ARG IMAGE_USER=user2
+USER $IMAGE_USER
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user2');
+    });
+
+    it('arg USER overwritten', async () => {
+        const dockerfile = `FROM debian
+ARG IMAGE_USER=user2
+USER $IMAGE_USER
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {
+            IMAGE_USER: 'user3'
+        }, undefined);
+        assert.strictEqual(user, 'user3');
+    });
+
+    it('Multistage', async () => {
+        const dockerfile = `
+FROM image1 as stage1
+USER user1
+FROM stage3 as stage2
+FROM image3 as stage3
+USER user3_1
+USER user3_2
+FROM image4 as stage4
+USER user4
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const image = findUserStatement(extracted, {}, 'stage2');
+        assert.strictEqual(image, 'user3_2');
     });
 });

@@ -53,7 +53,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
 
     const nodes = [...nodesById.values()];
     for (const later of nodes) {
-        for (const firstId of later.feature.features[0].installAfter || []) {
+        for (const firstId of later.feature.features[0].installsAfter || []) {
             const first = nodesById.get(firstId);
             // soft dependencies
             if (first) {

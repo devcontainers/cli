@@ -286,7 +286,7 @@ async function createContainerFromWorkingDirectory(params: DockerResolverParamet
 
 async function createTempDevcontainerFolder(cliHost: CLIHost): Promise<string> {
 	const systemTmpDir = tmpdir();
-	const tmpFolder = path.join(systemTmpDir, 'vsch', 'container-features-test', Date.now().toString());
+	const tmpFolder = path.join(systemTmpDir, 'devcontainercli', 'container-features-test', Date.now().toString());
 	await cliHost.mkdirp(`${tmpFolder}/.devcontainer`);
 	return tmpFolder;
 }
@@ -366,6 +366,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 		],
 		remoteEnv: common.remoteEnv,
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
+		experimentalImageMetadata: common.experimentalImageMetadata,
 		log: text => quiet ? null : process.stderr.write(text),
 	};
 
@@ -415,6 +416,7 @@ async function exec(_params: DockerResolverParameters, cmd: string, args: string
 		...staticExecParams,
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
+		'experimental-image-metadata': false,
 		cmd,
 		args,
 		_: [
@@ -458,7 +460,9 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		useBuildKit: 'auto',
 		buildxPlatform: undefined,
 		buildxPush: false,
-		skipFeatureAutoMapping: false,
 		buildxOutput: undefined,
+		skipFeatureAutoMapping: false,
+		skipPostAttach: false,
+		experimentalImageMetadata: false,
 	}, disposables);
 }

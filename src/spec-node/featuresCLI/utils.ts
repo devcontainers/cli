@@ -23,6 +23,7 @@ export const staticProvisionParams = {
     buildxPlatform: undefined,
     buildxPush: false,
     buildxOutput: undefined,
+    skipPostAttach: false,
 };
 
 export const staticExecParams = {

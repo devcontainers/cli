@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, ensureDockerfileHasFinalStageName, getImageUser } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { Mount, CollapsedFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
-import { includeAllConfiguredFeatures } from '../spec-utils/product';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
-export async function openDockerfileDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, workspaceConfig: WorkspaceConfiguration, idLabels: string[]): Promise<ResolverResult> {
+export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[]): Promise<ResolverResult> {
 	const { common } = params;
+	const { config } = configWithRaw;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
 
 	let container: ContainerDetails | undefined;
@@ -25,6 +26,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 
 	try {
 		container = await findExistingContainer(params, idLabels);
+		let mergedConfig: MergedDevContainerConfig;
 		if (container) {
 			// let _collapsedFeatureConfig: Promise<CollapsedFeaturesConfig | undefined>;
 			// collapsedFeaturesConfig = async () => {
@@ -35,14 +37,19 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
+			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, common.experimentalImageMetadata, common.output).config;
+			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
-			const res = await buildNamedImageAndExtend(params, config);
-			const updatedImageName = await updateRemoteUserUID(params, config, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || config.containerUser);
+			const res = await buildNamedImageAndExtend(params, configWithRaw);
+			const imageMetadata = res.imageMetadata.config;
+			mergedConfig = mergeConfiguration(config, imageMetadata);
+			const { containerUser } = mergedConfig;
+			const updatedImageName = await updateRemoteUserUID(params, mergedConfig, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
 
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, res.collapsedFeaturesConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails);
+				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser);
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -53,8 +60,8 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			}
 		}
 
-		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, config.remoteUser);
-		return await setupContainer(container, params, containerProperties, config);
+		containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		return await setupContainer(container, params, containerProperties, config, mergedConfig);
 
 	} catch (e) {
 		throw createSetupError(e, container, params, containerProperties, config);
@@ -81,11 +88,11 @@ function createSetupError(originalError: any, container: ContainerDetails | unde
 	return err;
 }
 
-async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): Promise<ResolverResult> {
+async function setupContainer(container: ContainerDetails, params: DockerResolverParameters, containerProperties: ContainerProperties, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig): Promise<ResolverResult> {
 	const { common } = params;
 	const {
 		remoteEnv: extensionHostEnv,
-	} = await setupInContainer(common, containerProperties, config);
+	} = await setupInContainer(common, containerProperties, mergedConfig);
 
 	return {
 		params: common,
@@ -103,18 +110,20 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, argImageNames?: string[]) {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, argImageNames?: string[]) {
+	const { config } = configWithRaw;
 	const imageNames = argImageNames ?? [getDefaultName(config, params)];
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		return await buildAndExtendImage(params, config, imageNames, params.buildNoCache ?? false);
+		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, config, imageNames[0], 'image' in config);
+	return await extendImage(params, configWithRaw, imageNames[0]);
 }
 
-async function buildAndExtendImage(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig, baseImageNames: string[], noCache: boolean) {
+async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean) {
 	const { cliHost, output } = buildParams.common;
+	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
 	if (!cliHost.isFile(dockerfilePath)) {
@@ -137,7 +146,8 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, config, baseName, () => getImageUser(buildParams, originalDockerfile));
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];
@@ -199,9 +209,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			args.push('--pull');
 		}
 	} else {
-		if (buildParams.additionalCacheFroms) {
-			buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		const configCacheFrom = config.build?.cacheFrom;
+		if (buildParams.additionalCacheFroms.length || (configCacheFrom && (configCacheFrom === 'string' || configCacheFrom.length))) {
+			await logUMask(buildParams);
 		}
+		buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
 		if (config.build && config.build.cacheFrom) {
 			if (typeof config.build.cacheFrom === 'string') {
 				args.push('--cache-from', config.build.cacheFrom);
@@ -237,7 +249,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	return {
 		updatedImageName: baseImageNames,
-		collapsedFeaturesConfig: extendImageBuildInfo?.collapsedFeaturesConfig,
+		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
 		imageDetails
 	};
 }
@@ -294,7 +306,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 }
 
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -304,56 +316,45 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
-	const mounts = config.mounts ? ([] as string[]).concat(...config.mounts.map(m => ['--mount', m])) : [];
-
-	const envObj = config.containerEnv;
-	const containerEnv = envObj ? Object.keys(envObj)
+	const envObj = mergedConfig.containerEnv || {};
+	const containerEnv = Object.keys(envObj)
 		.reduce((args, key) => {
 			args.push('-e', `${key}=${envObj[key]}`);
 			return args;
-		}, [] as string[]) : [];
+		}, [] as string[]);
 
-	const containerUser = config.containerUser ? ['-u', config.containerUser] : [];
+	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
 	const featureArgs: string[] = [];
-	if ((collapsedFeaturesConfig?.allFeatures || []).some(f => (includeAllConfiguredFeatures || f.included) && f.value && f.init)) {
+	if (mergedConfig.init) {
 		featureArgs.push('--init');
 	}
-	if ((collapsedFeaturesConfig?.allFeatures || []).some(f => (includeAllConfiguredFeatures || f.included) && f.value && f.privileged)) {
+	if (mergedConfig.privileged) {
 		featureArgs.push('--privileged');
 	}
-	const caps = new Set(([] as string[]).concat(...(collapsedFeaturesConfig?.allFeatures || [])
-		.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-		.map(f => f.capAdd || [])));
-	for (const cap of caps) {
+	for (const cap of mergedConfig.capAdd || []) {
 		featureArgs.push('--cap-add', cap);
 	}
-	const securityOpts = new Set(([] as string[]).concat(...(collapsedFeaturesConfig?.allFeatures || [])
-		.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-		.map(f => f.securityOpt || [])));
-	for (const securityOpt of securityOpts) {
+	for (const securityOpt of mergedConfig.securityOpt || []) {
 		featureArgs.push('--security-opt', securityOpt);
 	}
 
 	const featureMounts = ([] as string[]).concat(
-		...([] as Mount[]).concat(
-			...(collapsedFeaturesConfig?.allFeatures || [])
-				.map(f => (includeAllConfiguredFeatures || f.included) && f.value && f.mounts)
-				.filter(Boolean) as Mount[][],
-			params.additionalMounts,
-		).map(m => ['--mount', `type=${m.type},src=${m.source},dst=${m.target}`])
+		...[
+			...mergedConfig.mounts || [],
+			...params.additionalMounts,
+		].map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
 	);
 
-	const customEntrypoints = (collapsedFeaturesConfig?.allFeatures || [])
-		.map(f => (includeAllConfiguredFeatures || f.included) && f.value && f.entrypoint)
-		.filter(Boolean) as string[];
+	const customEntrypoints = mergedConfig.entrypoints || [];
 	const entrypoint = ['--entrypoint', '/bin/sh'];
 	const cmd = ['-c', `echo Container started
 trap "exit 0" 15
 ${customEntrypoints.join('\n')}
 exec "$@"
 while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` to run (synchronous `sleep` would not).
-	if (config.overrideCommand === false && imageDetails) {
+	const overrideCommand = mergedConfig.overrideCommand;
+	if (overrideCommand === false && imageDetails) {
 		const details = await imageDetails();
 		cmd.push(...details.Config.Entrypoint || []);
 		cmd.push(...details.Config.Cmd || []);
@@ -366,11 +367,10 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		'-a', 'STDERR',
 		...exposed,
 		...cwdMount,
-		...mounts,
 		...featureMounts,
 		...getLabels(labels),
 		...containerEnv,
-		...containerUser,
+		...containerUserArgs,
 		...(config.runArgs || []),
 		...featureArgs,
 		...entrypoint,

@@ -24,7 +24,7 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 export interface Feature {
 	id: string;
 	version?: string;
-	name: string;
+	name?: string;
 	description?: string;
 	cachePath?: string;
 	internalVersion?: string; // set programmatically
@@ -40,7 +40,6 @@ export interface Feature {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
-	installAfter?: string[];
 	include?: string[];
 	exclude?: string[];
 	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
@@ -69,6 +68,12 @@ export interface Mount {
 	source: string;
 	target: string;
 	external?: boolean;
+}
+
+export function parseMount(str: string): Mount {
+	return str.split(',')
+		.map(s => s.split('='))
+		.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}) as Mount;
 }
 
 export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
@@ -156,15 +161,6 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
-export function collapseFeaturesConfig(original: FeaturesConfig): CollapsedFeaturesConfig {
-	const collapsed = {
-		allFeatures: original.featureSets
-			.map(fSet => fSet.features)
-			.flat()
-	};
-	return collapsed;
-}
-
 export const multiStageBuildExploration = false;
 
 // Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
@@ -222,7 +218,59 @@ COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/b
 
 ARG _DEV_CONTAINERS_IMAGE_USER=root
 USER $_DEV_CONTAINERS_IMAGE_USER
+
+#{devcontainerMetadata}
 `;
+}
+
+export function getFeatureInstallWrapperScript(feature: Feature, featureSet: FeatureSet, options: string[]): string {
+	const id = escapeQuotesForShell(featureSet.sourceInformation.userFeatureIdWithoutVersion ?? 'Unknown');
+	const name = escapeQuotesForShell(feature.name ?? 'Unknown');
+	const description = escapeQuotesForShell(feature.description ?? '');
+	const version = escapeQuotesForShell(feature.version ?? '');
+	const documentation = escapeQuotesForShell(feature.documentationURL ?? '');
+	const optionsIndented = escapeQuotesForShell(options.map(x => `    ${x}`).join('\n'));
+
+	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
+	const troubleshootingMessage = documentation
+		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
+		: '';
+
+	return `#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo '${errorMessage}${troubleshootingMessage}'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+echo 'Feature       : ${name}'
+echo 'Description   : ${description}'
+echo 'Id            : ${id}'
+echo 'Version       : ${version}'
+echo 'Documentation : ${documentation}'
+echo 'Options       :'
+echo '${optionsIndented}'
+echo ===========================================================================
+
+set -a
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+}
+
+function escapeQuotesForShell(input: string) {
+	// The `input` is expected to be a string which will be printed inside single quotes
+	// by the caller. This means we need to escape any nested single quotes within the string.
+	// We can do this by ending the first string with a single quote ('), printing an escaped
+	// single quote (\'), and then opening a new string (').
+	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
 }
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig) {
@@ -242,13 +290,9 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig) {
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
 			result += `
-				
 RUN cd /tmp/build-features/${feature.consecutiveId} \\
-&& set -a \\
-&& . ./devcontainer-features.env \\
-&& set +a \\
-&& chmod +x ./install.sh \\
-&& ./install.sh
+&& chmod +x ./devcontainer-features-install.sh \\
+&& ./devcontainer-features-install.sh
 
 `;
 		});
@@ -521,13 +565,19 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 	}
 }
 
-export function getBackwardCompatibleFeatureId(id: string) {
+export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 	const migratedfeatures = ['aws-cli', 'azure-cli', 'desktop-lite', 'docker-in-docker', 'docker-from-docker', 'dotnet', 'git', 'git-lfs', 'github-cli', 'java', 'kubectl-helm-minikube', 'node', 'powershell', 'python', 'ruby', 'rust', 'sshd', 'terraform'];
 	const renamedFeatures = new Map();
 	renamedFeatures.set('golang', 'go');
 	renamedFeatures.set('common', 'common-utils');
-	// TODO: Add warning log messages only when auto-mapping is ready to be put in Remote-Containers STABLE version.  
-	// const deprecatedFeatures = ['fish', 'gradle', 'homebrew', 'jupyterlab', 'maven'];
+
+	const deprecatedFeaturesIntoOptions = new Map();
+	deprecatedFeaturesIntoOptions.set('gradle', 'java');
+	deprecatedFeaturesIntoOptions.set('maven', 'java');
+	deprecatedFeaturesIntoOptions.set('jupyterlab', 'python');
+
+	// TODO: add warning logs once we have context on the new location for these Features.
+	// const deprecatedFeatures = ['fish', 'homebrew'];
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
 	// Note: Pin the versionBackwardComp to '1' to avoid breaking changes.
@@ -535,17 +585,19 @@ export function getBackwardCompatibleFeatureId(id: string) {
 
 	// Mapping feature references (old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
 	if (migratedfeatures.includes(id)) {
+		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${id}#example-usage for the updated Feature.`, LogLevel.Warning);
 		return `${newFeaturePath}/${id}:${versionBackwardComp}`;
 	}
 
 	// Mapping feature references (renamed old shorthand syntax) from "microsoft/vscode-dev-containers" to "ghcr.io/devcontainers/features"
 	if (renamedFeatures.get(id) !== undefined) {
+		output.write(`(!) WARNING: Using the deprecated '${id}' Feature. See https://github.com/devcontainers/features/tree/main/src/${renamedFeatures.get(id)}#example-usage for the updated Feature.`, LogLevel.Warning);
 		return `${newFeaturePath}/${renamedFeatures.get(id)}:${versionBackwardComp}`;
 	}
 
-	// if (deprecatedFeatures.includes(id)) {
-	// 	output.write(`(!) WARNING: Falling back to deprecated '${id}' feature.`, LogLevel.Warning);
-	// }
+	if (deprecatedFeaturesIntoOptions.get(id) !== undefined) {
+		output.write(`(!) WARNING: Falling back to the deprecated '${id}' Feature. It is now part of the '${deprecatedFeaturesIntoOptions.get(id)}' Feature. See https://github.com/devcontainers/features/tree/main/src/${deprecatedFeaturesIntoOptions.get(id)}#options for the updated Feature.`, LogLevel.Warning);
+	}
 
 	// Deprecated and all other features references (eg. fish, ghcr.io/devcontainers/features/go, ghcr.io/owner/repo/id etc)
 	return id;
@@ -560,7 +612,7 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 	const originalUserFeatureId = userFeature.id;
 	// Adding backward compatibility
 	if (!skipFeatureAutoMapping) {
-		userFeature.id = getBackwardCompatibleFeatureId(userFeature.id);
+		userFeature.id = getBackwardCompatibleFeatureId(output, userFeature.id);
 	}
 
 	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
