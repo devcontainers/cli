@@ -1,8 +1,11 @@
 import tar from 'tar';
+import * as jsonc from 'jsonc-parser';
 import { PackageCommandInput } from './package';
-import { isLocalFile, isLocalFolder, mkdirpLocal, readLocalDir, readLocalFile, rmLocal } from '../../spec-utils/pfs';
-import { LogLevel } from '../../spec-utils/log';
+import { isLocalFile, isLocalFolder, mkdirpLocal, readLocalDir, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
+import { Log, LogLevel } from '../../spec-utils/log';
 import path from 'path';
+import { DevContainerConfig, isDockerFileConfig } from '../../spec-configuration/configuration';
+import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
 
 export interface SourceInformation {
 	source: string;
@@ -74,6 +77,19 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 		return;
 	}
 
+	if (collectionType === 'template') {
+		const devcontainerFilePath = await getDevcontainerFilePath(targetFolder);
+
+		if (!devcontainerFilePath) {
+			output.write(`Template is missing a devcontainer.json`, LogLevel.Error);
+			return;
+		}
+
+		if (!(await addsAdditionalTemplateProps(devcontainerFilePath, jsonPath, output))) {
+			return;
+		}
+	}
+
 	const archiveName = getArchiveName(metadata.id, collectionType);
 
 	await tarDirectory(targetFolder, archiveName, outputDir);
@@ -81,6 +97,44 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 
 	metadatas.push(metadata);
 	return metadatas;
+}
+
+async function addsAdditionalTemplateProps(devcontainerFilePath: string, devcontainerTemplateJsonPath: string, output: Log): Promise<boolean> {
+	const devcontainerJsonString: Buffer = await readLocalFile(devcontainerFilePath);
+	const config: DevContainerConfig = jsonc.parse(devcontainerJsonString.toString());
+
+	let type = undefined;
+	const devcontainerTemplateJsonString: Buffer = await readLocalFile(devcontainerTemplateJsonPath);
+	let templateData: Template = jsonc.parse(devcontainerTemplateJsonString.toString());
+
+	if ('image' in config) {
+		type = 'image';
+	} else if (isDockerFileConfig(config)) {
+		type = 'dockerfile';
+	} else if ('dockerComposeFile' in config) {
+		type = 'dockerCompose';
+	} else {
+		output.write(`Dev container config (${devcontainerFilePath}) is missing one of "image", "dockerFile" or "dockerComposeFile" properties.`, LogLevel.Error);
+		return false;
+	}
+
+	templateData.type = type;
+	await writeLocalFile(devcontainerTemplateJsonPath, JSON.stringify(templateData, null, 4));
+
+	return true;
+}
+
+async function getDevcontainerFilePath(srcFolder: string): Promise<string | undefined> {
+	const devcontainerFile = path.join(srcFolder, '.devcontainer.json');
+	const devcontainerFileWithinDevcontainerFolder = path.join(srcFolder, '.devcontainer/devcontainer.json');
+
+	if (await isLocalFile(devcontainerFile)) {
+		return devcontainerFile;
+	} else if (await isLocalFile(devcontainerFileWithinDevcontainerFolder)) {
+		return devcontainerFileWithinDevcontainerFolder;
+	}
+
+	return undefined;
 }
 
 // Packages collection of Features or Templates
@@ -111,11 +165,14 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 					return;
 				}
 			} else if (collectionType === 'template') {
-				const devcontainerFile = path.join(folder, '.devcontainer.json');
-				const devcontainerFileWithinDevcontainerFolder = path.join(folder, '.devcontainer/devcontainer.json');
+				const devcontainerFilePath = await getDevcontainerFilePath(folder);
 
-				if (!(await isLocalFile(devcontainerFile)) && !(await isLocalFile(devcontainerFileWithinDevcontainerFolder))) {
+				if (!devcontainerFilePath) {
 					output.write(`Template '${c}' is missing a devcontainer.json`, LogLevel.Error);
+					return;
+				}
+
+				if (!(await addsAdditionalTemplateProps(devcontainerFilePath, jsonPath, output))) {
 					return;
 				}
 			}

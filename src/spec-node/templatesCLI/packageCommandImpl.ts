@@ -5,7 +5,7 @@ import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { LogLevel } from '../../spec-utils/log';
 import { writeLocalFile } from '../../spec-utils/pfs';
 
-interface DevContainerCollectionMetadata {
+export interface DevContainerCollectionMetadata {
 	sourceInformation: SourceInformation;
 	templates: Template[];
 }

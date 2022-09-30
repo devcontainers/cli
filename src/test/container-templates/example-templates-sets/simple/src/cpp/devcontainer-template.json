@@ -2,7 +2,6 @@
     "id": "cpp",
     "version": "1.0.0",
     "name": "C++",
-    "type": "dockerfile",
     "options": {
         "imageVariant": {
             "type": "string",

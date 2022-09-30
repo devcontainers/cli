@@ -2,7 +2,6 @@
     "id": "alpine",
     "version": "1.0.0",
     "name": "Alpine",
-    "type": "image",
     "options": {
         "imageVariant": {
             "type": "string",
