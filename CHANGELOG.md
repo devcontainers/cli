@@ -4,6 +4,12 @@ Notable changes.
 
 ## September 2022
 
+### [0.17.0]
+
+- Use qualified id for features. (https://github.com/microsoft/vscode-remote-release/issues/7253)
+- Avoid changing metadata order. (https://github.com/microsoft/vscode-remote-release/issues/7254)
+- Include version in all override files. (https://github.com/microsoft/vscode-remote-release/issues/7244)
+
 ### [0.16.0]
 
 - Image metadata. (https://github.com/devcontainers/cli/issues/188)
