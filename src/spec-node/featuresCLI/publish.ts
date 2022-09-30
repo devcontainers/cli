@@ -49,7 +49,7 @@ async function featuresPublish({
     }, pkg, new Date(), disposables);
 
     // Package features
-    const outputDir = path.join(os.tmpdir(), '/features-output');
+    const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);
 
     const packageArgs: PackageCommandInput = {
         cliHost,

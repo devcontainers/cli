@@ -50,7 +50,7 @@ async function templatesPublish({
     }, pkg, new Date(), disposables);
 
     // Package templates
-    const outputDir = path.join(os.tmpdir(), '/templates-output');
+    const outputDir = path.join(os.tmpdir(), `/templates-output-${Date.now()}`);
 
     const packageArgs: PackageCommandInput = {
         cliHost,
