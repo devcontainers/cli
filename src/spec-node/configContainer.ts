@@ -21,7 +21,7 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 
 export { getWellKnownDevContainerPaths as getPossibleDevContainerPaths } from '../spec-configuration/configurationCommonUtils';
 
-export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
+export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	if (configFile && !/\/\.?devcontainer\.json$/.test(configFile.path)) {
 		throw new Error(`Filename must be devcontainer.json or .devcontainer.json (${uriToFsPath(configFile, params.common.cliHost.platform)}).`);
 	}
@@ -33,7 +33,7 @@ export async function resolve(params: DockerResolverParameters, configFile: URI 
 	}
 }
 
-async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
+async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common, workspaceMountConsistencyDefault } = params;
 	const { cliHost, output } = common;
 

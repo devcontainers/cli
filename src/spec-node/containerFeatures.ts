@@ -28,7 +28,7 @@ export const getSafeId = (str: string) => str
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
 
-export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { common } = params;
 	const { cliHost, output } = common;
 
@@ -93,7 +93,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	};
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 
 	// Creates the folder where the working files will be setup.
 	const dstFolder = await createFeaturesTempFolder(params.common);
