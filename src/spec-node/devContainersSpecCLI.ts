@@ -6,6 +6,8 @@
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
+import * as jsonc from 'jsonc-parser';
+
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
 import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig } from './utils';
 import { URI } from 'vscode-uri';
@@ -31,6 +33,8 @@ import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { templatesPackageHandler, templatesPackageOptions } from './templatesCLI/package';
+import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -63,6 +67,10 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
+	});
+	y.command('templates', 'Templates commands', (y: Argv) => {
+		y.command('package <target>', 'Package templates', templatesPackageOptions, templatesPackageHandler);
+		y.command('publish <target>', 'Package and publish templates', templatesPublishOptions, templatesPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
 	y.epilog(`devcontainer@${version} ${packageFolder}`);
@@ -101,6 +109,7 @@ function provisionOptions(y: Argv) {
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
+		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
@@ -162,6 +171,7 @@ async function provision({
 	'remote-env': addRemoteEnv,
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
+	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
@@ -170,6 +180,7 @@ async function provision({
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
+	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -209,6 +220,7 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
+		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
@@ -272,6 +284,7 @@ function buildOptions(y: Argv) {
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
+		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	});
@@ -305,6 +318,7 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'output': buildxOutput,
+	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
 }: BuildArgs) {
@@ -317,6 +331,7 @@ async function doBuild({
 		const configFile: URI | undefined = /* config ? URI.file(path.resolve(process.cwd(), config)) : */ undefined; // TODO
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
+		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -377,7 +392,7 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, imageNames);
 
 			if (imageNames) {
 				if (!buildxPush && !buildxOutput) {
@@ -418,7 +433,7 @@ async function doBuild({
 
 			const versionPrefix = await readVersionPrefix(cliHost, composeFiles);
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -432,7 +447,7 @@ async function doBuild({
 		} else {
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures);
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
@@ -657,6 +672,7 @@ function readConfigurationOptions(y: Argv) {
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'include-features-configuration': { type: 'boolean', default: false, description: 'Include features configuration.' },
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration.' },
+		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
@@ -691,6 +707,7 @@ async function readConfiguration({
 	'terminal-columns': terminalColumns,
 	'include-features-configuration': includeFeaturesConfig,
 	'include-merged-configuration': includeMergedConfig,
+	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
 }: ReadConfigurationArgs) {
@@ -751,8 +768,9 @@ async function readConfiguration({
 			};
 		}
 
+		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && (!container || !experimentalImageMetadata));
-		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping) : undefined;
+		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping, additionalFeatures) : undefined;
 		let mergedConfig: MergedDevContainerConfig | undefined;
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
@@ -787,11 +805,11 @@ async function readConfiguration({
 	process.exit(0);
 }
 
-async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig | undefined> {
+async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
 	const { cliHost, output } = params;
 	const { cwd, env } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
-	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder);
+	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
 }
 
 function execOptions(y: Argv) {

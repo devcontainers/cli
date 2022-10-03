@@ -1,0 +1,21 @@
+{
+    "id": "alpine",
+    "version": "1.0.0",
+    "name": "Alpine",
+    "options": {
+        "imageVariant": {
+            "type": "string",
+            "description": "Alpine version:",
+            "proposals": [
+                "3.16",
+                "3.15",
+                "3.14",
+                "3.13"
+            ],
+            "default": "3.16"
+        }
+    },
+    "platforms": [
+        "Any"
+    ]
+}

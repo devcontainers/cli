@@ -1,0 +1,28 @@
+{
+    "id": "node-mongo",
+    "version": "1.0.0",
+    "name": "Node.js & Mongo DB",
+    "options": {
+        "imageVariant": {
+            "type": "string",
+            "description": "Node.js version (use -bullseye variants on local arm64/Apple Silicon):",
+            "proposals": [
+                "18",
+                "16",
+                "14",
+                "18-bullseye",
+                "16-bullseye",
+                "14-bullseye",
+                "18-buster",
+                "16-buster",
+                "14-buster"
+            ],
+            "default": "16-bullseye"
+        }
+    },
+    "platforms": [
+        "Node.js",
+        "JavaScript",
+        "Mongo DB"
+    ]
+}

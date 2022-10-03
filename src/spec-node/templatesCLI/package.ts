@@ -5,24 +5,25 @@ import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { doFeaturesPackageCommand } from './packageCommandImpl';
 import { PackageCommandInput, PackageOptions } from '../collectionCommonUtils/package';
+import { doTemplatesPackageCommand } from './packageCommandImpl';
 
-export function featuresPackageOptions(y: Argv) {
-	return PackageOptions(y, 'feature');
+export function templatesPackageOptions(y: Argv) {
+	return PackageOptions(y, 'template');
 }
 
-export type FeaturesPackageArgs = UnpackArgv<ReturnType<typeof featuresPackageOptions>>;
-export function featuresPackageHandler(args: FeaturesPackageArgs) {
-	(async () => await featuresPackage(args))().catch(console.error);
+export type TemplatesPackageArgs = UnpackArgv<ReturnType<typeof templatesPackageOptions>>;
+
+export function templatesPackageHandler(args: TemplatesPackageArgs) {
+	(async () => await templatesPackage(args))().catch(console.error);
 }
 
-async function featuresPackage({
+async function templatesPackage({
 	'target': targetFolder,
 	'log-level': inputLogLevel,
 	'output-folder': outputDir,
 	'force-clean-output-folder': forceCleanOutputDir,
-}: FeaturesPackageArgs) {
+}: TemplatesPackageArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
@@ -39,7 +40,6 @@ async function featuresPackage({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-
 	const args: PackageCommandInput = {
 		cliHost,
 		targetFolder,
@@ -49,7 +49,7 @@ async function featuresPackage({
 		forceCleanOutputDir: forceCleanOutputDir
 	};
 
-	const exitCode = !!(await doFeaturesPackageCommand(args)) ? 0 : 1;
+	const exitCode = !!(await doTemplatesPackageCommand(args)) ? 0 : 1;
 
 	await dispose();
 	process.exit(exitCode);
