@@ -17,10 +17,7 @@
                 "16-buster",
                 "14-buster"
             ],
-            "default": "16-bullseye",
-            "replaceIn": [
-                ".devcontainer/Dockerfile"
-            ]
+            "default": "16-bullseye"
         }
     },
     "platforms": [

@@ -12,10 +12,7 @@
                 "3.14",
                 "3.13"
             ],
-            "default": "3.16",
-            "replaceIn": [
-                ".devcontainer.json"
-            ]
+            "default": "3.16"
         }
     },
     "platforms": [
