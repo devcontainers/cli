@@ -180,6 +180,13 @@
   resolved "https://registry.yarnpkg.com/@types/pull-stream/-/pull-stream-3.6.2.tgz#184165017b0764b9a44aff0b555c795ad6cdf9f9"
   integrity sha512-s5jYmaJH68IQb9JjsemWUZCpaQdotd7B4xfXQtcKvGmQxcBXD/mvSQoi3TzPt2QqpDLjImxccS4en8f8E8O0FA==
 
+"@types/recursive-readdir@^2.2.1":
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/@types/recursive-readdir/-/recursive-readdir-2.2.1.tgz#330f5ec0b73e8aeaf267a6e056884e393f3543a3"
+  integrity sha512-Xd+Ptc4/F2ueInqy5yK2FI5FxtwwbX2+VZpcg+9oYsFJVen8qQKGapCr+Bi5wQtHU1cTXT8s+07lo/nKPgu8Gg==
+  dependencies:
+    "@types/node" "*"
+
 "@types/semver@^7.3.9":
   version "7.3.9"
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.9.tgz#152c6c20a7688c30b967ec1841d31ace569863fc"
@@ -2496,6 +2503,13 @@ readdirp@~3.6.0:
   integrity sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==
   dependencies:
     picomatch "^2.2.1"
+
+recursive-readdir@^2.2.2:
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/recursive-readdir/-/recursive-readdir-2.2.2.tgz#9946fb3274e1628de6e36b2f6714953b4845094f"
+  integrity sha512-nRCcW9Sj7NuZwa2XvH9co8NPeXUBhZP7CRKJtU+cS6PW9FpCIFoI5ib0NT1ZrbNuPoRy0ylyCaUL8Gih4LSyFg==
+  dependencies:
+    minimatch "3.0.4"
 
 regexpp@^2.0.1:
   version "2.0.1"

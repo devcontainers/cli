@@ -2,7 +2,6 @@
     "id": "cpp",
     "version": "1.0.0",
     "name": "C++",
-    "type": "dockerfile",
     "options": {
         "imageVariant": {
             "type": "string",
@@ -14,10 +13,7 @@
                 "ubuntu-20.04",
                 "ubuntu-18.04"
             ],
-            "default": "debian-11",
-            "replaceIn": [
-                ".devcontainer/Dockerfile"
-            ]
+            "default": "debian-11"
         }
     },
     "platforms": [
