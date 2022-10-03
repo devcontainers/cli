@@ -189,7 +189,9 @@ describe('Dev Containers CLI', function () {
 		it('file /tmp/output.tar should exist when using --output type=oci,dest=/tmp/output.tar', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const outputPath = `/tmp/output.tar`;
+			const buildxCreateRes = await shellExec(`docker buildx create --use'`);
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output 'type=oci,dest=${outputPath}'`);
+			const buildxResetRes = await shellExec(`docker buildx use default'`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			assert.equal(fs.existsSync(outputPath), true);
