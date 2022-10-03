@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -186,9 +187,9 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-		it('file /tmp/output.tar should exist when using --output type=oci,dest=/tmp/output.tar', async () => {
-			const testFolder = `${__dirname}/configs/dockerfile-with-target`; 
-			const outputPath = `/tmp/output.tar`;
+		it('file ${os.tmpdir()}/output.tar should exist when using --output type=oci,dest=${os.tmpdir()/output.tar', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const outputPath = `${os.tmpdir()}/output.tar`;
 			await shellExec('docker buildx create --name ocitest');
 			await shellExec('docker buildx use ocitest');
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output 'type=oci,dest=${outputPath}'`);
