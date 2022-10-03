@@ -46,14 +46,8 @@ describe('tests doTemplatesPackageCommand()', async function () {
 		args.targetFolder = srcFolder;
 		args.outputDir = outputDir;
 
-		let success = false;
-		try {
-			await doTemplatesPackageCommand(args);
-			success = true;
-		} catch (error) {
-			assert.fail('templates doTemplatesPackageCommand() should not throw');
-		}
-		assert.isTrue(success);
+		const metadata = await doTemplatesPackageCommand(args);
+		assert.isDefined(metadata);
 
 		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.isTrue(alpineTgzExists);
@@ -98,14 +92,8 @@ describe('tests doTemplatesPackageCommand()', async function () {
 		args.targetFolder = singleTemplateFolder;
 		args.outputDir = outputDir;
 
-		let success = false;
-		try {
-			await doTemplatesPackageCommand(args);
-			success = true;
-		} catch (error) {
-			assert.fail('templates package sub-command should not throw');
-		}
-		assert.isTrue(success);
+		const metadata = await doTemplatesPackageCommand(args);
+		assert.isDefined(metadata);
 
 		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.isTrue(alpineTgzExists);
