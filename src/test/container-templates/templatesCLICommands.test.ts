@@ -3,7 +3,7 @@ import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { shellExec } from '../testUtils';
-import { DevContainerCollectionMetadata, doTemplatesPackageCommand } from '../../spec-node/templatesCLI/packageImpl';
+import { DevContainerCollectionMetadata, packageTemplates } from '../../spec-node/templatesCLI/packageImpl';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
 import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
 import { getCLIHost } from '../../spec-common/cliHost';
@@ -13,7 +13,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 
 const pkg = require('../../../package.json');
 
-describe('tests doTemplatesPackageCommand()', async function () {
+describe('tests packageTemplates()', async function () {
 	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
@@ -46,7 +46,7 @@ describe('tests doTemplatesPackageCommand()', async function () {
 		args.targetFolder = srcFolder;
 		args.outputDir = outputDir;
 
-		const metadata = await doTemplatesPackageCommand(args);
+		const metadata = await packageTemplates(args);
 		assert.isDefined(metadata);
 
 		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
@@ -92,7 +92,7 @@ describe('tests doTemplatesPackageCommand()', async function () {
 		args.targetFolder = singleTemplateFolder;
 		args.outputDir = outputDir;
 
-		const metadata = await doTemplatesPackageCommand(args);
+		const metadata = await packageTemplates(args);
 		assert.isDefined(metadata);
 
 		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
