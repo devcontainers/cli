@@ -11,7 +11,7 @@ import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
-import { doTemplatesPackageCommand } from './packageCommandImpl';
+import { doTemplatesPackageCommand } from './packageImpl';
 import { getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 
