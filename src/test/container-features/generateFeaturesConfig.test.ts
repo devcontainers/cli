@@ -42,7 +42,7 @@ describe('validate generateFeaturesConfig()', function () {
             },
         };
 
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder, {});
         if (!featuresConfig) {
             assert.fail();
         }
@@ -103,7 +103,7 @@ RUN cd /tmp/build-features/second_2 \\
             },
         };
         
-        const featuresConfig = await generateFeaturesConfig({...params, cwd: tmpFolder}, tmpFolder, config, localFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig({ ...params, cwd: tmpFolder }, tmpFolder, config, localFeaturesFolder, {});
         if (!featuresConfig) {
             assert.fail();
         }
@@ -161,7 +161,7 @@ RUN cd /tmp/build-features/hello_4 \\
 
         params.skipFeatureAutoMapping = true;
 
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, getContainerFeaturesFolder);
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, getContainerFeaturesFolder, {});
         if (!featuresConfig) {
             assert.fail();
         }
