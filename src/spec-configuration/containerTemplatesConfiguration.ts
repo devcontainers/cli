@@ -16,18 +16,15 @@ export interface Template {
 export type TemplateOption = {
 	type: 'boolean';
 	default: boolean;
-	replaceIn: string[];
 	description?: string;
 } | {
 	type: 'string';
 	default: boolean;
-	replaceIn: string[];
 	enum?: string[];
 	description?: string;
 } | {
 	type: 'string';
 	default: boolean;
-	replaceIn: string[];
 	proposals?: string[];
 	description?: string;
 };
