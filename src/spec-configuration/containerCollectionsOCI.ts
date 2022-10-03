@@ -250,7 +250,7 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 			return [];
 		}
 
-		output.write(`(!) ERR: Could not fetch published tags for '${ref.namespace}/${ref.id}' : ${e?.message ?? ''} `, LogLevel.Trace);
+		output.write(`(!) ERR: Could not fetch published tags for '${ref.namespace}/${ref.id}' : ${e?.message ?? ''} `, LogLevel.Error);
 		return undefined;
 	}
 }
