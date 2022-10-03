@@ -199,6 +199,5 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.outcome, 'success');
 			assert.equal(fs.existsSync(outputPath), true);
 		});
-
 	});
 });
