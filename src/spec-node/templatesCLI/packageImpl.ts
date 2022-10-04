@@ -12,7 +12,7 @@ export interface DevContainerCollectionMetadata {
 
 const collectionType = 'template';
 
-export async function doTemplatesPackageCommand(args: PackageCommandInput): Promise<DevContainerCollectionMetadata | undefined> {
+export async function packageTemplates(args: PackageCommandInput): Promise<DevContainerCollectionMetadata | undefined> {
 	args = await prepPackageCommand(args, collectionType);
 	const { output, outputDir } = args;
 	const isSingleTemplate = args.isSingle;

@@ -11,7 +11,7 @@ import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
-import { doTemplatesPackageCommand } from './packageCommandImpl';
+import { packageTemplates } from './packageImpl';
 import { getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 
@@ -61,7 +61,7 @@ async function templatesPublish({
         forceCleanOutputDir: true,
     };
 
-    const metadata = await doTemplatesPackageCommand(packageArgs);
+    const metadata = await packageTemplates(packageArgs);
 
     if (!metadata) {
         output.write(`(!) ERR: Failed to fetch ${OCICollectionFileName}`, LogLevel.Error);

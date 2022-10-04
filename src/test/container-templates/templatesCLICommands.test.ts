@@ -3,17 +3,20 @@ import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { shellExec } from '../testUtils';
-import { DevContainerCollectionMetadata } from '../../spec-node/templatesCLI/packageCommandImpl';
+import { DevContainerCollectionMetadata, packageTemplates } from '../../spec-node/templatesCLI/packageImpl';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
+import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
+import { getCLIHost } from '../../spec-common/cliHost';
+import { loadNativeModule } from '../../spec-common/commonUtils';
+
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
 
-describe('CLI templates subcommands', async function () {
+describe('tests packageTemplates()', async function () {
 	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
@@ -22,35 +25,46 @@ describe('CLI templates subcommands', async function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
+    const cwd = process.cwd();
+    const cliHost = await getCLIHost(cwd, loadNativeModule);
+
+	let args: PackageCommandInput = {
+		targetFolder: '',
+		outputDir: '',
+		output,
+		cliHost,
+		disposables: [],
+		forceCleanOutputDir: true
+	};
+
 	// -- Packaging
 
-	it('templates package subcommand by collection', async function () {
+	it('tests packaging for templates collection', async function () {
 		const srcFolder = `${__dirname}/example-templates-sets/simple/src`;
-		let success = false;
-		try {
-			await shellExec(`${cli} templates package -o ${tmp}/output/test01 -f --log-level trace  ${srcFolder} `);
-			success = true;
-		} catch (error) {
-			assert.fail('templates package sub-command should not throw');
-		}
-		assert.isTrue(success);
+		const outputDir = `${tmp}/output/test01`;
 
-		const alpineTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-template-alpine.tgz`);
+		args.targetFolder = srcFolder;
+		args.outputDir = outputDir;
+
+		const metadata = await packageTemplates(args);
+		assert.isDefined(metadata);
+
+		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.isTrue(alpineTgzExists);
-		const tgzArchiveContentsAlpine = await shellExec(`tar -tvf ${tmp}/output/test01/devcontainer-template-alpine.tgz`);
+		const tgzArchiveContentsAlpine = await shellExec(`tar -tvf ${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.match(tgzArchiveContentsAlpine.stdout, /devcontainer-template.json/);
 		assert.match(tgzArchiveContentsAlpine.stdout, /.devcontainer.json/);
 
-		const cppTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-template-cpp.tgz`);
+		const cppTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-cpp.tgz`);
 		assert.isTrue(cppTgzExists);
-		const tgzArchiveContentsHello = await shellExec(`tar -tvf ${tmp}/output/test01/devcontainer-template-cpp.tgz`);
+		const tgzArchiveContentsHello = await shellExec(`tar -tvf ${outputDir}/devcontainer-template-cpp.tgz`);
 		assert.match(tgzArchiveContentsHello.stdout, /devcontainer-template.json/);
 		assert.match(tgzArchiveContentsHello.stdout, /.devcontainer/);
 		assert.match(tgzArchiveContentsHello.stdout, /.devcontainer\/Dockerfile/);
 		assert.match(tgzArchiveContentsHello.stdout, /.devcontainer\/devcontainer.json/);
 
-		const collectionFileExists = await isLocalFile(`${tmp}/output/test01/devcontainer-collection.json`);
-		const json: DevContainerCollectionMetadata = JSON.parse((await readLocalFile(`${tmp}/output/test01/devcontainer-collection.json`)).toString());
+		const collectionFileExists = await isLocalFile(`${outputDir}/devcontainer-collection.json`);
+		const json: DevContainerCollectionMetadata = JSON.parse((await readLocalFile(`${outputDir}/devcontainer-collection.json`)).toString());
 		assert.strictEqual(json.templates.length, 3);
 		assert.isTrue(collectionFileExists);
 
@@ -71,26 +85,25 @@ describe('CLI templates subcommands', async function () {
 		assert.equal(nodeProperties?.fileCount, 3);
 	});
 
-	it('templates package subcommand by single template', async function () {
+	it('tests packaging for single template', async function () {
 		const singleTemplateFolder = `${__dirname}/example-templates-sets/simple/src/alpine`;
-		let success = false;
-		try {
-			await shellExec(`${cli} templates package -o ${tmp}/output/test02 -f --log-level trace  ${singleTemplateFolder} `);
-			success = true;
-		} catch (error) {
-			assert.fail('templates package sub-command should not throw');
-		}
-		assert.isTrue(success);
+		const outputDir = `${tmp}/output/test02`;
 
-		const alpineTgzExists = await isLocalFile(`${tmp}/output/test01/devcontainer-template-alpine.tgz`);
+		args.targetFolder = singleTemplateFolder;
+		args.outputDir = outputDir;
+
+		const metadata = await packageTemplates(args);
+		assert.isDefined(metadata);
+
+		const alpineTgzExists = await isLocalFile(`${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.isTrue(alpineTgzExists);
-		const tgzArchiveContentsAlpine = await shellExec(`tar -tvf ${tmp}/output/test01/devcontainer-template-alpine.tgz`);
+		const tgzArchiveContentsAlpine = await shellExec(`tar -tvf ${outputDir}/devcontainer-template-alpine.tgz`);
 		assert.match(tgzArchiveContentsAlpine.stdout, /devcontainer-template.json/);
 		assert.match(tgzArchiveContentsAlpine.stdout, /.devcontainer.json/);
 
-		const collectionFileExists = await isLocalFile(`${tmp}/output/test02/devcontainer-collection.json`);
+		const collectionFileExists = await isLocalFile(`${outputDir}/devcontainer-collection.json`);
 		assert.isTrue(collectionFileExists);
-		const json: DevContainerCollectionMetadata = JSON.parse((await readLocalFile(`${tmp}/output/test02/devcontainer-collection.json`)).toString());
+		const json: DevContainerCollectionMetadata = JSON.parse((await readLocalFile(`${outputDir}/devcontainer-collection.json`)).toString());
 		assert.strictEqual(json.templates.length, 1);
 		assert.isTrue(collectionFileExists);
 
