@@ -4,7 +4,7 @@ Notable changes.
 
 ## September 2022
 
-### [0.17.1]
+### [0.18.0]
 
 - Introduces `templates publish` command. (https://github.com/devcontainers/cli/pull/198)
 - Adds `--additional-features` option. (https://github.com/devcontainers/cli/pull/171)
