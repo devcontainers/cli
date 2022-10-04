@@ -15,7 +15,7 @@ import { ContainerProperties, getContainerProperties, ResolverParameters } from 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -25,6 +25,8 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
+import { fetchRegistryAuthToken, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
+import { request } from '../spec-utils/httpRequest';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -174,10 +176,15 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 		if (!pullImageOnError) {
 			throw err;
 		}
+		const output = 'cliHost' in params ? params.output : params.common.output;
+		try {
+			return await inspectImageInRegistry(output, imageName);
+		} catch (err2) {
+			output.write(`Error fetching image details: ${err2?.message}`);
+		}
 		try {
 			await dockerPtyCLI(params, 'pull', imageName);
 		} catch (_err) {
-			const output = 'cliHost' in params ? params.output : params.common.output;
 			if (err.stdout) {
 				output.write(err.stdout.toString());
 			}
@@ -187,6 +194,59 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			throw err;
 		}
 		return inspectImage(params, imageName);
+	}
+}
+
+export async function inspectImageInRegistry(output: Log, name: string, authToken?: string): Promise<ImageDetails> {
+	const resourceAndVersion = qualifyImageName(name);
+	const ref = getRef(output, resourceAndVersion);
+	const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
+
+	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
+	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
+	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
+	const manifest = await getManifest(output, process.env, manifestUrl, ref, auth || false, 'application/vnd.docker.distribution.manifest.v2+json');
+	if (!manifest) {
+		throw new Error(`No manifest found for ${resourceAndVersion}.`);
+	}
+
+	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${manifest.config.digest}`;
+	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
+
+	const headers: HEADERS = {
+		'user-agent': 'devcontainer',
+	};
+
+	if (auth) {
+		headers['authorization'] = `Bearer ${auth}`;
+	}
+
+	const options = {
+		type: 'GET',
+		url: blobUrl,
+		headers: headers
+	};
+
+	const blob = await request(options, output);
+	const obj = JSON.parse(blob.toString());
+	return {
+		Id: manifest.config.digest,
+		Config: obj.config,
+	};
+}
+
+export function qualifyImageName(name: string) {
+	const segments = name.split('/');
+	if (segments.length === 1) {
+		return `docker.io/library/${name}`;
+	} else if (segments.length === 2) {
+		if (name.startsWith('docker.io/')) {
+			return `docker.io/library/${segments[1]}`;
+		} else {
+			return `docker.io/${name}`;
+		}
+	} else {
+		return name;
 	}
 }
 

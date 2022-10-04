@@ -120,11 +120,11 @@ export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessE
 	return manifest;
 }
 
-export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: string, ref: OCIRef | OCICollectionRef, authToken?: string): Promise<OCIManifest | undefined> {
+export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: string, ref: OCIRef | OCICollectionRef, authToken?: string | false, mimeType?: string): Promise<OCIManifest | undefined> {
 	try {
 		const headers: HEADERS = {
 			'user-agent': 'devcontainer',
-			'accept': 'application/vnd.oci.image.manifest.v1+json',
+			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
 		};
 
 		const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, env, 'pull');
@@ -149,6 +149,10 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 // https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
 export async function fetchRegistryAuthToken(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
+	if (registry === 'mcr.microsoft.com') {
+		return undefined;
+	}
+
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer'
 	};
@@ -174,7 +178,9 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		headers['authorization'] = `Basic ${base64Encoded}`;
 	}
 
-	const url = `https://${registry}/token?scope=repo:${ociRepoPath}:${operationScopes}&service=${registry}`;
+	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
+	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
+	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
 	output.write(`url: ${url}`, LogLevel.Trace);
 
 	const options = {
@@ -196,7 +202,12 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		return undefined;
 	}
 
-	const token: string | undefined = JSON.parse(authReq.toString())?.token;
+	let token: string | undefined;
+	try {
+		token = JSON.parse(authReq.toString())?.token;
+	} catch {
+		// not JSON
+	}
 	if (!token) {
 		output.write('Failed to parse registry auth token response', LogLevel.Error);
 		return undefined;
