@@ -4,6 +4,12 @@ Notable changes.
 
 ## October 2022
 
+### [0.19.0]
+
+- Inspect image in registry to avoid pulling it. (https://github.com/microsoft/vscode-remote-release/issues/7273)
+
+### [0.18.0]
+
 - Introduces `templates publish` command. (https://github.com/devcontainers/cli/pull/198)
 - Adds `--additional-features` option. (https://github.com/devcontainers/cli/pull/171)
 - Adds `--output` option to the `devcontainer build` command. (https://github.com/devcontainers/cli/pull/166)
