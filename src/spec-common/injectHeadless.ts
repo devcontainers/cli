@@ -58,6 +58,7 @@ export interface ResolverParameters {
 	remoteEnv: Record<string, string>;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	buildxOutput: string | undefined;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -169,6 +171,33 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.outcome, 'success');
 			assert.equal(response.imageName[0], image1);
 			assert.equal(response.imageName[1], image2);
+		});
+
+		it('should fail with --push true and --output', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --output type=oci,dest=output.tar --push true`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /cannot be used with/);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+
+		it('file ${os.tmpdir()}/output.tar should exist when using --output type=oci,dest=${os.tmpdir()/output.tar', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const outputPath = `${os.tmpdir()}/output.tar`;
+			await shellExec('docker buildx create --name ocitest');
+			await shellExec('docker buildx use ocitest');
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output 'type=oci,dest=${outputPath}'`);
+			await shellExec('docker buildx use default');
+			await shellExec('docker buildx rm ocitest');
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(fs.existsSync(outputPath), true);
 		});
 	});
 });

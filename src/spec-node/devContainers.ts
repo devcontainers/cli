@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	buildxOutput: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
@@ -126,6 +127,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		remoteEnv,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
+		buildxOutput: options.buildxOutput,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		experimentalImageMetadata: options.experimentalImageMetadata,
@@ -166,6 +168,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		isTTY: process.stdin.isTTY || options.logFormat === 'json',
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
+		buildxOutput: common.buildxOutput,
 	};
 }
 

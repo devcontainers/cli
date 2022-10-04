@@ -219,6 +219,7 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
+		buildxOutput: undefined,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
@@ -282,6 +283,7 @@ function buildOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
@@ -315,6 +317,7 @@ async function doBuild({
 	'buildkit': buildkit,
 	'platform': buildxPlatform,
 	'push': buildxPush,
+	'output': buildxOutput,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
@@ -358,6 +361,7 @@ async function doBuild({
 			useBuildKit: buildkit,
 			buildxPlatform,
 			buildxPush,
+			buildxOutput,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			experimentalImageMetadata,
@@ -378,6 +382,10 @@ async function doBuild({
 		const { config } = configWithRaw;
 		let imageNameResult: string[] = [''];
 
+		if (buildxOutput && buildxPush) {
+			throw new ContainerError({ description: '--push true cannot be used with --output.' });
+		}
+
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
@@ -387,7 +395,7 @@ async function doBuild({
 			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, imageNames);
 
 			if (imageNames) {
-				if (!buildxPush) {
+				if (!buildxPush && !buildxOutput) {
 					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
 				}
 				imageNameResult = imageNames;
@@ -398,6 +406,10 @@ async function doBuild({
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push not supported.' });
+			}
+
+			if (buildxOutput) {
+				throw new ContainerError({ description: '--output not supported.' });
 			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
@@ -439,6 +451,9 @@ async function doBuild({
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
+			}
+			if (buildxOutput) {
+				throw new ContainerError({ description: '--output requires dockerfilePath.' });
 			}
 			if (imageNames) {
 				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
@@ -587,6 +602,7 @@ async function doRunUserCommands({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxOutput: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			experimentalImageMetadata,
@@ -918,6 +934,7 @@ export async function doExec({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			skipFeatureAutoMapping,
+			buildxOutput: undefined,
 			skipPostAttach: false,
 			experimentalImageMetadata,
 		}, disposables);
