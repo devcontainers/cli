@@ -1,1 +1,1 @@
-# Added for testing - should thrown warning when packaging collection of Features with missing `devcontainer-feature.json`
+# Added for testing - should log warning when packaging collection of Features with missing `devcontainer-feature.json` and continue.

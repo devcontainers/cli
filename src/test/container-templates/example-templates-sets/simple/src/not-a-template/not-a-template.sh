@@ -1,1 +1,1 @@
-# Added for testing - should thrown warning when packaging collection of Templates with missing `devcontainer-template.json`
+# Added for testing - should log warning when packaging collection of Templates with missing `devcontainer-template.json` and continue.
