@@ -167,7 +167,7 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
 
 			if (!(await isLocalFile(path.join(folder, devcontainerJsonName)))) {
-				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping... `, LogLevel.Error);
+				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping... `, LogLevel.Warning);
 				continue;
 			}
 
