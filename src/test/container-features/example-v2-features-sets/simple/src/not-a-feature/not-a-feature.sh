@@ -1,0 +1,1 @@
+# Added for testing - should thrown warning when packaging collection of Features with missing `devcontainer-feature.json`

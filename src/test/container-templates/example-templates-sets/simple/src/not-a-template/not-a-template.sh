@@ -1,1 +1,1 @@
-# This is not a template.
+# Added for testing - should thrown warning when packaging collection of Templates with missing `devcontainer-template.json`
