@@ -162,18 +162,21 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 		output.write(`Processing ${collectionType}: ${c}...`, LogLevel.Info);
 		if (!c.startsWith('.')) {
 			const folder = path.join(srcFolder, c);
+
+			// Validate minimal folder structure
+			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
+
+			if (!(await isLocalFile(path.join(folder, devcontainerJsonName)))) {
+				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping... `, LogLevel.Warning);
+				continue;
+			}
+
 			const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
 			await cpDirectoryLocal(folder, tmpSrcDir);
 
 			const archiveName = getArchiveName(c, collectionType);
 
-			// Validate minimal folder structure
-			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
 			const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
-			if (!(await isLocalFile(jsonPath))) {
-				output.write(`${collectionType} '${c}' is missing a ${devcontainerJsonName}`, LogLevel.Error);
-				return;
-			}
 
 			if (collectionType === 'feature') {
 				const installShPath = path.join(tmpSrcDir, 'install.sh');
