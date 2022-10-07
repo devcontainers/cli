@@ -4,6 +4,12 @@ Notable changes.
 
 ## October 2022
 
+### [0.19.1]
+
+- Only set target when previously set. (https://github.com/microsoft/vscode-remote-release/issues/7301)
+- Check for existing syntax directive. (https://github.com/microsoft/vscode-remote-release/issues/6848)
+- Templates & Features Packaging - Throw warning of a missing JSON file and continue. (https://github.com/devcontainers/cli/pull/206)
+
 ### [0.19.0]
 
 - Inspect image in registry to avoid pulling it. (https://github.com/microsoft/vscode-remote-release/issues/7273)
