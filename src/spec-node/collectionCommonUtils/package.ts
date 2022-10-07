@@ -31,5 +31,4 @@ export interface PackageCommandInput {
 	disposables: (() => Promise<unknown> | undefined)[];
 	isSingle?: boolean; // Packaging a collection of many features/templates. Should autodetect.
 	forceCleanOutputDir?: boolean;
-	allowDirWithoutTemplate?: boolean;
 }

@@ -45,7 +45,6 @@ describe('tests packageTemplates()', async function () {
 
 		args.targetFolder = srcFolder;
 		args.outputDir = outputDir;
-		args.allowDirWithoutTemplate = true;
 
 		const metadata = await packageTemplates(args);
 		assert.isDefined(metadata);

@@ -21,7 +21,7 @@ export interface SourceInformation {
 export const OCICollectionFileName = 'devcontainer-collection.json';
 
 export async function prepPackageCommand(args: PackageCommandInput, collectionType: string): Promise<PackageCommandInput> {
-	const { cliHost, targetFolder, outputDir, forceCleanOutputDir, output, disposables, allowDirWithoutTemplate } = args;
+	const { cliHost, targetFolder, outputDir, forceCleanOutputDir, output, disposables } = args;
 
 	const targetFolderResolved = cliHost.path.resolve(targetFolder);
 	if (!(await isLocalFolder(targetFolderResolved))) {
@@ -58,8 +58,7 @@ export async function prepPackageCommand(args: PackageCommandInput, collectionTy
 		forceCleanOutputDir,
 		output,
 		disposables,
-		isSingle,
-		allowDirWithoutTemplate
+		isSingle
 	};
 }
 
@@ -154,7 +153,7 @@ async function getDevcontainerFilePath(srcFolder: string): Promise<string | unde
 
 // Packages collection of Features or Templates
 export async function packageCollection(args: PackageCommandInput, collectionType: string) {
-	const { output, targetFolder: srcFolder, outputDir, allowDirWithoutTemplate } = args;
+	const { output, targetFolder: srcFolder, outputDir } = args;
 
 	const collectionDirs = await readLocalDir(srcFolder);
 	let metadatas = [];
@@ -172,14 +171,9 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
 			const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
 			if (!(await isLocalFile(jsonPath))) {
-				if (collectionType === 'template' && allowDirWithoutTemplate) {
-					output.write(`Folder '${c}' does not contain a Template folder`, LogLevel.Warning);
-					await rmLocal(tmpSrcDir, { recursive: true, force: true });
-					continue;
-				}
-
-				output.write(`${collectionType} '${c}' is missing a ${devcontainerJsonName}`, LogLevel.Error);
-				return;
+				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping... `, LogLevel.Error);
+				await rmLocal(tmpSrcDir, { recursive: true, force: true });
+				continue;
 			}
 
 			if (collectionType === 'feature') {

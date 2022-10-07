@@ -11,8 +11,7 @@ export function publishOptions(y: Argv, collectionType: string) {
         .options({
             'registry': { type: 'string', alias: 'r', default: 'ghcr.io', description: 'Name of the OCI registry.' },
             'namespace': { type: 'string', alias: 'n', require: true, description: `Unique indentifier for the collection of ${collectionType}s. Example: <owner>/<repo>` },
-            'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-            'allow-dir-without-template': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for publishing community templates.' }
+            'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' }
         })
         .positional('target', { type: 'string', default: '.', description: targetPositionalDescription(collectionType) })
         .check(_argv => {

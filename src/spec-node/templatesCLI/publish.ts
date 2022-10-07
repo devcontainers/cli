@@ -31,8 +31,7 @@ async function templatesPublish({
     'target': targetFolder,
     'log-level': inputLogLevel,
     'registry': registry,
-    'namespace': namespace,
-    'allow-dir-without-template': allowDirWithoutTemplate
+    'namespace': namespace
 }: TemplatesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
@@ -60,7 +59,6 @@ async function templatesPublish({
         output,
         disposables,
         forceCleanOutputDir: true,
-        allowDirWithoutTemplate
     };
 
     const metadata = await packageTemplates(packageArgs);
