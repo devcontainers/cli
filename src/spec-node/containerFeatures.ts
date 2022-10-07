@@ -16,6 +16,7 @@ import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, MergedDevContainerConfig } from './imageMetadata';
+import { supportsBuildContexts } from './dockerfileUtils';
 
 // Escapes environment variable keys.
 //
@@ -250,7 +251,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageBuildInfo.metadata, devContainerConfig, featuresConfig, common.experimentalImageMetadata))
 		;
-	const dockerfilePrefixContent = `${useBuildKitBuildContexts ? '# syntax=docker/dockerfile:1.4' : ''}
+	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
+		'# syntax=docker/dockerfile:1.4' :
+		syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 

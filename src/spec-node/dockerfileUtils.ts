@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as semver from 'semver';
+
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
@@ -14,9 +16,12 @@ const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[A
 const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
 const userStatements = /^\s*USER\s+(?<user>\S+)/gm;
 const argStatementsWithValue = /^\s*ARG\s+(?<name>\S+)=("(?<value1>\S+)"|(?<value2>\S+))/gm;
+const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 
 export interface Dockerfile {
 	preamble: {
+		version: string | undefined;
+		directives: Record<string, string>;
 		args: Record<string, string>;
 	};
 	stages: Stage[];
@@ -35,7 +40,7 @@ export interface From {
 	label?: string;
 }
 
-export function extractDockerfile(dockerfile: string) {
+export function extractDockerfile(dockerfile: string): Dockerfile {
 	const fromStatementsAhead = /(?=^\s*FROM)/gm;
 	const parts = dockerfile.split(fromStatementsAhead);
 	const preambleStr = fromStatementsAhead.test(parts[0] || '') ? '' : parts.shift()!;
@@ -45,8 +50,13 @@ export function extractDockerfile(dockerfile: string) {
 		args: extractArgs(stageStr),
 		users: [...stageStr.matchAll(userStatements)].map(m => m.groups!.user),
 	}));
+	const directives = extractDirectives(preambleStr);
+	const versionMatch = directives.syntax && /^(?:docker.io\/)?docker\/dockerfile(?::(?<version>\S+))?/.exec(directives.syntax) || undefined;
+	const version = versionMatch && (versionMatch.groups?.version || 'latest');
 	return {
 		preamble: {
+			version,
+			directives,
 			args: extractArgs(preambleStr),
 		},
 		stages,
@@ -96,6 +106,21 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 	return undefined;
 }
 
+function extractDirectives(preambleStr: string) {
+	const map: Record<string, string> = {};
+	for (const line of preambleStr.split(/\r?\n/)) {
+		const groups = line.match(directives)?.groups;
+		if (groups) {
+			if (!map[groups.name]) {
+				map[groups.name] = groups.value;
+			}
+		} else {
+			break;
+		}
+	}
+	return map;
+}
+
 function extractArgs(stageStr: string) {
 	return [...stageStr.matchAll(argStatementsWithValue)]
 		.reduce((obj, match) => {
@@ -143,4 +168,16 @@ export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLas
 	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
 
 	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
+}
+
+export function supportsBuildContexts(dockerfile: Dockerfile) {
+	const version = dockerfile.preamble.version;
+	if (!version) {
+		return dockerfile.preamble.directives.syntax ? 'unknown' : false;
+	}
+	const numVersion = (/^\d+(\.\d+){0,2}/.exec(version) || [])[0];
+	if (!numVersion) {
+		return true; // latest, labs or no tag.
+	}
+	return semver.intersects(numVersion, '>=1.4');
 }

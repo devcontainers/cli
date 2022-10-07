@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../spec-node/imageMetadata';
-import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement } from '../spec-node/dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement, supportsBuildContexts } from '../spec-node/dockerfileUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
 import { testSubstitute } from './testUtils';
@@ -294,5 +294,59 @@ USER user4
         const extracted = extractDockerfile(dockerfile);
         const image = findUserStatement(extracted, {}, 'stage2');
         assert.strictEqual(image, 'user3_2');
+    });
+});
+
+describe('supportsBuildContexts', () => {
+
+    it('no syntax directive', async () => {
+        const dockerfile = `FROM debian`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(supportsBuildContexts(extracted), false);
+    });
+
+    it('matching syntax directive', async () => {
+        const dockerfile = `# syntax=docker/dockerfile:1.4
+FROM debian`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(supportsBuildContexts(extracted), true);
+    });
+
+    it('matching syntax directive with docker.io', async () => {
+        const dockerfile = `# syntax=docker.io/docker/dockerfile:1.4
+FROM debian`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(supportsBuildContexts(extracted), true);
+    });
+
+    it('unknown syntax directive', async () => {
+        const dockerfile = `# syntax=mycompany/myimage:1.4
+FROM debian`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(supportsBuildContexts(extracted), 'unknown');
+    });
+
+    ['', '-labs'].forEach(prerelease => {
+        [
+            ['0', false],
+            ['1', true],
+            ['1.2', false],
+            ['1.2.3', false],
+            ['1.4', true],
+            ['1.4.5', true],
+            ['1.5', true],
+            ['1.5.0', true],
+            ['2', true],
+            ['', true],
+            ['latest', true],
+        ].forEach(([version, expected]) => {
+            const tag = `${version}${prerelease}`;
+            it(`syntax directive: ${tag}`, async () => {
+                const dockerfile = `# syntax=docker.io/docker/dockerfile${tag ? `:${tag}` : ''}
+        FROM debian`;
+                const extracted = extractDockerfile(dockerfile);
+                assert.strictEqual(supportsBuildContexts(extracted), expected);
+            });
+        });
     });
 });
