@@ -204,8 +204,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		const finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
 		buildOverrideContent += `      dockerfile: ${finalDockerfilePath}\n`;
-		// remove the target setting as we reference any previous target in the generated override content
-		buildOverrideContent += `      target: ${featureBuildInfo.overrideTarget}\n`;
+		if (serviceInfo.build?.target) {
+			// Replace target. (Only when set because it is only supported with Docker Compose file version 3.4 and later.)
+			buildOverrideContent += `      target: ${featureBuildInfo.overrideTarget}\n`;
+		}
 
 		if (!serviceInfo.build?.context) {
 			// need to supply a context as we don't have one inherited
