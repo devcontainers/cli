@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
+import { HostGPURequirements } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, mergeConfiguration } from '../spec-node/imageMetadata';
@@ -244,6 +245,39 @@ describe('Image Metadata', function () {
 			assert.strictEqual(merged.remoteEnv?.ENV3, 'devcontainer.json');
 			assert.strictEqual(merged.remoteEnv?.ENV4, 'feature1');
 		});
+	});
+
+	it('should merge gpu requirements from devcontainer.json and features', () => {
+		const merged = mergeConfiguration({
+			configFilePath: URI.parse('file:///devcontainer.json'),
+			image: 'image',
+			hostRequirements: {
+				gpu: 'optional'
+			}
+		}, [
+			{
+				hostRequirements: {
+					gpu: true
+				}
+			},
+			{
+				hostRequirements: {
+					gpu: {
+						cores: 4
+					}
+				}
+			},
+			{
+				hostRequirements: {
+					gpu: {
+						memory: '8gb'
+					}
+				}
+			}
+		]);
+		const gpuRequirement = merged.hostRequirements?.gpu as HostGPURequirements;
+		assert.strictEqual(gpuRequirement?.cores, 4);
+		assert.strictEqual(gpuRequirement?.memory, 8 * (2 ** 30));
 	});
 });
 

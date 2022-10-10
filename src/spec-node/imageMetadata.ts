@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
-import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
@@ -163,11 +163,41 @@ function mergeHostRequirements(imageMetadata: ImageMetadataEntry[]) {
 	const cpus = Math.max(...imageMetadata.map(m => m.hostRequirements?.cpus || 0));
 	const memory = Math.max(...imageMetadata.map(m => parseBytes(m.hostRequirements?.memory || '0')));
 	const storage = Math.max(...imageMetadata.map(m => parseBytes(m.hostRequirements?.storage || '0')));
-	return cpus || memory || storage ? {
+	const gpu = imageMetadata.map(m => m.hostRequirements?.gpu).reduce(mergeGpuRequirements, undefined);
+	return cpus || memory || storage || gpu ? {
 		cpus,
 		memory: memory ? `${memory}` : undefined,
 		storage: storage ? `${storage}` : undefined,
+		gpu: gpu,
 	} : undefined;
+}
+
+function mergeGpuRequirements(a: undefined | boolean | 'optional' | HostGPURequirements, b: undefined | boolean | 'optional' | HostGPURequirements): undefined | boolean | 'optional' | HostGPURequirements {
+	// simple cases if either are undefined/false we use the other one
+	if (a === undefined || a === false) {
+		return b;
+	} else if (b === undefined || b === false) {
+		return a;
+	} else if (a === 'optional' && b === 'optional ') {
+		return 'optional';
+	} else {
+		const aObject = asHostGPURequirements(a);
+		const bObject = asHostGPURequirements(b);
+		const cores = Math.max(aObject.cores || 0, bObject.cores || 0);
+		const memory = Math.max(parseBytes(aObject.memory || '0'), parseBytes(bObject.memory || '0'));
+		return {
+			cores: cores ? cores : undefined,
+			memory: memory ? `${memory}` : undefined,
+		};
+	}
+}
+
+function asHostGPURequirements(a: undefined | boolean | 'optional' | HostGPURequirements): HostGPURequirements {
+	if (typeof a !== 'object') {
+		return {};
+	} else {
+		return a as HostGPURequirements;
+	}
 }
 
 function parseBytes(str: string) {
