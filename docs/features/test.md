@@ -35,6 +35,36 @@ Options:
   -q, --quiet                  Quiets output                                                  [boolean] [default: false]
 ```
 
+An example project structure can be found below.
+
+```
+.
+├── README.md
+├── src
+│   ├── dotnet
+│   │   ├── devcontainer-feature.json
+│   │   └── install.sh
+│   ├── oryx
+│   │   ├── devcontainer-feature.json
+│   │   └── install.sh
+|   ├── ...
+│   │   ├── devcontainer-feature.json
+│   │   └── install.sh
+├── test
+│   ├── _global
+│	│	├── scenarios.json
+│   │   └── some_test_scenario.json
+│   ├── dotnet
+│   │   └── test.sh
+│   ├── oryx
+|   |   ├── scenarios.json
+|   |   ├── install_dotnet_and_oryx.json
+│   |   └── test.sh
+|   ├── ...
+│   │   └── test.sh
+...
+```
+
 ## Scenarios 
 
 Scenarios are an additional mode that augments the auto-generated test (that is asserted with the `test/<FEATURE>/test.sh` script).  
