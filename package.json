@@ -87,6 +87,7 @@
 		"jsonc-parser": "^3.0.0",
 		"ncp": "^2.0.0",
 		"node-pty": "^0.10.1",
+		"proxy-agent": "^5.0.0",
 		"pull-stream": "^3.6.14",
 		"recursive-readdir": "^2.2.2",
 		"semver": "^7.3.5",
