@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { RequestOptions } from 'https';
 import { https } from 'follow-redirects';
+import ProxyAgent from 'proxy-agent';
 import * as url from 'url';
 import { Log, LogLevel } from './log';
 
 export function request(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log) {
 	return new Promise<Buffer>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
-		const reqOptions = {
+		const reqOptions: RequestOptions = {
 			hostname: parsed.hostname,
 			port: parsed.port,
 			path: parsed.pathname + parsed.search,
 			method: options.type,
 			headers: options.headers,
+			agent: new ProxyAgent(),
 		};
 		const req = https.request(reqOptions, res => {
 			if (res.statusCode! < 200 || res.statusCode! > 299) {
@@ -42,12 +45,13 @@ export function request(options: { type: string; url: string; headers: Record<st
 export function headRequest(options: { url: string; headers: Record<string, string> }, output?: Log) {
 	return new Promise<number>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
-		const reqOptions = {
+		const reqOptions: RequestOptions = {
 			hostname: parsed.hostname,
 			port: parsed.port,
 			path: parsed.pathname + parsed.search,
 			method: 'HEAD',
 			headers: options.headers,
+			agent: new ProxyAgent(),
 		};
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
@@ -65,12 +69,13 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
 	return new Promise<{ statusCode: number; resHeaders: Record<string, string> }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
-		const reqOptions = {
+		const reqOptions: RequestOptions = {
 			hostname: parsed.hostname,
 			port: parsed.port,
 			path: parsed.pathname + parsed.search,
 			method: options.type,
 			headers: options.headers,
+			agent: new ProxyAgent(),
 		};
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
