@@ -386,7 +386,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, params, output);
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -449,9 +449,10 @@ async function writeFeaturesComposeOverrideFile(
 	overrideFilePath: string,
 	overrideFilePrefix: string,
 	buildCLIHost: CLIHost,
+	params: DockerResolverParameters,
 	output: Log,
 ) {
-	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, additionalMounts);
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, additionalMounts, params);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
@@ -470,6 +471,12 @@ async function writeFeaturesComposeOverrideFile(
 	}
 }
 
+async function checkDockerSupportForGPU(params: DockerCLIParameters | DockerResolverParameters): Promise<Boolean> {
+	const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
+	const runtimeFound = result.stdout.includes('nvidia-container-runtime');
+	return runtimeFound;
+}
+
 async function generateFeaturesComposeOverrideContent(
 	updatedImageName: string,
 	originalImageName: string,
@@ -480,6 +487,7 @@ async function generateFeaturesComposeOverrideContent(
 	service: any,
 	additionalLabels: string[],
 	additionalMounts: Mount[],
+	params: DockerResolverParameters,
 ) {
 	const overrideImage = updatedImageName !== originalImageName;
 
@@ -500,6 +508,19 @@ async function generateFeaturesComposeOverrideContent(
 		|| ((await imageDetails()).Config.Entrypoint || []).map(c => c.replace(/\$/g, '$$$$')); // $ > $$ to escape docker-compose.yml's interpolation.
 	const userCommand = overrideCommand ? [] : composeCommand /* $ already escaped. */
 		|| (composeEntrypoint ? [/* Ignore image CMD per docker-compose.yml spec. */] : ((await imageDetails()).Config.Cmd || []).map(c => c.replace(/\$/g, '$$$$'))); // $ > $$ to escape docker-compose.yml's interpolation.
+
+	const hasGpuRequirement = config.hostRequirements?.gpu;
+	const addGpuCapability = hasGpuRequirement && await checkDockerSupportForGPU(params);
+	if (hasGpuRequirement && hasGpuRequirement !== 'optional' && !addGpuCapability) {
+		throw Error('Unable to detect GPU yet a GPU was required - consider marking it as "optional"');
+	}
+	const gpuResources = addGpuCapability ? '' : `
+    deploy:
+      resources:
+        reservations:
+          devices:
+    	    - capabilities: [gpu]
+`;
 
 	return `${versionPrefix}services:
   '${config.service}':${overrideImage ? `
@@ -524,7 +545,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     volumes:${mounts.map(m => `
       - ${m.source}:${m.target}`).join('')}` : ''}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
-  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
+  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}${gpuResources}
 `;
 }
 
