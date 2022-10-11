@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -471,12 +471,6 @@ async function writeFeaturesComposeOverrideFile(
 	}
 }
 
-async function checkDockerSupportForGPU(params: DockerCLIParameters | DockerResolverParameters): Promise<Boolean> {
-	const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
-	const runtimeFound = result.stdout.includes('nvidia-container-runtime');
-	return runtimeFound;
-}
-
 async function generateFeaturesComposeOverrideContent(
 	updatedImageName: string,
 	originalImageName: string,
@@ -512,7 +506,7 @@ async function generateFeaturesComposeOverrideContent(
 	const hasGpuRequirement = config.hostRequirements?.gpu;
 	const addGpuCapability = hasGpuRequirement && await checkDockerSupportForGPU(params);
 	if (hasGpuRequirement && hasGpuRequirement !== 'optional' && !addGpuCapability) {
-		throw Error('Unable to detect GPU yet a GPU was required - consider marking it as "optional"');
+		params.common.output.write('No GPU support found yet a GPU was required - consider marking it as "optional"', LogLevel.Warning);
 	}
 	const gpuResources = addGpuCapability ? '' : `
     deploy:

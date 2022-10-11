@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
@@ -308,9 +308,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 export async function extraRunArgs(common: ResolverParameters, params: DockerCLIParameters | DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const extraArguments: string[] = [];
 	if (config.hostRequirements?.gpu) {
-		const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
-		const runtimeFound = result.stdout.includes('nvidia-container-runtime');
-		if (runtimeFound) {
+		if (await checkDockerSupportForGPU(params)) {
 			common.output.write(`GPU support found, add GPU flags to docker call.`);
 			extraArguments.push('--gpus', 'all');
 		} else {
