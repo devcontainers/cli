@@ -88,7 +88,7 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 		}
 	}
 
-	const metadata = JSON.parse(await readLocalFile(jsonPath, 'utf-8'));
+	const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
 	if (!metadata.id || !metadata.version) {
 		output.write(`${collectionType} is missing an id or version in its devcontainer-${collectionType}.json`, LogLevel.Error);
 		return;
@@ -192,7 +192,7 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 
 			await tarDirectory(tmpSrcDir, archiveName, outputDir);
 
-			const metadata = JSON.parse(await readLocalFile(jsonPath, 'utf-8'));
+			const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
 			if (!metadata.id || !metadata.version) {
 				output.write(`${collectionType} '${c}' is missing an id or version in its ${devcontainerJsonName}`, LogLevel.Error);
 				return;
