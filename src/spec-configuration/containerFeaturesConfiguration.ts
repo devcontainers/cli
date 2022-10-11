@@ -776,7 +776,8 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 	// We expect all GitHub/registry features to follow the triple slash pattern at this point
 	//  eg: <publisher>/<feature-set>/<feature>
 	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
-		output.write(`Invalid parse for GitHub Release feature: Follow format '<publisher>/<feature-set>/<feature>, or republish feature to OCI registry.'`, LogLevel.Error);
+		// This is the final fallback. If we end up here, we weren't able to resolve the Feature
+		output.write(`Could not resolve Feature '${userFeature.id}'.  Ensure the Feature is published and accessible from your current environment.`, LogLevel.Error);
 		return undefined;
 	}
 	const owner = splitOnSlash[0];

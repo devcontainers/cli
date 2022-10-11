@@ -41,7 +41,8 @@ describe('CLI features subcommands', async function () {
 ✅ Passed:      'color'
 ✅ Passed:      'specific_color_scenario'
 ✅ Passed:      'hello'
-✅ Passed:      'custom_options'`;
+✅ Passed:      'custom_options'
+✅ Passed:      'with_external_feature'`;
 		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 		assert.isTrue(hasExpectedTestReport);
 
@@ -95,7 +96,8 @@ describe('CLI features subcommands', async function () {
 		assert.isDefined(result);
 
 		const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'custom_options'`;
+✅ Passed:      'custom_options'
+✅ Passed:      'with_external_feature'`;
 		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 		assert.isTrue(hasExpectedTestReport);
 
@@ -122,6 +124,52 @@ describe('CLI features subcommands', async function () {
 
 		assert.isTrue(result.stderr.includes('❌ testThatShouldFail check failed.'));
 		assert.isDefined(result.error);
+	});
+
+	// Feature A will crash in its install.sh if B has not already run.
+	it('features test subcommand installsAfter B -> A', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/a-installs-after-b`;
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} features test --log-level trace ${collectionFolder}`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'a'
+✅ Passed:      'b'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+	});
+
+	// Feature B will crash in its install.sh if A has not already run.
+	it('features test subcommand installsAfter A -> B', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/b-installs-after-a`;
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} features test --log-level trace ${collectionFolder}`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'a'
+✅ Passed:      'b'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
 	});
 
 	// -- Packaging

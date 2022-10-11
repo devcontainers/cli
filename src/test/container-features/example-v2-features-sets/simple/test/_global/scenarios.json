@@ -9,5 +9,16 @@
 				"favorite": "Magenta"
 			}
 		}
+	},
+	"with_external_feature": {
+		"image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+		"features": {
+			"hello": {
+				"greeting": "How ya doing"
+			},
+			"ghcr.io/devcontainers/feature-template/color:1": {
+				"favorite": "Silver"
+			}
+		}
 	}
 }
