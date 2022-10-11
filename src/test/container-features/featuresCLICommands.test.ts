@@ -41,7 +41,8 @@ describe('CLI features subcommands', async function () {
 ✅ Passed:      'color'
 ✅ Passed:      'specific_color_scenario'
 ✅ Passed:      'hello'
-✅ Passed:      'custom_options'`;
+✅ Passed:      'custom_options'
+✅ Passed:      'with_external_feature'`;
 		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 		assert.isTrue(hasExpectedTestReport);
 
@@ -95,7 +96,8 @@ describe('CLI features subcommands', async function () {
 		assert.isDefined(result);
 
 		const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'custom_options'`;
+✅ Passed:      'custom_options'
+✅ Passed:      'with_external_feature'`;
 		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 		assert.isTrue(hasExpectedTestReport);
 

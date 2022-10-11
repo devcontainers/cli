@@ -330,13 +330,21 @@ async function generateProjectFromScenario(
 
 	let features = scenarioObject.features;
 	if (!scenarioObject || !features) {
-		fail(`Scenario '${scenarioId}' is missing features!`);
+		fail(`Scenario '${scenarioId}' is missing Features!`);
 		return ''; // Exits in the 'fail()' before this line is reached.
 	}
 
 	// Prefix the local path to the collections directory
 	let updatedFeatures: Record<string, string | boolean | Record<string, string | boolean>> = {};
 	for (const [featureId, featureValue] of Object.entries(features)) {
+		// Do not overwrite Features that are not part of the target collection
+		// The '/' is only valid in a fully qualified Feature ID (eg: '[ghcr].io/devcontainers/features/go')
+		// This lets you use external Features as a part of the test scenario.
+		if (featureId.indexOf('/') !== -1) {
+			updatedFeatures[featureId] = featureValue;
+			continue;
+		}
+
 		// Copy the feature source code to the temp folder
 		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
 		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
