@@ -68,7 +68,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const configs = getImageMetadataFromContainer(container, configWithRaw, undefined, common.experimentalImageMetadata, common.output).config;
+		const configs = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
 		const mergedConfig = mergeConfiguration(configWithRaw.config, configs);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
