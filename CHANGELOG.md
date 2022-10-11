@@ -4,6 +4,11 @@ Notable changes.
 
 ## October 2022
 
+### [0.20.0]
+
+- Handle old and otherwise started containers (https://github.com/microsoft/vscode-remote-release/issues/7307)
+- Configure proxy-agent (https://github.com/microsoft/vscode-remote-release/issues/6995)
+
 ### [0.19.1]
 
 - Only set target when previously set. (https://github.com/microsoft/vscode-remote-release/issues/7301)
