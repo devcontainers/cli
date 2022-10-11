@@ -126,6 +126,52 @@ describe('CLI features subcommands', async function () {
 		assert.isDefined(result.error);
 	});
 
+	// Feature A will crash in its install.sh if B has not already run.
+	it('features test subcommand installsAfter B -> A', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/a-installs-after-b`;
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} features test --log-level trace ${collectionFolder}`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'a'
+✅ Passed:      'b'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+	});
+
+	// Feature B will crash in its install.sh if A has not already run.
+	it('features test subcommand installsAfter A -> B', async function () {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/b-installs-after-a`;
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} features test --log-level trace ${collectionFolder}`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+
+		const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'a'
+✅ Passed:      'b'`;
+		const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+		assert.isTrue(hasExpectedTestReport);
+	});
+
 	// -- Packaging
 
 	it('features package subcommand by collection', async function () {
