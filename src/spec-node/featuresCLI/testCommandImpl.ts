@@ -207,8 +207,7 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 		// Check if we have a scenario test script, otherwise skip.
 		const scenarioTestScript = path.join(pathToTestDir, `${scenarioName}.sh`);
 		if (!(await cliHost.isFile(scenarioTestScript))) {
-			log(`No scenario test script found at path ${scenarioTestScript}, skipping scenario...`);
-			continue;
+			fail(`No scenario test script found at path '${scenarioTestScript}'.  Either add a script to the test folder, or remove from scenarios.json.`);
 		}
 
 		// Create Container
