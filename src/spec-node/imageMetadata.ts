@@ -312,7 +312,7 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 export const imageMetadataLabel = 'devcontainer.metadata';
 
 export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
-	if (!experimentalImageMetadata) {
+	if (!(containerDetails.Config.Labels || {})[imageMetadataLabel] || !experimentalImageMetadata) {
 		return getDevcontainerMetadata({ config: [], raw: [], substitute: devContainerConfig.substitute }, devContainerConfig, featuresConfig);
 	}
 	return internalGetImageMetadata(containerDetails, devContainerConfig.substitute, experimentalImageMetadata, output);
