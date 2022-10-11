@@ -1,20 +1,19 @@
 # Testing Dev Container Features
 
-A built-in testing framework for Features is currently under active development.  This command aims to make it easy to iterate on [self-authored Features](https://containers.dev/implementors/features-distribution/).
+A built-in testing framework for Features is in active development.  This command helps you iterate on [self-authored Features](https://containers.dev/implementors/features-distribution/).
 
-This command utilizes the CLI's `build` and `exec` commands to test Features in your local source tree.  The command will look at the `target` path for mirrored `src` and `test` directories ([example](https://github.com/devcontainers/features).  Without any additional arguments, the `test` command will auto-generate a test for each Feature (pulling the source code directly from `src/<FEATURE>`), and exec `test/<FEATURE>/test.sh` inside of the running container.  
+The `test` command utilizes the CLI's `build` and `exec` commands to test Features in your local source tree.  The command will look at the `target` path for mirrored `src` and `test` directories ([example](https://github.com/devcontainers/features).  Without any additional arguments, the `test` command will auto-generate a test for each Feature (pulling the source code directly from `src/<FEATURE>`), and exec `test/<FEATURE>/test.sh` inside of the running container.  
 
-For the test to pass, the container must (1) build and start successfully, and (2) execute the `test.sh` with a success (zero) exit code.  Note that auto-generated tests will execute the given Feature
-with default options.
+For the test to pass, the container must (1) build and start successfully, and (2) execute the `test.sh` with a success (zero) exit code.  Note that auto-generated tests will execute the given Feature with default options.
 
-Additonally, 'scenarios' can be defined for each Feature to test more complicated cases (ie: Passing options to tests, testing >1 Feature together, etc.).  More information on [writing scenarios can be found below](#scenarios).
+Additonally, 'scenarios' can be defined for each Feature to test more complicated cases.  For example, you can use a scenario to test Feature options or >1 Feature in a container.  You can find more information about [writing scenario tests below](#scenarios).
 
-The source code can of the sub-command is [here](../../src/spec-node/featuresCLI/test.ts). An example of the command being used in CI can be [found in the `devcontainers/features-template` repo](https://github.com/devcontainers/feature-template/blob/main/.github/workflows/test.yaml) and the [`devcontainers/features` repo](https://github.com/devcontainers/features).
+The source code of the sub-command is [here](../../src/spec-node/featuresCLI/test.ts). An example of the command being used in CI can be [found in the `devcontainers/features-template` repo](https://github.com/devcontainers/feature-template/blob/main/.github/workflows/test.yaml) and the [`devcontainers/features` repo](https://github.com/devcontainers/features).
 
 ```
 devcontainer features test <target>
 
-Test features
+Test Features
 
 Positionals:
   target  Path to folder containing 'src' and 'test' sub-folders.                     [string] [required] [default: "."]
@@ -24,7 +23,7 @@ Options:
       --version                Show version number                                                             [boolean]
   -f, --features               Feature(s) to test as space-separated parameters. Omit to run all tests.  Cannot be
                                combined with '--global-scenarios-only'.                                          [array]
-      --global-scenarios-only  Run only scenario tests under 'tests/_global' .  Cannot be combined with '-f'.
+      --global-scenarios-only  Run only scenario tests under 'tests/_global'. Cannot be combined with '-f'.
                                                                                               [boolean] [default: false]
       --skip-scenarios         Skip all 'scenario' style tests.  Cannot be combined with '--global--scenarios-only'.
                                                                                               [boolean] [default: false]
@@ -92,8 +91,7 @@ The following `scenarios.json` defines a single test scenario named `install_dot
 }
 ```
 
-The test command will build a container with the config above, and then look for a `.sh` test file with the same name.  The test will pass if the container builds successfully
-and the `install_dotnet_and_oryx.sh` shell script exits will a successful exit code (0).
+The test command will build a container with the config above, and then look for a `.sh` test file with the same name.  The test will pass if the container builds successfully and the `install_dotnet_and_oryx.sh` shell script exits will a successful exit code (0).
 
 ##### test/install_dotnet_and_oryx.sh
 ```
@@ -101,7 +99,7 @@ and the `install_dotnet_and_oryx.sh` shell script exits will a successful exit c
 
 set -e
 
-# Optional: Import test library
+# Import test library for `check` command
 source dev-container-features-test-lib
 
 check "Oryx version" oryx --version
@@ -132,13 +130,11 @@ reportResults
 
 The flags `--global-scenarios-only`, `--skip-scenarios`, and `--skip-autogenerated` can be passed to run a subset of tests.
 
-
 ### Global Scenarios
 
 The `test/_global` directory is a special directory that holds scenario tests not tied to a specific Feature. This directory is useful for scenarios that broadly tests several Features in a given repository.
 
 The `--global-scenarios-only` can be passed to only run the global scenarios.
-
 
 ## dev-container-features-test-lib
 
@@ -150,7 +146,7 @@ Note: Do not use quotes for cmd as there is no such executable as e.g. "python3 
 Example: `check "python is available" python3 --version`
 
 #### `checkMultiple <LABEL> <MINIMUMPASSED> <cmd1> [cmd2] [cmd3] ...`
-Description: Executes all provided commands succeeds if the number of `cmdX` is greater than `$MINIMUMPASSED`
+Description: Executes all provided commands and passes if the number of passed (exit code 0) `cmdX` is greater than `$MINIMUMPASSED`
 Note: Do not use quotes for cmd as there is no such executable as e.g. "python3 --version".
 
 ##### reportResults
