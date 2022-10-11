@@ -117,6 +117,7 @@ describe('Image Metadata', function () {
 					...testContainerDetails.Config,
 					Labels: {
 						...testContainerDetails.Config.Labels,
+						testIdLabel: 'testIdLabelValue',
 						[imageMetadataLabel]: JSON.stringify({
 							id: 'testId',
 							remoteUser: 'testMetadataUser',
@@ -127,7 +128,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, true, nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
 			assert.strictEqual(metadata.length, 1);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
@@ -135,13 +136,41 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].id, 'testId');
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 		});
+	
+		it('should add config for existing container without id labels', () => {
+			const { config: metadata, raw } = getImageMetadataFromContainer({
+				...testContainerDetails,
+				Config: {
+					...testContainerDetails.Config,
+					Labels: {
+						...testContainerDetails.Config.Labels,
+						[imageMetadataLabel]: JSON.stringify({
+							id: 'testId',
+							remoteUser: 'testMetadataUser',
+						}),
+					},
+				},
+			}, configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteUser: 'testConfigUser',
+			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			assert.strictEqual(metadata.length, 2);
+			assert.strictEqual(metadata[0].id, 'testId-substituted');
+			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
+			assert.strictEqual(metadata[1].remoteUser, 'testConfigUser');
+			assert.strictEqual(raw.length, 2);
+			assert.strictEqual(raw[0].id, 'testId');
+			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
+			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
+		});
 
 		it('should fall back to config for existing container without metadata label', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer(testContainerDetails, configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, true, nullLog);
+			}), undefined, [], true, nullLog);
 			assert.strictEqual(metadata.length, 1);
 			assert.strictEqual(metadata[0].id, undefined);
 			assert.strictEqual(metadata[0].remoteUser, 'testConfigUser');

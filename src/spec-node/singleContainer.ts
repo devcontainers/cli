@@ -37,7 +37,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, common.experimentalImageMetadata, common.output).config;
+			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures);

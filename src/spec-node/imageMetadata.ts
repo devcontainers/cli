@@ -10,7 +10,7 @@ import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shu
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
 import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
-import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath } from './utils';
+import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath, envListToObj } from './utils';
 
 const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
 	'onCreateCommand',
@@ -311,11 +311,17 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 
 export const imageMetadataLabel = 'devcontainer.metadata';
 
-export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, idLabels: string[], experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
 	if (!(containerDetails.Config.Labels || {})[imageMetadataLabel] || !experimentalImageMetadata) {
 		return getDevcontainerMetadata({ config: [], raw: [], substitute: devContainerConfig.substitute }, devContainerConfig, featuresConfig);
 	}
-	return internalGetImageMetadata(containerDetails, devContainerConfig.substitute, experimentalImageMetadata, output);
+	const metadata = internalGetImageMetadata(containerDetails, devContainerConfig.substitute, experimentalImageMetadata, output);
+	const hasIdLabels = Object.keys(envListToObj(idLabels))
+		.every(label => (containerDetails.Config.Labels || {})[label]);
+	if (hasIdLabels) {
+		return metadata;
+	}
+	return getDevcontainerMetadata(metadata, devContainerConfig, featuresConfig);
 }
 
 export function getImageMetadata(imageDetails: ImageDetails, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log) {
