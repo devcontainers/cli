@@ -1,6 +1,7 @@
 {
     "id": "cpp",
     "version": "1.0.0",
+    // I am a comment inside JSON
     "name": "C++",
     "options": {
         "imageVariant": {

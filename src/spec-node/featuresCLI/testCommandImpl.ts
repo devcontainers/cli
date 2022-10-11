@@ -1,6 +1,7 @@
 import path from 'path';
 import chalk from 'chalk';
 import { tmpdir } from 'os';
+import * as jsonc from 'jsonc-parser';
 import { CLIHost } from '../../spec-common/cliHost';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
 import { doExec } from '../devContainersSpecCLI';
@@ -194,7 +195,7 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 	// Parse to json
 	let scenarios: Scenarios = {};
 	try {
-		scenarios = JSON.parse(scenariosBuffer.toString());
+		scenarios = jsonc.parse(scenariosBuffer.toString());
 	} catch (e) {
 		fail(`Failed to parse scenarios.json:  ${e.message}`);
 		return []; // We never reach here, we exit via fail().
