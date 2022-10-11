@@ -277,7 +277,7 @@ describe('Image Metadata', function () {
 		]);
 		const gpuRequirement = merged.hostRequirements?.gpu as HostGPURequirements;
 		assert.strictEqual(gpuRequirement?.cores, 4);
-		assert.strictEqual(gpuRequirement?.memory, 8 * (2 ** 30));
+		assert.strictEqual(gpuRequirement?.memory, '8589934592');
 	});
 });
 
