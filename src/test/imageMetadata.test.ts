@@ -8,9 +8,9 @@ import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { Feature, FeaturesConfig, FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, mergeConfiguration } from '../spec-node/imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
-import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
 import { buildKitOptions, shellExec, testSubstitute } from './testUtils';
 
@@ -86,6 +86,68 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw.length, 2);
 			assert.strictEqual(raw[0].id, 'ghcr.io/my-org/my-repo/someFeature:1');
 			assert.strictEqual(raw[1].remoteUser, 'testUser');
+		});
+
+		const testContainerDetails: ContainerDetails = {
+			Id: 'testId',
+			Created: '2022-10-11T08:31:30.10478055Z',
+			Name: 'testName',
+			State: {
+				Status: 'running',
+				StartedAt: '2022-10-11T08:31:30.369653009Z',
+				FinishedAt: '0001-01-01T00:00:00Z',
+			},
+			Config: {
+				Image: 'testImage',
+				User: 'testContainerUser',
+				Env: null,
+				Labels: {},
+			},
+			Mounts: [],
+			NetworkSettings: {
+				Ports: {},
+			},
+			Ports: [],
+		};
+	
+		it('should read metadata from existing container', () => {
+			const { config: metadata, raw } = getImageMetadataFromContainer({
+				...testContainerDetails,
+				Config: {
+					...testContainerDetails.Config,
+					Labels: {
+						...testContainerDetails.Config.Labels,
+						[imageMetadataLabel]: JSON.stringify({
+							id: 'testId',
+							remoteUser: 'testMetadataUser',
+						}),
+					},
+				},
+			}, configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteUser: 'testConfigUser',
+			}), undefined, true, nullLog);
+			assert.strictEqual(metadata.length, 1);
+			assert.strictEqual(metadata[0].id, 'testId-substituted');
+			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
+			assert.strictEqual(raw.length, 1);
+			assert.strictEqual(raw[0].id, 'testId');
+			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
+		});
+
+		it('should fall back to config for existing container without metadata label', () => {
+			const { config: metadata, raw } = getImageMetadataFromContainer(testContainerDetails, configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteUser: 'testConfigUser',
+			}), undefined, true, nullLog);
+			assert.strictEqual(metadata.length, 1);
+			assert.strictEqual(metadata[0].id, undefined);
+			assert.strictEqual(metadata[0].remoteUser, 'testConfigUser');
+			assert.strictEqual(raw.length, 1);
+			assert.strictEqual(raw[0].id, undefined);
+			assert.strictEqual(raw[0].remoteUser, 'testConfigUser');
 		});
 
 		it('should create label for Dockerfile', () => {
