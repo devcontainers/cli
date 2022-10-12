@@ -20,7 +20,7 @@ export async function fetchTemplate(output: Log, identifier: string, templateCac
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = os.tmpdir();
-	const files = await getBlob(output, process.env, blobUrl, tmpDir, templateCachePath, templateRef, undefined, ['devcontainer-template.json', 'README.md']);
+	const files = await getBlob(output, process.env, blobUrl, tmpDir, templateCachePath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md']);
 
 	if (!files) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
