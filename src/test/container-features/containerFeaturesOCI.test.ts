@@ -42,7 +42,7 @@ describe('Test OCI Pull', () => {
 
     it('Download a feature', async () => {
         const featureRef = getRef(output, 'ghcr.io/codspace/features/ruby:1.0.13');
-        const result = await getBlob(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/blobs/sha256:8f59630bd1ba6d9e78b485233a0280530b3d0a44338f472206090412ffbd3efb', '/tmp', '/tmp/featureTest', featureRef);
-        assert.isTrue(result);
+        const files = await getBlob(output, process.env, 'https://ghcr.io/v2/codspace/features/ruby/blobs/sha256:8f59630bd1ba6d9e78b485233a0280530b3d0a44338f472206090412ffbd3efb', '/tmp', '/tmp/featureTest', featureRef);
+        assert.isArray(files);
     });
 });

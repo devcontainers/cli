@@ -269,7 +269,7 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 	}
 }
 
-export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string): Promise<boolean> {
+export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = []): Promise<string[] | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 	try {
@@ -295,16 +295,29 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 
 		await mkdirpLocal(destCachePath);
 		await writeLocalFile(tempTarballPath, blob);
+
+		const files: string[] = [];
 		await tar.x(
 			{
 				file: tempTarballPath,
 				cwd: destCachePath,
+				filter: (path: string, _) => {
+					// Skip files that are in the ignore list
+					if (ignoredFilesDuringExtraction.some(f => path.indexOf(f) !== -1)) {
+						// Skip.
+						output.write(`Skipping file '${path}' during blob extraction`, LogLevel.Trace);
+						return false;
+					}
+					// Keep track of all files extracted, in case the caller is interested.
+					files.push(path);
+					return true;
+				}
 			}
 		);
 
-		return true;
+		return files;
 	} catch (e) {
 		output.write(`error: ${e}`, LogLevel.Error);
-		return false;
+		return undefined;
 	}
 }
