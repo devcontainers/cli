@@ -1,10 +1,6 @@
-import * as path from 'path';
-import * as tar from 'tar';
-import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
-import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 import { Feature, FeatureSet } from './containerFeaturesConfiguration';
-import { fetchOCIManifestIfExists, fetchRegistryAuthToken, getRef, HEADERS, OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 
 export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
 
@@ -51,52 +47,11 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const success = await getFeatureBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
+	const success = await getBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
 
 	if (!success) {
 		throw new Error(`Failed to download package for ${featureSet.sourceInformation.featureRef.resource}`);
 	}
 
 	return true;
-}
-
-// Downloads a blob from a registry.
-export async function getFeatureBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, featCachePath: string, featureRef: OCIRef, authToken?: string): Promise<boolean> {
-	// TODO: Parallelize if multiple layers (not likely).
-	// TODO: Seeking might be needed if the size is too large.
-	try {
-		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
-
-		const headers: HEADERS = {
-			'user-agent': 'devcontainer',
-			'accept': 'application/vnd.oci.image.manifest.v1+json',
-		};
-
-		const auth = authToken ?? await fetchRegistryAuthToken(output, featureRef.registry, featureRef.path, env, 'pull');
-		if (auth) {
-			headers['authorization'] = `Bearer ${auth}`;
-		}
-
-		const options = {
-			type: 'GET',
-			url: url,
-			headers: headers
-		};
-
-		const blob = await request(options, output);
-
-		await mkdirpLocal(featCachePath);
-		await writeLocalFile(tempTarballPath, blob);
-		await tar.x(
-			{
-				file: tempTarballPath,
-				cwd: featCachePath,
-			}
-		);
-
-		return true;
-	} catch (e) {
-		output.write(`error: ${e}`, LogLevel.Error);
-		return false;
-	}
 }

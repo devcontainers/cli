@@ -1,6 +1,9 @@
+import path from 'path';
 import * as semver from 'semver';
+import * as tar from 'tar';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
+import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
@@ -263,5 +266,45 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 
 		output.write(`(!) ERR: Could not fetch published tags for '${ref.namespace}/${ref.id}' : ${e?.message ?? ''} `, LogLevel.Error);
 		return undefined;
+	}
+}
+
+export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string): Promise<boolean> {
+	// TODO: Parallelize if multiple layers (not likely).
+	// TODO: Seeking might be needed if the size is too large.
+	try {
+		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
+
+		const headers: HEADERS = {
+			'user-agent': 'devcontainer',
+			'accept': 'application/vnd.oci.image.manifest.v1+json',
+		};
+
+		const auth = authToken ?? await fetchRegistryAuthToken(output, ociRef.registry, ociRef.path, env, 'pull');
+		if (auth) {
+			headers['authorization'] = `Bearer ${auth}`;
+		}
+
+		const options = {
+			type: 'GET',
+			url: url,
+			headers: headers
+		};
+
+		const blob = await request(options, output);
+
+		await mkdirpLocal(destCachePath);
+		await writeLocalFile(tempTarballPath, blob);
+		await tar.x(
+			{
+				file: tempTarballPath,
+				cwd: destCachePath,
+			}
+		);
+
+		return true;
+	} catch (e) {
+		output.write(`error: ${e}`, LogLevel.Error);
+		return false;
 	}
 }
