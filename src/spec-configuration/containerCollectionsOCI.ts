@@ -273,6 +273,7 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 	try {
+		await mkdirpLocal(ociCacheDir);
 		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
 
 		const headers: HEADERS = {
@@ -309,12 +310,15 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 						return false;
 					}
 					// Keep track of all files extracted, in case the caller is interested.
-					files.push(path);
+					if (path !== './' && path !== '../') {
+						files.push(path);
+					}
 					return true;
 				}
 			}
 		);
 
+		output.write('Files extracted from blob: ' + files.join(', '), LogLevel.Trace);
 		return files;
 	} catch (e) {
 		output.write(`error: ${e}`, LogLevel.Error);
