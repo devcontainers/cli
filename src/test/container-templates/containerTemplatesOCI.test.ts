@@ -56,6 +56,7 @@ describe('fetchTemplate', async function () {
 		// Read file modified by adding Features
 		const devcontainer = (await readLocalFile(path.join(dest, '.devcontainer', 'devcontainer.json'))).toString();
 		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {}/);
+		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/git:1": {\n\t\t\t"version": "latest",\n\t\t\t"ppa": true/);
 
 	});
 });
