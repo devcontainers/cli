@@ -20,7 +20,7 @@ export async function fetchTemplate(output: Log, identifier: string, templateCac
 	const blobUrl = `https://${templateRef.registry}/v2/${templateRef.path}/blobs/${ociManifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const tmpDir = path.join(os.tmpdir(), 'vsch-template-temp');
+	const tmpDir = path.join(os.tmpdir(), `vsch-template-${Date.now()}`);
 	const files = await getBlob(output, process.env, blobUrl, tmpDir, templateCachePath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md']);
 
 	if (!files) {
