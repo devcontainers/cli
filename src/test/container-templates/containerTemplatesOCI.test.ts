@@ -13,7 +13,7 @@ describe('fetchTemplate', async function () {
 		const selectedTempate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
 			options: {'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' }
-		}
+		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 		const files = await fetchTemplate(output, selectedTempate, dest);
@@ -29,5 +29,26 @@ describe('fetchTemplate', async function () {
 		assert.match(file, /"version": "20.10"/);
 		assert.match(file, /"moby": "true"/);
 		assert.match(file, /"enableNonRootDocker": "true"/);
+	});
+
+	it('succeeds on anaconda-postgres template', async () => {
+
+		// https://github.com/devcontainers/templates/tree/main/src/anaconda-postgres
+		const selectedTempate: SelectedTemplate = {
+			id: 'ghcr.io/devcontainers/templates/anaconda-postgres:latest',
+			options: { 'nodeVersion': '12' }
+		};
+
+		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+		const files = await fetchTemplate(output, selectedTempate, dest);
+		assert.ok(files);
+		// Expected:
+		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt
+		assert.strictEqual(files.length, 6);
+
+		// Read File
+		const file = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
+		assert.match(file, /ARG NODE_VERSION="12"/);
+
 	});
 });

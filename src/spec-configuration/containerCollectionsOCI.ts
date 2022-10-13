@@ -302,7 +302,7 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 			{
 				file: tempTarballPath,
 				cwd: destCachePath,
-				filter: (path: string, _) => {
+				filter: (path: string, stat: tar.FileStat) => {
 					// Skip files that are in the ignore list
 					if (ignoredFilesDuringExtraction.some(f => path.indexOf(f) !== -1)) {
 						// Skip.
@@ -310,7 +310,8 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 						return false;
 					}
 					// Keep track of all files extracted, in case the caller is interested.
-					if (path !== './' && path !== '../') {
+					output.write(`${path} : ${stat.type}`, LogLevel.Trace);
+					if ((stat.type.toString() === 'File')) {
 						files.push(path);
 					}
 					return true;

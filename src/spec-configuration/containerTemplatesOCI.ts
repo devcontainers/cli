@@ -45,6 +45,8 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 			const fileContents = await readLocalFile(filePath);
 			const fileContentsReplaced = replaceTemplatedValues(output, fileContents.toString(), options);
 			await writeLocalFile(filePath, Buffer.from(fileContentsReplaced));
+		} else {
+			output.write(`Could not find templated file '${f}'.`, LogLevel.Error);
 		}
 	}
 
