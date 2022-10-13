@@ -1,5 +1,6 @@
 import { Log, LogLevel } from '../spec-utils/log';
 import * as os from 'os';
+import * as path from 'path';
 import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 
 
