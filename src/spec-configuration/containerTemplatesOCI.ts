@@ -79,6 +79,8 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 		const configResult = await config(files);
 		if (configResult) {
 			await addFeatures(output, selectedTemplate.features, configResult);
+		} else {
+			output.write(`Could not find a devcontainer.json to apply selected Features onto.`, LogLevel.Error);
 		}
 	}
 
