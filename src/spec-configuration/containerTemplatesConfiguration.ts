@@ -7,6 +7,7 @@ export interface Template {
 	licenseURL?: string;
 	type?: string;
 	fileCount?: number;
+	featureIds?: string[];
 	options?: Record<string, TemplateOption>;
 	platforms?: string[];
 	publisher?: string;
