@@ -13,7 +13,8 @@ describe('fetchTemplate', async function () {
 		// https://github.com/devcontainers/templates/tree/main/src/docker-from-docker
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
-			options: {'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' }
+			options: { 'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' },
+			features: []
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp1'));
@@ -37,7 +38,8 @@ describe('fetchTemplate', async function () {
 		// https://github.com/devcontainers/templates/tree/main/src/anaconda-postgres
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/anaconda-postgres:latest',
-			options: { 'nodeVersion': 'lts/*' }
+			options: { 'nodeVersion': 'lts/*' },
+			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }, { id: 'ghcr.io/devcontainers/features/git:1', options: { 'version': 'latest', ppa: true } }]
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
@@ -47,9 +49,13 @@ describe('fetchTemplate', async function () {
 		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt
 		assert.strictEqual(files.length, 6);
 
-		// Read File
-		const file = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
-		assert.match(file, /ARG NODE_VERSION="lts\/\*"/);
+		// Read file modified by templated value
+		const dockerfile = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
+		assert.match(dockerfile, /ARG NODE_VERSION="lts\/\*"/);
+
+		// Read file modified by adding Features
+		const devcontainer = (await readLocalFile(path.join(dest, '.devcontainer', 'devcontainer.json'))).toString();
+		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {}/);
 
 	});
 });
