@@ -34,7 +34,7 @@ import { containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
-import { templateAddHandler, templateAddOptions } from './templatesCLI/add';
+import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -69,7 +69,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
-		y.command('add <templateId>', 'Add a template to the project', templateAddOptions, templateAddHandler);
+		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
 		y.command('publish <target>', 'Package and publish templates', templatesPublishOptions, templatesPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
