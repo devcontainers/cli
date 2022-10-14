@@ -43,7 +43,7 @@ describe('tests apply command', async function () {
 
 		assert.isTrue(success);
 		assert.isDefined(result);
-		assert.isTrue(result.stdout === '{"files":["./.devcontainer.json"]}', `Actual result standard out ${result.stdout}`);
+		assert.isTrue(result.stdout === '{"files":["./.devcontainer.json"]}\n');
 
 		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer.json'))).toString();
 		assert.match(file, /"name": "Docker from Docker"/);
