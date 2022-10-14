@@ -79,28 +79,57 @@ async function templateApply({
 }
 
 function validateTemplateId(_output: Log, _target: unknown): _target is string {
-	// TODO: Validate that the input is a valid OCI identifier for a Templatem
+	// Perhaps add in some validation of template OCI URI.
 	return true;
 }
 
-function validateTemplateOptions(output: Log, _target: unknown, errors: jsonc.ParseError[]): _target is TemplateOptions {
+// '{ "installZsh": "false", "upgradePackages": "true", "dockerVersion": "20.10", "moby": "true", "enableNonRootDocker": "true" }'
+function validateTemplateOptions(output: Log, target: unknown, errors: jsonc.ParseError[]): target is TemplateOptions {
 	if (hasJsonParseError(output, errors)) {
 		return false;
 	}
 
-	// TODO: Do validation of provided JSON string.
+	if (Array.isArray(target) || typeof target !== 'object' || target === null) {
+		output.write(`Invalid template options provided. Expected an object.`, LogLevel.Error);
+		return false;
+	}
+
+	for (const [_, [key, value]] of Object.entries(target).entries()) {
+		if (typeof key !== 'string') {
+			output.write(`Invalid template options provided. Expected a string key, but got ${typeof key}`, LogLevel.Error);
+			return false;
+		}
+
+		if (typeof value !== 'string') {
+			output.write(`Invalid template options provided. Expected a string value, but got ${typeof value}`, LogLevel.Error);
+			return false;
+		}
+	}
+
 	return true;
 }
 
-function validateTemplateFeatureOption(output: Log, _target: unknown, errors: jsonc.ParseError[]): _target is TemplateFeatureOption[] {
+// '[{ "id": "ghcr.io/devcontainers/features/azure-cli:1", "options": { "version" : "1" } }]'
+function validateTemplateFeatureOption(output: Log, target: unknown, errors: jsonc.ParseError[]): target is TemplateFeatureOption[] {
 	if (hasJsonParseError(output, errors)) {
 		return false;
 	}
 
-	// TODO: Do validation of provided JSON string.
+	if (!Array.isArray(target)) {
+		output.write(`Invalid template options provided. Expected an array.`, LogLevel.Error);
+		return false;
+	}
+
+	for (const [_, value] of Object.entries(target)) {
+		const feature = value as TemplateFeatureOption;
+		if (!feature?.id) {
+			output.write(`Feature entry requires an Id.`, LogLevel.Error);
+			return false;
+		}
+	}
+
 	return true;
 }
-
 
 function hasJsonParseError(output: Log, errors: jsonc.ParseError[]) {
 	for (const error of errors) {
