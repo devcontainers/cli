@@ -48,10 +48,6 @@ async function templateApply({
 	}, pkg, new Date(), disposables);
 
 	const id = templateId;
-	if (!validateTemplateId(output, id)) {
-		output.write(`Invalid template id '${id}'.`, LogLevel.Error);
-		process.exit(1);
-	}
 
 	let templateArgsErrors: jsonc.ParseError[] = [];
 	const options = jsonc.parse(templateArgs, templateArgsErrors);
@@ -82,11 +78,6 @@ async function templateApply({
 	console.log(JSON.stringify({ files }));
 	await dispose();
 	process.exit();
-}
-
-function validateTemplateId(_output: Log, _target: unknown): _target is string {
-	// Perhaps add in some validation of template OCI URI.
-	return true;
 }
 
 // '{ "installZsh": "false", "upgradePackages": "true", "dockerVersion": "20.10", "moby": "true", "enableNonRootDocker": "true" }'
