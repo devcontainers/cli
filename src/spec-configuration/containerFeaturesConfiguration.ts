@@ -258,6 +258,7 @@ echo '${optionsIndented}'
 echo ===========================================================================
 
 set -a
+. ../devcontainer-features.builtin.env
 . ./devcontainer-features.env
 set +a
 
@@ -274,8 +275,12 @@ function escapeQuotesForShell(input: string) {
 	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
 }
 
-export function getFeatureLayers(featuresConfig: FeaturesConfig) {
-	let result = '';
+export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string) {
+	let result = `RUN \\
+echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+
+`;
 
 	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);

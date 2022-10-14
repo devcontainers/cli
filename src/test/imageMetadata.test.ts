@@ -180,7 +180,7 @@ describe('Image Metadata', function () {
 		});
 
 		it('should create label for Dockerfile', () => {
-			const label = getDevcontainerMetadataLabel(configWithRaw([
+			const label = getDevcontainerMetadataLabel(getDevcontainerMetadata(configWithRaw([
 				{
 					id: 'baseFeature',
 				}
@@ -194,7 +194,7 @@ describe('Image Metadata', function () {
 					value: 'someValue',
 					included: true,
 				}
-			]), true);
+			])), true);
 			const expected = [
 				{
 					id: 'baseFeature',

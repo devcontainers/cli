@@ -15,7 +15,7 @@ import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 
 // Escapes environment variable keys.
@@ -34,7 +34,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	const { cliHost, output } = common;
 
 	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, common.experimentalImageMetadata);
-	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, additionalFeatures);
+	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures);
 	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
 		// no feature extensions - return
 		return {
@@ -94,7 +94,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	};
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 
 	// Creates the folder where the working files will be setup.
 	const dstFolder = await createFeaturesTempFolder(params.common);
@@ -109,7 +109,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	}
 
 	// Generates the end configuration.
-	const featureBuildInfo = await getFeaturesBuildOptions(params, config, featuresConfig, baseName, imageBuildInfo);
+	const featureBuildInfo = await getFeaturesBuildOptions(params, config, featuresConfig, baseName, imageBuildInfo, composeServiceUser);
 	if (!featureBuildInfo) {
 		return undefined;
 	}
@@ -191,7 +191,7 @@ function getImageBuildOptions(params: DockerResolverParameters, config: Substitu
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(imageBuildInfo.metadata, config, { featureSets: [] }, params.common.experimentalImageMetadata)}
+${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }), params.common.experimentalImageMetadata)}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `
@@ -204,7 +204,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 	};
 }
 
-async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions | undefined> {
+async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -239,6 +239,15 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 
+	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig);
+	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
+	const builtinVariables = [
+		`_CONTAINER_USER=${containerUser}`,
+		`_REMOTE_USER=${remoteUser}`,
+	];
+	const envPath = cliHost.path.join(dstFolder, 'devcontainer-features.builtin.env');
+	await cliHost.writeFile(envPath, Buffer.from(builtinVariables.join('\n') + '\n'));
+
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
@@ -246,10 +255,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('{contentSourceRootPath}', contentSourceRootPath)
 		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
-		.replace('#{featureLayer}', getFeatureLayers(featuresConfig))
+		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
-		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageBuildInfo.metadata, devContainerConfig, featuresConfig, common.experimentalImageMetadata))
+		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
 		;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
@@ -336,6 +345,13 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 		},
 		buildKitContexts: useBuildKitBuildContexts ? { dev_containers_feature_content_source: dstFolder } : {},
 	};
+}
+
+export function findContainerUsers(imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, composeServiceUser: string | undefined, imageUser: string) {
+	const reversed = imageMetadata.config.slice().reverse();
+	const containerUser = reversed.find(entry => entry.containerUser)?.containerUser || composeServiceUser || imageUser;
+	const remoteUser = reversed.find(entry => entry.remoteUser)?.remoteUser || containerUser;
+	return { containerUser, remoteUser };
 }
 
 function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath: string) {

@@ -359,11 +359,11 @@ function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails
 	return [];
 }
 
-export function getDevcontainerMetadataLabel(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, experimentalImageMetadata: boolean) {
+export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedConfig<ImageMetadataEntry[]>, experimentalImageMetadata: boolean) {
 	if (!experimentalImageMetadata) {
 		return '';
 	}
-	const metadata = getDevcontainerMetadata(baseImageMetadata, devContainerConfig, featuresConfig).raw;
+	const metadata = devContainerMetadata.raw;
 	if (!metadata.length) {
 		return '';
 	}
