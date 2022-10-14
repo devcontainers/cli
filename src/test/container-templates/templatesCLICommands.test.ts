@@ -73,16 +73,22 @@ describe('tests packageTemplates()', async function () {
 		assert.isNotEmpty(alpineProperties);
 		assert.equal(alpineProperties?.type, 'image');
 		assert.equal(alpineProperties?.fileCount, 2);
+		assert.equal(alpineProperties?.featureIds?.length, 0);
 
 		const cppProperties: Template | undefined = json?.templates.find(t => t.id === 'cpp');
 		assert.isNotEmpty(cppProperties);
 		assert.equal(cppProperties?.type, 'dockerfile');
 		assert.equal(cppProperties?.fileCount, 3);
+		assert.equal(cppProperties?.featureIds?.length, 1);
+		assert.equal(cppProperties?.featureIds?.[0], 'ghcr.io/devcontainers/features/common-utils');
 
 		const nodeProperties: Template | undefined = json?.templates.find(t => t.id === 'node-mongo');
 		assert.isNotEmpty(nodeProperties);
 		assert.equal(nodeProperties?.type, 'dockerCompose');
 		assert.equal(nodeProperties?.fileCount, 3);
+		assert.equal(nodeProperties?.featureIds?.length, 2);
+		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/common-utils'));
+		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/git'));
 	});
 
 	it('tests packaging for single template', async function () {

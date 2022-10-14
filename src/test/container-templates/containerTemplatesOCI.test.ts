@@ -8,12 +8,13 @@ import { readLocalFile } from '../../spec-utils/pfs';
 describe('fetchTemplate', async function () {
 	this.timeout('120s');
 
-	it('succeeds on docker-from-docker template', async () => {
+	it('succeeds on docker-from-docker template without Features', async () => {
 
 		// https://github.com/devcontainers/templates/tree/main/src/docker-from-docker
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
-			options: {'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' }
+			options: { 'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' },
+			features: []
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp1'));
@@ -30,14 +31,52 @@ describe('fetchTemplate', async function () {
 		assert.match(file, /"version": "20.10"/);
 		assert.match(file, /"moby": "true"/);
 		assert.match(file, /"enableNonRootDocker": "true"/);
+
+		// Assert that the Features included in the template were not removed.
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/common-utils:1": {\n/);
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/docker-from-docker:1": {\n/);
 	});
 
-	it('succeeds on anaconda-postgres template', async () => {
+
+	it('succeeds on docker-from-docker template with Features', async () => {
+
+		// https://github.com/devcontainers/templates/tree/main/src/docker-from-docker
+		const selectedTemplate: SelectedTemplate = {
+			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
+			options: { 'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' },
+			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }]
+		};
+
+		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
+		const files = await fetchTemplate(output, selectedTemplate, dest);
+		assert.ok(files);
+		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
+		assert.strictEqual(files.length, 1);
+
+		// Read File
+		const file = (await readLocalFile(path.join(dest, files[0]))).toString();
+		assert.match(file, /"name": "Docker from Docker"/);
+		assert.match(file, /"installZsh": "false"/);
+		assert.match(file, /"upgradePackages": "true"/);
+		assert.match(file, /"version": "20.10"/);
+		assert.match(file, /"moby": "true"/);
+		assert.match(file, /"enableNonRootDocker": "true"/);
+
+		// Assert that the Features included in the template were not removed.
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/common-utils:1": {\n/);
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/docker-from-docker:1": {\n/);
+
+		// Assert that our new Feature is included
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {}/);
+	});
+
+	it('succeeds on anaconda-postgres template with Features', async () => {
 
 		// https://github.com/devcontainers/templates/tree/main/src/anaconda-postgres
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/anaconda-postgres:latest',
-			options: { 'nodeVersion': 'lts/*' }
+			options: { 'nodeVersion': 'lts/*' },
+			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }, { id: 'ghcr.io/devcontainers/features/git:1', options: { 'version': 'latest', ppa: true } }]
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
@@ -47,9 +86,13 @@ describe('fetchTemplate', async function () {
 		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt
 		assert.strictEqual(files.length, 6);
 
-		// Read File
-		const file = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
-		assert.match(file, /ARG NODE_VERSION="lts\/\*"/);
+		// Read file modified by templated value
+		const dockerfile = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
+		assert.match(dockerfile, /ARG NODE_VERSION="lts\/\*"/);
 
+		// Read file modified by adding Features
+		const devcontainer = (await readLocalFile(path.join(dest, '.devcontainer', 'devcontainer.json'))).toString();
+		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {}/);
+		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/git:1": {\n\t\t\t"version": "latest",\n\t\t\t"ppa": true/);
 	});
 });

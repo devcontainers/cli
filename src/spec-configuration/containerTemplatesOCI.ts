@@ -1,19 +1,27 @@
 import { Log, LogLevel } from '../spec-utils/log';
 import * as os from 'os';
 import * as path from 'path';
+import * as jsonc from 'jsonc-parser';
 import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
+import { DevContainerConfig } from './configuration';
 
 export interface TemplateOptions {
 	[name: string]: string;
+}
+export interface TemplateFeatureOption {
+	id: string;
+	options: Record<string, boolean | string | undefined>;
 }
 
 export interface SelectedTemplate {
 	id: string;
 	options: TemplateOptions;
+	features: TemplateFeatureOption[];
 }
 
 export async function fetchTemplate(output: Log, selectedTemplate: SelectedTemplate, templateDestPath: string): Promise<string[] | undefined> {
+
 	const { id, options } = selectedTemplate;
 	const templateRef = getRef(output, id);
 	if (!templateRef) {
@@ -50,6 +58,32 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 		}
 	}
 
+	// Get the config.  A template should not have more than one devcontainer.json.
+	const config = async (files: string[]) => {
+		const p = files.find(f => f.endsWith('devcontainer.json'));
+		if (p) {
+			const configPath = path.join(templateDestPath, p);
+			if (await isLocalFile(configPath)) {
+				const configContents = await readLocalFile(configPath);
+				return {
+					configPath,
+					configText: configContents.toString(),
+					configObject: jsonc.parse(configContents.toString()) as DevContainerConfig,
+				};
+			}
+		}
+		return undefined;
+	};
+
+	if (selectedTemplate.features.length !== 0) {
+		const configResult = await config(files);
+		if (configResult) {
+			await addFeatures(output, selectedTemplate.features, configResult);
+		} else {
+			output.write(`Could not find a devcontainer.json to apply selected Features onto.`, LogLevel.Error);
+		}
+	}
+
 	return files;
 }
 
@@ -65,4 +99,34 @@ function replaceTemplatedValues(output: Log, template: string, options: Template
 		output.write(`Replacing ${token} with ${options[token]}`);
 		return options[token] || '';
 	});
+}
+
+async function addFeatures(output: Log, newFeatures: TemplateFeatureOption[], configResult: { configPath: string; configText: string; configObject: DevContainerConfig }) {
+	const { configPath, configText, configObject } = configResult;
+	if (newFeatures) {
+		let previousText = configText;
+		let updatedText = configText;
+
+		// Add the features property if it doesn't exist.
+		if (!configObject.features) {
+			const edits = jsonc.modify(updatedText, ['features'], {}, { formattingOptions: {} });
+			updatedText = jsonc.applyEdits(updatedText, edits);
+		}
+
+		for (const newFeature of newFeatures) {
+			let edits: jsonc.Edit[] = [];
+			const propertyPath = ['features', newFeature.id];
+
+			edits = edits.concat(
+				jsonc.modify(updatedText, propertyPath, newFeature.options, { formattingOptions: {} }
+				));
+
+			updatedText = jsonc.applyEdits(updatedText, edits);
+		}
+
+		if (previousText !== updatedText) {
+			output.write(`Updating ${configPath} with ${newFeatures.length} Features`, LogLevel.Trace);
+			await writeLocalFile(configPath, Buffer.from(updatedText));
+		}
+	}
 }
