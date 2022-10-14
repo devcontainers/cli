@@ -20,7 +20,7 @@ export interface SelectedTemplate {
 	features: TemplateFeatureOption[];
 }
 
-export async function fetchTemplate(output: Log, selectedTemplate: SelectedTemplate, templateDestPath: string): Promise<string[] | undefined> {
+export async function fetchTemplate(output: Log, selectedTemplate: SelectedTemplate, templateDestPath: string, userProvidedTmpDir?: string): Promise<string[] | undefined> {
 
 	const { id, options } = selectedTemplate;
 	const templateRef = getRef(output, id);
@@ -38,7 +38,7 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 	const blobUrl = `https://${templateRef.registry}/v2/${templateRef.path}/blobs/${ociManifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const tmpDir = path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
+	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
 	const files = await getBlob(output, process.env, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md']);
 
 	if (!files) {
