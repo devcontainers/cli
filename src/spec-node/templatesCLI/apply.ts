@@ -43,7 +43,7 @@ async function templateApply({
 	const output = createLog({
 		logLevel: mapLogLevel(inputLogLevel),
 		logFormat: 'text',
-		log: (str) => process.stdout.write(str),
+		log: (str) => process.stderr.write(str),
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 

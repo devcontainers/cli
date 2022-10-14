@@ -9,7 +9,7 @@ import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/packa
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 
-export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+export const output = makeLog(createPlainLog(text => process.stderr.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
 
@@ -43,6 +43,7 @@ describe('tests apply command', async function () {
 
 		assert.isTrue(success);
 		assert.isDefined(result);
+		assert.isTrue(result.stdout === '{"files":["./.devcontainer.json"]}', `Actual result standard out ${result.stdout}`);
 
 		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer.json'))).toString();
 		assert.match(file, /"name": "Docker from Docker"/);
