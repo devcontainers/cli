@@ -3,7 +3,9 @@ import * as path from 'path';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
-import { getSafeId } from '../../spec-node/containerFeatures';
+import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
+import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
+import { SubstitutedConfig } from '../../spec-node/utils';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -487,6 +489,7 @@ echo ''
 echo ===========================================================================
 
 set -a
+. ../devcontainer-features.builtin.env
 . ./devcontainer-features.env
 set +a
 
@@ -566,6 +569,7 @@ echo '    VERSION=latest
 echo ===========================================================================
 
 set -a
+. ../devcontainer-features.builtin.env
 . ./devcontainer-features.env
 set +a
 
@@ -577,3 +581,66 @@ chmod +x ./install.sh
 		assert.equal(actual, expected);
     });
 });
+
+describe('findContainerUsers', () => {
+	it('returns last metadata containerUser as containerUser and remoteUser', () => {
+		assert.deepEqual(findContainerUsers(configWithRaw([
+			{
+				containerUser: 'metadataTestUser1',
+			},
+			{
+				containerUser: 'metadataTestUser2',
+			},
+		]), 'composeTestUser', 'imageTestUser'), {
+			containerUser: 'metadataTestUser2',
+			remoteUser: 'metadataTestUser2',
+		});
+	});
+	it('returns compose service user as containerUser and remoteUser', () => {
+		assert.deepEqual(findContainerUsers(configWithRaw<ImageMetadataEntry[]>([
+			{
+				remoteEnv: { foo: 'bar' },
+			},
+			{
+				remoteEnv: { bar: 'baz' },
+			},
+		]), 'composeTestUser', 'imageTestUser'), {
+			containerUser: 'composeTestUser',
+			remoteUser: 'composeTestUser',
+		});
+	});
+	it('returns image user as containerUser and remoteUser', () => {
+		assert.deepEqual(findContainerUsers(configWithRaw<ImageMetadataEntry[]>([
+			{
+				remoteEnv: { foo: 'bar' },
+			},
+			{
+				remoteEnv: { bar: 'baz' },
+			},
+		]), undefined, 'imageTestUser'), {
+			containerUser: 'imageTestUser',
+			remoteUser: 'imageTestUser',
+		});
+	});
+	it('returns last metadata remoteUser', () => {
+		assert.deepEqual(findContainerUsers(configWithRaw([
+			{
+				remoteUser: 'metadataTestUser1',
+			},
+			{
+				remoteUser: 'metadataTestUser2',
+			},
+		]), 'composeTestUser', 'imageTestUser'), {
+			containerUser: 'composeTestUser',
+			remoteUser: 'metadataTestUser2',
+		});
+	});
+});
+
+function configWithRaw<T>(config: T): SubstitutedConfig<T> {
+	return {
+		config,
+		raw: config,
+		substitute: config => config,
+	};
+}
