@@ -37,8 +37,6 @@ async function templateApply({
 
 	const pkg = getPackageConfig();
 
-	// const cwd = process.cwd();
-	// const cliHost = await getCLIHost(cwd, loadNativeModule);
 	const output = createLog({
 		logLevel: mapLogLevel(inputLogLevel),
 		logFormat: 'text',
@@ -52,10 +50,8 @@ async function templateApply({
 		process.exit(1);
 	}
 
-	output.write(`Preparing to parse templateArgs: ${templateArgs}`, LogLevel.Trace);
 	let templateArgsErrors: jsonc.ParseError[] = [];
 	const options = jsonc.parse(templateArgs, templateArgsErrors);
-	output.write(`Pared templateArgs as : ${JSON.stringify(options)}`, LogLevel.Trace);
 
 	if (!options || !validateTemplateOptions(output, options, templateArgsErrors)) {
 		output.write('Invalid template arguments provided.', LogLevel.Error);
