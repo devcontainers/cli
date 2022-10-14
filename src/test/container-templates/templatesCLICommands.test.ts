@@ -46,6 +46,7 @@ describe('tests apply command', async function () {
 		assert.isTrue(result.stdout === '{"files":["./.devcontainer.json"]}\n');
 
 		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer.json'))).toString();
+
 		assert.match(file, /"name": "Docker from Docker"/);
 		assert.match(file, /"installZsh": "false"/);
 		assert.match(file, /"upgradePackages": "true"/);
@@ -56,6 +57,9 @@ describe('tests apply command', async function () {
 		// Assert that the Features included in the template were not removed.
 		assert.match(file, /"ghcr.io\/devcontainers\/features\/common-utils:1": {\n/);
 		assert.match(file, /"ghcr.io\/devcontainers\/features\/docker-from-docker:1": {\n/);
+
+		// Assert that the Feature included in the command was added.
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {\n/);
 	});
 });
 
