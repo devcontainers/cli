@@ -13,7 +13,7 @@ export function templateApplyOptions(y: Argv) {
 			'template-id': { type: 'string', alias: 't', demandOption: true, description: 'Reference to a Template in a supported OCI registry' },
 			'template-args': { type: 'string', alias: 'a', default: '{}', description: 'Arguments to replace within the provided Template, provided as JSON' },
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' }
+			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		})
 		.check(_argv => {
 			return true;
@@ -34,6 +34,9 @@ async function templateApply({
 	'log-level': inputLogLevel,
 }: TemplateApplyArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
 
 	const pkg = getPackageConfig();
 
@@ -70,7 +73,14 @@ async function templateApply({
 		features
 	};
 
-	await fetchTemplate(output, selectedTemplate, workspaceFolder);
+	const files = await fetchTemplate(output, selectedTemplate, workspaceFolder);
+	if (!files) {
+		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
+		process.exit(1);
+	}
+
+	console.log(JSON.stringify({ files }));
+	await dispose();
 	process.exit();
 }
 
