@@ -14,7 +14,7 @@ export function templateApplyOptions(y: Argv) {
 			'template-args': { type: 'string', alias: 'a', default: '{}', description: 'Arguments to replace within the provided Template, provided as JSON' },
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'tmp-dir:': { type: 'string', description: 'Directory to use for temporary files. If not provided, the system default will be inferred.' },
+			'tmp-dir': { type: 'string', description: 'Directory to use for temporary files. If not provided, the system default will be inferred.' },
 		})
 		.check(_argv => {
 			return true;
@@ -33,7 +33,7 @@ async function templateApply({
 	'template-args': templateArgs,
 	'features': featuresArgs,
 	'log-level': inputLogLevel,
-	'tmp-dir:': userProvidedTmpDir,
+	'tmp-dir': userProvidedTmpDir,
 }: TemplateApplyArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
