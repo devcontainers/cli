@@ -205,11 +205,15 @@ export function getContainerFeaturesBaseDockerFile() {
 
 #{nonBuildKitFeatureContentFallback}
 
+FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
+RUN chmod -R 0600 /tmp/build-features
+
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
+COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
 
 #{featureLayer}
 
