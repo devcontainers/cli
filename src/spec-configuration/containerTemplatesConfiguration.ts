@@ -16,16 +16,16 @@ export interface Template {
 
 export type TemplateOption = {
 	type: 'boolean';
-	default: boolean;
+	default?: boolean;
 	description?: string;
 } | {
 	type: 'string';
-	default: boolean;
 	enum?: string[];
+	default?: string;
 	description?: string;
 } | {
 	type: 'string';
-	default: boolean;
+	default?: string;
 	proposals?: string[];
 	description?: string;
 };

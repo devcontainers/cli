@@ -5,6 +5,7 @@ import * as jsonc from 'jsonc-parser';
 import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { DevContainerConfig } from './configuration';
+import { Template } from './containerTemplatesConfiguration';
 
 export interface TemplateOptions {
 	[name: string]: string;
@@ -22,16 +23,16 @@ export interface SelectedTemplate {
 
 export async function fetchTemplate(output: Log, selectedTemplate: SelectedTemplate, templateDestPath: string, userProvidedTmpDir?: string): Promise<string[] | undefined> {
 
-	const { id, options } = selectedTemplate;
-	const templateRef = getRef(output, id);
+	let { id: userSelectedId, options: userSelectedOptions } = selectedTemplate;
+	const templateRef = getRef(output, userSelectedId);
 	if (!templateRef) {
-		output.write(`Failed to parse template ref for ${id}`, LogLevel.Error);
+		output.write(`Failed to parse template ref for ${userSelectedId}`, LogLevel.Error);
 		return;
 	}
 
-	const ociManifest = await fetchOCITemplateManifestIfExistsFromUserIdentifier(output, process.env, id);
+	const ociManifest = await fetchOCITemplateManifestIfExistsFromUserIdentifier(output, process.env, userSelectedId);
 	if (!ociManifest) {
-		output.write(`Failed to fetch template manifest for ${id}`, LogLevel.Error);
+		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
 		return;
 	}
 
@@ -39,10 +40,41 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const files = await getBlob(output, process.env, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md']);
+	const blobResult = await getBlob(output, process.env, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
-	if (!files) {
+	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
+	}
+
+	const { files, metadata } = blobResult;
+
+	// Auto-replace default values for values not provided by user.
+	if (metadata) {
+		const templateMetadata = metadata as Template;
+		if (templateMetadata.options) {
+			const templateOptions = templateMetadata.options;
+			for (const templateOptionKey of Object.keys(templateOptions)) {
+				if (userSelectedOptions[templateOptionKey] === undefined) {
+					// If the user didn't provide a value for this option, use the default if there is one in the extracted metadata.
+					const templateOption = templateOptions[templateOptionKey];
+
+					if (templateOption.type === 'string') {
+						const _default = templateOption.default;
+						if (_default) {
+							output.write(`Using default value for ${templateOptionKey} --> ${_default}`, LogLevel.Trace);
+							userSelectedOptions[templateOptionKey] = _default;
+						}
+					}
+					else if (templateOption.type === 'boolean') {
+						const _default = templateOption.default;
+						if (_default) {
+							output.write(`Using default value for ${templateOptionKey} --> ${_default}`, LogLevel.Trace);
+							userSelectedOptions[templateOptionKey] = _default.toString();
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Scan all template files and replace any templated values.
@@ -51,7 +83,7 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 		const filePath = path.join(templateDestPath, f);
 		if (await isLocalFile(filePath)) {
 			const fileContents = await readLocalFile(filePath);
-			const fileContentsReplaced = replaceTemplatedValues(output, fileContents.toString(), options);
+			const fileContentsReplaced = replaceTemplatedValues(output, fileContents.toString(), userSelectedOptions);
 			await writeLocalFile(filePath, Buffer.from(fileContentsReplaced));
 		} else {
 			output.write(`Could not find templated file '${f}'.`, LogLevel.Error);
