@@ -4,6 +4,13 @@ Notable changes.
 
 ## October 2022
 
+### [0.21.0]
+
+- New Command: `templates apply` to apply fetch and apply a dev container Template to a project
+- Initial support for running lifecycle scripts in parallel
+- Improvements to the `features test` command
+- Improvements related to packaging dev container Features and Templates
+
 ### [0.20.0]
 
 - Handle old and otherwise started containers (https://github.com/microsoft/vscode-remote-release/issues/7307)
