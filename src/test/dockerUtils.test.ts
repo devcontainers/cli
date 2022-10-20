@@ -18,6 +18,8 @@ describe('Docker utils', function () {
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);
+		assert.ok(config.Architecture);
+		assert.ok(config.Os);
 	});
 
 	it('inspect image in mcr.microsoft.com', async () => {
@@ -26,6 +28,8 @@ describe('Docker utils', function () {
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);
+		assert.ok(config.Architecture);
+		assert.ok(config.Os);
 		const metadataStr = config.Config.Labels?.['devcontainer.metadata'];
 		assert.ok(metadataStr);
 		const obj = JSON.parse(metadataStr);
@@ -38,6 +42,8 @@ describe('Docker utils', function () {
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);
+		assert.ok(config.Architecture);
+		assert.ok(config.Os);
 	});
 
 	it('qualifies docker.io shorthands', async () => {

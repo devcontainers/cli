@@ -250,6 +250,8 @@ export async function inspectImageInRegistry(output: Log, name: string, authToke
 	return {
 		Id: manifest.config.digest,
 		Config: obj.config,
+		Os: obj.os,
+		Architecture: obj.architecture,
 	};
 }
 

@@ -18,7 +18,6 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -160,23 +159,30 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
-		const { context, dockerfilePath, target } = serviceInfo.build;
-		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-		dockerfile = originalDockerfile;
-		if (target) {
-			// Explictly set build target for the dev container build features on that
-			baseName = target;
-		} else {
-			// Use the last stage in the Dockerfile
-			// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-			const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(originalDockerfile, baseName);
-			baseName = lastStageName;
-			if (modifiedDockerfile) {
-				dockerfile = modifiedDockerfile;
+		if (!noBuild) {
+			const args = ['--project-name', projectName, ...composeGlobalArgs, 'build'];
+			if (noCache) {
+				args.push('--no-cache');
+			}
+			args.push(config.service);
+
+			try {
+				if (params.isTTY) {
+					const infoParams = { ...toPtyExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info) };
+					await dockerComposePtyCLI(infoParams, ...args);
+				} else {
+					const infoParams = { ...toExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
+					await dockerComposeCLI(infoParams, ...args);
+				}
+			} catch (err) {
+				throw err instanceof ContainerError ? err : new ContainerError({ description: 'An error occurred building the Docker Compose images.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
 			}
 		}
-		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
+		const intermediateImageName = getDefaultImageName(await dockerComposeCLIFunc(), projectName, config.service);
+		// handle case where the intermediate image is built for a different platform than the default one
+		const { Architecture, Os } = await inspectDockerImage(cliParams, intermediateImageName, false);
+		dockerfile = `FROM --platform=${Os}/${Architecture} ${intermediateImageName} AS ${baseName}\n`;
+		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
 	} else {
 		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, common.experimentalImageMetadata);
 	}

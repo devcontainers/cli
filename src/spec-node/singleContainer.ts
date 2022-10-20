@@ -12,7 +12,6 @@ import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromI
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -126,6 +125,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
+	const buildContextPath = await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost)
 	if (!cliHost.isFile(dockerfilePath)) {
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 	}
@@ -133,18 +133,26 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
 	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
-	if (config.build?.target) {
-		// Explictly set build target for the dev container build features on that
-		baseName = config.build.target;
-	} else {
-		// Use the last stage in the Dockerfile
-		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
-		baseName = lastStageName;
-		if (modifiedDockerfile) {
-			dockerfile = modifiedDockerfile;
+
+	const intermediateBuildAargs = ["build", "-f", dockerfilePath, "-t"];
+	let intermediateImageName = "vsc_tmp_" + cliHost.path.basename(buildContextPath);
+	intermediateBuildAargs.push(intermediateImageName);
+	intermediateBuildAargs.push(buildContextPath);
+	try {
+		if (buildParams.isTTY) {
+			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
+			await dockerPtyCLI(infoParams, ...intermediateBuildAargs);
+		} else {
+			const infoParams = { ...toExecParameters(buildParams), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
+			await dockerCLI(infoParams, ...intermediateBuildAargs);
 		}
+	} catch (err) {
+		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
 	}
+
+	// handle case where the intermediate image is built for a different platform than the default one
+	const { Architecture, Os } = await inspectDockerImage(buildParams, intermediateImageName, false);
+	dockerfile = `FROM --platform=${Os}/${Architecture} ${intermediateImageName} AS ${baseName}\n`;
 
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
@@ -232,7 +240,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 	args.push(...additionalBuildArgs);
-	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
+	args.push(buildContextPath);
 	try {
 		if (buildParams.isTTY) {
 			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
