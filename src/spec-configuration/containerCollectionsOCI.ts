@@ -1,9 +1,11 @@
 import path from 'path';
 import * as semver from 'semver';
 import * as tar from 'tar';
+import * as jsonc from 'jsonc-parser';
+
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
-import { mkdirpLocal, writeLocalFile } from '../spec-utils/pfs';
+import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
@@ -269,7 +271,7 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 	}
 }
 
-export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = []): Promise<string[] | undefined> {
+export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 	try {
@@ -318,9 +320,32 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 				}
 			}
 		);
-
 		output.write('Files extracted from blob: ' + files.join(', '), LogLevel.Trace);
-		return files;
+
+		// No 'metadataFile' to look for.
+		if (!metadataFile) {
+			return { files, metadata: undefined };
+		}
+
+		// Attempt to extract 'metadataFile'
+		await tar.x(
+			{
+				file: tempTarballPath,
+				cwd: ociCacheDir,
+				filter: (path: string, _: tar.FileStat) => {
+					return path === `./${metadataFile}`;
+				}
+			});
+		const pathToMetadataFile = path.join(ociCacheDir, metadataFile);
+		let metadata = undefined;
+		if (await isLocalFile(pathToMetadataFile)) {
+			output.write(`Found metadata file '${metadataFile}' in blob`, LogLevel.Trace);
+			metadata = jsonc.parse((await readLocalFile(pathToMetadataFile)).toString());
+		}
+
+		return {
+			files, metadata
+		};
 	} catch (e) {
 		output.write(`error: ${e}`, LogLevel.Error);
 		return undefined;

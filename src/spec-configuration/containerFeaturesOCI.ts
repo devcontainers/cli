@@ -47,9 +47,9 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const files = await getBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
+	const blobResult = await getBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
 
-	if (!files) {
+	if (!blobResult) {
 		throw new Error(`Failed to download package for ${featureSet.sourceInformation.featureRef.resource}`);
 	}
 
