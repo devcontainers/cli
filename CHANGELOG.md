@@ -4,6 +4,11 @@ Notable changes.
 
 ## October 2022
 
+### [0.22.0]
+
+- Add `${devcontainerId}` configuration variable. (https://github.com/devcontainers/spec/issues/62)
+- User environment variables for features. (https://github.com/devcontainers/spec/issues/91)
+
 ### [0.21.0]
 
 - New Command: `templates apply` to apply fetch and apply a dev container Template to a project
