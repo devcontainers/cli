@@ -43,9 +43,9 @@ describe('tests apply command', async function () {
 
 		assert.isTrue(success);
 		assert.isDefined(result);
-		assert.isTrue(result.stdout === '{"files":["./.devcontainer.json"]}\n');
+		assert.strictEqual(result.stdout.trim(), '{"files":["./.devcontainer/devcontainer.json"]}');
 
-		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer.json'))).toString();
+		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer', 'devcontainer.json'))).toString();
 
 		assert.match(file, /"name": "Docker from Docker"/);
 		assert.match(file, /"installZsh": "false"/);
