@@ -36,7 +36,7 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
         set -e
     fi
 
-    # Get openvscode-server machine settings.json - [Optional] Also include VS Code settings
+    # Get openvscode-server machine settings.json - [Optional] Also settings from `vscode.settings` property
     settings="$(jq -M '[
         .mergedConfiguration.customizations?.openvscodeserver[]?.settings?,
         .mergedConfiguration.customizations?.vscode[]?.settings?
