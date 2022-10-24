@@ -9,7 +9,7 @@ import yargs, { Argv } from 'yargs';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig } from './utils';
+import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -30,7 +30,7 @@ import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
-import { containerSubstitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
@@ -214,7 +214,7 @@ async function provision({
 			};
 		}) : [],
 		updateRemoteUserUIDDefault,
-		remoteEnv: keyValuesToRecord(addRemoteEnvs),
+		remoteEnv: envListToObj(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
@@ -597,7 +597,7 @@ async function doRunUserCommands({
 			persistedFolder,
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
-			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			remoteEnv: envListToObj(addRemoteEnvs),
 			additionalCacheFroms: [],
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
@@ -759,13 +759,8 @@ async function readConfiguration({
 		};
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (container) {
-			const substitute1 = configuration.substitute;
-			const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
-			configuration = {
-				config: substitute2(configuration.config),
-				raw: configuration.raw,
-				substitute: config => substitute2(substitute1(config)),
-			};
+			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
+			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
 		}
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
@@ -927,7 +922,7 @@ export async function doExec({
 			persistedFolder,
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
-			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			remoteEnv: envListToObj(addRemoteEnvs),
 			additionalCacheFroms: [],
 			useBuildKit: 'auto',
 			omitLoggerHeader: true,
@@ -987,16 +982,6 @@ export async function doExec({
 			dispose,
 		};
 	}
-}
-
-function keyValuesToRecord(keyValues: string[]): Record<string, string> {
-	return keyValues.reduce((envs, env) => {
-		const i = env.indexOf('=');
-		if (i !== -1) {
-			envs[env.substring(0, i)] = env.substring(i + 1);
-		}
-		return envs;
-	}, {} as Record<string, string>);
 }
 
 function getDefaultIdLabels(workspaceFolder: string) {

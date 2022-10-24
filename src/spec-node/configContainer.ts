@@ -9,8 +9,8 @@ import * as jsonc from 'jsonc-parser';
 
 import { openDockerfileDevContainer } from './singleContainer';
 import { openDockerComposeDevContainer } from './dockerCompose';
-import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runUserCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig } from './utils';
-import { substitute } from '../spec-common/variableSubstitution';
+import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runUserCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig, addSubstitution, envListToObj } from './utils';
+import { beforeContainerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace, workspaceFromPath, isWorkspacePath } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
@@ -52,7 +52,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 			throw new ContainerError({ description: `No dev container config and no workspace found.` });
 		}
 	}
-	const configWithRaw = configs.config;
+	const configWithRaw = addSubstitution(configs.config, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 	const { config } = configWithRaw;
 
 	await runUserCommand({ ...params, common: { ...common, output: common.postCreate.output } }, config.initializeCommand, common.postCreate.onDidInput);
