@@ -21,7 +21,7 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
     tmp_dir="$(mktemp -d)"
     mkdir -p "${tmp_dir}" "$HOME"/.openvscode-server/data/Machine
 
-    # Get list of extensions to install - [Optional] Also extensions from vscode set 
+    # Get list of extensions to install - [Optional] Also set of extensions from `vscode.extensions` property
     extensions=( $(jq -r -M '[
         .mergedConfiguration.customizations?.openvscodeserver[]?.extensions[]?,
         .mergedConfiguration.customizations?.vscode[]?.extensions[]?
