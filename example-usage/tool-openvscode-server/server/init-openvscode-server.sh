@@ -4,7 +4,7 @@ cd "$(dirname $0)"
 
 if [ ! -e "$HOME/.openvscodeserver/bin" ]; then
     echo "Downloading openvscode-server..."
-    curl -fsSL https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-v1.69.2/openvscode-server-v1.69.2-linux-x64.tar.gz -o /tmp/openvscode-server.tar.gz
+    curl -fsSL https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-v1.72.2/openvscode-server-v1.72.2-linux-x64.tar.gz -o /tmp/openvscode-server.tar.gz
     mkdir -p "$HOME/.openvscodeserver"
     echo "Extracting..."
     tar --strip 1 -xzf /tmp/openvscode-server.tar.gz -C "$HOME/.openvscodeserver/"
@@ -21,12 +21,10 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
     tmp_dir="$(mktemp -d)"
     mkdir -p "${tmp_dir}" "$HOME"/.openvscode-server/data/Machine
 
-    # Get list of extensions to install - Also include VS Code list for features and legacy location
+    # Get list of extensions to install - [Optional] Also extensions from vscode set 
     extensions=( $(jq -r -M '[
-        .configuration.customizations?.openvscodeserver?.extensions[]?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.openvscodeserver?.extensions[]?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions[]?,
-        .featuresConfiguration?.featureSets[]?.features[]?.extensions[]?
+        .mergedConfiguration.customizations?.openvscodeserver[]?.extensions[]?,
+        .mergedConfiguration.customizations?.vscode[]?.extensions[]?
         ] | .[]
     ' /server/configuration.json ) )
     # Install extensions
@@ -38,12 +36,10 @@ if [ "$(ps -ef | grep '\.openvscode-server' | wc -l)" = "1" ]; then
         set -e
     fi
 
-    # Get openvscode-server machine settings.json - Also include VS Code settings for features and legacy location
+    # Get openvscode-server machine settings.json - [Optional] Also include VS Code settings
     settings="$(jq -M '[
-        .configuration.customizations?.openvscodeserver?.settings?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.openvscodeserver?.settings?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?,
-        .featuresConfiguration?.featureSets[]?.features[]?.settings?
+        .mergedConfiguration.customizations?.openvscodeserver[]?.settings?,
+        .mergedConfiguration.customizations?.vscode[]?.settings?
         ] | add
     ' /server/configuration.json)"
     # Place settings in right spot
