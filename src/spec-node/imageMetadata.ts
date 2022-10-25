@@ -143,7 +143,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		otherPortsAttributes: reversed.find(entry => entry.otherPortsAttributes)?.otherPortsAttributes,
 		forwardPorts: mergeForwardPorts(imageMetadata),
 		shutdownAction: reversed.find(entry => entry.shutdownAction)?.shutdownAction,
-		updateRemoteUserUID: reversed.find(entry => entry.updateRemoteUserUID)?.updateRemoteUserUID,
+		updateRemoteUserUID: reversed.find(entry => typeof entry.updateRemoteUserUID === 'boolean')?.updateRemoteUserUID,
 		hostRequirements: mergeHostRequirements(imageMetadata),
 	};
 	return merged;
