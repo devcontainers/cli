@@ -619,12 +619,16 @@ async function doRunUserCommands({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const { config, workspaceConfig } = configs;
+		const { config: config0, workspaceConfig } = configs;
 
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
+
+		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(envListToObj(idLabels), config));
+		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
+
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
