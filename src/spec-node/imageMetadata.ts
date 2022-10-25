@@ -5,7 +5,7 @@
 
 import { ContainerError } from '../spec-common/errors';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -125,7 +125,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		capAdd: unionOrUndefined(imageMetadata.map(entry => entry.capAdd)),
 		securityOpt: unionOrUndefined(imageMetadata.map(entry => entry.securityOpt)),
 		entrypoints: collectOrUndefined(imageMetadata, 'entrypoint'),
-		mounts: concatOrUndefined(imageMetadata.map(entry => entry.mounts)),
+		mounts: mergeMounts(imageMetadata),
 		customizations: Object.keys(customizations).length ? customizations : undefined,
 		onCreateCommands: collectOrUndefined(imageMetadata, 'onCreateCommand'),
 		updateContentCommands: collectOrUndefined(imageMetadata, 'updateContentCommand'),
@@ -181,9 +181,20 @@ function parseBytes(str: string) {
 	return 0;
 }
 
-function concatOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
-	const values = ([] as T[]).concat(...entries.filter(entry => !!entry) as T[][]);
-	return values.length ? values : undefined;
+function mergeMounts(imageMetadata: ImageMetadataEntry[]): (Mount | string)[] | undefined {
+	const seen = new Set<string>();
+	const mounts = imageMetadata.map(entry => entry.mounts)
+		.filter(Boolean)
+		.flat()
+		.map(mount => ({
+			obj: typeof mount === 'string' ? parseMount(mount) : mount!,
+			orig: mount!,
+		}))
+		.reverse()
+		.filter(mount => !seen.has(mount.obj.target) && seen.add(mount.obj.target))
+		.reverse()
+		.map(mount => mount.orig);
+	return mounts.length ? mounts : undefined;
 }
 
 function unionOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
