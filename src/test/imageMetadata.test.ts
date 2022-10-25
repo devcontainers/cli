@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { Feature, FeaturesConfig, FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
@@ -243,6 +243,46 @@ describe('Image Metadata', function () {
 			assert.strictEqual(merged.remoteEnv?.ENV2, 'feature2');
 			assert.strictEqual(merged.remoteEnv?.ENV3, 'devcontainer.json');
 			assert.strictEqual(merged.remoteEnv?.ENV4, 'feature1');
+		});
+
+		it('should deduplicate mounts', () => {
+			const merged = mergeConfiguration({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+			}, [
+				{
+					mounts: [
+						'source=source1,dst=target1,type=volume',
+						'source=source2,target=target2,type=volume',
+						'source=source3,destination=target3,type=volume',
+					],
+				},
+				{
+					mounts: [
+						{
+							source: 'source4',
+							target: 'target1',
+							type: 'volume'
+						},
+					],
+				},
+				{
+					mounts: [
+						{
+							source: 'source5',
+							target: 'target3',
+							type: 'volume'
+						},
+					],
+				},
+			]);
+			assert.strictEqual(merged.mounts?.length, 3);
+			assert.strictEqual(typeof merged.mounts?.[0], 'string');
+			assert.strictEqual(merged.mounts?.[0], 'source=source2,target=target2,type=volume');
+			assert.strictEqual(typeof merged.mounts?.[1], 'object');
+			assert.strictEqual((merged.mounts?.[1] as Mount).source, 'source4');
+			assert.strictEqual(typeof merged.mounts?.[2], 'object');
+			assert.strictEqual((merged.mounts?.[2] as Mount).source, 'source5');
 		});
 	});
 });

@@ -71,10 +71,16 @@ export interface Mount {
 	external?: boolean;
 }
 
+const normalizedMountKeys: Record<string, string> = {
+	src: 'source',
+	destination: 'target',
+	dst: 'target',
+};
+
 export function parseMount(str: string): Mount {
 	return str.split(',')
 		.map(s => s.split('='))
-		.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}) as Mount;
+		.reduce((acc, [key, value]) => ({ ...acc, [(normalizedMountKeys[key] || key)]: value }), {}) as Mount;
 }
 
 export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
