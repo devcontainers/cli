@@ -207,6 +207,20 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 }
 
 export async function inspectImageInRegistry(output: Log, name: string, authToken?: string): Promise<ImageDetails> {
+	// scratch is a reserved image, so return empty info
+	if (name === 'scratch') {
+		return {
+			Id: 'scratch',
+			Config: {
+				User: '',
+				Env: null,
+				Labels: null,
+				Entrypoint: null,
+				Cmd: null
+			}
+		};
+	}
+
 	const resourceAndVersion = qualifyImageName(name);
 	const ref = getRef(output, resourceAndVersion);
 	const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');

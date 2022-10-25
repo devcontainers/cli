@@ -46,4 +46,11 @@ describe('Docker utils', function () {
 		assert.strictEqual(qualifyImageName('random/image'), 'docker.io/random/image');
 		assert.strictEqual(qualifyImageName('foo/random/image'), 'foo/random/image');
 	});
+
+	it('inspect scratch', async () => {
+		const imageName = 'scratch';
+		const config = await inspectImageInRegistry(output, imageName);
+		assert.ok(config);
+		assert.ok(config.Id);
+	});
 });
