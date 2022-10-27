@@ -295,6 +295,91 @@ USER user4
         const image = findUserStatement(extracted, {}, 'stage2');
         assert.strictEqual(image, 'user3_2');
     });
+
+    it('ARG after ENV', async () => {
+        const dockerfile = `
+FROM debian
+ENV USERNAME=user1
+ARG USERNAME=user2
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user2');
+    });
+
+    it('ARG after ENV in preceding stage', async () => {
+        const dockerfile = `
+FROM debian as one
+ENV USERNAME=user1
+ARG USERNAME=user2
+
+FROM one as two
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user1');
+    });
+
+    it('ARG in preamble', async () => {
+        const dockerfile = `
+ARG USERNAME=user1
+FROM debian
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user1');
+    });
+
+    it('unbound ARG after ENV', async () => {
+        const dockerfile = `
+FROM debian
+ENV USERNAME=user1
+ARG USERNAME
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user1');
+    });
+
+    it('ENV after ARG', async () => {
+        const dockerfile = `
+FROM debian
+ARG USERNAME=user1
+ENV USERNAME=user2
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user2');
+    });
+
+    it('ENV set from ARG', async () => {
+        const dockerfile = `
+FROM debian
+ARG USERNAME1=user1
+ENV USERNAME2=\${USERNAME1}
+USER \${USERNAME2}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'user1');
+    });
+
+    it('multiple variables', async () => {
+        const dockerfile = `
+FROM debian
+ARG USERNAME1=user1
+ENV USERNAME2=user2
+USER A\${USERNAME1}A\${USERNAME2}A
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, undefined);
+        assert.strictEqual(user, 'Auser1Auser2A');
+    });
 });
 
 describe('supportsBuildContexts', () => {
