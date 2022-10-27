@@ -354,7 +354,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	});
 }
 
-export function envListToObj(list: string[] | null) {
+export function envListToObj(list: string[] | null | undefined) {
 	// Handle Env is null (https://github.com/microsoft/vscode-remote-release/issues/2058).
 	return (list || []).reduce((obj, pair) => {
 		const i = pair.indexOf('=');

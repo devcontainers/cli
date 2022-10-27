@@ -73,7 +73,7 @@ export function extractDockerfile(dockerfile: string): Dockerfile {
 	} as Dockerfile;
 }
 
-export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined) {
+export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, target: string | undefined) {
 	let stage: Stage | undefined = target ? dockerfile.stagesByLabel[target] : dockerfile.stages[dockerfile.stages.length - 1];
 	const seen = new Set<Stage>();
 	while (stage) {
@@ -84,9 +84,9 @@ export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<stri
 
 		const i = findLastIndex(stage.instructions, i => i.instruction === 'USER');
 		if (i !== -1) {
-			return replaceVariables(dockerfile, buildArgs, stage.instructions[i].name, stage, i);
+			return replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.instructions[i].name, stage, i) || undefined;
 		}
-		const image = replaceVariables(dockerfile, buildArgs, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const image = replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		stage = dockerfile.stagesByLabel[image];
 	}
 	return undefined;
@@ -101,7 +101,7 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 		}
 		seen.add(stage);
 
-		const image = replaceVariables(dockerfile, buildArgs, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		const nextStage = dockerfile.stagesByLabel[image];
 		if (!nextStage) {
 			return image;
@@ -138,11 +138,11 @@ function extractInstructions(stageStr: string) {
 		});
 }
 
-function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
+function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
 	return [...str.matchAll(variables)]
 		.map(match => {
 			const variable = match.groups!.variable;
-			const value = findValue(dockerfile, buildArgs, variable, stage, beforeInstructionIndex);
+			const value = findValue(dockerfile, buildArgs, baseImageEnv, variable, stage, beforeInstructionIndex) || '';
 			return {
 				begin: match.index!,
 				end: match.index! + match[0].length,
@@ -152,7 +152,7 @@ function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, stri
 		.reduce((str, { begin, end, value }) => str.substring(0, begin) + value + str.substring(end), str);
 }
 
-function findValue(dockerfile: Dockerfile, buildArgs: Record<string, string>, variable: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number): string | undefined {
+function findValue(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, variable: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number): string | undefined {
 	let considerArg = true;
 	const seen = new Set<typeof stage>();
 	while (true) {
@@ -165,18 +165,22 @@ function findValue(dockerfile: Dockerfile, buildArgs: Record<string, string>, va
 		if (i !== -1) {
 			const instruction = stage.instructions[i];
 			if (instruction.instruction === 'ENV') {
-				return replaceVariables(dockerfile, buildArgs, instruction.value!, stage, i);
+				return replaceVariables(dockerfile, buildArgs, baseImageEnv, instruction.value!, stage, i);
 			}
 			if (instruction.instruction === 'ARG') {
-				return replaceVariables(dockerfile, buildArgs, buildArgs[instruction.name] ?? instruction.value, stage, i);
+				return replaceVariables(dockerfile, buildArgs, baseImageEnv, buildArgs[instruction.name] ?? instruction.value, stage, i);
 			}
 		}
 
 		if (!stage.from) {
+			const value = baseImageEnv[variable];
+			if (typeof value === 'string') {
+				return value;
+			}
 			return undefined;
 		}
 
-		const image = replaceVariables(dockerfile, buildArgs, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const image = replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		stage = dockerfile.stagesByLabel[image] || dockerfile.preamble;
 		beforeInstructionIndex = stage.instructions.length;
 		considerArg = stage === dockerfile.preamble;

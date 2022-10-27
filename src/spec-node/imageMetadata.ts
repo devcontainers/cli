@@ -308,9 +308,9 @@ export async function getImageBuildInfoFromDockerfile(params: DockerResolverPara
 
 export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
-	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, targetStage);
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
+	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, experimentalImageMetadata, output) : { config: [], raw: [], substitute };
 	return {
