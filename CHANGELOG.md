@@ -4,6 +4,14 @@ Notable changes.
 
 ## October 2022
 
+### [0.23.0]
+
+- Consider base image env when looking up USER. (https://github.com/microsoft/vscode-remote-release/issues/7358)
+- Handle ENV when looking up USER. (https://github.com/microsoft/vscode-remote-release/issues/7303)
+- Last mount source wins. (https://github.com/microsoft/vscode-remote-release/issues/7368)
+- Add missing substitutions in run-user-commands. (https://github.com/microsoft/vscode-remote-release/issues/7412)
+- Last updateRemoteUserUID value wins. (https://github.com/microsoft/vscode-remote-release/issues/7390)
+
 ### [0.22.0]
 
 - Add `${devcontainerId}` configuration variable. (https://github.com/devcontainers/spec/issues/62)
