@@ -254,7 +254,7 @@ describe('findUserStatement', () => {
 USER user1
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -264,7 +264,7 @@ ARG IMAGE_USER=user2
 USER $IMAGE_USER
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -276,7 +276,7 @@ USER $IMAGE_USER
         const extracted = extractDockerfile(dockerfile);
         const user = findUserStatement(extracted, {
             IMAGE_USER: 'user3'
-        }, undefined);
+        }, {}, undefined);
         assert.strictEqual(user, 'user3');
     });
 
@@ -292,7 +292,7 @@ FROM image4 as stage4
 USER user4
 `;
         const extracted = extractDockerfile(dockerfile);
-        const image = findUserStatement(extracted, {}, 'stage2');
+        const image = findUserStatement(extracted, {}, {}, 'stage2');
         assert.strictEqual(image, 'user3_2');
     });
 
@@ -304,7 +304,7 @@ ARG USERNAME=user2
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -318,7 +318,7 @@ FROM one as two
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -329,7 +329,7 @@ FROM debian
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -341,8 +341,18 @@ ARG USERNAME
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
+    });
+
+    it('unbound', async () => {
+        const dockerfile = `
+FROM debian
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, {}, undefined);
+        assert.strictEqual(user, undefined);
     });
 
     it('ENV after ARG', async () => {
@@ -353,7 +363,7 @@ ENV USERNAME=user2
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -365,7 +375,7 @@ ENV USERNAME2=\${USERNAME1}
 USER \${USERNAME2}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -377,8 +387,18 @@ ENV USERNAME2=user2
 USER A\${USERNAME1}A\${USERNAME2}A
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, undefined);
         assert.strictEqual(user, 'Auser1Auser2A');
+    });
+
+    it('ENV in base image', async () => {
+        const dockerfile = `
+FROM mybase
+USER \${USERNAME}
+`;
+        const extracted = extractDockerfile(dockerfile);
+        const user = findUserStatement(extracted, {}, { USERNAME: 'user1' }, undefined);
+        assert.strictEqual(user, 'user1');
     });
 });
 
