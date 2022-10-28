@@ -359,8 +359,8 @@ function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts
 		.map((featureSet, i) => featureSet.features
 			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
 			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
+COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
+COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
 RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
 			)
 		)
