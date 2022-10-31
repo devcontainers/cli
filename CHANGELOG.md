@@ -4,6 +4,10 @@ Notable changes.
 
 ## October 2022
 
+### [0.23.1]
+
+- Pick up updated `remoteEnv`, `remoteUser` and `userEnvProbe` properties. (https://github.com/devcontainers/cli/issues/252)
+
 ### [0.23.0]
 
 - Consider base image env when looking up USER. (https://github.com/microsoft/vscode-remote-release/issues/7358)
