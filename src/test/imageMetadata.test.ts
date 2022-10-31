@@ -164,6 +164,47 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
+	
+		it('should update config for existing container', () => {
+			const { config: metadata, raw } = getImageMetadataFromContainer({
+				...testContainerDetails,
+				Config: {
+					...testContainerDetails.Config,
+					Labels: {
+						...testContainerDetails.Config.Labels,
+						testIdLabel: 'testIdLabelValue',
+						[imageMetadataLabel]: JSON.stringify({
+							remoteEnv: {
+								FOO: 'bar',
+							},
+						}),
+					},
+				},
+			}, configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteEnv: {
+					FOO: 'baz',
+					BAR: 'foo',
+				},
+			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			assert.strictEqual(metadata.length, 2);
+			assert.deepStrictEqual(metadata[0].remoteEnv, {
+				FOO: 'bar',
+			});
+			assert.deepStrictEqual(metadata[1].remoteEnv, {
+				FOO: 'baz',
+				BAR: 'foo',
+			});
+			assert.strictEqual(raw.length, 2);
+			assert.deepStrictEqual(raw[0].remoteEnv, {
+				FOO: 'bar',
+			});
+			assert.deepStrictEqual(raw[1].remoteEnv, {
+				FOO: 'baz',
+				BAR: 'foo',
+			});
+		});
 
 		it('should fall back to config for existing container without metadata label', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer(testContainerDetails, configWithRaw({
