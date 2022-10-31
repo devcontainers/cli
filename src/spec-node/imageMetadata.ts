@@ -39,6 +39,12 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'hostRequirements',
 ];
 
+const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
+	'remoteUser',
+	'userEnvProbe',
+	'remoteEnv',
+];
+
 const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
 	'init',
 	'privileged',
@@ -330,7 +336,17 @@ export function getImageMetadataFromContainer(containerDetails: ContainerDetails
 	const hasIdLabels = Object.keys(envListToObj(idLabels))
 		.every(label => (containerDetails.Config.Labels || {})[label]);
 	if (hasIdLabels) {
-		return metadata;
+		return {
+			config: [
+				...metadata.config,
+				pick(devContainerConfig.config, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			raw: [
+				...metadata.raw,
+				pick(devContainerConfig.raw, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			substitute: metadata.substitute,
+		};
 	}
 	return getDevcontainerMetadata(metadata, devContainerConfig, featuresConfig);
 }
