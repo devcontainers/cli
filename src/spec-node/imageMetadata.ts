@@ -39,6 +39,12 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'hostRequirements',
 ];
 
+const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
+	'remoteUser',
+	'userEnvProbe',
+	'remoteEnv',
+];
+
 const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
 	'init',
 	'privileged',
@@ -322,11 +328,26 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 
 export const imageMetadataLabel = 'devcontainer.metadata';
 
-export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, _idLabels: string[], experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, idLabels: string[], experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
 	if (!(containerDetails.Config.Labels || {})[imageMetadataLabel] || !experimentalImageMetadata) {
 		return getDevcontainerMetadata({ config: [], raw: [], substitute: devContainerConfig.substitute }, devContainerConfig, featuresConfig);
 	}
 	const metadata = internalGetImageMetadata(containerDetails, devContainerConfig.substitute, experimentalImageMetadata, output);
+	const hasIdLabels = Object.keys(envListToObj(idLabels))
+		.every(label => (containerDetails.Config.Labels || {})[label]);
+	if (hasIdLabels) {
+		return {
+			config: [
+				...metadata.config,
+				pick(devContainerConfig.config, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			raw: [
+				...metadata.raw,
+				pick(devContainerConfig.raw, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			substitute: metadata.substitute,
+		};
+	}
 	return getDevcontainerMetadata(metadata, devContainerConfig, featuresConfig);
 }
 
