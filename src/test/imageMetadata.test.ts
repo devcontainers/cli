@@ -129,12 +129,14 @@ describe('Image Metadata', function () {
 				image: 'image',
 				remoteUser: 'testConfigUser',
 			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
-			assert.strictEqual(metadata.length, 1);
+			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
-			assert.strictEqual(raw.length, 1);
+			assert.strictEqual(metadata[1].remoteUser, 'testConfigUser');
+			assert.strictEqual(raw.length, 2);
 			assert.strictEqual(raw[0].id, 'testId');
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
+			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
 	
 		it('should add config for existing container without id labels', () => {
