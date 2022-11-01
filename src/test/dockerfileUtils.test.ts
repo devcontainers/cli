@@ -245,6 +245,18 @@ FROM image4 as stage4
         const image = findBaseImage(extracted, {}, 'stage2');
         assert.strictEqual(image, 'image3');
     });
+
+    it('Quoted', async () => {
+        const dockerfile = `
+ARG BASE_IMAGE="ubuntu:latest"
+
+FROM "\${BASE_IMAGE}"
+`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(extracted.stages.length, 1);
+        const image = findBaseImage(extracted, {}, undefined);
+        assert.strictEqual(image, 'ubuntu:latest');
+    });
 });
 
 describe('findUserStatement', () => {
