@@ -224,6 +224,7 @@ async function provision({
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
+		skipPersistingCustomizationsFromFeatures: false,
 	};
 
 	const result = await doProvision(options);
@@ -609,6 +610,7 @@ async function doRunUserCommands({
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: false,
 		}, disposables);
 
 		const { common } = params;
@@ -939,6 +941,7 @@ export async function doExec({
 			buildxOutput: undefined,
 			skipPostAttach: false,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: false,
 		}, disposables);
 
 		const { common } = params;
