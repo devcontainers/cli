@@ -287,6 +287,7 @@ function buildOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 	});
 }
 
@@ -321,6 +322,7 @@ async function doBuild({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -365,6 +367,7 @@ async function doBuild({
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;

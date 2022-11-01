@@ -214,11 +214,14 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
+	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
+
 	const raw = featuresConfig?.featureSets.map(featureSet => featureSet.features.map(feature => ({
 		id: featureSet.sourceInformation.userFeatureId,
-		...pick(feature, pickFeatureProperties),
+		...pick(feature, effectivePickFeatureProperties),
 	}))).flat() || [];
+
 	return {
 		config: [
 			...baseImageMetadata.config,
