@@ -13,7 +13,7 @@ import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
 import { promisify } from 'util';
-import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog } from '../spec-utils/log';
+import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
@@ -188,7 +188,9 @@ export function createLog(options: LogOptions, pkg: PackageConfiguration, sessio
 }
 
 function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
-	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) : createTerminalLog(write, () => logLevel, sessionStart);
+	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
+		process.stdin.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
+		createPlainLog(write, () => logLevel);
 	const log = {
 		...makeLog(createCombinedLog([handler], header)),
 		join: async () => {
