@@ -508,7 +508,7 @@ async function prepareOCICache(dstFolder: string) {
 }
 
 function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
-	if (!config.features && !additionalFeatures) {
+	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures).length) {
 		return undefined;
 	}
 
