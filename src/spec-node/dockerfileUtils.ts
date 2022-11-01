@@ -11,9 +11,9 @@ export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, Remo
 
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
-const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
+const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 
-const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
+const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
 const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)(=("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 const variables = /\$\{?(?<variable>[a-zA-Z0-9_]+)\}?/g;
@@ -46,7 +46,7 @@ export interface Instruction {
 }
 
 export function extractDockerfile(dockerfile: string): Dockerfile {
-	const fromStatementsAhead = /(?=^\s*FROM)/gm;
+	const fromStatementsAhead = /(?=^[\t ]*FROM)/gm;
 	const parts = dockerfile.split(fromStatementsAhead);
 	const preambleStr = fromStatementsAhead.test(parts[0] || '') ? '' : parts.shift()!;
 	const stageStrs = parts;
