@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  app:
+    image: alpine:latest
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
