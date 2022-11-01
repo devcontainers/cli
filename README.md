@@ -15,9 +15,9 @@ This CLI is in active development. Current status:
 - [x] `devcontainer run-user-commands` - Runs lifecycle commands like `postCreateCommand`
 - [x] `devcontainer read-configuration` - Outputs current configuration for workspace
 - [x] `devcontainer exec` - Executes a command in a container with `userEnvProbe`, `remoteUser`, `remoteEnv`, and other properties applied
+- [x] `devcontainer features <...>` - Tools to assist in authoring and testing [dev container Features](https://containers.dev/implementors/features/)
 - [ ] `devcontainer stop` - Stops containers
 - [ ] `devcontainer down` - Stops and deletes containers
-- [ ] `devcontainer features <...>` - Tools to assist in authoring and testing [dev container 'features'](https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md)
 
 ## Try it out
 
@@ -132,6 +132,10 @@ Learn more on the [dev container spec website](https://devcontainers.github.io/)
 ## Additional resources
 
 You may review other resources part of the specification in the [`devcontainers` GitHub organization](https://github.com/devcontainers).
+
+### Documentation
+
+- Additional information on using the built-in [Features testing command](./docs/features/test.md).
 
 ## Contributing
 
