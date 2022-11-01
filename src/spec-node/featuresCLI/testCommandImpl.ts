@@ -14,20 +14,20 @@ import { cpDirectoryLocal } from '../../spec-utils/pfs';
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
 function fail(msg: string) {
-	log(msg, { prefix: '[-]', stderr: true });
+	log(msg, { prefix: '[-]', error: true });
 	process.exit(1);
 }
 
 type Scenarios = { [key: string]: DevContainerConfig };
 type TestResult = { testName: string; result: boolean };
 
-function log(msg: string, options?: { omitPrefix?: boolean; prefix?: string; info?: boolean; stderr?: boolean }) {
+function log(msg: string, options?: { omitPrefix?: boolean; prefix?: string; info?: boolean; error?: boolean }) {
 
 	const prefix = options?.prefix || '> ';
 	const output = `${options?.omitPrefix ? '' : `${prefix} `}${msg}\n`;
 
-	if (options?.stderr) {
-		process.stderr.write(chalk.red(output));
+	if (options?.error) {
+		process.stdout.write(chalk.red(output));
 	} else if (options?.info) {
 		process.stdout.write(chalk.bold.blue(output));
 	} else {
@@ -40,7 +40,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
 	process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-|    dev container 'features' |   
+|    dev container Features   |   
 │           v${pkg.version}           │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
