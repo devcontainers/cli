@@ -199,5 +199,21 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.outcome, 'success');
 			assert.equal(fs.existsSync(outputPath), true);
 		});
+
+		it(`should execute successfully docker-compose without features with container builder`, async () => {
+			const builderName = 'test-container-builder';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/compose-image-without-features-minimal`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
 	});
 });
