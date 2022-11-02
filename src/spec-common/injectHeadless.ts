@@ -62,6 +62,7 @@ export interface ResolverParameters {
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
+	skipPersistingCustomizationsFromFeatures: boolean;
 }
 
 export interface PostCreate {
