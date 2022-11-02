@@ -4,6 +4,12 @@ Notable changes.
 
 ## October 2022
 
+### [0.23.2]
+
+- Add flag to omit `customizations` from image metadata. (https://github.com/devcontainers/cli/pull/262)
+- Normalize feature permissions. (https://github.com/devcontainers/cli/issues/153)
+- Skip features code path without features. (https://github.com/devcontainers/cli/pull/258)
+
 ### [0.23.1]
 
 - Pick up updated `remoteEnv`, `remoteUser` and `userEnvProbe` properties. (https://github.com/devcontainers/cli/issues/252)
