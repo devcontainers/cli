@@ -49,6 +49,31 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport);
 		});
 
+		it('succeeds when invoking another script from the same test folder', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/sharing-test-scripts`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --target-project ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'util'
+✅ Passed:      'some_scenario'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+
+			assert.isTrue(result.stderr.includes('I AM A DIFFERENT SCRIPT'));
+			assert.isTrue(result.stderr.includes('I AM A HELPER SCRIPT FOR A SCENARIO'));
+		});
+
 		it('succeeds with defaults', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 			let success = false;

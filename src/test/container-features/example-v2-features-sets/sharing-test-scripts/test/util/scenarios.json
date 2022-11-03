@@ -1,0 +1,8 @@
+{
+	"some_scenario": {
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+		"features": {
+			"util": {}
+		}
+	}
+}
