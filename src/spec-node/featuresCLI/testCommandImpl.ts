@@ -163,16 +163,14 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, params: D
 		fail(`Could not find test.sh script at ${testScriptPath}`);
 	}
 
-	// Move the test script into the workspaceFolder
-	const testScript = await cliHost.readFile(testScriptPath);
-	const remoteTestScriptName = `${feature}-test-${Date.now()}.sh`;
-	await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
+	// Move the entire test directory for the given Feature into the workspaceFolder
+	await cpDirectoryLocal(featureTestFolder, workspaceFolder);
 
-	// Move the test library script into the workspaceFolder
-	await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
+	// Move the test library script into the workspaceFolder test scripts folder.
+	await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
 
 	// Execute Test
-	const result = await execTest(params, remoteTestScriptName, workspaceFolder);
+	const result = await execTest(params, 'test.sh', workspaceFolder);
 	testResults.push({
 		testName: feature,
 		result,
@@ -206,9 +204,8 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 		log(`Running scenario:  ${scenarioName}`);
 
 		// Check if we have a scenario test script, otherwise skip.
-		const scenarioTestScript = path.join(pathToTestDir, `${scenarioName}.sh`);
-		if (!(await cliHost.isFile(scenarioTestScript))) {
-			fail(`No scenario test script found at path '${scenarioTestScript}'.  Either add a script to the test folder, or remove from scenarios.json.`);
+		if (!(await cliHost.isFile(path.join(pathToTestDir, `${scenarioName}.sh`)))) {
+			fail(`No scenario test script found at path '${path.join(pathToTestDir, `${scenarioName}.sh`)}'.  Either add a script to the test folder, or remove from scenarios.json.`);
 		}
 
 		// Create Container
@@ -216,19 +213,16 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 		const params = await generateDockerParams(workspaceFolder, args);
 		await createContainerFromWorkingDirectory(params, workspaceFolder, args);
 
-		// Execute test script
-		// Move the test script into the workspaceFolder
-		const testScript = await cliHost.readFile(scenarioTestScript);
-		const remoteTestScriptName = `${scenarioName}-test-${Date.now()}.sh`;
-		await cliHost.writeFile(`${workspaceFolder}/${remoteTestScriptName}`, testScript);
+		// Move the entire test directory for the given Feature into the workspaceFolder
+		await cpDirectoryLocal(pathToTestDir, workspaceFolder);
 
 		// Move the test library script into the workspaceFolder
-		await cliHost.writeFile(`${workspaceFolder}/${TEST_LIBRARY_SCRIPT_NAME}`, Buffer.from(testLibraryScript));
+		await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
 
 		// Execute Test
 		testResults.push({
 			testName: scenarioName,
-			result: await execTest(params, remoteTestScriptName, workspaceFolder)
+			result: await execTest(params, `${scenarioName}.sh`, workspaceFolder)
 		});
 	}
 	return testResults;
@@ -408,13 +402,14 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	}
 }
 
-async function execTest(params: DockerResolverParameters, remoteTestScriptName: string, workspaceFolder: string) {
+async function execTest(params: DockerResolverParameters, testFileName: string, workspaceFolder: string) {
+	// Ensure all the tests scripts in the workspace folder are executable
 	let cmd = 'chmod';
-	let args = ['777', `./${remoteTestScriptName}`, `./${TEST_LIBRARY_SCRIPT_NAME}`];
+	let args = ['-R', '777', '.'];
 	await exec(params, cmd, args, workspaceFolder);
 
 
-	cmd = `./${remoteTestScriptName}`;
+	cmd = `./${testFileName}`;
 	args = [];
 	return await exec(params, cmd, args, workspaceFolder);
 }
