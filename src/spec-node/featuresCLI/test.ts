@@ -10,6 +10,7 @@ import { doFeaturesTestCommand } from './testCommandImpl';
 export function featuresTestOptions(y: Argv) {
 	return y
 		.options({
+			'target-project': { type: 'string', alias: 't', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
 			'features': { array: true, alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to run all tests.  Cannot be combined with \'--global-scenarios-only\'.' },
 			'global-scenarios-only': { type: 'boolean', default: false, description: 'Run only scenario tests under \'tests/_global\' .  Cannot be combined with \'-f\'.' },
 			'skip-scenarios': { type: 'boolean', default: false, description: 'Skip all \'scenario\' style tests.  Cannot be combined with \'--global--scenarios-only\'.' },
@@ -18,8 +19,14 @@ export function featuresTestOptions(y: Argv) {
 			'remote-user': { type: 'string', alias: 'u', default: 'root', describe: 'Remote user.  Not used for scenarios.', },  // TODO: Optionally replace 'scenario' configs with this value?
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
-			'target-dir': { type: 'string', alias: 't', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
 		})
+		// DEPRECATED: Positional arguments don't play nice with the variadic/array --features option.
+		// Pass target directory with '--target-project' instead.
+		// This will still continue to work, but any value provided by --target-project will be preferred.
+		// Omitting both will default to the current working directory.
+		.deprecateOption('target', 'Use --target-project instead')
+		.positional('target', { type: 'string', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.', })
+		// Validation
 		.check(argv => {
 			if (argv['global-scenarios-only'] && argv['features']) {
 				throw new Error('Cannot combine --global-scenarios-only and --features');
@@ -29,11 +36,7 @@ export function featuresTestOptions(y: Argv) {
 			}
 			return true;
 
-		})
-		// DEPRECATED: Positional arguments don't play nice with the variadic/array --features option.
-		// Pass target directory with '--target-dir' instead.
-		.deprecateOption('target', 'Use --target-dir instead')
-		.positional('target', { type: 'string', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.', });
+		});
 }
 
 export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
@@ -59,7 +62,7 @@ export function featuresTestHandler(args: FeaturesTestArgs) {
 async function featuresTest({
 	'base-image': baseImage,
 	'target': collectionFolder_deprecated,
-	'target-dir': collectionFolder,
+	'target-project': collectionFolder,
 	features,
 	'global-scenarios-only': globalScenariosOnly,
 	'skip-scenarios': skipScenarios,
@@ -79,8 +82,8 @@ async function featuresTest({
 
 	const logLevel = mapLogLevel(inputLogLevel);
 
-	// Prefer the new --target-dir option over the deprecated positional argument.
-	const targetDir = collectionFolder || collectionFolder_deprecated || '.';
+	// Prefer the new --target-project option over the deprecated positional argument.
+	const targetProject = collectionFolder !== '.' ? collectionFolder : collectionFolder_deprecated;
 
 	const args: FeaturesTestCommandInput = {
 		baseImage,
@@ -88,7 +91,7 @@ async function featuresTest({
 		logLevel,
 		quiet,
 		pkg,
-		collectionFolder: cliHost.path.resolve(collectionFolder),
+		collectionFolder: cliHost.path.resolve(targetProject),
 		features: features ? (Array.isArray(features) ? features as string[] : [features]) : undefined,
 		globalScenariosOnly,
 		skipScenarios,
