@@ -192,11 +192,15 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 	const scenariosBuffer = await cliHost.readFile(scenariosPath);
 	// Parse to json
 	let scenarios: Scenarios = {};
-	try {
-		scenarios = jsonc.parse(scenariosBuffer.toString());
-	} catch (e) {
-		fail(`Failed to parse scenarios.json:  ${e.message}`);
-		return []; // We never reach here, we exit via fail().
+	let errors: jsonc.ParseError[] = [];
+	scenarios = jsonc.parse(scenariosBuffer.toString(), errors);
+	if (errors.length > 0) {
+		// Print each jsonc error
+		errors.forEach(error => {
+			log(`${jsonc.printParseErrorCode(error.error)}`, { prefix: '⚠️' });
+		});
+		fail(`Failed to parse scenarios.json at ${scenariosPath}`);
+		return []; // We never reach here, we exit via fail()
 	}
 
 	// For EACH scenario: Spin up a container and exec the scenario test script
