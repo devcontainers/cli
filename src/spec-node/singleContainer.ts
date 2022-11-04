@@ -11,7 +11,7 @@ import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainer
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
@@ -40,7 +40,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
-			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures);
+			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
 			const imageMetadata = res.imageMetadata.config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 			const { containerUser } = mergedConfig;
@@ -49,7 +49,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser);
+				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser, res.labels || {});
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -110,7 +110,7 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, argImageNames?: string[]) {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[]): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string> }> {
 	const { config } = configWithRaw;
 	const imageNames = argImageNames ?? [getDefaultName(config, params)];
 	params.common.progress(ResolverProgress.BuildingImage);
@@ -118,7 +118,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false, additionalFeatures);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, configWithRaw, imageNames[0], additionalFeatures);
+	return await extendImage(params, configWithRaw, imageNames[0], additionalFeatures, canAddLabelsToContainer);
 }
 
 async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
@@ -147,11 +147,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];
-	if (extendImageBuildInfo) {
+	if (extendImageBuildInfo?.featureBuildInfo) {
 		const { featureBuildInfo } = extendImageBuildInfo;
 		// We add a '# syntax' line at the start, so strip out any existing line
 		const syntaxMatch = dockerfile.match(/^\s*#\s*syntax\s*=.*[\r\n]/g);
@@ -198,7 +198,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	baseImageNames.map(imageName => args.push('-t', imageName));
 
-	const target = extendImageBuildInfo ? extendImageBuildInfo.featureBuildInfo.overrideTarget : config.build?.target;
+	const target = extendImageBuildInfo?.featureBuildInfo ? extendImageBuildInfo.featureBuildInfo.overrideTarget : config.build?.target;
 	if (target) {
 		args.push('--target', target);
 	}
@@ -306,7 +306,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 }
 
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined, extraLabels: Record<string, string>) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -374,6 +374,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...(config.runArgs || []),
 		...featureArgs,
 		...entrypoint,
+		...Object.keys(extraLabels).map(key => ['-l', `${key}=${extraLabels[key]}`]).flat(),
 		imageName,
 		...cmd
 	];

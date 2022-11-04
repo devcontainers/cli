@@ -15,7 +15,7 @@ import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 
 // Escapes environment variable keys.
@@ -29,18 +29,19 @@ export const getSafeId = (str: string) => str
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
 
-export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
 	const { common } = params;
 	const { cliHost, output } = common;
 
 	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, common.experimentalImageMetadata);
-	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures);
-	if (!extendImageDetails || !extendImageDetails.featureBuildInfo) {
+	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
+	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return
 		return {
 			updatedImageName: [imageName],
 			imageMetadata: imageBuildInfo.metadata,
 			imageDetails: async () => imageBuildInfo.imageDetails,
+			labels: extendImageDetails?.labels,
 		};
 	}
 	const { featureBuildInfo, featuresConfig } = extendImageDetails;
@@ -94,7 +95,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	};
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean): Promise<{ featureBuildInfo?: ImageBuildOptions; featuresConfig?: FeaturesConfig; labels?: Record<string, string> } | undefined> {
 
 	// Creates the folder where the working files will be setup.
 	const dstFolder = await createFeaturesTempFolder(params.common);
@@ -105,6 +106,13 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	// Processes the user's configuration.
 	const featuresConfig = await generateFeaturesConfig(params.common, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
 	if (!featuresConfig) {
+		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
+			return {
+				labels: {
+					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined).raw),
+				}
+			};
+		}
 		return { featureBuildInfo: getImageBuildOptions(params, config, dstFolder, baseName, imageBuildInfo) };
 	}
 
@@ -186,7 +194,7 @@ export interface ImageBuildOptions {
 	buildKitContexts: Record<string, string>;
 }
 
-function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo) {
+function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
 
 	return {
 		dstFolder,

@@ -8,7 +8,7 @@ import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, mergeConfiguration } from '../spec-node/imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
@@ -66,9 +66,7 @@ describe('Image Metadata', function () {
 				assert.strictEqual(raw[2].id, './localFeatureB');
 				assert.strictEqual(raw[2].privileged, true);
 			});
-		});
 
-		buildKitOptions.forEach(({ text, options }) => {
 			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
 				if (!experimentalImageMetadataDefault) {
 					return;
@@ -92,6 +90,46 @@ describe('Image Metadata', function () {
 				assert.strictEqual(raw[1].init, true);
 				assert.strictEqual(raw[2].id, './localFeatureB');
 				assert.strictEqual(raw[2].privileged, true);
+			});
+
+			[
+				'image',
+				'compose-image-without-features-minimal',
+			].forEach(testFolderName => {
+				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
+			
+				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
+					if (!experimentalImageMetadataDefault) {
+						return;
+					}
+					const imageName = `${testFolderName}${options.useBuildKit ? '' : '-buildkit'}-test`;
+					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+					const res = await shellExec(`${cli} build --workspace-folder ${imageTestFolder} --image-name ${imageName}${buildKitOption}`);
+					const response = JSON.parse(res.stdout);
+					assert.strictEqual(response.outcome, 'success');
+					const details = JSON.parse((await shellExec(`docker inspect ${imageName}`)).stdout)[0] as ImageDetails;
+					const baseDetails = JSON.parse((await shellExec(`docker inspect ubuntu:latest`)).stdout)[0] as ImageDetails;
+					assert.notStrictEqual(details.Id, baseDetails.Id);
+					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					assert.strictEqual(metadata.length, 1);
+					assert.ok(metadata[0].remoteEnv);
+				});
+	
+				it(`up should avoid new image when possible [${testFolderName}, ${text}]`, async () => {
+					if (!experimentalImageMetadataDefault) {
+						return;
+					}
+					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --remove-existing-container${buildKitOption}`);
+					const response = JSON.parse(res.stdout);
+					assert.strictEqual(response.outcome, 'success');
+					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
+					assert.strictEqual(details.Config.Image, 'ubuntu:latest');
+					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					assert.strictEqual(metadata.length, 1);
+					assert.ok(metadata[0].remoteEnv);
+					await shellExec(`docker rm -f ${response.containerId}`);
+				});
 			});
 		});
 	});

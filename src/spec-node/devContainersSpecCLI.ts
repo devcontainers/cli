@@ -396,7 +396,7 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, imageNames);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames);
 
 			if (imageNames) {
 				if (!buildxPush && !buildxOutput) {
@@ -437,7 +437,7 @@ async function doBuild({
 
 			const versionPrefix = await readVersionPrefix(cliHost, composeFiles);
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, false, addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -451,7 +451,7 @@ async function doBuild({
 		} else {
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
 
 			if (buildxPlatform || buildxPush) {
 				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });

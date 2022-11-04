@@ -1,5 +1,8 @@
 {
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "app",
-	"workspaceFolder": "/workspace"
+	"workspaceFolder": "/workspace",
+	"remoteEnv": {
+		"TEST": "ENV"
+	}
 }

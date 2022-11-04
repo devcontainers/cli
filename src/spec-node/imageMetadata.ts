@@ -367,7 +367,7 @@ function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails,
 	};
 }
 
-function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, experimentalImageMetadata: boolean, output: Log) {
+export function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, experimentalImageMetadata: boolean, output: Log) {
 	if (!experimentalImageMetadata) {
 		return [];
 	}
