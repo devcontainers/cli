@@ -40,7 +40,7 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 
 	process.stdout.write(`
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-|    dev container Features   |   
+|    Dev Container Features   |   
 │           v${pkg.version}           │
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘\n\n`);
 
