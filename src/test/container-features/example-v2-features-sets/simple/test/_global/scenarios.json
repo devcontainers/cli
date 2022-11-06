@@ -16,7 +16,7 @@
 			"hello": {
 				"greeting": "How ya doing"
 			},
-			"ghcr.io/devcontainers/feature-template/color:1": {
+			"ghcr.io/devcontainers/feature-starter/color:1": {
 				"favorite": "Silver"
 			}
 		}

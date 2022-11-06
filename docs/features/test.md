@@ -8,7 +8,7 @@ For the test to pass, the container must (1) build and start successfully, and (
 
 Additonally, 'scenarios' can be defined for each Feature to test more complicated cases.  For example, you can use a scenario to test Feature options or >1 Feature in a container.  You can find more information about [writing scenario tests below](#scenarios).
 
-The source code of the sub-command is [here](../../src/spec-node/featuresCLI/test.ts). An example of the command being used in CI can be [found in the `devcontainers/features-template` repo](https://github.com/devcontainers/feature-template/blob/main/.github/workflows/test.yaml) and the [`devcontainers/features` repo](https://github.com/devcontainers/features).
+The source code of the sub-command is [here](../../src/spec-node/featuresCLI/test.ts). An example of the command being used in CI can be [found in the `devcontainers/feature-starter` repo](https://github.com/devcontainers/feature-starter/blob/main/.github/workflows/test.yaml) and the [`devcontainers/features` repo](https://github.com/devcontainers/features).
 
 For more information on the `test` command, run `devcontainer features test --help`.
 
