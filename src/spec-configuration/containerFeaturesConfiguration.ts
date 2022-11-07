@@ -71,10 +71,16 @@ export interface Mount {
 	external?: boolean;
 }
 
+const normalizedMountKeys: Record<string, string> = {
+	src: 'source',
+	destination: 'target',
+	dst: 'target',
+};
+
 export function parseMount(str: string): Mount {
 	return str.split(',')
 		.map(s => s.split('='))
-		.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}) as Mount;
+		.reduce((acc, [key, value]) => ({ ...acc, [(normalizedMountKeys[key] || key)]: value }), {}) as Mount;
 }
 
 export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
@@ -205,11 +211,16 @@ export function getContainerFeaturesBaseDockerFile() {
 
 #{nonBuildKitFeatureContentFallback}
 
+FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
+USER root
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
+RUN chmod -R 0700 /tmp/build-features
+
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
+COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
 
 #{featureLayer}
 
@@ -258,6 +269,7 @@ echo '${optionsIndented}'
 echo ===========================================================================
 
 set -a
+. ../devcontainer-features.builtin.env
 . ./devcontainer-features.env
 set +a
 
@@ -274,8 +286,12 @@ function escapeQuotesForShell(input: string) {
 	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
 }
 
-export function getFeatureLayers(featuresConfig: FeaturesConfig) {
-	let result = '';
+export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string) {
+	let result = `RUN \\
+echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+
+`;
 
 	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
@@ -493,7 +509,7 @@ async function prepareOCICache(dstFolder: string) {
 }
 
 function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
-	if (!config.features && !additionalFeatures) {
+	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures).length) {
 		return undefined;
 	}
 

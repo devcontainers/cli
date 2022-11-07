@@ -4,7 +4,7 @@
 
 import * as assert from 'assert';
 
-import { containerSubstitute, substitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { URI } from 'vscode-uri';
 
 describe('Variable substitution', function () {
@@ -140,5 +140,31 @@ describe('Variable substitution', function () {
 		};
 		const result = containerSubstitute('linux', URI.file('/foo/bar/baz.json'), {}, raw);
 		assert.strictEqual(result.foo, 'bardefaultbar');
+	});
+
+	it(`replaces devcontainerId`, async () => {
+		const raw = {
+			test: '${devcontainerId}'
+		};
+		const result = beforeContainerSubstitute({ a: 'b' }, raw);
+		assert.ok(/^[0-9a-v]{52}$/.test(result.test), `Got: ${result.test}`);
+	});
+
+	it(`replaces devcontainerId and additional id labels matter`, async () => {
+		const raw = {
+			test: '${devcontainerId}'
+		};
+		const result1 = beforeContainerSubstitute({ a: 'b' }, raw);
+		const result2 = beforeContainerSubstitute({ a: 'b', c: 'd' }, raw);
+		assert.notStrictEqual(result1.test, result2.test);
+	});
+
+	it(`replaces devcontainerId and label order does not matter`, async () => {
+		const raw = {
+			test: '${devcontainerId}'
+		};
+		const result1 = beforeContainerSubstitute({ c: 'd', a: 'b' }, raw);
+		const result2 = beforeContainerSubstitute({ a: 'b', c: 'd' }, raw);
+		assert.strictEqual(result1.test, result2.test);
 	});
 });

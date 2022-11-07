@@ -1,0 +1,20 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": { 
+			"VARIANT": "16-bullseye"
+		}
+	},
+	"postCreateCommand": {
+		"post-create-command-1": "touch /tmp/postCreateCommand1.testmarker && echo post create command 1",
+		"post-create-command-2": "touch /tmp/postCreateCommand2.testmarker && echo post create command 2"
+	},
+	"postStartCommand": {
+		"post-start-command-1": "touch /tmp/postStartCommand1.testmarker && echo post start command 1",
+		"post-start-command-2": "touch /tmp/postStartCommand2.testmarker && echo post start command 2"
+	},
+	"postAttachCommand": {
+		"post-attach-command-1": "touch /tmp/postAttachCommand1.testmarker && echo post attach command 1",
+		"post-attach-command-2": "touch /tmp/postAttachCommand2.testmarker && echo post attach command 2"
+	},
+}

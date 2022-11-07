@@ -120,6 +120,15 @@ export interface SubstitutedConfig<T> {
 
 export type SubstituteConfig = <U extends DevContainerConfig | ImageMetadataEntry>(value: U) => U;
 
+export function addSubstitution<T>(config: SubstitutedConfig<T>, substitute: SubstituteConfig): SubstitutedConfig<T> {
+	const substitute0 = config.substitute;
+	return {
+		config: substitute(config.config),
+		raw: config.raw,
+		substitute: value => substitute(substitute0(value)),
+	};
+}
+
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
 	const eventsProcess = await getEvents(params, { event: ['start'] });
 	return {
@@ -351,15 +360,15 @@ export async function createContainerProperties(params: DockerResolverParameters
 	});
 }
 
-export function envListToObj(list: string[] | null) {
+export function envListToObj(list: string[] | null | undefined) {
 	// Handle Env is null (https://github.com/microsoft/vscode-remote-release/issues/2058).
 	return (list || []).reduce((obj, pair) => {
 		const i = pair.indexOf('=');
 		if (i !== -1) {
-			obj[pair.substr(0, i)] = pair.substr(i + 1);
+			obj[pair.substring(0, i)] = pair.substring(i + 1);
 		}
 		return obj;
-	}, {} as NodeJS.ProcessEnv);
+	}, {} as Record<string, string>);
 }
 
 export async function runUserCommand(params: DockerResolverParameters, command: string | string[] | undefined, onDidInput?: Event<string>) {

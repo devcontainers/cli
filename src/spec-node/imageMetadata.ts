@@ -5,7 +5,7 @@
 
 import { ContainerError } from '../spec-common/errors';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -37,6 +37,12 @@ const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry
 	'shutdownAction',
 	'updateRemoteUserUID',
 	'hostRequirements',
+];
+
+const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
+	'remoteUser',
+	'userEnvProbe',
+	'remoteEnv',
 ];
 
 const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
@@ -125,7 +131,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		capAdd: unionOrUndefined(imageMetadata.map(entry => entry.capAdd)),
 		securityOpt: unionOrUndefined(imageMetadata.map(entry => entry.securityOpt)),
 		entrypoints: collectOrUndefined(imageMetadata, 'entrypoint'),
-		mounts: concatOrUndefined(imageMetadata.map(entry => entry.mounts)),
+		mounts: mergeMounts(imageMetadata),
 		customizations: Object.keys(customizations).length ? customizations : undefined,
 		onCreateCommands: collectOrUndefined(imageMetadata, 'onCreateCommand'),
 		updateContentCommands: collectOrUndefined(imageMetadata, 'updateContentCommand'),
@@ -143,7 +149,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		otherPortsAttributes: reversed.find(entry => entry.otherPortsAttributes)?.otherPortsAttributes,
 		forwardPorts: mergeForwardPorts(imageMetadata),
 		shutdownAction: reversed.find(entry => entry.shutdownAction)?.shutdownAction,
-		updateRemoteUserUID: reversed.find(entry => entry.updateRemoteUserUID)?.updateRemoteUserUID,
+		updateRemoteUserUID: reversed.find(entry => typeof entry.updateRemoteUserUID === 'boolean')?.updateRemoteUserUID,
 		hostRequirements: mergeHostRequirements(imageMetadata),
 	};
 	return merged;
@@ -211,9 +217,20 @@ function parseBytes(str: string) {
 	return 0;
 }
 
-function concatOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
-	const values = ([] as T[]).concat(...entries.filter(entry => !!entry) as T[][]);
-	return values.length ? values : undefined;
+function mergeMounts(imageMetadata: ImageMetadataEntry[]): (Mount | string)[] | undefined {
+	const seen = new Set<string>();
+	const mounts = imageMetadata.map(entry => entry.mounts)
+		.filter(Boolean)
+		.flat()
+		.map(mount => ({
+			obj: typeof mount === 'string' ? parseMount(mount) : mount!,
+			orig: mount!,
+		}))
+		.reverse()
+		.filter(mount => !seen.has(mount.obj.target) && seen.add(mount.obj.target))
+		.reverse()
+		.map(mount => mount.orig);
+	return mounts.length ? mounts : undefined;
 }
 
 function unionOrUndefined<T>(entries: (T[] | undefined)[]): T[] | undefined {
@@ -227,11 +244,14 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
+	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
+
 	const raw = featuresConfig?.featureSets.map(featureSet => featureSet.features.map(feature => ({
 		id: featureSet.sourceInformation.userFeatureId,
-		...pick(feature, pickFeatureProperties),
+		...pick(feature, effectivePickFeatureProperties),
 	}))).flat() || [];
+
 	return {
 		config: [
 			...baseImageMetadata.config,
@@ -327,9 +347,9 @@ export async function getImageBuildInfoFromDockerfile(params: DockerResolverPara
 
 export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
-	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, targetStage);
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
+	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, experimentalImageMetadata, output) : { config: [], raw: [], substitute };
 	return {
@@ -349,7 +369,17 @@ export function getImageMetadataFromContainer(containerDetails: ContainerDetails
 	const hasIdLabels = Object.keys(envListToObj(idLabels))
 		.every(label => (containerDetails.Config.Labels || {})[label]);
 	if (hasIdLabels) {
-		return metadata;
+		return {
+			config: [
+				...metadata.config,
+				pick(devContainerConfig.config, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			raw: [
+				...metadata.raw,
+				pick(devContainerConfig.raw, pickUpdateableConfigProperties),
+			].filter(config => Object.keys(config).length),
+			substitute: metadata.substitute,
+		};
 	}
 	return getDevcontainerMetadata(metadata, devContainerConfig, featuresConfig);
 }
@@ -389,11 +419,11 @@ function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails
 	return [];
 }
 
-export function getDevcontainerMetadataLabel(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, experimentalImageMetadata: boolean) {
+export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedConfig<ImageMetadataEntry[]>, experimentalImageMetadata: boolean) {
 	if (!experimentalImageMetadata) {
 		return '';
 	}
-	const metadata = getDevcontainerMetadata(baseImageMetadata, devContainerConfig, featuresConfig).raw;
+	const metadata = devContainerMetadata.raw;
 	if (!metadata.length) {
 		return '';
 	}

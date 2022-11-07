@@ -8,7 +8,8 @@ if [ "$1" = "true" ]; then
 fi
 
 # Save off effective config for use in the container
-devcontainer read-configuration --include-features-configuration --log-format json --workspace-folder ../workspace 2>/dev/null > server/configuration.json
+devcontainer read-configuration --include-merged-configuration --log-format json --workspace-folder ../workspace 2>/dev/null > server/configuration.json
 
 devcontainer up $remove_flag --mount "type=bind,source=$(pwd)/server,target=/server" --workspace-folder ../workspace
+
 devcontainer exec --workspace-folder ../workspace /server/init-vscode-server.sh

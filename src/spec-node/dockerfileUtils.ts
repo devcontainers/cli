@@ -11,18 +11,18 @@ export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, Remo
 
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
-const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
+const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 
-const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>\S+)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
-const userStatements = /^\s*USER\s+(?<user>\S+)/gm;
-const argStatementsWithValue = /^\s*ARG\s+(?<name>\S+)=("(?<value1>\S+)"|(?<value2>\S+))/gm;
+const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
+const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)(=("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
+const variables = /\$\{?(?<variable>[a-zA-Z0-9_]+)\}?/g;
 
 export interface Dockerfile {
 	preamble: {
 		version: string | undefined;
 		directives: Record<string, string>;
-		args: Record<string, string>;
+		instructions: Instruction[];
 	};
 	stages: Stage[];
 	stagesByLabel: Record<string, Stage>;
@@ -30,8 +30,7 @@ export interface Dockerfile {
 
 export interface Stage {
 	from: From;
-	args: Record<string, string>;
-	users: string[];
+	instructions: Instruction[];
 }
 
 export interface From {
@@ -40,15 +39,20 @@ export interface From {
 	label?: string;
 }
 
+export interface Instruction {
+	instruction: string;
+	name: string;
+	value: string | undefined;
+}
+
 export function extractDockerfile(dockerfile: string): Dockerfile {
-	const fromStatementsAhead = /(?=^\s*FROM)/gm;
+	const fromStatementsAhead = /(?=^[\t ]*FROM)/gm;
 	const parts = dockerfile.split(fromStatementsAhead);
 	const preambleStr = fromStatementsAhead.test(parts[0] || '') ? '' : parts.shift()!;
 	const stageStrs = parts;
 	const stages = stageStrs.map(stageStr => ({
 		from: fromStatement.exec(stageStr)?.groups as unknown as From || { image: 'unknown' },
-		args: extractArgs(stageStr),
-		users: [...stageStr.matchAll(userStatements)].map(m => m.groups!.user),
+		instructions: extractInstructions(stageStr),
 	}));
 	const directives = extractDirectives(preambleStr);
 	const versionMatch = directives.syntax && /^(?:docker.io\/)?docker\/dockerfile(?::(?<version>\S+))?/.exec(directives.syntax) || undefined;
@@ -57,7 +61,7 @@ export function extractDockerfile(dockerfile: string): Dockerfile {
 		preamble: {
 			version,
 			directives,
-			args: extractArgs(preambleStr),
+			instructions: extractInstructions(preambleStr),
 		},
 		stages,
 		stagesByLabel: stages.reduce((obj, stage) => {
@@ -69,7 +73,7 @@ export function extractDockerfile(dockerfile: string): Dockerfile {
 	} as Dockerfile;
 }
 
-export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined) {
+export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, target: string | undefined) {
 	let stage: Stage | undefined = target ? dockerfile.stagesByLabel[target] : dockerfile.stages[dockerfile.stages.length - 1];
 	const seen = new Set<Stage>();
 	while (stage) {
@@ -78,10 +82,11 @@ export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<stri
 		}
 		seen.add(stage);
 
-		if (stage.users.length) {
-			return replaceArgs(stage.users[stage.users.length - 1], { ...stage.args, ...buildArgs });
+		const i = findLastIndex(stage.instructions, i => i.instruction === 'USER');
+		if (i !== -1) {
+			return replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.instructions[i].name, stage, i) || undefined;
 		}
-		const image = replaceArgs(stage.from.image, { ...dockerfile.preamble.args, ...buildArgs });
+		const image = replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		stage = dockerfile.stagesByLabel[image];
 	}
 	return undefined;
@@ -96,7 +101,7 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 		}
 		seen.add(stage);
 
-		const image = replaceArgs(stage.from.image, { ...dockerfile.preamble.args, ...buildArgs });
+		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		const nextStage = dockerfile.stagesByLabel[image];
 		if (!nextStage) {
 			return image;
@@ -121,19 +126,74 @@ function extractDirectives(preambleStr: string) {
 	return map;
 }
 
-function extractArgs(stageStr: string) {
-	return [...stageStr.matchAll(argStatementsWithValue)]
-		.reduce((obj, match) => {
+function extractInstructions(stageStr: string) {
+	return [...stageStr.matchAll(argEnvUserStatements)]
+		.map(match => {
 			const groups = match.groups!;
-			obj[groups.name] = groups.value1 || groups.value2;
-			return obj;
-		}, {} as Record<string, string>);
+			return {
+				instruction: groups.instruction,
+				name: groups.name,
+				value: groups.value1 || groups.value2,
+			};
+		});
 }
 
-function replaceArgs(str: string, args: Record<string, string>) {
-	return Object.keys(args)
-		.sort((a, b) => b.length - a.length) // Sort by length to replace longest first.
-		.reduce((current, arg) => current.replace(new RegExp(`\\$${arg}|\\$\\{${arg}\\}`, 'g'), args[arg]), str);
+function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
+	return [...str.matchAll(variables)]
+		.map(match => {
+			const variable = match.groups!.variable;
+			const value = findValue(dockerfile, buildArgs, baseImageEnv, variable, stage, beforeInstructionIndex) || '';
+			return {
+				begin: match.index!,
+				end: match.index! + match[0].length,
+				value,
+			};
+		}).reverse()
+		.reduce((str, { begin, end, value }) => str.substring(0, begin) + value + str.substring(end), str);
+}
+
+function findValue(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, variable: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number): string | undefined {
+	let considerArg = true;
+	const seen = new Set<typeof stage>();
+	while (true) {
+		if (seen.has(stage)) {
+			return undefined;
+		}
+		seen.add(stage);
+
+		const i = findLastIndex(stage.instructions, i => i.name === variable && (i.instruction === 'ENV' || (considerArg && typeof (buildArgs[i.name] ?? i.value) === 'string')), beforeInstructionIndex - 1);
+		if (i !== -1) {
+			const instruction = stage.instructions[i];
+			if (instruction.instruction === 'ENV') {
+				return replaceVariables(dockerfile, buildArgs, baseImageEnv, instruction.value!, stage, i);
+			}
+			if (instruction.instruction === 'ARG') {
+				return replaceVariables(dockerfile, buildArgs, baseImageEnv, buildArgs[instruction.name] ?? instruction.value, stage, i);
+			}
+		}
+
+		if (!stage.from) {
+			const value = baseImageEnv[variable];
+			if (typeof value === 'string') {
+				return value;
+			}
+			return undefined;
+		}
+
+		const image = replaceVariables(dockerfile, buildArgs, baseImageEnv, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		stage = dockerfile.stagesByLabel[image] || dockerfile.preamble;
+		beforeInstructionIndex = stage.instructions.length;
+		considerArg = stage === dockerfile.preamble;
+	}
+}
+
+function findLastIndex<T>(array: T[], predicate: (value: T, index: number, obj: T[]) => boolean, position = array.length - 1): number {
+	for (let i = position; i >= 0; i--) {
+		if (predicate(array[i], i, array)) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 // not expected to be called externally (exposed for testing)

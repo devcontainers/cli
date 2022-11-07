@@ -2,16 +2,66 @@ import { assert } from 'chai';
 import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
-import { shellExec } from '../testUtils';
+import { ExecResult, shellExec } from '../testUtils';
 import { DevContainerCollectionMetadata, packageTemplates } from '../../spec-node/templatesCLI/packageImpl';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
 import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 
-export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+export const output = makeLog(createPlainLog(text => process.stderr.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
+
+describe('tests apply command', async function () {
+	this.timeout('120s');
+
+	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
+	const cli = `npx --prefix ${tmp} devcontainer`;
+
+	before('Install', async () => {
+		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await shellExec(`rm -rf ${tmp}/output`);
+		await shellExec(`mkdir -p ${tmp}`);
+		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+	});
+
+	it('templates apply subcommand', async function () {
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} templates apply --workspace-folder ${path.join(tmp, 'template-output')} \
+			--template-id     ghcr.io/devcontainers/templates/docker-from-docker:latest \
+			--template-args   '{ "installZsh": "false", "upgradePackages": "true", "dockerVersion": "20.10", "moby": "true", "enableNonRootDocker": "true" }' \
+			--features        '[{ "id": "ghcr.io/devcontainers/features/azure-cli:1", "options": { "version" : "1" } }]' \
+			--log-level trace`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+		assert.strictEqual(result.stdout.trim(), '{"files":["./.devcontainer/devcontainer.json"]}');
+
+		const file = (await readLocalFile(path.join(tmp, 'template-output', '.devcontainer', 'devcontainer.json'))).toString();
+
+		assert.match(file, /"name": "Docker from Docker"/);
+		assert.match(file, /"installZsh": "false"/);
+		assert.match(file, /"upgradePackages": "true"/);
+		assert.match(file, /"version": "20.10"/);
+		assert.match(file, /"moby": "true"/);
+		assert.match(file, /"enableNonRootDocker": "true"/);
+
+		// Assert that the Features included in the template were not removed.
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/common-utils:1": {\n/);
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/docker-from-docker:1": {\n/);
+
+		// Assert that the Feature included in the command was added.
+		assert.match(file, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {\n/);
+	});
+});
 
 describe('tests packageTemplates()', async function () {
 	this.timeout('120s');
@@ -73,16 +123,22 @@ describe('tests packageTemplates()', async function () {
 		assert.isNotEmpty(alpineProperties);
 		assert.equal(alpineProperties?.type, 'image');
 		assert.equal(alpineProperties?.fileCount, 2);
+		assert.equal(alpineProperties?.featureIds?.length, 0);
 
 		const cppProperties: Template | undefined = json?.templates.find(t => t.id === 'cpp');
 		assert.isNotEmpty(cppProperties);
 		assert.equal(cppProperties?.type, 'dockerfile');
 		assert.equal(cppProperties?.fileCount, 3);
+		assert.equal(cppProperties?.featureIds?.length, 1);
+		assert.equal(cppProperties?.featureIds?.[0], 'ghcr.io/devcontainers/features/common-utils');
 
 		const nodeProperties: Template | undefined = json?.templates.find(t => t.id === 'node-mongo');
 		assert.isNotEmpty(nodeProperties);
 		assert.equal(nodeProperties?.type, 'dockerCompose');
 		assert.equal(nodeProperties?.fileCount, 3);
+		assert.equal(nodeProperties?.featureIds?.length, 2);
+		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/common-utils'));
+		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/git'));
 	});
 
 	it('tests packaging for single template', async function () {

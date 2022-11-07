@@ -9,7 +9,7 @@ import yargs, { Argv } from 'yargs';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig } from './utils';
+import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -30,10 +30,11 @@ import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
-import { containerSubstitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
+import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -68,6 +69,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
+		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
 		y.command('publish <target>', 'Package and publish templates', templatesPublishOptions, templatesPublishHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
@@ -212,7 +214,7 @@ async function provision({
 			};
 		}) : [],
 		updateRemoteUserUIDDefault,
-		remoteEnv: keyValuesToRecord(addRemoteEnvs),
+		remoteEnv: envListToObj(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
@@ -222,6 +224,7 @@ async function provision({
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
+		skipPersistingCustomizationsFromFeatures: false,
 	};
 
 	const result = await doProvision(options);
@@ -285,6 +288,7 @@ function buildOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 	});
 }
 
@@ -319,6 +323,7 @@ async function doBuild({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -363,6 +368,7 @@ async function doBuild({
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -595,7 +601,7 @@ async function doRunUserCommands({
 			persistedFolder,
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
-			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			remoteEnv: envListToObj(addRemoteEnvs),
 			additionalCacheFroms: [],
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
@@ -604,6 +610,7 @@ async function doRunUserCommands({
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: false,
 		}, disposables);
 
 		const { common } = params;
@@ -617,12 +624,16 @@ async function doRunUserCommands({
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const { config, workspaceConfig } = configs;
+		const { config: config0, workspaceConfig } = configs;
 
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
+
+		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(envListToObj(idLabels), config));
+		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
+
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
@@ -757,13 +768,8 @@ async function readConfiguration({
 		};
 		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
 		if (container) {
-			const substitute1 = configuration.substitute;
-			const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
-			configuration = {
-				config: substitute2(configuration.config),
-				raw: configuration.raw,
-				substitute: config => substitute2(substitute1(config)),
-			};
+			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
+			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
 		}
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
@@ -925,7 +931,7 @@ export async function doExec({
 			persistedFolder,
 			additionalMounts: [],
 			updateRemoteUserUIDDefault: 'never',
-			remoteEnv: keyValuesToRecord(addRemoteEnvs),
+			remoteEnv: envListToObj(addRemoteEnvs),
 			additionalCacheFroms: [],
 			useBuildKit: 'auto',
 			omitLoggerHeader: true,
@@ -935,6 +941,7 @@ export async function doExec({
 			buildxOutput: undefined,
 			skipPostAttach: false,
 			experimentalImageMetadata,
+			skipPersistingCustomizationsFromFeatures: false,
 		}, disposables);
 
 		const { common } = params;
@@ -985,16 +992,6 @@ export async function doExec({
 			dispose,
 		};
 	}
-}
-
-function keyValuesToRecord(keyValues: string[]): Record<string, string> {
-	return keyValues.reduce((envs, env) => {
-		const i = env.indexOf('=');
-		if (i !== -1) {
-			envs[env.substring(0, i)] = env.substring(i + 1);
-		}
-		return envs;
-	}, {} as Record<string, string>);
 }
 
 function getDefaultIdLabels(workspaceFolder: string) {

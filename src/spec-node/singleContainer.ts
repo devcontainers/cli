@@ -147,7 +147,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, additionalFeatures);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];

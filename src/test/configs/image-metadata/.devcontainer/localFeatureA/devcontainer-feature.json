@@ -1,5 +1,13 @@
 {
     "id": "localFeatureA",
     "version": "1.0.0",
-    "init": true
+    "init": true,
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "extensionA",
+                "extensionB"
+            ]
+        }
+    }
 }

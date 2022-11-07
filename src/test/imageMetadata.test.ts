@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { HostGPURequirements } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
@@ -61,6 +61,35 @@ describe('Image Metadata', function () {
 				assert.strictEqual(raw.length, 3);
 				assert.strictEqual(raw[0].id, 'baseFeature');
 				assert.strictEqual(raw[1].id, './localFeatureA');
+				assert.ok(raw[1].customizations);
+				assert.strictEqual(raw[1].customizations.vscode.extensions.length, 2);
+				assert.strictEqual(raw[1].init, true);
+				assert.strictEqual(raw[2].id, './localFeatureB');
+				assert.strictEqual(raw[2].privileged, true);
+			});
+		});
+
+		buildKitOptions.forEach(({ text, options }) => {
+			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
+				if (!experimentalImageMetadataDefault) {
+					return;
+				}
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				const res = await shellExec(`${cli} build --skip-persisting-customizations-from-features --workspace-folder ${testFolder} --image-name skip-persisting-test${buildKitOption}`);
+				const response = JSON.parse(res.stdout);
+				assert.strictEqual(response.outcome, 'success');
+				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
+				assert.strictEqual(metadata.length, 3);
+				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
+				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
+				assert.strictEqual(metadata[1].init, true);
+				assert.strictEqual(metadata[2].id, './localFeatureB-substituted');
+				assert.strictEqual(metadata[2].privileged, true);
+				assert.strictEqual(raw.length, 3);
+				assert.strictEqual(raw[0].id, 'baseFeature');
+				assert.strictEqual(raw[1].id, './localFeatureA');
+				assert.ok(!raw[1].customizations); // Customizations have not been persisted due to the flag
 				assert.strictEqual(raw[1].init, true);
 				assert.strictEqual(raw[2].id, './localFeatureB');
 				assert.strictEqual(raw[2].privileged, true);
@@ -130,12 +159,14 @@ describe('Image Metadata', function () {
 				image: 'image',
 				remoteUser: 'testConfigUser',
 			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
-			assert.strictEqual(metadata.length, 1);
+			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
-			assert.strictEqual(raw.length, 1);
+			assert.strictEqual(metadata[1].remoteUser, 'testConfigUser');
+			assert.strictEqual(raw.length, 2);
 			assert.strictEqual(raw[0].id, 'testId');
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
+			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
 	
 		it('should add config for existing container without id labels', () => {
@@ -165,6 +196,47 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
+	
+		it('should update config for existing container', () => {
+			const { config: metadata, raw } = getImageMetadataFromContainer({
+				...testContainerDetails,
+				Config: {
+					...testContainerDetails.Config,
+					Labels: {
+						...testContainerDetails.Config.Labels,
+						testIdLabel: 'testIdLabelValue',
+						[imageMetadataLabel]: JSON.stringify({
+							remoteEnv: {
+								FOO: 'bar',
+							},
+						}),
+					},
+				},
+			}, configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteEnv: {
+					FOO: 'baz',
+					BAR: 'foo',
+				},
+			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			assert.strictEqual(metadata.length, 2);
+			assert.deepStrictEqual(metadata[0].remoteEnv, {
+				FOO: 'bar',
+			});
+			assert.deepStrictEqual(metadata[1].remoteEnv, {
+				FOO: 'baz',
+				BAR: 'foo',
+			});
+			assert.strictEqual(raw.length, 2);
+			assert.deepStrictEqual(raw[0].remoteEnv, {
+				FOO: 'bar',
+			});
+			assert.deepStrictEqual(raw[1].remoteEnv, {
+				FOO: 'baz',
+				BAR: 'foo',
+			});
+		});
 
 		it('should fall back to config for existing container without metadata label', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer(testContainerDetails, configWithRaw({
@@ -181,7 +253,7 @@ describe('Image Metadata', function () {
 		});
 
 		it('should create label for Dockerfile', () => {
-			const label = getDevcontainerMetadataLabel(configWithRaw([
+			const label = getDevcontainerMetadataLabel(getDevcontainerMetadata(configWithRaw([
 				{
 					id: 'baseFeature',
 				}
@@ -195,7 +267,7 @@ describe('Image Metadata', function () {
 					value: 'someValue',
 					included: true,
 				}
-			]), true);
+			])), true);
 			const expected = [
 				{
 					id: 'baseFeature',
@@ -244,6 +316,46 @@ describe('Image Metadata', function () {
 			assert.strictEqual(merged.remoteEnv?.ENV2, 'feature2');
 			assert.strictEqual(merged.remoteEnv?.ENV3, 'devcontainer.json');
 			assert.strictEqual(merged.remoteEnv?.ENV4, 'feature1');
+		});
+
+		it('should deduplicate mounts', () => {
+			const merged = mergeConfiguration({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+			}, [
+				{
+					mounts: [
+						'source=source1,dst=target1,type=volume',
+						'source=source2,target=target2,type=volume',
+						'source=source3,destination=target3,type=volume',
+					],
+				},
+				{
+					mounts: [
+						{
+							source: 'source4',
+							target: 'target1',
+							type: 'volume'
+						},
+					],
+				},
+				{
+					mounts: [
+						{
+							source: 'source5',
+							target: 'target3',
+							type: 'volume'
+						},
+					],
+				},
+			]);
+			assert.strictEqual(merged.mounts?.length, 3);
+			assert.strictEqual(typeof merged.mounts?.[0], 'string');
+			assert.strictEqual(merged.mounts?.[0], 'source=source2,target=target2,type=volume');
+			assert.strictEqual(typeof merged.mounts?.[1], 'object');
+			assert.strictEqual((merged.mounts?.[1] as Mount).source, 'source4');
+			assert.strictEqual(typeof merged.mounts?.[2], 'object');
+			assert.strictEqual((merged.mounts?.[2] as Mount).source, 'source5');
 		});
 	});
 

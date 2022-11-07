@@ -36,27 +36,23 @@ if ! pidof code-server > /dev/null 2>&1; then
 
     # Get list of extensions - including legacy spots for backwards compatibility.
     extensions=( $(jq -r -M '[
-        .configuration.customizations?.vscode?.extensions[]?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.extensions[]?,
-        .configuration.extensions[]?,
-        .featuresConfiguration?.featureSets[]?.features[]?.extensions[]?
+        .mergedConfiguration.customizations?.vscode[]?.extensions[]?,
+        .mergedConfiguration.extensions[]?
         ] | .[]
     ' /server/configuration.json ) )
     # Install extensions
     if [ "${extensions[0]}" != "" ] && [ "${extensions[0]}" != "null" ] ; then  
         set +e
         for extension in "${extensions[@]}"; do
-            "$INSTALL_LOCATION/code-server" serve-local --accept-server-license-terms --install-extension ${extension}
+            "$INSTALL_LOCATION/code-server" serve-local --accept-server-license-terms --install-extension "${extension}"
         done
         set -e
     fi
 
     # Get VS Code machine settings - including legacy spots for backwards compatibility.
     settings="$(jq -M '[
-        .configuration.customizations?.vscode?.settings?,
-        .featuresConfiguration?.featureSets[]?.features[]?.customizations?.vscode?.settings?,
-        .configuration.settings?,
-        .featuresConfiguration?.featureSets[]?.features[]?.settings?
+        .mergedConfiguration.customizations?.vscode[]?.settings?,
+        .mergedConfiguration.settings?
         ] | add
     ' /server/configuration.json)"
     # Place settings in right spot
