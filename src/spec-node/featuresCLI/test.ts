@@ -10,7 +10,7 @@ import { doFeaturesTestCommand } from './testCommandImpl';
 export function featuresTestOptions(y: Argv) {
 	return y
 		.options({
-			'target-project': { type: 'string', alias: 't', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.' },
+			'project-folder': { type: 'string', alias: 'p', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders. This is likely the git root of the project.' },
 			'features': { array: true, alias: 'f', describe: 'Feature(s) to test as space-separated parameters. Omit to run all tests.  Cannot be combined with \'--global-scenarios-only\'.' },
 			'global-scenarios-only': { type: 'boolean', default: false, description: 'Run only scenario tests under \'tests/_global\' .  Cannot be combined with \'-f\'.' },
 			'skip-scenarios': { type: 'boolean', default: false, description: 'Skip all \'scenario\' style tests.  Cannot be combined with \'--global--scenarios-only\'.' },
@@ -21,10 +21,10 @@ export function featuresTestOptions(y: Argv) {
 			'quiet': { type: 'boolean', alias: 'q', default: false, description: 'Quiets output' },
 		})
 		// DEPRECATED: Positional arguments don't play nice with the variadic/array --features option.
-		// Pass target directory with '--target-project' instead.
-		// This will still continue to work, but any value provided by --target-project will be preferred.
+		// Pass target directory with '--project-folder' instead.
+		// This will still continue to work, but any value provided by --project-folder will be preferred.
 		// Omitting both will default to the current working directory.
-		.deprecateOption('target', 'Use --target-project instead')
+		.deprecateOption('target', 'Use --project-folder instead')
 		.positional('target', { type: 'string', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders.', })
 		// Validation
 		.check(argv => {
@@ -62,7 +62,7 @@ export function featuresTestHandler(args: FeaturesTestArgs) {
 async function featuresTest({
 	'base-image': baseImage,
 	'target': collectionFolder_deprecated,
-	'target-project': collectionFolder,
+	'project-folder': collectionFolder,
 	features,
 	'global-scenarios-only': globalScenariosOnly,
 	'skip-scenarios': skipScenarios,
@@ -82,7 +82,7 @@ async function featuresTest({
 
 	const logLevel = mapLogLevel(inputLogLevel);
 
-	// Prefer the new --target-project option over the deprecated positional argument.
+	// Prefer the new --project-folder option over the deprecated positional argument.
 	const targetProject = collectionFolder !== '.' ? collectionFolder : collectionFolder_deprecated;
 
 	const args: FeaturesTestCommandInput = {

@@ -24,12 +24,12 @@ describe('CLI features subcommands', async function () {
 
 	describe('features test', async function () {
 
-		it('succeeds when using --target-project', async function () {
+		it('succeeds when using --project-folder', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 			let success = false;
 			let result: ExecResult | undefined = undefined;
 			try {
-				result = await shellExec(`${cli} features test --target-project ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
 				success = true;
 
 			} catch (error) {
@@ -54,7 +54,7 @@ describe('CLI features subcommands', async function () {
 			let success = false;
 			let result: ExecResult | undefined = undefined;
 			try {
-				result = await shellExec(`${cli} features test --target-project ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
 				success = true;
 
 			} catch (error) {
