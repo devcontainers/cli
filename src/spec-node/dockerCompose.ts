@@ -508,13 +508,12 @@ async function generateFeaturesComposeOverrideContent(
 	if (hasGpuRequirement && hasGpuRequirement !== 'optional' && !addGpuCapability) {
 		params.common.output.write('No GPU support found yet a GPU was required - consider marking it as "optional"', LogLevel.Warning);
 	}
-	const gpuResources = addGpuCapability ? '' : `
+	const gpuResources = addGpuCapability ? `
     deploy:
       resources:
         reservations:
           devices:
-    	    - capabilities: [gpu]
-`;
+            - capabilities: [gpu]` : '';
 
 	return `${versionPrefix}services:
   '${config.service}':${overrideImage ? `
@@ -537,9 +536,9 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     labels:${additionalLabels.map(label => `
       - ${label.replace(/\$/g, '$$$$')}`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
-      - ${m.source}:${m.target}`).join('')}` : ''}${volumeMounts.length ? `
+      - ${m.source}:${m.target}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
-  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}${gpuResources}
+  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
 `;
 }
 
