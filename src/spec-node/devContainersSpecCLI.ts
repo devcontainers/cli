@@ -63,7 +63,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
-		y.command('test <target>', 'Test features', featuresTestOptions, featuresTestHandler);
+		y.command('test [target]', 'Test features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
