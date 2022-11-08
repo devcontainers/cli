@@ -17,7 +17,7 @@ import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/l
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
@@ -144,7 +144,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 	};
 }
 
-export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, additionalCacheFroms?: string[], noBuild?: boolean) {
+export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean) {
 
 	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
@@ -156,37 +156,38 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
-	let dockerfile: string;
-	let originalDockerfile: string;
+	let dockerfile: string | undefined;
+	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		dockerfile = originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		dockerfile = originalDockerfile;
 		if (target) {
 			// Explictly set build target for the dev container build features on that
 			baseName = target;
 		} else {
 			// Use the last stage in the Dockerfile
 			// Find the last line that starts with "FROM" (possibly preceeded by white-space)
-			const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
+			const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(originalDockerfile, baseName);
 			baseName = lastStageName;
 			if (modifiedDockerfile) {
 				dockerfile = modifiedDockerfile;
 			}
 		}
+		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
 	} else {
-		dockerfile = originalDockerfile = `FROM ${composeService.image} AS ${baseName}\n`;
+		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, common.experimentalImageMetadata);
 	}
 
 	// determine whether we need to extend with features
 	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
 
 	let overrideImageName: string | undefined;
 	let buildOverrideContent = '';
-	if (extendImageBuildInfo) {
+	if (extendImageBuildInfo?.featureBuildInfo) {
 		// Avoid retagging a previously pulled image.
 		if (!serviceInfo.build) {
 			overrideImageName = getFolderImageName(common);
@@ -194,6 +195,9 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		}
 		// Create overridden Dockerfile and generate docker-compose build override content
 		buildOverrideContent += '    build:\n';
+		if (!dockerfile) {
+			dockerfile = `FROM ${composeService.image} AS ${baseName}\n`;
+		}
 		const { featureBuildInfo } = extendImageBuildInfo;
 		// We add a '# syntax' line at the start, so strip out any existing line
 		const syntaxMatch = dockerfile.match(/^\s*#\s*syntax\s*=.*[\r\n]/g);
@@ -278,6 +282,7 @@ ${cacheFromOverrideContent}
 		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
 		additionalComposeOverrideFiles,
 		overrideImageName,
+		labels: extendImageBuildInfo?.labels,
 	};
 }
 
@@ -374,7 +379,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 		const versionPrefix = await readVersionPrefix(buildCLIHost, localComposeFiles);
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, versionPrefix, additionalFeatures, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName, labels } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, versionPrefix, additionalFeatures, true, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		const currentImageName = overrideImageName || originalImageName;
@@ -386,7 +391,9 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Save override docker-compose file to disk.
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, idLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, params, output);
+		const additionalLabels = labels ? idLabels.concat(Object.keys(labels).map(key => `${key}=${labels[key]}`)) : idLabels;
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, params, output);
+    
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);

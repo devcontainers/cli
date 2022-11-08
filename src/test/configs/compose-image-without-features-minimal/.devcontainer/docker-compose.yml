@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: alpine:latest
+    image: ubuntu:latest
     volumes:
       - ..:/workspace:cached
     command: sleep infinity
