@@ -195,7 +195,7 @@ export interface ImageBuildOptions {
 }
 
 function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
-
+	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	return {
 		dstFolder,
 		dockerfileContent: `
@@ -203,8 +203,8 @@ FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }), params.common.experimentalImageMetadata)}
 `,
 		overrideTarget: 'dev_containers_target_stage',
-		dockerfilePrefixContent: `
-ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
+	ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
 		buildArgs: {
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,
