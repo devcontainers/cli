@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.23.0",
+	"version": "0.23.1-rkomara",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -96,6 +96,7 @@
 		"tar": "^6.1.11",
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.3",
-		"yargs": "~17.0.1"
+		"yargs": "~17.0.1",
+		"yarn": "^1.22.19"
 	}
 }

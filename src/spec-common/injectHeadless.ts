@@ -63,6 +63,7 @@ export interface ResolverParameters {
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	network: string | undefined;
 }
 
 export interface PostCreate {

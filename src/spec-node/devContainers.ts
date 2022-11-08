@@ -58,6 +58,7 @@ export interface ProvisionOptions {
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	network: string | undefined;
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -133,6 +134,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		skipPostAttach: options.skipPostAttach,
 		experimentalImageMetadata: options.experimentalImageMetadata,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		network: options.network,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

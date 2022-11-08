@@ -113,6 +113,7 @@ function provisionOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'network': { type: 'string', description: 'Set the networking mode for the "RUN" instructions during build', default: 'default', hidden: false },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -175,6 +176,7 @@ async function provision({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'network': network,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -225,6 +227,7 @@ async function provision({
 		skipPostAttach,
 		experimentalImageMetadata,
 		skipPersistingCustomizationsFromFeatures: false,
+		network: network,
 	};
 
 	const result = await doProvision(options);
@@ -289,6 +292,7 @@ function buildOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
+		'network': { type: 'string', description: 'Set the networking mode for the "RUN" instructions during build', default: 'default', hidden: false },
 	});
 }
 
@@ -324,6 +328,7 @@ async function doBuild({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'experimental-image-metadata': experimentalImageMetadata,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
+	'network': network,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -369,6 +374,7 @@ async function doBuild({
 			skipPostAttach: true,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
+			network: network,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -611,6 +617,7 @@ async function doRunUserCommands({
 			skipPostAttach,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			network: undefined
 		}, disposables);
 
 		const { common } = params;
@@ -942,6 +949,7 @@ export async function doExec({
 			skipPostAttach: false,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			network: undefined,
 		}, disposables);
 
 		const { common } = params;

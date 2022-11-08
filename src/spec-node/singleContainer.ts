@@ -194,6 +194,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	} else {
 		args.push('build');
 	}
+
+	if (buildParams.common.network) {
+		args.push('--network', buildParams.common.network);
+	}
+
 	args.push('-f', finalDockerfilePath);
 
 	baseImageNames.map(imageName => args.push('-t', imageName));

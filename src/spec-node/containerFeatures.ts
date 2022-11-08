@@ -68,6 +68,11 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 	}
+
+	if (params.common.network) {
+		args.push('--network', params.common.network);
+	}
+
 	// Once this is step merged with the user Dockerfile (or working against the base image),
 	// the path will be the dev container context
 	// Set empty dir under temp path as the context for now to ensure we don't have dependencies on the features content
