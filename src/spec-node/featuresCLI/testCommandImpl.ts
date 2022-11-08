@@ -180,7 +180,7 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, params: D
 }
 
 async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
-	const { collectionFolder, cliHost } = args;
+	const { collectionFolder, cliHost, filter } = args;
 	const scenariosPath = path.join(pathToTestDir, 'scenarios.json');
 
 	if (!(await cliHost.isFile(scenariosPath))) {
@@ -205,6 +205,11 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 
 	// For EACH scenario: Spin up a container and exec the scenario test script
 	for (const [scenarioName, scenarioConfig] of Object.entries(scenarios)) {
+
+		if (filter && !scenarioName.includes(filter)) {
+			continue;
+		}
+
 		log(`Running scenario:  ${scenarioName}`);
 
 		// Check if we have a scenario test script, otherwise skip.
