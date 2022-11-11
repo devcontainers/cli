@@ -18,20 +18,25 @@
 		"node": ">=14.14.0"
 	},
 	"scripts": {
-		"compile": "npm-run-all clean definitions tsc-b",
+		"compile": "npm-run-all clean-dist definitions compile-dev",
+		"watch": "npm-run-all clean-dist definitions compile-watch",
+		"package": "npm-run-all clean-dist definitions compile-prod npm-pack",
+		"type-check": "npm-run-all clean-built tsc-b",
+		"type-check-watch": "npm-run-all clean-built tsc-b-w",
+		"compile-prod": "node esbuild.js --production",
+		"compile-dev": "node esbuild.js",
+		"compile-watch": "node esbuild.js --watch",
 		"tsc-b": "tsc -b",
-		"watch": "npm-run-all clean definitions tsc-b-w",
 		"tsc-b-w": "tsc -b -w",
 		"precommit": "node build/hygiene.js",
 		"definitions": "npm-run-all definitions-clean definitions-copy",
 		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --max-warnings 0 --ext .ts ./src",
 		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
 		"definitions-copy": "copyfiles --all \"node_modules/vscode-dev-containers/**/*\" dist",
-		"package": "npm-run-all compile npm-pack",
-		"bundle": "npm-run-all clean definitions esbuild npm-pack",
-		"esbuild": "node esbuild.js --production",
 		"npm-pack": "npm pack",
-		"clean": "rimraf dist",
+		"clean": "npm-run-all clean-dist clean-built",
+		"clean-dist": "rimraf dist",
+		"clean-built": "rimraf built",
 		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
 		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts",
@@ -43,7 +48,8 @@
 		"README.md",
 		"ThirdPartyNotices.txt",
 		"devcontainer.js",
-		"dist",
+		"dist/spec-node/devContainersSpecCLI.js",
+		"dist/node_modules/vscode-dev-containers",
 		"package.json",
 		"scripts/updateUID.Dockerfile"
 	],
@@ -78,15 +84,12 @@
 		"typescript": "^4.5.5",
 		"typescript-formatter": "^7.2.2",
 		"vinyl": "^2.2.1",
-		"vinyl-fs": "^3.0.3"
-	},
-	"dependencies": {
+		"vinyl-fs": "^3.0.3",
 		"chalk": "^4",
 		"follow-redirects": "^1.14.8",
 		"js-yaml": "^4.1.0",
 		"jsonc-parser": "^3.0.0",
 		"ncp": "^2.0.0",
-		"node-pty": "^0.10.1",
 		"proxy-agent": "^5.0.0",
 		"pull-stream": "^3.6.14",
 		"recursive-readdir": "^2.2.2",
@@ -97,5 +100,8 @@
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.3",
 		"yargs": "~17.0.1"
+	},
+	"dependencies": {
+		"node-pty": "^0.10.1"
 	}
 }

@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"composite": true,
 		"rootDir": "./src",
-		"outDir": "./dist",
+		"outDir": "./built",
 		"target": "es2019",
 		"module": "commonjs",
 		"esModuleInterop": true,
