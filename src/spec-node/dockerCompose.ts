@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -392,7 +392,8 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Persisted folder is a path that will be maintained between sessions
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
 		const additionalLabels = labels ? idLabels.concat(Object.keys(labels).map(key => `${key}=${labels[key]}`)) : idLabels;
-		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, output);
+		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, params, output);
+    
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -455,9 +456,10 @@ async function writeFeaturesComposeOverrideFile(
 	overrideFilePath: string,
 	overrideFilePrefix: string,
 	buildCLIHost: CLIHost,
+	params: DockerResolverParameters,
 	output: Log,
 ) {
-	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, additionalMounts);
+	const composeOverrideContent = await generateFeaturesComposeOverrideContent(updatedImageName, originalImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, additionalMounts, params);
 	const overrideFileHasContents = !!composeOverrideContent && composeOverrideContent.length > 0 && composeOverrideContent.trim() !== '';
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
@@ -486,6 +488,7 @@ async function generateFeaturesComposeOverrideContent(
 	service: any,
 	additionalLabels: string[],
 	additionalMounts: Mount[],
+	params: DockerResolverParameters,
 ) {
 	const overrideImage = updatedImageName !== originalImageName;
 
@@ -506,6 +509,18 @@ async function generateFeaturesComposeOverrideContent(
 		|| ((await imageDetails()).Config.Entrypoint || []).map(c => c.replace(/\$/g, '$$$$')); // $ > $$ to escape docker-compose.yml's interpolation.
 	const userCommand = overrideCommand ? [] : composeCommand /* $ already escaped. */
 		|| (composeEntrypoint ? [/* Ignore image CMD per docker-compose.yml spec. */] : ((await imageDetails()).Config.Cmd || []).map(c => c.replace(/\$/g, '$$$$'))); // $ > $$ to escape docker-compose.yml's interpolation.
+
+	const hasGpuRequirement = config.hostRequirements?.gpu;
+	const addGpuCapability = hasGpuRequirement && await checkDockerSupportForGPU(params);
+	if (hasGpuRequirement && hasGpuRequirement !== 'optional' && !addGpuCapability) {
+		params.common.output.write('No GPU support found yet a GPU was required - consider marking it as "optional"', LogLevel.Warning);
+	}
+	const gpuResources = addGpuCapability ? `
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]` : '';
 
 	return `${versionPrefix}services:
   '${config.service}':${overrideImage ? `
@@ -528,7 +543,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     labels:${additionalLabels.map(label => `
       - ${label.replace(/\$/g, '$$$$')}`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
-      - ${m.source}:${m.target}`).join('')}` : ''}${volumeMounts.length ? `
+      - ${m.source}:${m.target}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
   ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
 `;

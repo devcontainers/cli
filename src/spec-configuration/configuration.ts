@@ -21,10 +21,16 @@ export type UserEnvProbe = 'none' | 'loginInteractiveShell' | 'interactiveShell'
 
 export type DevContainerConfigCommand = 'initializeCommand' | 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand';
 
+export interface HostGPURequirements {
+	cores?: number;
+	memory?: string;
+}
+
 export interface HostRequirements {
 	cpus?: number;
 	memory?: string;
 	storage?: string;
+	gpu?: boolean | 'optional' | HostGPURequirements;
 }
 
 export interface DevContainerFeature {

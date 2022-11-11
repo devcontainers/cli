@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig } from './utils';
-import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
+import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
@@ -305,6 +305,20 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
+export async function extraRunArgs(common: ResolverParameters, params: DockerCLIParameters | DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+	const extraArguments: string[] = [];
+	if (config.hostRequirements?.gpu) {
+		if (await checkDockerSupportForGPU(params)) {
+			common.output.write(`GPU support found, add GPU flags to docker call.`);
+			extraArguments.push('--gpus', 'all');
+		} else {
+			if (config.hostRequirements?.gpu !== 'optional') {
+				common.output.write('No GPU support found yet a GPU was required - consider marking it as "optional"', LogLevel.Warning);
+			}
+		}
+	}
+	return extraArguments;
+}
 
 export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined, extraLabels: Record<string, string>) {
 	const { common } = params;
@@ -372,6 +386,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...containerEnv,
 		...containerUserArgs,
 		...(config.runArgs || []),
+		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
 		...entrypoint,
 		...Object.keys(extraLabels).map(key => ['-l', `${key}=${extraLabels[key]}`]).flat(),
