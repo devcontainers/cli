@@ -29,6 +29,24 @@ const watch = process.argv.indexOf('--watch') !== -1;
 					loader: 'js',
 				};
 			});
+			build.onLoad({ filter: /node_modules[\/\\]vm2[\/\\]lib[\/\\]vm.js$/ }, async (args) => {
+				const text = await fs.promises.readFile(args.path, 'utf8');
+				const regex = /fs\.readFileSync\(`\$\{__dirname\}\/([^`]+)`, 'utf8'\)/g;
+				const files = await [...new Set(text.matchAll(regex))]
+					.reduce(async (prevP, m) => {
+						const text = (await fs.promises.readFile(path.join(path.dirname(args.path), m[1]), 'utf8'));
+						const prev = await prevP;
+						prev[m[1]] = text;
+						return prev;
+					}, Promise.resolve({}));
+				const contents = text.replace(regex, (_sub, file) => {
+					return `\`${files[file].replace(/[`$]/g, '\\$&')}\``;
+				});
+				return {
+					contents,
+					loader: 'js',
+				};
+			});
 		},
 	};
 
@@ -39,8 +57,8 @@ const watch = process.argv.indexOf('--watch') !== -1;
 		minify,
 		watch,
 		platform: 'node',
-		target: 'node12.18.3',
-		external: ['vscode', 'vscode-dev-containers'],
+		target: 'node14.14.0',
+		external: ['vscode-dev-containers'],
 		mainFields: ['module', 'main'],
 		outdir: 'dist',
 		plugins: [plugin],

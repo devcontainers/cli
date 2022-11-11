@@ -10,7 +10,7 @@ import assert from 'assert';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 describe('Docker utils', function () {
-	this.timeout(10 * 1000);
+	this.timeout(20 * 1000);
 
 	it('inspect image in docker.io', async () => {
 		const imageName = 'docker.io/library/ubuntu:latest';

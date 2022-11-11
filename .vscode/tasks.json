@@ -12,18 +12,27 @@
     },
     "tasks": [
         {
-            "type": "npm",
-            "script": "watch",
-            "problemMatcher": "$tsc-watch",
-            "isBackground": true,
-            "label": "Build Dev Containers CLI",
-            "presentation": {
-                "reveal": "never"
-            },
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
+            "problemMatcher": [],
+            "label": "Build Dev Containers CLI",
+            "detail": "Runs watch and type-check-watch",
+            "dependsOn": [
+                "npm: type-check-watch",
+                "npm: watch"
+            ]
+        },
+        {
+            "type": "npm",
+            "script": "type-check-watch",
+            "problemMatcher": "$tsc-watch",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "never"
+            },
+            "group": "build"
         },
         {
             "type": "npm",

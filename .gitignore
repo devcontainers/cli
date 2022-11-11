@@ -1,4 +1,5 @@
 dist
+built
 node_modules
 logs
 *.log

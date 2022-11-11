@@ -19,9 +19,14 @@ jobs:
         node-version: '16.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
-    - run: yarn
-    - run: yarn lint
-    - run: yarn package
+    - name: Install Dependencies
+      run: yarn install --frozen-lockfile
+    - name: Type-Check
+      run: yarn type-check
+    - name: Lint
+      run: yarn lint
+    - name: Package
+      run: yarn package
     - name: TGZ name
       run: |
         VERSION=$(jq -r '.version' < package.json)
@@ -62,9 +67,9 @@ jobs:
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - name: Install Dependencies
-      run: yarn
-    - name: Compile
-      run: yarn compile
+      run: yarn install --frozen-lockfile
+    - name: Type-Check
+      run: yarn type-check
     - name: Package
       run: yarn package
     - name: Run Tests
