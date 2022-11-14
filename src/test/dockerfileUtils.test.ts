@@ -467,3 +467,33 @@ FROM debian`;
         });
     });
 });
+
+describe('extractDockerfile', () => {
+
+    it('handles ENV with equals', async () => {
+        const dockerfile = `FROM debian\nENV A=B`;
+        const extracted = extractDockerfile(dockerfile);
+        const env = extracted.stages[0].instructions[0];
+        assert.strictEqual(env.instruction, 'ENV');
+        assert.strictEqual(env.name, 'A');
+        assert.strictEqual(env.value, 'B');
+    });
+
+    it('handles ENV with equals and spaces', async () => {
+        const dockerfile = `FROM debian\nENV A = B`;
+        const extracted = extractDockerfile(dockerfile);
+        const env = extracted.stages[0].instructions[0];
+        assert.strictEqual(env.instruction, 'ENV');
+        assert.strictEqual(env.name, 'A');
+        assert.strictEqual(env.value, 'B');
+    });
+
+    it('handles ENV without equals', async () => {
+        const dockerfile = `FROM debian\nENV A B`;
+        const extracted = extractDockerfile(dockerfile);
+        const env = extracted.stages[0].instructions[0];
+        assert.strictEqual(env.instruction, 'ENV');
+        assert.strictEqual(env.name, 'A');
+        assert.strictEqual(env.value, 'B');
+    });
+});
