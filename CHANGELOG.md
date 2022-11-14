@@ -2,6 +2,23 @@
 
 Notable changes.
 
+## November 2022
+
+### [0.24.0]
+
+- Handle quoted base image (https://github.com/microsoft/vscode-remote-release/issues/7323)
+- Use plain text when not in terminal (https://github.com/devcontainers/cli/issues/253)
+- `features test` documentation (https://github.com/devcontainers/cli/pull/219)
+- `features test`: Copy entire test folder on test execution and improve CLI command usage. (https://github.com/devcontainers/cli/pull/265)
+- Avoid image build (https://github.com/microsoft/vscode-remote-release/issues/7378)
+- Preserve syntax directive (https://github.com/microsoft/vscode-remote-release/issues/7463)
+- GPU requirement and auto-detect NVIDIA extensions (https://github.com/devcontainers/cli/pull/173)
+- `features test`: Pattern to provide additional files in scenario test. (https://github.com/devcontainers/cli/pull/273)
+- Handle Cygwin / Git Bash sockets forwarding on Windows. (https://github.com/devcontainers/cli/issues/62)
+- Handle ENV without `=`. (https://github.com/microsoft/vscode-remote-release/issues/7493)
+- Bundle CLI for NPM package. (https://github.com/devcontainers/cli/issues/279)
+- `features test`: Add --filter to allow for selectively running scenarios. (https://github.com/devcontainers/cli/pull/272)
+
 ## October 2022
 
 ### [0.23.2]
