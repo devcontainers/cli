@@ -1,0 +1,28 @@
+{
+	"smiling": {
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+		"features": {
+			"smile": {
+				"shouldFrown": false
+			}
+		}
+	},
+	"frowning": {
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+		"features": {
+			"smile": {
+				"shouldFrown": true
+			}
+		}
+	},
+	"frowning_with_a_dockerfile": {
+		"build": {
+			"dockerfile": "Dockerfile"
+		},
+		"features": {
+			"smile": {
+				"shouldFrown": true
+			}
+		}
+	}
+}

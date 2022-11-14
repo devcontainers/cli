@@ -1,0 +1,11 @@
+{
+    "id": "smile",
+    "version": "0.0.1",
+    "name": "Smile",
+    "options": {
+        "shouldFrown": {
+            "type": "boolean",
+            "default": false
+        }
+    }
+}
