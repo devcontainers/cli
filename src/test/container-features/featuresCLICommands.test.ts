@@ -66,12 +66,40 @@ describe('CLI features subcommands', async function () {
 
 			const expectedTestReport = `  ================== TEST REPORT ==================
 ✅ Passed:      'util'
-✅ Passed:      'some_scenario'`;
+✅ Passed:      'some_scenario'
+✅ Passed:      'some_scenario_2'
+✅ Passed:      'random_scenario'`;
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
 
 			assert.isTrue(result.stderr.includes('I AM A DIFFERENT SCRIPT'));
 			assert.isTrue(result.stderr.includes('I AM A HELPER SCRIPT FOR A SCENARIO'));
+		});
+
+		it('succeeds when passing --filter some_scenario', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/sharing-test-scripts`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --filter some_scenario --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'util'
+✅ Passed:      'some_scenario'
+✅ Passed:      'some_scenario_2'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+
+			// Assert the output does not contain the random scenario we filtered out
+			assert.isFalse(result.stdout.includes('random_scenario'));
 		});
 
 		it('succeeds with defaults', async function () {
