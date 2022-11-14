@@ -81,7 +81,7 @@ describe('CLI features subcommands', async function () {
 			let success = false;
 			let result: ExecResult | undefined = undefined;
 			try {
-				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				result = await shellExec(`${cli} features test --filter some_scenario --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
 				success = true;
 
 			} catch (error) {
@@ -97,6 +97,9 @@ describe('CLI features subcommands', async function () {
 ✅ Passed:      'some_scenario_2'`;
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
+
+			// Assert the output does not contain the random scenario we filtered out
+			assert.isFalse(result.stdout.includes('random_scenario'));
 		});
 
 		it('succeeds with defaults', async function () {
