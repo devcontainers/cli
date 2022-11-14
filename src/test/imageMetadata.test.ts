@@ -67,6 +67,33 @@ describe('Image Metadata', function () {
 				assert.strictEqual(raw[2].id, './localFeatureB');
 				assert.strictEqual(raw[2].privileged, true);
 			});
+		});
+
+		buildKitOptions.forEach(({ text, options }) => {
+			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
+				if (!experimentalImageMetadataDefault) {
+					return;
+				}
+				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+				const res = await shellExec(`${cli} build --skip-persisting-customizations-from-features --workspace-folder ${testFolder} --image-name skip-persisting-test${buildKitOption}`);
+				const response = JSON.parse(res.stdout);
+				assert.strictEqual(response.outcome, 'success');
+				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
+				assert.strictEqual(metadata.length, 3);
+				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
+				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
+				assert.strictEqual(metadata[1].init, true);
+				assert.strictEqual(metadata[2].id, './localFeatureB-substituted');
+				assert.strictEqual(metadata[2].privileged, true);
+				assert.strictEqual(raw.length, 3);
+				assert.strictEqual(raw[0].id, 'baseFeature');
+				assert.strictEqual(raw[1].id, './localFeatureA');
+				assert.ok(!raw[1].customizations); // Customizations have not been persisted due to the flag
+				assert.strictEqual(raw[1].init, true);
+				assert.strictEqual(raw[2].id, './localFeatureB');
+				assert.strictEqual(raw[2].privileged, true);
+			});
 
 			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
 				if (!experimentalImageMetadataDefault) {
