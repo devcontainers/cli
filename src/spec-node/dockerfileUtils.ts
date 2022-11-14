@@ -14,7 +14,7 @@ const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 
 const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
-const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)(=("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
+const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 const variables = /\$\{?(?<variable>[a-zA-Z0-9_]+)\}?/g;
 
