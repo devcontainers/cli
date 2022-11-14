@@ -15,7 +15,7 @@ import { ContainerProperties, getContainerProperties, ResolverParameters } from 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -176,6 +176,12 @@ async function hasLabels(params: DockerResolverParameters, info: any, expectedLa
 		|| {};
 	return Object.keys(expectedLabels)
 		.every(name => actualLabels[name] === expectedLabels[name]);
+}
+
+export async function checkDockerSupportForGPU(params: DockerCLIParameters | DockerResolverParameters): Promise<Boolean> {
+	const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
+	const runtimeFound = result.stdout.includes('nvidia-container-runtime');
+	return runtimeFound;
 }
 
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {

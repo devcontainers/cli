@@ -75,7 +75,7 @@ async function runGlobalFeatureTests(args: FeaturesTestCommandInput, testResults
 	const globalTestsFolder = `${collectionFolder}/test/_global`;
 
 	log(`Scenarios:         ${globalTestsFolder}\n`, { prefix: '\n📊', info: true });
-	testResults = await doScenario(globalTestsFolder, args, testResults);
+	testResults = await doScenario(globalTestsFolder, '_global', args, testResults);
 	if (!testResults) {
 		fail(`Failed to run scenarios in ${globalTestsFolder}`);
 		return []; // We never reach here, we exit via fail().
@@ -145,7 +145,7 @@ async function runFeatureTests(args: FeaturesTestCommandInput, testResults: Test
 		// Pass  'testResults' array reference in to capture results.
 		if (!skipScenarios) {
 			log(`Executing scenarios for feature '${feature}'...`, { prefix: '🧪' });
-			await doScenario(featureTestFolder, args, testResults);
+			await doScenario(featureTestFolder, feature, args, testResults);
 		}
 
 		if (!testResults) {
@@ -179,7 +179,7 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, params: D
 	return testResults;
 }
 
-async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
+async function doScenario(pathToTestDir: string, targetFeatureOrGlobal: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { collectionFolder, cliHost, filter } = args;
 	const scenariosPath = path.join(pathToTestDir, 'scenarios.json');
 
@@ -218,7 +218,7 @@ async function doScenario(pathToTestDir: string, args: FeaturesTestCommandInput,
 		}
 
 		// Create Container
-		const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig);
+		const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, scenarioConfig, targetFeatureOrGlobal);
 		const params = await generateDockerParams(workspaceFolder, args);
 		await createContainerFromWorkingDirectory(params, workspaceFolder, args);
 
@@ -327,7 +327,8 @@ async function generateProjectFromScenario(
 	cliHost: CLIHost,
 	collectionsDirectory: string,
 	scenarioId: string,
-	scenarioObject: DevContainerConfig
+	scenarioObject: DevContainerConfig,
+	targetFeatureOrGlobal: string
 ): Promise<string> {
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
@@ -358,6 +359,13 @@ async function generateProjectFromScenario(
 	scenarioObject.features = updatedFeatures;
 
 	await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(JSON.stringify(scenarioObject)));
+
+	// If the current scenario has a corresponding additional config folder, copy it into the $TMP/.devcontainer directory
+	// This lets the scenario use things like Dockerfiles, shell scripts, etc. in the build.
+	const localPathToAdditionalConfigFolder = `${collectionsDirectory}/test/${targetFeatureOrGlobal}/${scenarioId}`;
+	if (await cliHost.isFolder(localPathToAdditionalConfigFolder)) {
+		await cpDirectoryLocal(localPathToAdditionalConfigFolder, `${tmpFolder}/.devcontainer`);
+	}
 
 	// tmpFolder will serve as our auto-generated 'workingFolder'
 	return tmpFolder;
