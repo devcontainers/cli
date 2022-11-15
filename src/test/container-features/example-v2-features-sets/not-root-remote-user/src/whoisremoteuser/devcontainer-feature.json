@@ -1,0 +1,9 @@
+{
+    "id": "whoisremoteuser",
+    "version": "0.0.0",
+    "name": "Stores and echoes original value of _REMOTE_USER",
+    "options": {},
+    "installsAfter": [
+        "ghcr.io/devcontainers/features/common-utils"
+    ]
+}
