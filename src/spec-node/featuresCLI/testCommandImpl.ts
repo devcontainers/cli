@@ -428,8 +428,8 @@ async function execTest(params: DockerResolverParameters, testFileName: string, 
 	// Update permissions on the copied files to make them readable/writable/executable by everyone
 	await cliHost.exec({ cmd: 'chmod', args: ['-R', '777', workspaceFolder], output: nullLog });
 
-	let cmd = `./${testFileName}`;
-	let args: string[] = [];
+	const cmd = `./${testFileName}`;
+	const args: string[] = [];
 	return await exec(params, cmd, args, workspaceFolder);
 }
 
