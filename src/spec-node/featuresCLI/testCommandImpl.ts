@@ -10,6 +10,7 @@ import { DockerResolverParameters } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
 import { cpDirectoryLocal } from '../../spec-utils/pfs';
+import { nullLog } from '../../spec-utils/log';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -170,7 +171,7 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, params: D
 	await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
 
 	// Execute Test
-	const result = await execTest(params, 'test.sh', workspaceFolder);
+	const result = await execTest(params, 'test.sh', workspaceFolder, cliHost);
 	testResults.push({
 		testName: feature,
 		result,
@@ -231,7 +232,7 @@ async function doScenario(pathToTestDir: string, targetFeatureOrGlobal: string, 
 		// Execute Test
 		testResults.push({
 			testName: scenarioName,
-			result: await execTest(params, `${scenarioName}.sh`, workspaceFolder)
+			result: await execTest(params, `${scenarioName}.sh`, workspaceFolder, cliHost)
 		});
 	}
 	return testResults;
@@ -267,7 +268,7 @@ const devcontainerTemplate = `
 }`;
 
 async function createContainerFromWorkingDirectory(params: DockerResolverParameters, workspaceFolder: string, args: FeaturesTestCommandInput): Promise<LaunchResult | undefined> {
-	const { quiet, remoteUser, disposables } = args;
+	const { quiet, disposables } = args;
 	log(`workspaceFolder:   ${workspaceFolder}`);
 
 	// 2. Use  'devcontainer-cli up'  to build and start a container
@@ -282,7 +283,6 @@ async function createContainerFromWorkingDirectory(params: DockerResolverParamet
 
 	log(`Launched container.`, { prefix: '\n🚀', info: true });
 	log(`containerId:          ${containerId}`);
-	log(`remoteUser:           ${remoteUser}`);
 
 	return launchResult;
 }
@@ -367,6 +367,9 @@ async function generateProjectFromScenario(
 		await cpDirectoryLocal(localPathToAdditionalConfigFolder, `${tmpFolder}/.devcontainer`);
 	}
 
+	// Update permissions on the copied files to make them readable/writable/executable by everyone
+	await cliHost.exec({ cmd: 'chmod', args: ['-R', '777', tmpFolder], output: nullLog });
+
 	// tmpFolder will serve as our auto-generated 'workingFolder'
 	return tmpFolder;
 }
@@ -420,15 +423,13 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	}
 }
 
-async function execTest(params: DockerResolverParameters, testFileName: string, workspaceFolder: string) {
+async function execTest(params: DockerResolverParameters, testFileName: string, workspaceFolder: string, cliHost: CLIHost) {
 	// Ensure all the tests scripts in the workspace folder are executable
-	let cmd = 'chmod';
-	let args = ['-R', '777', '.'];
-	await exec(params, cmd, args, workspaceFolder);
+	// Update permissions on the copied files to make them readable/writable/executable by everyone
+	await cliHost.exec({ cmd: 'chmod', args: ['-R', '777', workspaceFolder], output: nullLog });
 
-
-	cmd = `./${testFileName}`;
-	args = [];
+	const cmd = `./${testFileName}`;
+	const args: string[] = [];
 	return await exec(params, cmd, args, workspaceFolder);
 }
 
