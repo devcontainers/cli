@@ -4,6 +4,10 @@ Notable changes.
 
 ## November 2022
 
+### [0.24.1]
+
+-   `features test`: Respects testing scenarios where 'remoteUser' is non-root (https://github.com/devcontainers/cli/pull/286)
+
 ### [0.24.0]
 
 - Handle quoted base image (https://github.com/microsoft/vscode-remote-release/issues/7323)
