@@ -139,7 +139,7 @@ async function runFeatureTests(args: FeaturesTestCommandInput, testResults: Test
 				fail('Uninitialized workspaceFolder or params');
 				return [];
 			}
-			await doRunAutoTest(feature, workspaceFolder, params, featureTestFolder, args, testResults);
+			await doRunAutoTest(feature, workspaceFolder, featureTestFolder, args, testResults);
 		}
 
 		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
@@ -157,7 +157,7 @@ async function runFeatureTests(args: FeaturesTestCommandInput, testResults: Test
 	return testResults;
 }
 
-async function doRunAutoTest(feature: string, workspaceFolder: string, params: DockerResolverParameters, featureTestFolder: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
+async function doRunAutoTest(feature: string, workspaceFolder: string, featureTestFolder: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { cliHost } = args;
 	const testScriptPath = path.join(featureTestFolder, 'test.sh');
 	if (!(await cliHost.isFile(testScriptPath))) {
