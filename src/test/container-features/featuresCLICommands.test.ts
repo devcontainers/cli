@@ -10,7 +10,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 const pkg = require('../../../package.json');
 
 describe('CLI features subcommands', async function () {
-	this.timeout('120s');
+	this.timeout('240s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
@@ -159,6 +159,60 @@ describe('CLI features subcommands', async function () {
 			assert.isFalse(result.stderr.includes('my favorite color is red'));
 			assert.isFalse(result.stderr.includes('hey, root?????'));
 			assert.isFalse(result.stderr.includes('Ciao, root?????'));
+		});
+
+		it('succeeds testing remoteUser', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --filter add_with_common_utils --projectFolder ${collectionFolder}`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'whoisremoteuser'
+✅ Passed:      'add_with_common_utils'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+		});
+
+		it('succeeds testing remoteUser applied with --apply-image-dev-container-metadata true', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
+			let result: ExecResult | undefined = undefined;
+			// This test run is supposed have a single failing test.
+			result = await shellExec(`${cli} features test --apply-image-dev-container-metadata true --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
+
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'whoisremoteuser'
+✅ Passed:      'from_image_metadata_label_flag_enabled'
+❌ Failed:      'from_image_metadata_label_flag_disabled'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport, `Full stdout: ${result.stdout}`);
+		});
+
+		it('succeeds testing remoteUser applied with --apply-image-dev-container-metadata false', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
+			let result: ExecResult | undefined = undefined;
+			// This test run is supposed have a single failing test.
+			result = await shellExec(`${cli} features test --apply-image-dev-container-metadata false --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
+
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'whoisremoteuser'
+❌ Failed:      'from_image_metadata_label_flag_enabled'
+✅ Passed:      'from_image_metadata_label_flag_disabled'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
 		});
 
 		it('succeeds with --global-scenarios-only', async function () {

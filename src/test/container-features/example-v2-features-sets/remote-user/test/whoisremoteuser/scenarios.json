@@ -1,0 +1,27 @@
+{
+	"add_with_common_utils": {
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+		"remoteUser": "codespace",
+		"features": {
+			"ghcr.io/devcontainers/features/common-utils:1": {
+				"installZsh": false,
+				"installOhMyZsh": false,
+				"upgradePackages": false,
+				"username": "codespace"
+			},
+			"whoisremoteuser": {}
+		}
+	},
+	"from_image_metadata_label_flag_enabled": {
+		"image": "mcr.microsoft.com/devcontainers/javascript-node:18",
+		"features": {
+			"whoisremoteuser": {}
+		}
+	},
+	"from_image_metadata_label_flag_disabled": {
+		"image": "mcr.microsoft.com/devcontainers/javascript-node:18",
+		"features": {
+			"whoisremoteuser": {}
+		}
+	}
+}
