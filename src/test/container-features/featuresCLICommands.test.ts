@@ -206,11 +206,11 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport);
 		});
 
-		it('succeeds testing remoteUser applied with --apply-image-dev-container-metadata true', async function () {
+		it('succeeds testing remoteUser applied with --skip-image-metadata false', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
 			let result: ExecResult | undefined = undefined;
 			// This test run is supposed have a single failing test.
-			result = await shellExec(`${cli} features test --apply-image-dev-container-metadata true --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
+			result = await shellExec(`${cli} features test --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
 
 			assert.isDefined(result);
 
@@ -222,11 +222,11 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport, `Full stdout: ${result.stdout}`);
 		});
 
-		it('succeeds testing remoteUser applied with --apply-image-dev-container-metadata false', async function () {
+		it('succeeds testing remoteUser applied with --skip-image-metadata', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
 			let result: ExecResult | undefined = undefined;
 			// This test run is supposed have a single failing test.
-			result = await shellExec(`${cli} features test --apply-image-dev-container-metadata false --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
+			result = await shellExec(`${cli} features test --skip-image-metadata --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
 
 			assert.isDefined(result);
 
