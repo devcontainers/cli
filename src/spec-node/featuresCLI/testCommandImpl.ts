@@ -393,7 +393,7 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 		],
 		remoteEnv: common.remoteEnv,
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
-		experimentalImageMetadata: args.applyImageMetadata,
+		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		log: text => quiet ? null : process.stderr.write(text),
 	};
@@ -443,7 +443,7 @@ async function exec(testCommandArgs: FeaturesTestCommandInput, cmd: string, args
 		...staticExecParams,
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
-		'experimental-image-metadata': testCommandArgs.applyImageMetadata,
+		'experimental-image-metadata': !testCommandArgs.skipImageMetadata,
 		cmd,
 		args,
 		_: [
@@ -491,6 +491,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
-		experimentalImageMetadata: args.applyImageMetadata,
+		experimentalImageMetadata: !args.skipImageMetadata,
 	}, disposables);
 }
