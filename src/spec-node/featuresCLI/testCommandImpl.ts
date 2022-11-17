@@ -260,11 +260,11 @@ function analyzeTestResults(testResults: { testName: string; result: boolean }[]
 
 const devcontainerTemplate = `
 {
+	#{REMOTE_USER}
 	"image": "#{IMAGE}",
 	"features": {
 		#{FEATURES}
-	},
-	"remoteUser": "#{REMOTE_USER}"
+	}
 }`;
 
 async function createContainerFromWorkingDirectory(params: DockerResolverParameters, workspaceFolder: string, args: FeaturesTestCommandInput): Promise<LaunchResult | undefined> {
@@ -299,7 +299,7 @@ async function generateDefaultProjectFromFeatures(
 	baseImage: string,
 	collectionsDirectory: string,
 	featuresToTest: string[],
-	remoteUser: string
+	remoteUser: string | undefined
 ): Promise<string> {
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
@@ -315,8 +315,13 @@ async function generateDefaultProjectFromFeatures(
 
 	let template = devcontainerTemplate
 		.replace('#{IMAGE}', baseImage)
-		.replace('#{FEATURES}', features)
-		.replace('#{REMOTE_USER}', remoteUser);
+		.replace('#{FEATURES}', features);
+
+	if (remoteUser) {
+		template = template.replace('#{REMOTE_USER}', `"remoteUser": "${remoteUser}",`);
+	} else {
+		template = template.replace('#{REMOTE_USER}', '');
+	}
 
 	await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(template));
 

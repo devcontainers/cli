@@ -1,0 +1,12 @@
+{
+    "id": "hey",
+    "version": "0.0.16",
+    "name": "A hey world feature",
+    "options": {
+        "greeting": {
+            "type": "string",
+            "default": "Good day",
+            "description": "Select a pre-made greeting, or enter your own"
+        }
+    }
+}
