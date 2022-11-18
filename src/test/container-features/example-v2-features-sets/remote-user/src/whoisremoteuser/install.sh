@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Activating feature 'whoisremoteuser'"
+echo "Activating feature 'whoisremoteuser'..."
 
 cat > /usr/local/bin/whoisremoteuser \
 << EOF

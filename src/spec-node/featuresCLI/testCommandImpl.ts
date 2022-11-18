@@ -139,7 +139,7 @@ async function runFeatureTests(args: FeaturesTestCommandInput, testResults: Test
 				fail('Uninitialized workspaceFolder or params');
 				return [];
 			}
-			await doRunAutoTest(feature, workspaceFolder, params, featureTestFolder, args, testResults);
+			await doRunAutoTest(feature, workspaceFolder, featureTestFolder, args, testResults);
 		}
 
 		// If there is a feature-scoped 'scenarios.json' with additional tests, also exec those.
@@ -157,7 +157,7 @@ async function runFeatureTests(args: FeaturesTestCommandInput, testResults: Test
 	return testResults;
 }
 
-async function doRunAutoTest(feature: string, workspaceFolder: string, params: DockerResolverParameters, featureTestFolder: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
+async function doRunAutoTest(feature: string, workspaceFolder: string, featureTestFolder: string, args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { cliHost } = args;
 	const testScriptPath = path.join(featureTestFolder, 'test.sh');
 	if (!(await cliHost.isFile(testScriptPath))) {
@@ -171,7 +171,7 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, params: D
 	await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
 
 	// Execute Test
-	const result = await execTest(params, 'test.sh', workspaceFolder, cliHost);
+	const result = await execTest(args, 'test.sh', workspaceFolder, cliHost);
 	testResults.push({
 		testName: feature,
 		result,
@@ -232,7 +232,7 @@ async function doScenario(pathToTestDir: string, targetFeatureOrGlobal: string, 
 		// Execute Test
 		testResults.push({
 			testName: scenarioName,
-			result: await execTest(params, `${scenarioName}.sh`, workspaceFolder, cliHost)
+			result: await execTest(args, `${scenarioName}.sh`, workspaceFolder, cliHost)
 		});
 	}
 	return testResults;
@@ -260,11 +260,11 @@ function analyzeTestResults(testResults: { testName: string; result: boolean }[]
 
 const devcontainerTemplate = `
 {
+	#{REMOTE_USER}
 	"image": "#{IMAGE}",
 	"features": {
 		#{FEATURES}
-	},
-	"remoteUser": "#{REMOTE_USER}"
+	}
 }`;
 
 async function createContainerFromWorkingDirectory(params: DockerResolverParameters, workspaceFolder: string, args: FeaturesTestCommandInput): Promise<LaunchResult | undefined> {
@@ -273,7 +273,7 @@ async function createContainerFromWorkingDirectory(params: DockerResolverParamet
 
 	// 2. Use  'devcontainer-cli up'  to build and start a container
 	log('Building test container...\n', { prefix: '\n⏳', info: true });
-	const launchResult: LaunchResult | undefined = await launchProject(params, workspaceFolder, quiet, disposables);
+	const launchResult: LaunchResult | undefined = await launchProject(params, args, workspaceFolder, quiet, disposables);
 	if (!launchResult || !launchResult.containerId) {
 		fail('Failed to launch container');
 		return;
@@ -299,7 +299,7 @@ async function generateDefaultProjectFromFeatures(
 	baseImage: string,
 	collectionsDirectory: string,
 	featuresToTest: string[],
-	remoteUser: string
+	remoteUser: string | undefined
 ): Promise<string> {
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
@@ -315,8 +315,13 @@ async function generateDefaultProjectFromFeatures(
 
 	let template = devcontainerTemplate
 		.replace('#{IMAGE}', baseImage)
-		.replace('#{FEATURES}', features)
-		.replace('#{REMOTE_USER}', remoteUser);
+		.replace('#{FEATURES}', features);
+
+	if (remoteUser) {
+		template = template.replace('#{REMOTE_USER}', `"remoteUser": "${remoteUser}",`);
+	} else {
+		template = template.replace('#{REMOTE_USER}', '');
+	}
 
 	await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(template));
 
@@ -374,7 +379,7 @@ async function generateProjectFromScenario(
 	return tmpFolder;
 }
 
-async function launchProject(params: DockerResolverParameters, workspaceFolder: string, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult> {
+async function launchProject(params: DockerResolverParameters, args: FeaturesTestCommandInput, workspaceFolder: string, quiet: boolean, disposables: (() => Promise<unknown> | undefined)[]): Promise<LaunchResult> {
 	const { common } = params;
 	let response = {} as LaunchResult;
 
@@ -388,7 +393,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 		],
 		remoteEnv: common.remoteEnv,
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
-		experimentalImageMetadata: common.experimentalImageMetadata,
+		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		log: text => quiet ? null : process.stderr.write(text),
 	};
@@ -423,22 +428,22 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	}
 }
 
-async function execTest(params: DockerResolverParameters, testFileName: string, workspaceFolder: string, cliHost: CLIHost) {
+async function execTest(testCommandArgs: FeaturesTestCommandInput, testFileName: string, workspaceFolder: string, cliHost: CLIHost) {
 	// Ensure all the tests scripts in the workspace folder are executable
 	// Update permissions on the copied files to make them readable/writable/executable by everyone
 	await cliHost.exec({ cmd: 'chmod', args: ['-R', '777', workspaceFolder], output: nullLog });
 
 	const cmd = `./${testFileName}`;
 	const args: string[] = [];
-	return await exec(params, cmd, args, workspaceFolder);
+	return await exec(testCommandArgs, cmd, args, workspaceFolder);
 }
 
-async function exec(_params: DockerResolverParameters, cmd: string, args: string[], workspaceFolder: string) {
+async function exec(testCommandArgs: FeaturesTestCommandInput, cmd: string, args: string[], workspaceFolder: string) {
 	const execArgs = {
 		...staticExecParams,
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
-		'experimental-image-metadata': false,
+		'experimental-image-metadata': !testCommandArgs.skipImageMetadata,
 		cmd,
 		args,
 		_: [
@@ -485,7 +490,7 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		buildxOutput: undefined,
 		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
-		experimentalImageMetadata: false,
 		skipPersistingCustomizationsFromFeatures: false,
+		experimentalImageMetadata: !args.skipImageMetadata,
 	}, disposables);
 }

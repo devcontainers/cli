@@ -1,6 +1,6 @@
 {
 	"custom_options": {
-		"image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
 		"features" : {
 			"hello": {
 				"greeting": "Ciao"
@@ -11,7 +11,7 @@
 		}
 	},
 	"with_external_feature": {
-		"image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+		"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
 		"features": {
 			"hello": {
 				"greeting": "How ya doing"
