@@ -11,6 +11,18 @@ export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
+// Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
+// Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
+//
+// Entire path ('namespace' in spec terminology) for the given repository 
+// (eg: devcontainers/features/go)
+const regexForPath = new RegExp('[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*', '');
+
+
+// MUST be either (a) the digest of the manifest or (b) a tag
+// MUST be at most 128 characters in length and MUST match the following regular expression:
+const regexForReference = new RegExp('[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}', ''); // 
+
 export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string };
 
 // ghcr.io/devcontainers/features/go:1.0.0
@@ -58,13 +70,17 @@ interface OCITagList {
 	tags: string[];
 }
 
-export function getRef(output: Log, resourceAndVersion: string): OCIRef {
+// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
+// Attempts to parse the given string into an OCIRef
+export function getRef(output: Log, resourceAndVersion: string): OCIRef | undefined {
+	// Normalize input by downcasing entire string
+	resourceAndVersion = resourceAndVersion.toLowerCase();
 
 	// ex: ghcr.io/codspace/features/ruby:1
 	// ex: ghcr.io/codspace/templates/ruby:1
 	const splitOnColon = resourceAndVersion.split(':');
 	const resource = splitOnColon[0];
-	const version = splitOnColon[1] ? splitOnColon[1] : 'latest';
+	const version = splitOnColon[1] ? splitOnColon[1] : 'latest'; // TODO: Support parsing out manifest digest (...@sha256:...)
 
 	const splitOnSlash = resource.split('/');
 
@@ -82,6 +98,17 @@ export function getRef(output: Log, resourceAndVersion: string): OCIRef {
 	output.write(`namespace: ${namespace}`, LogLevel.Trace);
 	output.write(`registry: ${registry}`, LogLevel.Trace);
 	output.write(`path: ${path}`, LogLevel.Trace);
+
+	// Validate result
+	if (!regexForPath.test(path)) {
+		output.write(`Parsed path (${path}) for input '${resourceAndVersion}' failed validation.`, LogLevel.Error);
+		return undefined;
+	}
+
+	if (!regexForReference.test(version)) {
+		output.write(`Parsed version (${version}) for input '${resourceAndVersion}' failed validation.`, LogLevel.Error);
+		return undefined;
+	}
 
 	return {
 		id,
@@ -229,7 +256,7 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 		let authToken = await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
 
 		if (!authToken) {
-			output.write(`(!) ERR: Failed to publish ${collectionType}: ${ref.resource}`, LogLevel.Error);
+			output.write(`(!) ERR: Failed to get published versions for ${collectionType}: ${ref.resource}`, LogLevel.Error);
 			return undefined;
 		}
 

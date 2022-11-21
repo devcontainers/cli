@@ -12,7 +12,7 @@ import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, 
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
-import { fetchOCIFeature, getOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
+import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 // v1
@@ -769,8 +769,7 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		let newFeaturesSet: FeatureSet = getOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
-		return newFeaturesSet;
+		return tryGetOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
 	}
 
 	output.write(`Github feature.`);

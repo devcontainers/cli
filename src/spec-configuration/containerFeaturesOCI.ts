@@ -2,9 +2,12 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { Feature, FeatureSet } from './containerFeaturesConfiguration';
 import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 
-export function getOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet {
-
+export function tryGetOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet | undefined {
 	const featureRef = getRef(output, identifier);
+	if (!featureRef) {
+		output.write(`Unable to parse '${identifier}'`, LogLevel.Error);
+		return undefined;
+	}
 
 	const feat: Feature = {
 		id: featureRef.id,
@@ -30,6 +33,9 @@ export function getOCIFeatureSet(output: Log, identifier: string, options: boole
 
 export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
 	const featureRef = getRef(output, identifier);
+	if (!featureRef) {
+		return undefined;
+	}
 	return await fetchOCIManifestIfExists(output, env, featureRef, manifestDigest, authToken);
 }
 

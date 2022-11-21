@@ -215,6 +215,9 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 export async function inspectImageInRegistry(output: Log, name: string, authToken?: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const ref = getRef(output, resourceAndVersion);
+	if (!ref) {
+		throw new Error(`Could not parse image name '${name}'`);
+	}
 	const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
