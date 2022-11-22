@@ -4,6 +4,50 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
+describe('getRef()', async function () {
+    this.timeout('120s');
+
+    it('valid getRef() with a tag', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'ghcr.io');
+        assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.version, 'latest');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+    });
+
+    it('valid getRef() without a version tag', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'ghcr.io');
+        assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.isUndefined(feat.version);
+    });
+
+    it('invalid getRef() with duplicate version tags', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest:latest');
+        assert.isUndefined(feat);
+    });
+
+    it('invalid getRef() with invalid character', async () => {
+        const feat = getRef(output, 'ghcr.io/devco%ntainers/templates/docker-from-docker:latest');
+        assert.isUndefined(feat);
+    });
+});
+
 describe('Test OCI Pull', () => {
     it('Parse OCI identifier', async () => {
         const feat = getRef(output, 'ghcr.io/codspace/features/ruby:1');
