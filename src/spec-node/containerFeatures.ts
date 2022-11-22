@@ -181,8 +181,10 @@ async function createLocalFeatures(params: DockerResolverParameters, dstFolder: 
 		output.write(toErrorText(stderrDecoder.write(chunk)));
 	});
 	create.pipe(extract.stdin);
-	await extract.exit;
-	await createExit; // Allow errors to surface.
+	await Promise.all([
+		extract.exit,
+		createExit, // Allow errors to surface.
+	]);
 }
 
 export interface ImageBuildOptions {
