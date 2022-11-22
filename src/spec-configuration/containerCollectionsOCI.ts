@@ -11,18 +11,6 @@ export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
-// Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
-// Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
-//
-// Entire path ('namespace' in spec terminology) for the given repository 
-// (eg: devcontainers/features/go)
-const regexForPath = new RegExp('[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*', '');
-
-
-// MUST be either (a) the digest of the manifest or (b) a tag
-// MUST be at most 128 characters in length and MUST match the following regular expression:
-const regexForReference = new RegExp('[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}', ''); // 
-
 export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string };
 
 // ghcr.io/devcontainers/features/go:1.0.0
@@ -70,17 +58,36 @@ interface OCITagList {
 	tags: string[];
 }
 
+// Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
+// Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
+//
+// Entire path ('namespace' in spec terminology) for the given repository 
+// (eg: devcontainers/features/go)
+const regexForPath = /[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*/;
+// MUST be either (a) the digest of the manifest or (b) a tag
+// MUST be at most 128 characters in length and MUST match the following regular expression:
+const regexForReference = /[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}/;
+
 // https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Attempts to parse the given string into an OCIRef
-export function getRef(output: Log, resourceAndVersion: string): OCIRef | undefined {
+export function getRef(output: Log, input: string): OCIRef | undefined {
 	// Normalize input by downcasing entire string
-	resourceAndVersion = resourceAndVersion.toLowerCase();
+	input = input.toLowerCase();
 
 	// ex: ghcr.io/codspace/features/ruby:1
 	// ex: ghcr.io/codspace/templates/ruby:1
-	const splitOnColon = resourceAndVersion.split(':');
-	const resource = splitOnColon[0];
-	const version = splitOnColon[1] ? splitOnColon[1] : 'latest'; // TODO: Support parsing out manifest digest (...@sha256:...)
+	const indexOfLastColon = input.lastIndexOf(':');
+
+	let resource = '';
+	let version = ''; // TODO: Support parsing out manifest digest (...@sha256:...)
+	if (indexOfLastColon === -1) {
+		// No colon, assume latest.
+		resource = input;
+		version = 'latest';
+	} else {
+		resource = input.substring(0, indexOfLastColon);
+		version = input.substring(indexOfLastColon + 1);
+	}
 
 	const splitOnSlash = resource.split('/');
 
@@ -99,14 +106,17 @@ export function getRef(output: Log, resourceAndVersion: string): OCIRef | undefi
 	output.write(`registry: ${registry}`, LogLevel.Trace);
 	output.write(`path: ${path}`, LogLevel.Trace);
 
-	// Validate result
-	if (!regexForPath.test(path)) {
-		output.write(`Parsed path (${path}) for input '${resourceAndVersion}' failed validation.`, LogLevel.Error);
+	// Validate results of parse.
+
+	const regexForPathResult = regexForPath.exec(path);
+	if (!regexForPathResult || regexForPathResult[0] !== path) {
+		output.write(`Parsed path '${path}') for input '${input}' failed validation.`, LogLevel.Error);
 		return undefined;
 	}
 
-	if (!regexForReference.test(version)) {
-		output.write(`Parsed version (${version}) for input '${resourceAndVersion}' failed validation.`, LogLevel.Error);
+	const regexForReferenceResult = regexForReference.exec(version);
+	if (!regexForReferenceResult || regexForReferenceResult[0] !== version) {
+		output.write(`Parsed version '${version}' for input '${input}' failed validation.`, LogLevel.Error);
 		return undefined;
 	}
 

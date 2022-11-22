@@ -34,7 +34,7 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
-        assert.isUndefined(feat.version);
+        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
     });
 
     it('invalid getRef() with duplicate version tags', async () => {
