@@ -46,6 +46,9 @@ describe('Test OCI Push', () => {
 
 	it('Can check whether a blob exists', async () => {
 		const ociFeatureRef = getRef(output, 'ghcr.io/codspace/features/go:1');
+		if (!ociFeatureRef) {
+			assert.fail('getRef() for the Feature should not be undefined');
+		}
 		const { registry, resource } = ociFeatureRef;
 		const sessionAuth = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
 		if (!sessionAuth) {
