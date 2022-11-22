@@ -69,6 +69,7 @@ export interface DevContainerFromImageConfig {
 	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
+	remoteUserUIDIgnorePattern?: string;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
@@ -106,6 +107,7 @@ export type DevContainerFromDockerfileConfig = {
 	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
+	remoteUserUIDIgnorePattern?: string;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
@@ -162,6 +164,7 @@ export interface DevContainerFromDockerComposeConfig {
 	remoteEnv?: Record<string, string | null>;
 	remoteUser?: string;
 	updateRemoteUserUID?: boolean;
+	remoteUserUIDIgnorePattern?: string;
 	userEnvProbe?: UserEnvProbe;
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];

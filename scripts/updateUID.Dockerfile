@@ -6,6 +6,7 @@ FROM $BASE_IMAGE
 USER root
 
 ARG REMOTE_USER
+ARG IGNORE_PATTERN
 ARG NEW_UID
 ARG NEW_GID
 SHELL ["/bin/sh", "-c"]
@@ -26,7 +27,7 @@ RUN eval $(sed -n "s/${REMOTE_USER}:[^:]*:\([^:]*\):\([^:]*\):[^:]*:\([^:]*\).*/
 		if [ "$OLD_GID" != "$NEW_GID" ]; then \
 			sed -i -e "s/\([^:]*:[^:]*:\)${OLD_GID}:/\1${NEW_GID}:/" /etc/group; \
 		fi; \
-		chown -R $NEW_UID:$NEW_GID $HOME_FOLDER; \
+	find $HOME_FOLDER -path IGNORE_PATTERN -prune -o -print0 | xargs -0 chown $NEW_UID:$NEW_GID; \
 	fi;
 
 ARG IMAGE_USER
