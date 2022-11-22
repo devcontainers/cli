@@ -116,7 +116,7 @@ describe('fetchTemplate', async function () {
 
 		// Read file modified by templated value
 		const dockerfile = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
-		assert.match(dockerfile, /ARG NODE_VERSION="lts\/\*"/);
+		assert.match(dockerfile, /FROM mcr.microsoft.com\/devcontainers\/anaconda:/);
 
 		// Read file modified by adding Features
 		const devcontainer = (await readLocalFile(path.join(dest, '.devcontainer', 'devcontainer.json'))).toString();
