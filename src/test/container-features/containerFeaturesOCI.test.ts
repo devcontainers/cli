@@ -37,15 +37,81 @@ describe('getRef()', async function () {
         assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
     });
 
+    it('valid getRef() automatically downcases', async () => {
+        const feat = getRef(output, 'ghcr.io/DeVContainERS/templates/Docker-FROM-Docker');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'ghcr.io');
+        assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+    });
+
+    it('valid getRef() with a registry that contains a port.', async () => {
+        const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker:latest');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+    });
+
+    it('valid getRef() really short path and no version', async () => {
+        const feat = getRef(output, 'docker.io:8001/a/b/c');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'c');
+        assert.equal(feat.namespace, 'a/b');
+        assert.equal(feat.owner, 'a');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/a/b/c');
+        assert.equal(feat.path, 'a/b/c');
+        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+    });
+
     it('invalid getRef() with duplicate version tags', async () => {
         const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest:latest');
         assert.isUndefined(feat);
     });
 
-    it('invalid getRef() with invalid character', async () => {
+    it('invalid getRef() with invalid character in namespace', async () => {
         const feat = getRef(output, 'ghcr.io/devco%ntainers/templates/docker-from-docker:latest');
         assert.isUndefined(feat);
     });
+
+    it('invalid getRef() with invalid character in feature name', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from@docker:latest');
+        assert.isUndefined(feat);
+    });
+
+    it('invalid getRef() with missing path with version tag', async () => {
+        const feat = getRef(output, 'ghcr.io/:latest');
+        assert.isUndefined(feat);
+    });
+
+    it('invalid getRef() with missing path without version tag', async () => {
+        const feat = getRef(output, 'ghcr.io');
+        assert.isUndefined(feat);
+    });
+
+    it('invalid getRef() multiple slashes in sequence', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers//templates/docker-from-docker:latest');
+        assert.isUndefined(feat);
+    });
+
 });
 
 describe('Test OCI Pull', () => {

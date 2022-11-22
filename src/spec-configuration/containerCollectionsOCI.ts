@@ -74,14 +74,16 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	// Normalize input by downcasing entire string
 	input = input.toLowerCase();
 
-	// ex: ghcr.io/codspace/features/ruby:1
-	// ex: ghcr.io/codspace/templates/ruby:1
 	const indexOfLastColon = input.lastIndexOf(':');
 
 	let resource = '';
 	let version = ''; // TODO: Support parsing out manifest digest (...@sha256:...)
-	if (indexOfLastColon === -1) {
-		// No colon, assume latest.
+
+	// 'If' condition is true in the following cases:
+	//  1. The final colon is before the first slash (a port) :  eg:   ghcr.io:8081/codspace/features/ruby
+	//  2. There is no version :      				   			 eg:   ghcr.io/codspace/features/ruby
+	// In both cases, assume 'latest' tag.
+	if (indexOfLastColon === -1 || indexOfLastColon < input.indexOf('/')) {
 		resource = input;
 		version = 'latest';
 	} else {
@@ -102,7 +104,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	output.write(`id: ${id}`, LogLevel.Trace);
 	output.write(`version: ${version}`, LogLevel.Trace);
 	output.write(`owner: ${owner}`, LogLevel.Trace);
-	output.write(`namespace: ${namespace}`, LogLevel.Trace);
+	output.write(`namespace: ${namespace}`, LogLevel.Trace); // TODO: We assume 'namespace' includes at least one slash (eg: 'devcontainers/features')
 	output.write(`registry: ${registry}`, LogLevel.Trace);
 	output.write(`path: ${path}`, LogLevel.Trace);
 
@@ -110,7 +112,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 
 	const regexForPathResult = regexForPath.exec(path);
 	if (!regexForPathResult || regexForPathResult[0] !== path) {
-		output.write(`Parsed path '${path}') for input '${input}' failed validation.`, LogLevel.Error);
+		output.write(`Parsed path '${path}' for input '${input}' failed validation.`, LogLevel.Error);
 		return undefined;
 	}
 
