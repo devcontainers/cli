@@ -65,9 +65,10 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 	});
 }
 
-// Send HTTP Request.  Does not throw on status code, but rather always returns 'statusCode' and 'resHeaders'.
+// Send HTTP Request.
+// Does not throw on status code, but rather always returns 'statusCode', 'resHeaders', and 'resBody'.
 export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
-	return new Promise<{ statusCode: number; resHeaders: Record<string, string> }>((resolve, reject) => {
+	return new Promise<{ statusCode: number; resHeaders: Record<string, string>, resBody: Buffer }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {
 			hostname: parsed.hostname,
@@ -79,16 +80,21 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 		};
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
-			const result = {
-				statusCode: res.statusCode!,
-				resHeaders: res.headers! as Record<string, string>
-			};
-			resolve(result);
+
+			// Resolve response body
+			const chunks: Buffer[] = [];
+			res.on('data', chunk => chunks.push(chunk as Buffer));
+			res.on('end', () => {
+				resolve({
+					statusCode: res.statusCode!,
+					resHeaders: res.headers! as Record<string, string>,
+					resBody: Buffer.concat(chunks)
+				})
+			});
+			if (options.data) {
+				req.write(options.data);
+			}
+			req.end();
 		});
-		req.on('error', reject);
-		if (options.data) {
-			req.write(options.data);
-		}
-		req.end();
 	});
 }
