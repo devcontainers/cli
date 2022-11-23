@@ -311,7 +311,7 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 
 	const url = `https://${ociRef.registry}/v2/${ociRef.path}/blobs/uploads/`;
 	output.write(`Generating Upload URL -> ${url}`, LogLevel.Trace);
-	const { statusCode, resHeaders } = await requestResolveHeaders({ type: 'POST', url, headers }, output);
+	const { statusCode, resHeaders, resBody } = await requestResolveHeaders({ type: 'POST', url, headers }, output);
 	output.write(`${url}: ${statusCode}`, LogLevel.Trace);
 	if (statusCode === 202) {
 		const locationHeader = resHeaders['location'] || resHeaders['Location'];
@@ -320,8 +320,13 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 			return undefined;
 		}
 		return locationHeader;
+	} else {
+		// Any other statusCode besides 202 is unexpected
+		// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#error-codes
+		const displayResBody = resBody ? ` -> ${resBody}` : '';
+		output.write(`${url}: Unexpected status code '${statusCode}'${displayResBody}`, LogLevel.Error);
+		return undefined;
 	}
-	return undefined;
 }
 
 export async function calculateManifestAndContentDigest(output: Log, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined) {
