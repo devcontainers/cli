@@ -68,7 +68,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 // Send HTTP Request.
 // Does not throw on status code, but rather always returns 'statusCode', 'resHeaders', and 'resBody'.
 export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
-	return new Promise<{ statusCode: number; resHeaders: Record<string, string>, resBody: Buffer }>((resolve, reject) => {
+	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {
 			hostname: parsed.hostname,
