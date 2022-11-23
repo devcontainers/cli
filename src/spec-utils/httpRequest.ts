@@ -89,7 +89,7 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 					statusCode: res.statusCode!,
 					resHeaders: res.headers! as Record<string, string>,
 					resBody: Buffer.concat(chunks)
-				})
+				});
 			});
 			if (options.data) {
 				req.write(options.data);
