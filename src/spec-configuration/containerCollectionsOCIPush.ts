@@ -35,8 +35,7 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	const existingManifest = await fetchOCIManifestIfExists(output, env, ociRef, manifest.digest, registryAuthToken);
 	if (manifest.digest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
-		await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
-		return true;
+		return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
 	}
 
 	const blobsToPush = [
@@ -72,10 +71,7 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	}
 
 	// Send a final PUT to combine blobs and tag manifest properly.
-	await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
-
-	// Success!
-	return true;
+	return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
 }
 
 // (!) Entrypoint function to push a collection metadata/overview file for a set of features/templates to a registry.
@@ -105,8 +101,7 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 	const existingManifest = await fetchOCIManifestIfExists(output, env, collectionRef, manifest.digest, registryAuthToken);
 	if (manifest.digest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
-		await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
-		return true;
+		return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
 	}
 
 	// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
@@ -143,9 +138,7 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 
 	// Send a final PUT to combine blobs and tag manifest properly.
 	// Collections are always tagged 'latest'
-	await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
-
-	return true;
+	return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
 }
 
 // --- Helper Functions
