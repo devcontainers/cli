@@ -63,10 +63,10 @@ interface OCITagList {
 //
 // Entire path ('namespace' in spec terminology) for the given repository 
 // (eg: devcontainers/features/go)
-const regexForPath = /[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*/;
+const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
 // MUST be either (a) the digest of the manifest or (b) a tag
 // MUST be at most 128 characters in length and MUST match the following regular expression:
-const regexForReference = /[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}/;
+const regexForReference = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
 // https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Attempts to parse the given string into an OCIRef
@@ -110,14 +110,12 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 
 	// Validate results of parse.
 
-	const regexForPathResult = regexForPath.exec(path);
-	if (!regexForPathResult || regexForPathResult[0] !== path) {
+	if (!regexForPath.exec(path)) {
 		output.write(`Parsed path '${path}' for input '${input}' failed validation.`, LogLevel.Error);
 		return undefined;
 	}
 
-	const regexForReferenceResult = regexForReference.exec(version);
-	if (!regexForReferenceResult || regexForReferenceResult[0] !== version) {
+	if (!regexForReference.test(version)) {
 		output.write(`Parsed version '${version}' for input '${input}' failed validation.`, LogLevel.Error);
 		return undefined;
 	}
