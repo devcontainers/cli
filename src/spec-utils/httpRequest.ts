@@ -91,10 +91,13 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 					resBody: Buffer.concat(chunks)
 				});
 			});
-			if (options.data) {
-				req.write(options.data);
-			}
-			req.end();
 		});
+
+		if (options.data) {
+			req.write(options.data);
+		}
+
+		req.on('error', reject);
+		req.end();
 	});
 }

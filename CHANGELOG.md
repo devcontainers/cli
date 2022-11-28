@@ -4,6 +4,9 @@ Notable changes.
 
 ## November 2022
 
+### [0.25.1]
+- Fix regression in https://github.com/devcontainers/cli/pull/298
+
 ### [0.25.0]
 
 - `features test`: Respect image label metadata. (https://github.com/devcontainers/cli/pull/288)

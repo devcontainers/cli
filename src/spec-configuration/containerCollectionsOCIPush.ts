@@ -161,14 +161,14 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 			data: Buffer.from(manifestStr),
 		};
 
-		let { statusCode, resHeaders } = await requestResolveHeaders(options);
+		let { statusCode, resHeaders } = await requestResolveHeaders(options, output);
 
 		// Retry logic: when request fails with HTTP 429: too many requests
 		if (statusCode === 429) {
 			output.write(`Failed to PUT manifest for tag ${tag} due to too many requests. Retrying...`, LogLevel.Warning);
 			await delay(2000);
 
-			let response = await requestResolveHeaders(options);
+			let response = await requestResolveHeaders(options, output);
 			statusCode = response.statusCode;
 			resHeaders = response.resHeaders;
 		}
@@ -212,7 +212,7 @@ async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: 
 
 	output.write(`Crafted blob url:  ${url}`, LogLevel.Trace);
 
-	const { statusCode } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) });
+	const { statusCode } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) }, output);
 	if (statusCode !== 201) {
 		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}'`, LogLevel.Error);
 		return false;
