@@ -81,6 +81,8 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 		const req = https.request(reqOptions, res => {
 			res.on('error', reject);
 
+			_output!.write('hello!');
+
 			// Resolve response body
 			const chunks: Buffer[] = [];
 			res.on('data', chunk => chunks.push(chunk as Buffer));
@@ -91,10 +93,13 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 					resBody: Buffer.concat(chunks)
 				});
 			});
-			if (options.data) {
-				req.write(options.data);
-			}
-			req.end();
 		});
+
+		if (options.data) {
+			req.write(options.data);
+		}
+
+		req.on('error', reject);
+		req.end();
 	});
 }
