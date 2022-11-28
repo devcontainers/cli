@@ -2,6 +2,7 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspace",
+	"postCreateCommand": "touch /postCreateCommand.txt",
 	"remoteEnv": {
 		"TEST": "ENV"
 	}
