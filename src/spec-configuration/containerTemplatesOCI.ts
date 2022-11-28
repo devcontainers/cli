@@ -122,6 +122,9 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 
 async function fetchOCITemplateManifestIfExistsFromUserIdentifier(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
 	const templateRef = getRef(output, identifier);
+	if (!templateRef) {
+		return undefined;
+	}
 	return await fetchOCIManifestIfExists(output, env, templateRef, manifestDigest, authToken);
 }
 

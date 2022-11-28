@@ -44,7 +44,7 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 	const publishedVersions = await getPublishedVersions(ociRef, output);
 
 	if (!publishedVersions) {
-		process.exit(1);
+		return false;
 	}
 
 	const semanticVersions: string[] | undefined = getSermanticVersions(version, publishedVersions, output);
@@ -53,11 +53,12 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
 		const pathToTgz = path.join(outputDir, getArchiveName(ociRef.id, collectionType));
 		if (! await pushOCIFeatureOrTemplate(output, ociRef, pathToTgz, semanticVersions, collectionType)) {
-			output.write(`(!) ERR: Failed to publish ${collectionType}: ${ociRef.resource}`, LogLevel.Error);
-			process.exit(1);
+			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
+			return false;
 		}
-		output.write(`Published ${collectionType}: ${ociRef.id}...`, LogLevel.Info);
 	}
+	output.write(`Published ${collectionType}: ${ociRef.id}...`, LogLevel.Info);
+	return true;
 }
 
 export async function doPublishMetadata(collectionRef: OCICollectionRef, outputDir: string, output: Log, collectionType: string) {
@@ -67,7 +68,8 @@ export async function doPublishMetadata(collectionRef: OCICollectionRef, outputD
 	const pathToCollectionFile = path.join(outputDir, OCICollectionFileName);
 	if (! await pushCollectionMetadata(output, collectionRef, pathToCollectionFile, collectionType)) {
 		output.write(`(!) ERR: Failed to publish collection metadata: ${OCICollectionFileName}`, LogLevel.Error);
-		process.exit(1);
+		return false;
 	}
 	output.write('Published collection metadata...', LogLevel.Info);
+	return true;
 }

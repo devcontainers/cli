@@ -78,6 +78,11 @@ async function templatesPublish({
 
         const resource = `${registry}/${namespace}/${t.id}`;
         const templateRef = getRef(output, resource);
+        if (!templateRef) {
+            output.write(`(!) Could not parse provided Template identifier: '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
         await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
     }
 

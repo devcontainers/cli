@@ -40,6 +40,14 @@ async function featuresInfo({
 	}, pkg, new Date(), disposables, true);
 
 	const featureOciRef = getRef(output, featureId);
+	if (!featureOciRef) {
+		if (outputFormat === 'json') {
+			output.raw(JSON.stringify({}), LogLevel.Info);
+		} else {
+			output.raw(`Failed to parse Feature identifier '${featureId}'\n`, LogLevel.Error);
+		}
+		process.exit(1);
+	}
 
 	const publishedVersions = await getPublishedVersions(featureOciRef, output, true);
 	if (!publishedVersions || publishedVersions.length === 0) {

@@ -478,6 +478,9 @@ describe('test function getPublishedVersions', async () => {
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
 		const featureRef = getRef(output, resource);
+		if (!featureRef) {
+			assert.fail('featureRef should not be undefined');
+		}
 		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
