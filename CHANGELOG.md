@@ -4,9 +4,18 @@ Notable changes.
 
 ## November 2022
 
+### [0.25.0]
+
+- `features test`: Respect image label metadata. (https://github.com/devcontainers/cli/pull/288)
+- Surface first error (https://github.com/microsoft/vscode-remote-release/issues/7382)
+- `templates publish`: Exit for "Failed to PUT manifest for tag x" error. (https://github.com/devcontainers/cli/pull/296)
+- Respect devcontainer.json when using image without features. (https://github.com/devcontainers/cli/issues/299)
+- Emit response from registry on failed `postUploadSessionId` (https://github.com/devcontainers/cli/pull/298)
+- downcase OCI identifiers and validate input of getRef() (https://github.com/devcontainers/cli/pull/293)
+
 ### [0.24.1]
 
--   `features test`: Respects testing scenarios where 'remoteUser' is non-root (https://github.com/devcontainers/cli/pull/286)
+- `features test`: Respects testing scenarios where 'remoteUser' is non-root (https://github.com/devcontainers/cli/pull/286)
 
 ### [0.24.0]
 
