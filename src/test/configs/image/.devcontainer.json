@@ -1,5 +1,6 @@
 {
 	"image": "ubuntu:latest",
+	"postCreateCommand": "touch /postCreateCommand.txt",
 	"remoteEnv": {
 		"LOCAL_PATH": "${localEnv:PATH}",
 		"CONTAINER_PATH": "${containerEnv:PATH}"

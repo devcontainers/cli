@@ -39,7 +39,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		// no feature extensions - return
 		return {
 			updatedImageName: [imageName],
-			imageMetadata: imageBuildInfo.metadata,
+			imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, extendImageDetails?.featuresConfig),
 			imageDetails: async () => imageBuildInfo.imageDetails,
 			labels: extendImageDetails?.labels,
 		};

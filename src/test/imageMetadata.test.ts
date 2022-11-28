@@ -156,6 +156,7 @@ describe('Image Metadata', function () {
 					const metadata = internalGetImageMetadata0(details, true, nullLog);
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
+					await shellExec(`docker exec ${response.containerId} test -f /postCreateCommand.txt`);
 					await shellExec(`docker rm -f ${response.containerId}`);
 				});
 			});
