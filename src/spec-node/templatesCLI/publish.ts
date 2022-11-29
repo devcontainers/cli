@@ -88,7 +88,7 @@ async function templatesPublish({
 
     const templateCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
     if (!templateCollectionRef) {
-        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}`, LogLevel.Error);
+        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}'`, LogLevel.Error);
         process.exit(1);
     }
 
