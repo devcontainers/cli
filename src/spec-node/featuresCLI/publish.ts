@@ -90,7 +90,7 @@ async function featuresPublish({
 
     const featureCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
     if (!featureCollectionRef) {
-        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}`, LogLevel.Error);
+        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}'`, LogLevel.Error);
         process.exit(1);
     }
 
