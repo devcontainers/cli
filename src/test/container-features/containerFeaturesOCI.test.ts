@@ -1,8 +1,60 @@
 import { assert } from 'chai';
-import { getRef, getManifest, getBlob } from '../../spec-configuration/containerCollectionsOCI';
+import { getRef, getManifest, getBlob, getCollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+describe('getCollectionRef()', async function () {
+    this.timeout('120s');
+
+
+    it('valid getCollectionRef()', async () => {
+        const collectionRef = getCollectionRef(output, 'ghcr.io', 'devcontainers/templates');
+        if (!collectionRef) {
+            assert.fail('collectionRef should not be undefined');
+        }
+        assert.ok(collectionRef);
+        assert.equal(collectionRef.registry, 'ghcr.io');
+        assert.equal(collectionRef.path, 'devcontainers/templates');
+        assert.equal(collectionRef.resource, 'ghcr.io/devcontainers/templates');
+        assert.equal(collectionRef.version, 'latest');
+    });
+
+    it('valid getCollectionRef() that was originally uppercase', async () => {
+        const collectionRef = getCollectionRef(output, 'GHCR.IO', 'DEVCONTAINERS/TEMPLATES');
+        if (!collectionRef) {
+            assert.fail('collectionRef should not be undefined');
+        }
+        assert.ok(collectionRef);
+        assert.equal(collectionRef.registry, 'ghcr.io');
+        assert.equal(collectionRef.path, 'devcontainers/templates');
+        assert.equal(collectionRef.resource, 'ghcr.io/devcontainers/templates');
+        assert.equal(collectionRef.version, 'latest');
+    });
+
+    it('valid getCollectionRef() with port in registry', async () => {
+        const collectionRef = getCollectionRef(output, 'ghcr.io:8001', 'devcontainers/templates');
+        if (!collectionRef) {
+            assert.fail('collectionRef should not be undefined');
+        }
+        assert.ok(collectionRef);
+        assert.equal(collectionRef.registry, 'ghcr.io:8001');
+        assert.equal(collectionRef.path, 'devcontainers/templates');
+        assert.equal(collectionRef.resource, 'ghcr.io:8001/devcontainers/templates');
+        assert.equal(collectionRef.version, 'latest');
+    });
+
+    it('invalid getCollectionRef() with an invalid character in path', async () => {
+        const collectionRef = getCollectionRef(output, 'ghcr.io', 'devcont%ainers/templates');
+        assert.isUndefined(collectionRef);
+    });
+
+    it('invalid getCollectionRef() with too many slashes in path', async () => {
+        const collectionRef = getCollectionRef(output, 'ghcr.io', 'devcontainers//templates');
+        assert.isUndefined(collectionRef);
+    });
+
+});
 
 describe('getRef()', async function () {
     this.timeout('120s');
