@@ -4,6 +4,10 @@ Notable changes.
 
 ## November 2022
 
+### [0.25.2]
+
+- Fix Feature/Template publishing issue when a capital letter is in the repo name (https://github.com/devcontainers/cli/pull/303)
+
 ### [0.25.1]
 - Fix regression in https://github.com/devcontainers/cli/pull/298
 
