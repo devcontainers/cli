@@ -44,7 +44,7 @@ async function featuresPublish({
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
-        log: (str) => process.stdout.write(str),
+        log: (str) => process.stderr.write(str),
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
@@ -67,6 +67,8 @@ async function featuresPublish({
         process.exit(1);
     }
 
+    let result = {};
+
     for (const f of metadata.features) {
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
@@ -82,10 +84,16 @@ async function featuresPublish({
             process.exit(1);
         }
 
-        if (! await doPublishCommand(f.version, featureRef, outputDir, output, collectionType)) {
+        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType)
+        if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
         }
+
+        result = {
+            ...result,
+            [f.id]: publishResult,
+        };
     }
 
     const featureCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
@@ -98,6 +106,8 @@ async function featuresPublish({
         output.write(`(!) ERR: Failed to publish '${featureCollectionRef.registry}/${featureCollectionRef.path}'`, LogLevel.Error);
         process.exit(1);
     }
+
+    console.log(JSON.stringify(result));
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });
