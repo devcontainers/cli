@@ -84,7 +84,7 @@ async function featuresPublish({
             process.exit(1);
         }
 
-        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType)
+        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
