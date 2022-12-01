@@ -1,0 +1,11 @@
+{
+	"extends": "./.devcontainer.base.json",
+	"name": "Overrides",
+	"forwardPorts": [443],
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {
+			"version": "latest",
+			"moby": true
+		}
+	}
+}

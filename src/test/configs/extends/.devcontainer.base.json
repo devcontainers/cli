@@ -1,0 +1,10 @@
+{
+    "name": "example configuration",
+    "image": "mcr.microsoft.com/devcontainers/base:latest",
+    "forwardPorts": [80],
+    "features": {
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "latest"
+        }
+    }
+}
