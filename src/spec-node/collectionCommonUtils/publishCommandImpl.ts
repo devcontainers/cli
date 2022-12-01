@@ -44,7 +44,7 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 	const publishedVersions = await getPublishedVersions(ociRef, output);
 
 	if (!publishedVersions) {
-		return false;
+		return;
 	}
 
 	const semanticVersions: string[] | undefined = getSermanticVersions(version, publishedVersions, output);
@@ -54,11 +54,11 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 		const pathToTgz = path.join(outputDir, getArchiveName(ociRef.id, collectionType));
 		if (! await pushOCIFeatureOrTemplate(output, ociRef, pathToTgz, semanticVersions, collectionType)) {
 			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
-			return false;
+			return;
 		}
 	}
-	output.write(`Published ${collectionType}: ${ociRef.id}...`, LogLevel.Info);
-	return true;
+	output.write(`Published ${collectionType}: '${ociRef.id}'`, LogLevel.Info);
+	return semanticVersions ?? []; // Not an error if no versions were published, likely they just already existed and were skipped.
 }
 
 export async function doPublishMetadata(collectionRef: OCICollectionRef, outputDir: string, output: Log, collectionType: string) {
@@ -70,6 +70,6 @@ export async function doPublishMetadata(collectionRef: OCICollectionRef, outputD
 		output.write(`(!) ERR: Failed to publish collection metadata: ${OCICollectionFileName}`, LogLevel.Error);
 		return false;
 	}
-	output.write('Published collection metadata...', LogLevel.Info);
+	output.write('Published collection metadata.', LogLevel.Info);
 	return true;
 }

@@ -45,7 +45,7 @@ async function templatesPublish({
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
-        log: (str) => process.stdout.write(str),
+        log: (str) => process.stderr.write(str),
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
@@ -68,6 +68,8 @@ async function templatesPublish({
         process.exit(1);
     }
 
+    let result = {};
+
     for (const t of metadata.templates) {
         output.write(`Processing template: ${t.id}...`, LogLevel.Info);
 
@@ -83,7 +85,16 @@ async function templatesPublish({
             process.exit(1);
         }
 
-        await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        const publishResult = await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        if (!publishResult) {
+            output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
+        result = {
+            ...result,
+            [t.id]: publishResult,
+        };
     }
 
     const templateCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
@@ -92,7 +103,12 @@ async function templatesPublish({
         process.exit(1);
     }
 
-    await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType);
+    if (! await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType)) {
+        output.write(`(!) ERR: Failed to publish '${templateCollectionRef.registry}/${templateCollectionRef.path}'`, LogLevel.Error);
+        process.exit(1);
+    }
+
+    console.log(JSON.stringify(result));
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });
