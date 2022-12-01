@@ -70,6 +70,6 @@ export async function doPublishMetadata(collectionRef: OCICollectionRef, outputD
 		output.write(`(!) ERR: Failed to publish collection metadata: ${OCICollectionFileName}`, LogLevel.Error);
 		return false;
 	}
-	output.write('Published collection metadata...', LogLevel.Info);
+	output.write('Published collection metadata.', LogLevel.Info);
 	return true;
 }
