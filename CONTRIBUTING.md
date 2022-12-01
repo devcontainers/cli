@@ -16,6 +16,15 @@ Here is a sample:
 - You may open a PR, i.e code or shell scripts demonstrating approaches for implementation.
 - Once there is discussion on your proposal, please also open and link a PR to update the [devcontainer.json reference doc](https://aka.ms/devcontainer.json). When your proposal is merged, the docs will be kept up-to-date with the latest spec.
 
+## Testing
+
+The tests include both unit and integration test that run using a packaged build of the CLI. The full test suite can be ran using:
+
+```
+yarn package
+yarn test
+```
+
 ## Review process
 
 The specification repo uses the following [labels](https://github.com/microsoft/dev-container-spec/labels):
