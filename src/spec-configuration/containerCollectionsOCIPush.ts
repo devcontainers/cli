@@ -60,12 +60,6 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 		}
 	];
 
-	// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
-	const blobPutLocationUriPath = await postUploadSessionId(output, ociRef, authorization);
-	if (!blobPutLocationUriPath) {
-		output.write(`Failed to get upload session ID`, LogLevel.Error);
-		return false;
-	}
 
 	for await (const blob of blobsToPush) {
 		const { name, digest } = blob;
@@ -74,6 +68,14 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 
 		// PUT blobs
 		if (!blobExistsConfigLayer) {
+
+			// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
+			const blobPutLocationUriPath = await postUploadSessionId(output, ociRef, authorization);
+			if (!blobPutLocationUriPath) {
+				output.write(`Failed to get upload session ID`, LogLevel.Error);
+				return false;
+			}
+
 			if (!(await putBlob(output, blobPutLocationUriPath, ociRef, blob, authorization))) {
 				output.write(`Failed to PUT blob '${name}' with digest '${digest}'`, LogLevel.Error);
 				return false;
@@ -122,13 +124,6 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 		return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], authorization);
 	}
 
-	// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
-	const blobPutLocationUriPath = await postUploadSessionId(output, collectionRef, authorization);
-	if (!blobPutLocationUriPath) {
-		output.write(`Failed to get upload session ID`, LogLevel.Error);
-		return false;
-	}
-
 	const blobsToPush = [
 		{
 			name: 'configLayer',
@@ -151,6 +146,14 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 
 		// PUT blobs
 		if (!blobExistsConfigLayer) {
+
+			// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
+			const blobPutLocationUriPath = await postUploadSessionId(output, collectionRef, authorization);
+			if (!blobPutLocationUriPath) {
+				output.write(`Failed to get upload session ID`, LogLevel.Error);
+				return false;
+			}
+
 			if (!(await putBlob(output, blobPutLocationUriPath, collectionRef, blob, authorization))) {
 				output.write(`Failed to PUT blob '${name}' with digest '${digest}'`, LogLevel.Error);
 				return false;
