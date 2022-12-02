@@ -244,6 +244,7 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 		return Buffer.from(userToken).toString('base64');
 	}
 
+	// Represents anonymous access.
 	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Warning);
 	return undefined;
 }
