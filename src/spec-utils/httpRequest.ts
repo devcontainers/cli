@@ -22,7 +22,7 @@ export function request(options: { type: string; url: string; headers: Record<st
 		};
 
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
-		if (output) {
+		if (output && plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}
 
@@ -61,7 +61,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 		};
 
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
-		if (output) {
+		if (output && plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}
 
@@ -92,7 +92,7 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 		};
 
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
-		if (output) {
+		if (output && plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}
 
