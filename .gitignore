@@ -10,3 +10,5 @@ build-tmp
 .DS_Store
 .env
 output
+.nyc_output
+coverage
