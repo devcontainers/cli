@@ -9,7 +9,7 @@ import ProxyAgent from 'proxy-agent';
 import * as url from 'url';
 import { Log, LogLevel } from './log';
 
-export function request(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log, plainHTTP = true) {
+export function request(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log, plainHTTP = false) {
 	return new Promise<Buffer>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {
@@ -42,7 +42,7 @@ export function request(options: { type: string; url: string; headers: Record<st
 }
 
 // HTTP HEAD request that returns status code.
-export function headRequest(options: { url: string; headers: Record<string, string> }, output?: Log, plainHTTP = true) {
+export function headRequest(options: { url: string; headers: Record<string, string> }, output?: Log, plainHTTP = false) {
 	return new Promise<number>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {
@@ -68,7 +68,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 
 // Send HTTP Request.
 // Does not throw on status code, but rather always returns 'statusCode', 'resHeaders', and 'resBody'.
-export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log, plainHTTP = true) {
+export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log, plainHTTP = false) {
 	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {

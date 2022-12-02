@@ -226,7 +226,7 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 
 	let userToken: string | undefined = undefined;
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-		userToken = env['GITHUB_TOKEN'];
+		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
 	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=domain1|user1|token1,domain2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
@@ -268,7 +268,7 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
 	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
-	output.write(`url: ${url}`, LogLevel.Trace);
+	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
 
 	const options = {
 		type: 'GET',
@@ -299,7 +299,6 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 		output.write('Failed to parse registry auth token response', LogLevel.Error);
 		return undefined;
 	}
-
 	return scopeToken;
 }
 
@@ -308,7 +307,7 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 // Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
 export async function fetchAuthorization(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
 	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
-	const scopeToken = generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
+	const scopeToken = await generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
 
 	if (scopeToken) {
 		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
