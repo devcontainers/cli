@@ -168,7 +168,8 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessEnv, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
-	if (ref.registry.indexOf('.') < 0) {
+	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
+		output.write(`ERR: Registry '${ref.registry}' is not a valid domain name or IP address.`, LogLevel.Error);
 		return undefined;
 	}
 
@@ -255,6 +256,7 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 
 	let userToken: string | undefined = undefined;
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
+		output.write('Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
 	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=domain1|user1|token1,domain2|user2|token2
