@@ -250,71 +250,70 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 
 // https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
 // Some registries (eg: ghcr.io) expect a scoped token to target resources.
+async function generateScopeTokenCredential(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
+	if (registry === 'mcr.microsoft.com') {
+		return undefined;
+	}
 
-// async function generateScopeTokenCredential(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
-// 	if (registry === 'mcr.microsoft.com') {
-// 		return undefined;
-// 	}
+	const headers: HEADERS = {
+		'user-agent': 'devcontainer'
+	};
 
-// 	const headers: HEADERS = {
-// 		'user-agent': 'devcontainer'
-// 	};
+	if (!basicAuthTokenBase64) {
+		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
+	}
 
-// 	if (!basicAuthTokenBase64) {
-// 		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
-// 	}
+	headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
 
-// 	headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
+	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
+	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
+	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
+	output.write(`url: ${url}`, LogLevel.Trace);
 
-// 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
-// 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
-// 	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
-// 	output.write(`url: ${url}`, LogLevel.Trace);
+	const options = {
+		type: 'GET',
+		url: url,
+		headers: headers
+	};
 
-// 	const options = {
-// 		type: 'GET',
-// 		url: url,
-// 		headers: headers
-// 	};
+	let authReq: Buffer;
+	try {
+		authReq = await request(options, output);
+	} catch (e: any) {
+		output.write(`Unable to request scope token from registry ${registry}: ${e}`, LogLevel.Warning);
+		return;
+	}
 
-// 	let authReq: Buffer;
-// 	try {
-// 		authReq = await request(options, output);
-// 	} catch (e: any) {
-// 		output.write(`Unable to request scope token from registry ${registry}: ${e}`, LogLevel.Warning);
-// 		return;
-// 	}
+	if (!authReq) {
+		output.write('Failed to get registry auth token', LogLevel.Error);
+		return undefined;
+	}
 
-// 	if (!authReq) {
-// 		output.write('Failed to get registry auth token', LogLevel.Error);
-// 		return undefined;
-// 	}
+	let scopeToken: string | undefined;
+	try {
+		scopeToken = JSON.parse(authReq.toString())?.token;
+	} catch {
+		// not JSON
+	}
+	if (!scopeToken) {
+		output.write('Failed to parse registry auth token response', LogLevel.Error);
+		return undefined;
+	}
 
-// 	let scopeToken: string | undefined;
-// 	try {
-// 		scopeToken = JSON.parse(authReq.toString())?.token;
-// 	} catch {
-// 		// not JSON
-// 	}
-// 	if (!scopeToken) {
-// 		output.write('Failed to parse registry auth token response', LogLevel.Error);
-// 		return undefined;
-// 	}
-
-// 	return scopeToken;
-// }
+	return scopeToken;
+}
 
 
 // Exported Function
 // Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
-export async function fetchAuthorization(output: Log, registry: string, _ociRepoPath: string, env: NodeJS.ProcessEnv, _operationScopes: string): Promise<string | undefined> {
+export async function fetchAuthorization(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
 	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
-	// const scopeToken = generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
+	const scopeToken = generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
 
-	// if (scopeToken) {
-	// 	output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
-	// 	return `Bearer ${scopeToken}`;
-	// }
+	if (scopeToken) {
+		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
+		return `Bearer ${scopeToken}`;
+	}
 
 	if (basicAuthTokenBase64) {
 		output.write(`Using basic auth token for registry '${registry}'`, LogLevel.Trace);

@@ -162,7 +162,7 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 			data: Buffer.from(manifestStr),
 		};
 
-		let { statusCode, resHeaders } = await requestResolveHeaders(options, output);
+		let { statusCode, resHeaders, resBody } = await requestResolveHeaders(options, output);
 
 		// Retry logic: when request fails with HTTP 429: too many requests
 		if (statusCode === 429) {
@@ -175,7 +175,7 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 		}
 
 		if (statusCode !== 201) {
-			output.write(`Failed to PUT manifest for tag ${tag}`, LogLevel.Error);
+			output.write(`Failed to PUT manifest for tag ${tag}\n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
 			return false;
 		}
 
@@ -196,8 +196,7 @@ async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: 
 	}
 
 	const blobSize = (await promisify(fs.stat)(pathToBlob)).size;
-
-	output.write(`PUT new blob -> '${digest}' (size=${blobSize})`, LogLevel.Info);
+	output.write(`Starting PUT of blob '${digest}' (size=${blobSize})`, LogLevel.Info);
 
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer',
@@ -214,17 +213,20 @@ async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: 
 		url = `https://${ociRef.registry}${blobPutLocationUriPath}`;
 	}
 
+	// The <location> MAY contain critical query parameters.
+	//  Additionally, it SHOULD match exactly the <location> obtained from the POST request.
+	// It SHOULD NOT be assembled manually by clients except where absolute/relative conversion is necessary.
 	if (url.indexOf('?') === -1) {
 		url += `?digest=${digest}`;
 	} else {
 		url += `&digest=${digest}`;
 	}
 
-	output.write(`Crafted blob url:  ${url}`, LogLevel.Trace);
+	output.write(`PUT blob to ->  ${url}`, LogLevel.Trace);
 
 	const { statusCode, resBody } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) }, output);
 	if (statusCode !== 201) {
-		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}' -> ${resBody}`, LogLevel.Error);
+		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}' \n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
 		return false;
 	}
 
@@ -329,12 +331,12 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 			output.write(`${url}: Got 202 status code, but no location header found.`, LogLevel.Error);
 			return undefined;
 		}
+		output.write(`Generated Upload URL: ${locationHeader}`, LogLevel.Trace);
 		return locationHeader;
 	} else {
 		// Any other statusCode besides 202 is unexpected
 		// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#error-codes
-		const displayResBody = resBody ? ` -> ${resBody}` : '';
-		output.write(`${url}: Unexpected status code '${statusCode}'${displayResBody}`, LogLevel.Error);
+		output.write(`${url}: Unexpected status code '${statusCode}' \n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
 		return undefined;
 	}
 }
