@@ -175,7 +175,8 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 		}
 
 		if (statusCode !== 201) {
-			output.write(`Failed to PUT manifest for tag ${tag}\n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
+			const parsed = JSON.parse(resBody?.toString() || '{}');
+			output.write(`Failed to PUT manifest for tag ${tag}\n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 			return false;
 		}
 
@@ -226,7 +227,8 @@ async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: 
 
 	const { statusCode, resBody } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) }, output);
 	if (statusCode !== 201) {
-		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}' \n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
+		const parsed = JSON.parse(resBody?.toString() || '{}');
+		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}' \n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 		return false;
 	}
 
@@ -336,7 +338,8 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 	} else {
 		// Any other statusCode besides 202 is unexpected
 		// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#error-codes
-		output.write(`${url}: Unexpected status code '${statusCode}' \n${JSON.stringify(resBody, undefined, 4)}`, LogLevel.Error);
+		const parsed = JSON.parse(resBody?.toString() || '{}');
+		output.write(`${url}: Unexpected status code '${statusCode}' \n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 		return undefined;
 	}
 }

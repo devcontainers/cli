@@ -30,7 +30,7 @@ export function request(options: { type: string; url: string; headers: Record<st
 			if (res.statusCode! < 200 || res.statusCode! > 299) {
 				reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
 				if (output) {
-					output.write(`HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Error);
+					output.write(`[-] HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Error);
 				}
 			} else {
 				res.on('error', reject);
