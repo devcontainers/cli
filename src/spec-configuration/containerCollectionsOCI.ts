@@ -217,6 +217,7 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 		return manifest;
 	} catch (e) {
+		output.write(`(!) Failed to fetch manifest: ${e}`, LogLevel.Error);
 		return undefined;
 	}
 }
@@ -243,8 +244,7 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 		return Buffer.from(userToken).toString('base64');
 	}
 
-	// Error
-	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Error);
+	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Warning);
 	return undefined;
 }
 
@@ -263,7 +263,10 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
 	}
 
-	headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
+	if (basicAuthTokenBase64) {
+		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
+	}
+
 
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;

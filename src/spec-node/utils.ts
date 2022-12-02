@@ -236,7 +236,7 @@ export async function inspectImageInRegistry(output: Log, name: string, authToke
 	};
 
 	if (auth) {
-		headers['authorization'] = `Bearer ${auth}`;
+		headers['authorization'] = auth;
 	}
 
 	const options = {
