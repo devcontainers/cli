@@ -1,28 +1,39 @@
 {
-    "git.ignoreLimitWarning": true,
-    "search.exclude": {
-        "dist": true
-    },
-    "typescript.tsc.autoDetect": "off",
-    "eslint.options": {
-        "rulePaths": [
-            "./build/eslint"
-        ]
-    },
-    "mochaExplorer.files": "test/**/*.test.ts",
-    "mochaExplorer.require": "ts-node/register",
-    "mochaExplorer.env": {
-        "TS_NODE_PROJECT": "src/test/tsconfig.json"
-    },
-    "files.associations": {
-        "devcontainer-features.json": "jsonc"
-    },
-    "typescript.tsdk": "node_modules/typescript/lib",
-    "git.branchProtection": [
-        "main",
-        "release/*"
-    ],
-    "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modifications",
-    "editor.insertSpaces": false
+	"git.ignoreLimitWarning": true,
+	"search.exclude": {
+		"dist": true
+	},
+	"typescript.tsc.autoDetect": "off",
+	"eslint.options": {
+		"rulePaths": ["./build/eslint"]
+	},
+	"mochaExplorer.files": "test/**/*.test.ts",
+	"mochaExplorer.require": "ts-node/register",
+	"mochaExplorer.env": {
+		"TS_NODE_PROJECT": "src/test/tsconfig.json"
+	},
+	"mocha.requires": ["ts-node/register"],
+	"mocha.files.glob": "src/test/**/*.test.ts",
+	"mocha.env": {
+		"TS_NODE_PROJECT": "src/test/tsconfig.json"
+	},
+	"mocha.coverage": {
+		"enable": true,
+		"decoration": true,
+		"runWithInterval": false,
+		"autoUpdateInterval": 20000,
+		"activeOnStart": true,
+		"runAfterTest": false,
+		"runCoverageAfterFileSave": false,
+		"reporters": []
+	},
+	"mocha.files.ignore": "src/test/tmp/**/*.ts",
+	"files.associations": {
+		"devcontainer-features.json": "jsonc"
+	},
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"git.branchProtection": ["main", "release/*"],
+	"editor.formatOnSave": true,
+	"editor.formatOnSaveMode": "modifications",
+	"editor.insertSpaces": false
 }

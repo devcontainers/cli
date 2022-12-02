@@ -27,7 +27,8 @@
 		"vscode": {
 			"extensions": [
 				"dbaeumer.vscode-eslint",
-				"GitHub.vscode-pull-request-github"
+				"GitHub.vscode-pull-request-github",
+				"maty.vscode-mocha-sidebar"
 			]
 		},
 		"codespaces": {
