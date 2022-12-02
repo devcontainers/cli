@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { fetchRegistryAuthToken, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
+import { fetchAuthorization, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
 import { request } from '../spec-utils/httpRequest';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
@@ -218,7 +218,7 @@ export async function inspectImageInRegistry(output: Log, name: string, authToke
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);
 	}
-	const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
+	const auth = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
 	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;

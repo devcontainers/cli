@@ -1,16 +1,73 @@
 import { assert } from 'chai';
-import { fetchRegistryAuthToken, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { fetchAuthorization, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+import { ExecResult, shellExec } from '../testUtils';
+import * as path from 'path';
+import { writeLocalFile } from '../../spec-utils/pfs';
 
+const pkg = require('../../../package.json');
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 const testAssetsDir = `${__dirname}/assets`;
 
+describe('Test OCI Push against reference registry', async function () {
+	this.timeout('240s');
+
+	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp', Date.now().toString()));
+	const cli = `npx --prefix ${tmp} devcontainer`;
+
+	before('Install CLI and Start reference implementation registry', async () => {
+		// Clean up any potential previous runs
+		await shellExec(`docker rm registry -f`, {}, false, true);
+
+		// Install CLI
+		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await shellExec(`mkdir -p ${tmp}`);
+		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+
+		// Write htpasswd file to simulate basic auth.
+		// Generated from 'htpasswd -cB -b auth.htpasswd myuser mypass'
+		writeLocalFile(path.join(tmp, 'auth.htpasswd'), 'myuser:$2y$05$xmGlPoyYqECe3AY8GhO2ve1XvpxbSqe3yvPT2agOClbIeDIRAVPLC');
+
+		const resolvedTmpPath = path.resolve(tmp);
+		const startRegistryCmd = `docker run -d -p 5000:5000 \
+-v ${resolvedTmpPath}/certs:/certs \
+-v ${resolvedTmpPath}/auth.htpasswd:/etc/docker/registry/auth.htpasswd \
+-e REGISTRY_AUTH="{htpasswd: {realm: localhost, path: /etc/docker/registry/auth.htpasswd}}" \
+--name registry \
+registry`;
+
+		await shellExec(startRegistryCmd, { cwd: tmp });
+
+		// Wait for registry to start
+		await shellExec(`docker exec registry sh -c "while ! nc -z localhost 5000; do sleep 3; done"`, { cwd: tmp });
+
+		// Login with basic auth creds
+		await shellExec('docker login -u myuser -p mypass localhost:5000');
+	});
+
+	it('Publish Features to registry', async () => {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features publish sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+	});
+});
+
 //  NOTE: 
 //  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-describe('Test OCI Push', () => {
+describe('Test OCI Push Helper Functions', () => {
 	it('Generates the correct tgz manifest layer', async () => {
 
 		// Calculate the tgz layer and digest
@@ -50,7 +107,7 @@ describe('Test OCI Push', () => {
 			assert.fail('getRef() for the Feature should not be undefined');
 		}
 		const { registry, resource } = ociFeatureRef;
-		const sessionAuth = await fetchRegistryAuthToken(output, registry, resource, process.env, 'pull');
+		const sessionAuth = await fetchAuthorization(output, registry, resource, process.env, 'pull');
 		if (!sessionAuth) {
 			assert.fail('Could not get registry auth token');
 		}
