@@ -5,6 +5,7 @@ import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDiges
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { ExecResult, shellExec } from '../testUtils';
 import * as path from 'path';
+import * as fs from 'fs';
 import { writeLocalFile } from '../../spec-utils/pfs';
 
 const pkg = require('../../../package.json');
@@ -33,7 +34,6 @@ describe('Test OCI Push against reference registry', async function () {
 
 		const resolvedTmpPath = path.resolve(tmp);
 		const startRegistryCmd = `docker run -d -p 5000:5000 \
--v ${resolvedTmpPath}/certs:/certs \
 -v ${resolvedTmpPath}/auth.htpasswd:/etc/docker/registry/auth.htpasswd \
 -e REGISTRY_AUTH="{htpasswd: {realm: localhost, path: /etc/docker/registry/auth.htpasswd}}" \
 --name registry \
@@ -43,7 +43,6 @@ registry`;
 
 		// Wait for registry to start
 		await shellExec(`docker exec registry sh -c "while ! nc -z localhost 5000; do sleep 3; done"`, { cwd: tmp });
-
 		// Login with basic auth creds
 		await shellExec('docker login -u myuser -p mypass localhost:5000');
 	});
@@ -70,8 +69,10 @@ registry`;
 describe('Test OCI Push Helper Functions', () => {
 	it('Generates the correct tgz manifest layer', async () => {
 
+		const dataBytes = fs.readFileSync(`${testAssetsDir}/go.tgz`);
+
 		// Calculate the tgz layer and digest
-		const res = await calculateDataLayer(output, `${testAssetsDir}/go.tgz`, DEVCONTAINER_TAR_LAYER_MEDIATYPE);
+		const res = await calculateDataLayer(output, dataBytes, 'go.tgz', DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 		const expected = {
 			digest: 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5',
 			mediaType: 'application/vnd.devcontainers.layer.v1+tar',
