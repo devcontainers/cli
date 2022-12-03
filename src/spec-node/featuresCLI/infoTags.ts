@@ -1,6 +1,6 @@
 import { Argv } from 'yargs';
 import { getPublishedVersions, getRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';

@@ -1,7 +1,6 @@
 import { Argv } from 'yargs';
-import { fetchAuthorization, fetchOCIManifestIfExists, getPublishedVersions, getRef } from '../../spec-configuration/containerCollectionsOCI';
-import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
-import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { fetchAuthorization, fetchOCIManifestIfExists, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
@@ -24,7 +23,6 @@ export function featuresInfoManifestHandler(args: FeaturesInfoManifestArgs) {
 async function featuresInfoManifest({
 	'feature': featureId,
 	'log-level': inputLogLevel,
-	'output-format': outputFormat,
 }: FeaturesInfoManifestArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -49,5 +47,6 @@ async function featuresInfoManifest({
 	const manifest = await fetchOCIManifestIfExists(output, process.env, featureRef, undefined, authorization);
 
 	console.log(JSON.stringify(manifest, undefined, 4));
+	await dispose();
 	process.exit();
 }
