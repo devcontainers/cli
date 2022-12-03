@@ -50,9 +50,13 @@ registry`;
 	it('Publish Features to registry', async () => {
 		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 		let success = false;
-		let result: ExecResult | undefined = undefined;
+
+		let publishResult: ExecResult | undefined = undefined;
+		let infoTagsResult: ExecResult | undefined = undefined;
+		let infoManifestResult: ExecResult | undefined = undefined;
+
 		try {
-			result = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			publishResult = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
 			success = true;
 
 		} catch (error) {
@@ -60,7 +64,41 @@ registry`;
 		}
 
 		assert.isTrue(success);
-		assert.isDefined(result);
+		assert.isDefined(publishResult);
+
+		// --- See that the Features can be queried from the Dev Container CLI.
+
+		success = false; // Reset success flag.
+		try {
+			infoTagsResult = await shellExec(`${cli} features info tags localhost:5000/octocat/features/hello --output-format json --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoTagsResult);
+		const tags = JSON.parse(infoTagsResult.stdout);
+		const publishedVersions: string[] = tags['publishedVersions'];
+		assert.equal(publishedVersions.length, 4);
+
+		success = false; // Reset success flag.
+		try {
+			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features/hello --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoManifestResult);
+		const manifest = infoManifestResult.stdout;
+		const regex = /application\/vnd\.devcontainers\.layer\.v1\+tar/;
+		assert.match(manifest, regex);
+
+		success = false; // Reset success flag.
 	});
 });
 

@@ -42,9 +42,9 @@ async function featuresInfoTags({
 	const featureOciRef = getRef(output, featureId);
 	if (!featureOciRef) {
 		if (outputFormat === 'json') {
-			output.raw(JSON.stringify({}), LogLevel.Info);
+			console.log(JSON.stringify({}), LogLevel.Info);
 		} else {
-			output.raw(`Failed to parse Feature identifier '${featureId}'\n`, LogLevel.Error);
+			console.log(`Failed to parse Feature identifier '${featureId}'\n`, LogLevel.Error);
 		}
 		process.exit(1);
 	}
@@ -74,9 +74,9 @@ async function featuresInfoTags({
 }
 
 function printAsJson(data: { publishedVersions: string[] }) {
-	console.log(JSON.stringify(data, null, 2), LogLevel.Info);
+	console.log(JSON.stringify(data, null, 2));
 }
 
 function printAsPlainText(data: { publishedVersions: string[] }) {
-	console.log(`Published Versions: \n   ${data.publishedVersions.join('\n   ')}\n`, LogLevel.Info);
+	console.log(`Published Versions: \n   ${data.publishedVersions.join('\n   ')}\n`);
 }
