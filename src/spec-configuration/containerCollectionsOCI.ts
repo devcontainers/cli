@@ -218,7 +218,8 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 		return manifest;
 	} catch (e) {
-		output.write(`(!) Failed to fetch manifest: ${e}`, LogLevel.Error);
+		// A 404 is expected here if the manifest does not exist on the remote.
+		output.write(`Did not fetch manifest: ${e}`, LogLevel.Trace);
 		return undefined;
 	}
 }
