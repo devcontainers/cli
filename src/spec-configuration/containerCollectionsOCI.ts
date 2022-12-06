@@ -230,7 +230,7 @@ export async function fetchAuthorization(output: Log, registry: string, ociRepoP
 	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
 	const scopeToken = await generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
 
-	// Prefer returned a Bearer token retreived from the /token endpoint.
+	// Prefer returned a Bearer token retrieved from the /token endpoint.
 	if (scopeToken) {
 		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
 		return `Bearer ${scopeToken}`;
