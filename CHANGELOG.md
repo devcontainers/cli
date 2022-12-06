@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## December 2022
+
+### [0.25.3]
+
+- Emit a JSON summary of the result of the `features publish` and `templates publish` commands (https://github.com/devcontainers/cli/pull/305)
+- Fix: "ssh-add: communication with agent failed" (https://github.com/microsoft/vscode-remote-release/issues/7601)
+
 ## November 2022
 
 ### [0.25.2]
