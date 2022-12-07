@@ -1,30 +1,30 @@
 import { Argv } from 'yargs';
 import { getPublishedVersions, getRef } from '../../spec-configuration/containerCollectionsOCI';
-import { LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 
-export function featuresInfoTagsOptions(y: Argv) {
+export function featuresInfoOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		})
-		.positional('feature', { type: 'string', demandOption: true, description: 'Feature Id' });
+		.positional('featureId', { type: 'string', demandOption: true, description: 'Feature Id' });
 }
 
-export type FeaturesInfoTagsArgs = UnpackArgv<ReturnType<typeof featuresInfoTagsOptions>>;
+export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>>;
 
-export function featureInfoTagsHandler(args: FeaturesInfoTagsArgs) {
-	(async () => await featuresInfoTags(args))().catch(console.error);
+export function featuresInfoHandler(args: FeaturesInfoArgs) {
+	(async () => await featuresInfo(args))().catch(console.error);
 }
 
-async function featuresInfoTags({
-	'feature': featureId,
+async function featuresInfo({
+	'featureId': featureId,
 	'log-level': inputLogLevel,
 	'output-format': outputFormat,
-}: FeaturesInfoTagsArgs) {
+}: FeaturesInfoArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
@@ -35,16 +35,16 @@ async function featuresInfoTags({
 	const output = createLog({
 		logLevel: mapLogLevel(inputLogLevel),
 		logFormat: 'text',
-		log: (str) => process.stderr.write(str),
+		log: (str) => process.stdout.write(str),
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
 	const featureOciRef = getRef(output, featureId);
 	if (!featureOciRef) {
 		if (outputFormat === 'json') {
-			console.log(JSON.stringify({}), LogLevel.Info);
+			output.raw(JSON.stringify({}), LogLevel.Info);
 		} else {
-			console.log(`Failed to parse Feature identifier '${featureId}'\n`, LogLevel.Error);
+			output.raw(`Failed to parse Feature identifier '${featureId}'\n`, LogLevel.Error);
 		}
 		process.exit(1);
 	}
@@ -52,9 +52,9 @@ async function featuresInfoTags({
 	const publishedVersions = await getPublishedVersions(featureOciRef, output, true);
 	if (!publishedVersions || publishedVersions.length === 0) {
 		if (outputFormat === 'json') {
-			console.log(JSON.stringify({}), LogLevel.Info);
+			output.raw(JSON.stringify({}), LogLevel.Info);
 		} else {
-			console.log(`No published versions found for feature '${featureId}'\n`, LogLevel.Error);
+			output.raw(`No published versions found for feature '${featureId}'\n`, LogLevel.Error);
 		}
 		process.exit(1);
 	}
@@ -64,19 +64,19 @@ async function featuresInfoTags({
 	};
 
 	if (outputFormat === 'json') {
-		printAsJson(data);
+		printAsJson(output, data);
 	} else {
-		printAsPlainText(data);
+		printAsPlainText(output, data);
 	}
 
 	await dispose();
 	process.exit(0);
 }
 
-function printAsJson(data: { publishedVersions: string[] }) {
-	console.log(JSON.stringify(data, null, 2));
+function printAsJson(output: Log, data: { publishedVersions: string[] }) {
+	output.raw(JSON.stringify(data, null, 2), LogLevel.Info);
 }
 
-function printAsPlainText(data: { publishedVersions: string[] }) {
-	console.log(`Published Versions: \n   ${data.publishedVersions.join('\n   ')}\n`);
+function printAsPlainText(output: Log, data: { publishedVersions: string[] }) {
+	output.raw(`Published Versions: \n   ${data.publishedVersions.join('\n   ')}\n`, LogLevel.Info);
 }
