@@ -36,8 +36,8 @@ export interface CLIHost {
 	readDir(dirpath: string): Promise<string[]>;
 	readDirWithTypes?(dirpath: string): Promise<[string, FileTypeBitmask][]>;
 	getUsername(): Promise<string>;
-	getuid(): Promise<number>;
-	getgid(): Promise<number>;
+	getuid?: () => Promise<number>;
+	getgid?: () => Promise<number>;
 	toCommonURI(filePath: string): Promise<URI | undefined>;
 	connect: ConnectFunction;
 	reconnect?(): Promise<void>;
@@ -80,8 +80,8 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 		},
 		readDir: readLocalDir,
 		getUsername: getLocalUsername,
-		getuid: async () => process.getuid(),
-		getgid: async () => process.getgid(),
+		getuid: process.platform === 'linux' || process.platform === 'darwin' ? async () => process.getuid!() : undefined,
+		getgid: process.platform === 'linux' || process.platform === 'darwin' ? async () => process.getgid!() : undefined,
 		toCommonURI: async (filePath) => URI.file(filePath),
 		connect,
 	};

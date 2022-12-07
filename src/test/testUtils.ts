@@ -88,9 +88,6 @@ export async function commandMarkerTests(cli: string, workspaceFolder: string, e
 }
 
 export const testSubstitute: SubstituteConfig = value => {
-	if (Array.isArray(value)) {
-		return value.map(s => testSubstitute(s)) as any;
-	}
 	if ('id' in value) {
 		return {
 			...value,

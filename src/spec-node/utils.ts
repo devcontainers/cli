@@ -112,7 +112,7 @@ export interface ResolverResult {
 	composeProjectName?: string;
 }
 
-export interface SubstitutedConfig<T> {
+export interface SubstitutedConfig<T extends DevContainerConfig | ImageMetadataEntry[]> {
 	config: T;
 	raw: T;
 	substitute: SubstituteConfig;
@@ -120,10 +120,11 @@ export interface SubstitutedConfig<T> {
 
 export type SubstituteConfig = <U extends DevContainerConfig | ImageMetadataEntry>(value: U) => U;
 
-export function addSubstitution<T>(config: SubstitutedConfig<T>, substitute: SubstituteConfig): SubstitutedConfig<T> {
+export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntry[]>(config: SubstitutedConfig<T>, substitute: SubstituteConfig): SubstitutedConfig<T> {
 	const substitute0 = config.substitute;
+	const subsConfig = config.config;
 	return {
-		config: substitute(config.config),
+		config: (Array.isArray(subsConfig) ? subsConfig.map(substitute) : substitute(subsConfig)) as T,
 		raw: config.raw,
 		substitute: value => substitute(substitute0(value)),
 	};
