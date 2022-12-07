@@ -5,7 +5,7 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 describe('getCollectionRef()', async function () {
-    this.timeout('240s');
+    this.timeout('120s');
 
 
     it('valid getCollectionRef()', async () => {

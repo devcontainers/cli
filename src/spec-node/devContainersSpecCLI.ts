@@ -29,13 +29,12 @@ import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } fr
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
-import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
+import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { beforeContainerSubstitute, containerSubstitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
-import { featuresInfoManifestHandler, featuresInfoManifestOptions } from './featuresCLI/infoManifest';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -64,13 +63,10 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
-		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
-		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
-		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
-		y.command('info', 'Fetch metadata on published Features', (y: Argv) => {
-			y.command('tags <feature>', 'Fetch tags for a specific Feature', featuresInfoTagsOptions, featureInfoTagsHandler);
-			y.command('manifest <feature>', 'Fetch the manifest for a specific Feature', featuresInfoManifestOptions, featuresInfoManifestHandler);
-		});
+		y.command('test [target]', 'Test features', featuresTestOptions, featuresTestHandler);
+		y.command('package <target>', 'Package features', featuresPackageOptions, featuresPackageHandler);
+		y.command('publish <target>', 'Package and publish features', featuresPublishOptions, featuresPublishHandler);
+		y.command('info <featureId>', 'Fetch info on a feature', featuresInfoOptions, featuresInfoHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);

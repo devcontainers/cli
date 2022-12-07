@@ -11,7 +11,7 @@ export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
-export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
+export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string };
 
 // Represents the unique OCI identifier for a Feature or Template.
 // eg:  ghcr.io/devcontainers/features/go:1.0.0
@@ -168,8 +168,7 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessEnv, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
-	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
-		output.write(`ERR: Registry '${ref.registry}' is not a valid domain name or IP address.`, LogLevel.Error);
+	if (ref.registry.indexOf('.') < 0) {
 		return undefined;
 	}
 
@@ -202,9 +201,9 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, env, 'pull');
-		if (authorization) {
-			headers['authorization'] = authorization;
+		const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, env, 'pull');
+		if (auth) {
+			headers['authorization'] = `Bearer ${auth}`;
 		}
 
 		const options = {
@@ -218,74 +217,12 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 		return manifest;
 	} catch (e) {
-		// A 404 is expected here if the manifest does not exist on the remote.
-		output.write(`Did not fetch manifest: ${e}`, LogLevel.Trace);
 		return undefined;
 	}
 }
 
-// Exported Function
-// Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
-export async function fetchAuthorization(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
-	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
-	const scopeToken = await generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
-
-	// Prefer returned a Bearer token retrieved from the /token endpoint.
-	if (scopeToken) {
-		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
-		return `Bearer ${scopeToken}`;
-	}
-
-	// If all we have are Basic auth credentials, return those for the caller to use.
-	if (basicAuthTokenBase64) {
-		output.write(`Using basic auth token for registry '${registry}'`, LogLevel.Trace);
-		return `Basic ${basicAuthTokenBase64}`;
-	}
-
-	// If we have no credentials, and we weren't able to get a scope token anonymously, return undefined.
-	return undefined;
-}
-
-
-// * Internal helper for 'fetchAuthorization(...)'
-// Attempts to get the Basic auth credentials for the provided registry.
-// These may be programatically crafted via environment variables (GITHUB_TOKEN),
-// parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
-// TODO: or directly read out of the local docker config file/credential helper.
-async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS.ProcessEnv): Promise<string | undefined> {
-	// TODO: Also read OS keychain/docker config for auth in various registries!
-
-	let userToken: string | undefined = undefined;
-	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-		output.write('Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
-		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
-	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
-		// eg: DEVCONTAINERS_OCI_AUTH=domain1|user1|token1,domain2|user2|token2
-		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
-		const authContext = authContexts.find(a => a.split('|')[0] === registry);
-
-		if (authContext) {
-			output.write(`Using match from DEVCONTAINERS_OCI_AUTH for registry '${registry}'`, LogLevel.Trace);
-			const split = authContext.split('|');
-			userToken = `${split[1]}:${split[2]}`;
-		}
-	}
-
-	if (userToken) {
-		return Buffer.from(userToken).toString('base64');
-	}
-
-	// Represents anonymous access.
-	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Warning);
-	return undefined;
-}
-
-// * Internal helper for 'fetchAuthorization(...)'
 // https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
-// Using the provided Basic auth credentials, (or if none, anonymously), to ask the registry's '/token' endpoint for a token.
-// Some registries (eg: ghcr.io) expect a scoped token to target resources and will not operate with just Basic Auth.
-// Other registries (eg: the OCI Reference Implementation) will not return a valid token from '/token'
-async function generateScopeTokenCredential(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
+export async function fetchRegistryAuthToken(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
 	if (registry === 'mcr.microsoft.com') {
 		return undefined;
 	}
@@ -294,18 +231,31 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 		'user-agent': 'devcontainer'
 	};
 
-	if (!basicAuthTokenBase64) {
-		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
+	// TODO: Read OS keychain/docker config for auth in various registries!
+
+	let userToken = '';
+	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
+		userToken = env['GITHUB_TOKEN'];
+	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
+		// eg: DEVCONTAINERS_OCI_AUTH=domain1:token1,domain2:token2
+		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
+		const authContext = authContexts.find(a => a.split(':')[0] === registry);
+		if (authContext && authContext.length === 2) {
+			userToken = authContext.split(':')[1];
+		}
+	} else {
+		output.write('No oauth authentication credentials found.', LogLevel.Trace);
 	}
 
-	if (basicAuthTokenBase64) {
-		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
+	if (userToken) {
+		const base64Encoded = Buffer.from(`USERNAME:${userToken}`).toString('base64');
+		headers['authorization'] = `Basic ${base64Encoded}`;
 	}
 
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
 	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
-	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
+	output.write(`url: ${url}`, LogLevel.Trace);
 
 	const options = {
 		type: 'GET',
@@ -317,9 +267,8 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 	try {
 		authReq = await request(options, output);
 	} catch (e: any) {
-		// This is ok if the registry is trying to speak Basic Auth with us.
-		output.write(`Not used a scoped token for ${registry}: ${e}`, LogLevel.Trace);
-		return;
+		output.write(`Failed to get registry auth token with error: ${e}`, LogLevel.Error);
+		return undefined;
 	}
 
 	if (!authReq) {
@@ -327,17 +276,17 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 		return undefined;
 	}
 
-	let scopeToken: string | undefined;
+	let token: string | undefined;
 	try {
-		scopeToken = JSON.parse(authReq.toString())?.token;
+		token = JSON.parse(authReq.toString())?.token;
 	} catch {
 		// not JSON
 	}
-	if (!scopeToken) {
+	if (!token) {
 		output.write('Failed to parse registry auth token response', LogLevel.Error);
 		return undefined;
 	}
-	return scopeToken;
+	return token;
 }
 
 // Lists published versions/tags of a feature/template 
@@ -346,9 +295,9 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 	try {
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
-		let authorization = await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
+		let authToken = await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
 
-		if (!authorization) {
+		if (!authToken) {
 			output.write(`(!) ERR: Failed to get published versions for ${collectionType}: ${ref.resource}`, LogLevel.Error);
 			return undefined;
 		}
@@ -356,7 +305,7 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 		const headers: HEADERS = {
 			'user-agent': 'devcontainer',
 			'accept': 'application/json',
-			'authorization': authorization
+			'authorization': `Bearer ${authToken}`
 		};
 
 		const options = {
@@ -403,9 +352,9 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 			'accept': 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorization(output, ociRef.registry, ociRef.path, env, 'pull');
-		if (authorization) {
-			headers['authorization'] = authorization;
+		const auth = authToken ?? await fetchRegistryAuthToken(output, ociRef.registry, ociRef.path, env, 'pull');
+		if (auth) {
+			headers['authorization'] = `Bearer ${auth}`;
 		}
 
 		const options = {
