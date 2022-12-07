@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 import * as path from 'path';
-import { DevContainerFeature } from '../../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
@@ -637,7 +637,7 @@ describe('findContainerUsers', () => {
 	});
 });
 
-function configWithRaw<T>(config: T): SubstitutedConfig<T> {
+function configWithRaw<T extends DevContainerConfig | ImageMetadataEntry[]>(config: T): SubstitutedConfig<T> {
 	return {
 		config,
 		raw: config,

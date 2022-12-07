@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { HostGPURequirements } from '../spec-configuration/configuration';
+import { DevContainerConfig, HostGPURequirements } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration } from '../spec-node/imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, ImageMetadataEntry, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
@@ -17,9 +17,9 @@ import { buildKitOptions, shellExec, testSubstitute } from './testUtils';
 
 const pkg = require('../../package.json');
 
-function configWithRaw<T>(raw: T): SubstitutedConfig<T> {
+function configWithRaw<T extends DevContainerConfig | ImageMetadataEntry[]>(raw: T): SubstitutedConfig<T> {
 	return {
-		config: testSubstitute(raw),
+		config: (Array.isArray(raw) ? raw.map(testSubstitute) : testSubstitute(raw)) as T,
 		raw,
 		substitute: testSubstitute,
 	};

@@ -184,7 +184,7 @@ function mergeGpuRequirements(a: undefined | boolean | 'optional' | HostGPURequi
 		return b;
 	} else if (b === undefined || b === false) {
 		return a;
-	} else if (a === 'optional' && b === 'optional ') {
+	} else if (a === 'optional' && b === 'optional') {
 		return 'optional';
 	} else {
 		const aObject = asHostGPURequirements(a);
@@ -267,7 +267,7 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	};
 }
 
-function pick<T, K extends keyof T>(obj: T, keys: K[]) {
+function pick<T extends object, K extends keyof T>(obj: T, keys: K[]) {
 	return keys.reduce((res, key) => {
 		if (key in obj) {
 			res[key] = obj[key];

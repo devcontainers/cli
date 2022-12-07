@@ -434,7 +434,7 @@ export async function loadNativeModule<T>(moduleName: string): Promise<T | undef
 export type PlatformSwitch<T> = T | { posix: T; win32: T };
 
 export function platformDispatch<T>(platform: NodeJS.Platform, platformSwitch: PlatformSwitch<T>) {
-	if (typeof platformSwitch !== 'string' && 'win32' in platformSwitch) {
+	if (platformSwitch && typeof platformSwitch === 'object' && 'win32' in platformSwitch) {
 		return platform === 'win32' ? platformSwitch.win32 : platformSwitch.posix;
 	}
 	return platformSwitch;
