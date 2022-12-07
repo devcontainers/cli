@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-
+import * as deepmerge from 'deepmerge-ts';
 import * as jsonc from 'jsonc-parser';
+import * as path from 'path';
 
 import { openDockerfileDevContainer } from './singleContainer';
 import { openDockerComposeDevContainer } from './dockerCompose';
@@ -71,18 +71,33 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	return result;
 }
 
-export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+async function readFile(cliHost: CLIHost, path: URI) {
 	const documents = createDocuments(cliHost);
-	const content = await documents.readDocument(overrideConfigFile ?? configFile);
+	const content = await documents.readDocument(path);
 	if (!content) {
 		return undefined;
 	}
 	const raw = jsonc.parse(content) as DevContainerConfig | undefined;
 	const updated = raw && updateFromOldProperties(raw);
 	if (!updated || typeof updated !== 'object' || Array.isArray(updated)) {
-		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
+		throw new ContainerError({ description: `Dev container config (${uriToFsPath(path, cliHost.platform)}) must contain a JSON object literal.` });
 	}
-	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, output, consistency);
+
+	return updated;
+}
+
+export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+	const confPath = overrideConfigFile ?? configFile;
+	let content = await readFile(cliHost, confPath) as DevContainerConfig;
+
+	if (content.extends) {
+		const extendsConfPath = path.resolve(path.dirname(confPath.path), content.extends);
+		const referencedContent = await readFile(cliHost, URI.file(extendsConfPath)) as DevContainerConfig;
+		delete content.extends;
+		content = deepmerge.deepmerge(referencedContent, content);
+	}
+
+	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, content, mountWorkspaceGitRoot, output, consistency);
 	const substitute0: SubstituteConfig = value => substitute({
 		platform: cliHost.platform,
 		localWorkspaceFolder: workspace?.rootFolderPath,
@@ -90,7 +105,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		configFile,
 		env: cliHost.env,
 	}, value);
-	const config: DevContainerConfig = substitute0(updated);
+	const config: DevContainerConfig = substitute0(content);
 	if (typeof config.workspaceFolder === 'string') {
 		workspaceConfig.workspaceFolder = config.workspaceFolder;
 	}
@@ -101,7 +116,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 	return {
 		config: {
 			config,
-			raw: updated,
+			raw: content,
 			substitute: substitute0,
 		},
 		workspaceConfig,

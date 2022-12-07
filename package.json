@@ -91,6 +91,7 @@
 	},
 	"dependencies": {
 		"chalk": "^4",
+		"deepmerge-ts": "^4.2.2",
 		"follow-redirects": "^1.14.8",
 		"js-yaml": "^4.1.0",
 		"jsonc-parser": "^3.0.0",

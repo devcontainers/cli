@@ -73,6 +73,7 @@ export interface DevContainerFromImageConfig {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
 	customizations?: Record<string, any>;
 }
 
@@ -110,6 +111,7 @@ export type DevContainerFromDockerfileConfig = {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
 	customizations?: Record<string, any>;
 } & (
 		{
@@ -166,6 +168,7 @@ export interface DevContainerFromDockerComposeConfig {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
 	customizations?: Record<string, any>;
 }
 
