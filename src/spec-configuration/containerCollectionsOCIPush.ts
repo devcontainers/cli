@@ -4,27 +4,34 @@ import * as crypto from 'crypto';
 import { delay } from '../spec-common/async';
 import { headRequest, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
-import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
-import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, fetchRegistryAuthToken, HEADERS, OCICollectionRef, OCILayer, OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { isLocalFile } from '../spec-utils/pfs';
+import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, fetchAuthorization, HEADERS, OCICollectionRef, OCILayer, OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 // (!) Entrypoint function to push a single feature/template to a registry.
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
 export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string): Promise<boolean> {
-	output.write(`Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
+	output.write(`-- Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
 	output.write(`${JSON.stringify(ociRef, null, 2)}`, LogLevel.Trace);
 	const env = process.env;
 
+	if (!(await isLocalFile(pathToTgz))) {
+		output.write(`Blob ${pathToTgz} does not exist.`, LogLevel.Error);
+		return false;
+	}
+
+	const dataBytes = fs.readFileSync(pathToTgz);
+
 	// Generate registry auth token with `pull,push` scopes.
-	const registryAuthToken = await fetchRegistryAuthToken(output, ociRef.registry, ociRef.path, env, 'pull,push');
-	if (!registryAuthToken) {
+	const authorization = await fetchAuthorization(output, ociRef.registry, ociRef.path, env, 'pull,push');
+	if (!authorization) {
 		output.write(`Failed to get registry auth token`, LogLevel.Error);
 		return false;
 	}
 
 	// Generate Manifest for given feature/template artifact.
-	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, pathToTgz, ociRef, collectionType);
+	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${ociRef.id}`, LogLevel.Error);
 		return false;
@@ -32,38 +39,44 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-	const existingManifest = await fetchOCIManifestIfExists(output, env, ociRef, manifest.digest, registryAuthToken);
+	const existingManifest = await fetchOCIManifestIfExists(output, env, ociRef, manifest.digest, authorization);
 	if (manifest.digest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
-		return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
+		return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, authorization);
 	}
 
 	const blobsToPush = [
 		{
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
+			size: manifest.manifestObj.config.size,
+			contents: Buffer.alloc(0),
 		},
 		{
 			name: 'tgzLayer',
 			digest: manifest.manifestObj.layers[0].digest,
+			size: manifest.manifestObj.layers[0].size,
+			contents: dataBytes,
 		}
 	];
 
-	// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
-	const blobPutLocationUriPath = await postUploadSessionId(output, ociRef, registryAuthToken);
-	if (!blobPutLocationUriPath) {
-		output.write(`Failed to get upload session ID`, LogLevel.Error);
-		return false;
-	}
 
 	for await (const blob of blobsToPush) {
 		const { name, digest } = blob;
-		const blobExistsConfigLayer = await checkIfBlobExists(output, ociRef, digest, registryAuthToken);
-		output.write(`blob: '${name}' with digest '${digest}'  ${blobExistsConfigLayer ? 'already exists' : 'does not exist'} in registry.`, LogLevel.Trace);
+		const blobExistsConfigLayer = await checkIfBlobExists(output, ociRef, digest, authorization);
+		output.write(`blob: '${name}'  ${blobExistsConfigLayer ? 'DOES exists' : 'DOES NOT exist'} in registry.`, LogLevel.Trace);
 
 		// PUT blobs
 		if (!blobExistsConfigLayer) {
-			if (!(await putBlob(output, pathToTgz, blobPutLocationUriPath, ociRef, digest, registryAuthToken))) {
+
+			// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
+			const blobPutLocationUriPath = await postUploadSessionId(output, ociRef, authorization);
+			if (!blobPutLocationUriPath) {
+				output.write(`Failed to get upload session ID`, LogLevel.Error);
+				return false;
+			}
+
+			if (!(await putBlob(output, blobPutLocationUriPath, ociRef, blob, authorization))) {
 				output.write(`Failed to PUT blob '${name}' with digest '${digest}'`, LogLevel.Error);
 				return false;
 			}
@@ -71,7 +84,7 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	}
 
 	// Send a final PUT to combine blobs and tag manifest properly.
-	return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, registryAuthToken);
+	return await putManifestWithTags(output, manifest.manifestStr, ociRef, tags, authorization);
 }
 
 // (!) Entrypoint function to push a collection metadata/overview file for a set of features/templates to a registry.
@@ -83,14 +96,21 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 	output.write(`${JSON.stringify(collectionRef, null, 2)}`, LogLevel.Trace);
 	const env = process.env;
 
-	const registryAuthToken = await fetchRegistryAuthToken(output, collectionRef.registry, collectionRef.path, env, 'pull,push');
-	if (!registryAuthToken) {
+	const authorization = await fetchAuthorization(output, collectionRef.registry, collectionRef.path, env, 'pull,push');
+	if (!authorization) {
 		output.write(`Failed to get registry auth token`, LogLevel.Error);
 		return false;
 	}
 
+	if (!(await isLocalFile(pathToCollectionJson))) {
+		output.write(`Collection Metadata was not found at expected location: ${pathToCollectionJson}`, LogLevel.Error);
+		return false;
+	}
+
+	const dataBytes = fs.readFileSync(pathToCollectionJson);
+
 	// Generate Manifest for collection artifact.
-	const manifest = await generateCompleteManifestForCollectionFile(output, pathToCollectionJson, collectionRef);
+	const manifest = await generateCompleteManifestForCollectionFile(output, dataBytes, collectionRef);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${collectionRef.path}`, LogLevel.Error);
 		return false;
@@ -98,38 +118,43 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-	const existingManifest = await fetchOCIManifestIfExists(output, env, collectionRef, manifest.digest, registryAuthToken);
+	const existingManifest = await fetchOCIManifestIfExists(output, env, collectionRef, manifest.digest, authorization);
 	if (manifest.digest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
-		return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
-	}
-
-	// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
-	const blobPutLocationUriPath = await postUploadSessionId(output, collectionRef, registryAuthToken);
-	if (!blobPutLocationUriPath) {
-		output.write(`Failed to get upload session ID`, LogLevel.Error);
-		return false;
+		return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], authorization);
 	}
 
 	const blobsToPush = [
 		{
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
+			size: manifest.manifestObj.config.size,
+			contents: Buffer.alloc(0),
 		},
 		{
 			name: 'collectionLayer',
 			digest: manifest.manifestObj.layers[0].digest,
+			size: manifest.manifestObj.layers[0].size,
+			contents: dataBytes,
 		}
 	];
 
 	for await (const blob of blobsToPush) {
 		const { name, digest } = blob;
-		const blobExistsConfigLayer = await checkIfBlobExists(output, collectionRef, digest, registryAuthToken);
+		const blobExistsConfigLayer = await checkIfBlobExists(output, collectionRef, digest, authorization);
 		output.write(`blob: '${name}' with digest '${digest}'  ${blobExistsConfigLayer ? 'already exists' : 'does not exist'} in registry.`, LogLevel.Trace);
 
 		// PUT blobs
 		if (!blobExistsConfigLayer) {
-			if (!(await putBlob(output, pathToCollectionJson, blobPutLocationUriPath, collectionRef, digest, registryAuthToken))) {
+
+			// Obtain session ID with `/v2/<namespace>/blobs/uploads/` 
+			const blobPutLocationUriPath = await postUploadSessionId(output, collectionRef, authorization);
+			if (!blobPutLocationUriPath) {
+				output.write(`Failed to get upload session ID`, LogLevel.Error);
+				return false;
+			}
+
+			if (!(await putBlob(output, blobPutLocationUriPath, collectionRef, blob, authorization))) {
 				output.write(`Failed to PUT blob '${name}' with digest '${digest}'`, LogLevel.Error);
 				return false;
 			}
@@ -138,13 +163,13 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 
 	// Send a final PUT to combine blobs and tag manifest properly.
 	// Collections are always tagged 'latest'
-	return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], registryAuthToken);
+	return await putManifestWithTags(output, manifest.manifestStr, collectionRef, ['latest'], authorization);
 }
 
 // --- Helper Functions
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pushing-manifests (PUT /manifests/<ref>)
-async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCIRef | OCICollectionRef, tags: string[], registryAuthToken: string): Promise<boolean> {
+async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCIRef | OCICollectionRef, tags: string[], authorization: string): Promise<boolean> {
 	output.write(`Tagging manifest with tags: ${tags.join(', ')}`, LogLevel.Trace);
 
 	for await (const tag of tags) {
@@ -155,13 +180,13 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 			type: 'PUT',
 			url,
 			headers: {
-				'Authorization': `Bearer ${registryAuthToken}`,
+				'Authorization': authorization, // Eg: 'Bearer <token>' or 'Basic <token>'
 				'Content-Type': 'application/vnd.oci.image.manifest.v1+json',
 			},
 			data: Buffer.from(manifestStr),
 		};
 
-		let { statusCode, resHeaders } = await requestResolveHeaders(options, output);
+		let { statusCode, resHeaders, resBody } = await requestResolveHeaders(options, output);
 
 		// Retry logic: when request fails with HTTP 429: too many requests
 		if (statusCode === 429) {
@@ -174,7 +199,8 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 		}
 
 		if (statusCode !== 201) {
-			output.write(`Failed to PUT manifest for tag ${tag}`, LogLevel.Error);
+			const parsed = JSON.parse(resBody?.toString() || '{}');
+			output.write(`Failed to PUT manifest for tag ${tag}\n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 			return false;
 		}
 
@@ -187,34 +213,44 @@ async function putManifestWithTags(output: Log, manifestStr: string, ociRef: OCI
 }
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put (PUT <location>?digest=<digest>)
-async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: string, ociRef: OCIRef | OCICollectionRef, digest: string, registryAuthToken: string): Promise<boolean> {
-	output.write(`PUT new blob -> '${digest}'`, LogLevel.Info);
+async function putBlob(output: Log, blobPutLocationUriPath: string, ociRef: OCIRef | OCICollectionRef, blob: { name: string; digest: string; size: number; contents: Buffer }, authorization: string): Promise<boolean> {
 
-	if (!(await isLocalFile(pathToBlob))) {
-		output.write(`Blob ${pathToBlob} does not exist`, LogLevel.Error);
-		return false;
-	}
+	const { name, digest, size, contents } = blob;
+
+	output.write(`Starting PUT of ${name} blob '${digest}' (size=${size})`, LogLevel.Info);
 
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer',
-		'authorization': `Bearer ${registryAuthToken}`,
+		'authorization': authorization,
 		'content-type': 'application/octet-stream',
+		'content-length': `${size}`
 	};
 
 	// OCI distribution spec is ambiguous on whether we get back an absolute or relative path.
 	let url = '';
-	if (blobPutLocationUriPath.startsWith('https://')) {
+	if (blobPutLocationUriPath.startsWith('https://') || blobPutLocationUriPath.startsWith('http://')) {
 		url = blobPutLocationUriPath;
 	} else {
 		url = `https://${ociRef.registry}${blobPutLocationUriPath}`;
 	}
-	url += `?digest=${digest}`;
 
-	output.write(`Crafted blob url:  ${url}`, LogLevel.Trace);
+	// The <location> MAY contain critical query parameters.
+	//  Additionally, it SHOULD match exactly the <location> obtained from the POST request.
+	// It SHOULD NOT be assembled manually by clients except where absolute/relative conversion is necessary.
+	const queryParamsStart = url.indexOf('?');
+	if (queryParamsStart === -1) {
+		// Just append digest to the end.
+		url += `?digest=${digest}`;
+	} else {
+		url = url.substring(0, queryParamsStart) + `?digest=${digest}` + '&' + url.substring(queryParamsStart + 1);
+	}
 
-	const { statusCode } = await requestResolveHeaders({ type: 'PUT', url, headers, data: await readLocalFile(pathToBlob) }, output);
+	output.write(`PUT blob to ->  ${url}`, LogLevel.Trace);
+
+	const { statusCode, resBody } = await requestResolveHeaders({ type: 'PUT', url, headers, data: contents }, output);
 	if (statusCode !== 201) {
-		output.write(`${statusCode}: Failed to upload blob '${pathToBlob}' to '${url}'`, LogLevel.Error);
+		const parsed = JSON.parse(resBody?.toString() || '{}');
+		output.write(`${statusCode}: Failed to upload blob '${digest}' to '${url}' \n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 		return false;
 	}
 
@@ -224,8 +260,8 @@ async function putBlob(output: Log, pathToBlob: string, blobPutLocationUriPath: 
 // Generate a layer that follows the `application/vnd.devcontainers.layer.v1+tar` mediaType as defined in
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
-async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, pathToTgz: string, ociRef: OCIRef, collectionType: string): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
-	const tgzLayer = await calculateDataLayer(output, pathToTgz, DEVCONTAINER_TAR_LAYER_MEDIATYPE);
+async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
+	const tgzLayer = await calculateDataLayer(output, dataBytes, path.basename(pathToTgz), DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 	if (!tgzLayer) {
 		output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
 		return undefined;
@@ -245,8 +281,8 @@ async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Lo
 // Generate a layer that follows the `application/vnd.devcontainers.collection.layer.v1+json` mediaType as defined in
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
-async function generateCompleteManifestForCollectionFile(output: Log, pathToCollectionFile: string, collectionRef: OCICollectionRef): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
-	const collectionMetadataLayer = await calculateDataLayer(output, pathToCollectionFile, DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE);
+async function generateCompleteManifestForCollectionFile(output: Log, dataBytes: Buffer, collectionRef: OCICollectionRef): Promise<{ manifestObj: OCIManifest; manifestStr: string; digest: string } | undefined> {
+	const collectionMetadataLayer = await calculateDataLayer(output, dataBytes, 'devcontainer-collection.json', DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE);
 	if (!collectionMetadataLayer) {
 		output.write(`Failed to calculate collection file layer.`, LogLevel.Error);
 		return undefined;
@@ -264,34 +300,28 @@ async function generateCompleteManifestForCollectionFile(output: Log, pathToColl
 }
 
 // Generic construction of a layer in the manifest and digest for the generated layer.
-export async function calculateDataLayer(output: Log, pathToData: string, mediaType: string): Promise<OCILayer | undefined> {
-	output.write(`Creating manifest from ${pathToData}`, LogLevel.Trace);
-	if (!(await isLocalFile(pathToData))) {
-		output.write(`${pathToData} does not exist.`, LogLevel.Error);
-		return undefined;
-	}
+export async function calculateDataLayer(output: Log, data: Buffer, basename: string, mediaType: string): Promise<OCILayer | undefined> {
+	output.write(`Creating manifest from data`, LogLevel.Trace);
 
-	const dataBytes = fs.readFileSync(pathToData);
-
-	const tarSha256 = crypto.createHash('sha256').update(dataBytes).digest('hex');
-	output.write(`${pathToData}:  sha256:${tarSha256} (size: ${dataBytes.byteLength})`, LogLevel.Info);
+	const tarSha256 = crypto.createHash('sha256').update(data).digest('hex');
+	output.write(`sha256:${tarSha256} (size: ${data.byteLength})`, LogLevel.Info);
 
 	return {
 		mediaType,
 		digest: `sha256:${tarSha256}`,
-		size: dataBytes.byteLength,
+		size: data.byteLength,
 		annotations: {
-			'org.opencontainers.image.title': path.basename(pathToData),
+			'org.opencontainers.image.title': basename,
 		}
 	};
 }
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#checking-if-content-exists-in-the-registry
 //       Requires registry auth token.
-export async function checkIfBlobExists(output: Log, ociRef: OCIRef | OCICollectionRef, digest: string, authToken: string): Promise<boolean> {
+export async function checkIfBlobExists(output: Log, ociRef: OCIRef | OCICollectionRef, digest: string, authorization: string): Promise<boolean> {
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer',
-		'authorization': `Bearer ${authToken}`,
+		'authorization': authorization,
 	};
 
 	const url = `https://${ociRef.registry}/v2/${ociRef.path}/blobs/${digest}`;
@@ -303,10 +333,10 @@ export async function checkIfBlobExists(output: Log, ociRef: OCIRef | OCICollect
 
 // Spec: https://github.com/opencontainers/distribution-spec/blob/main/spec.md#post-then-put
 //       Requires registry auth token.
-async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRef, authToken: string): Promise<string | undefined> {
+async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRef, authorization: string): Promise<string | undefined> {
 	const headers: HEADERS = {
 		'user-agent': 'devcontainer',
-		'authorization': `Bearer ${authToken}`,
+		'authorization': authorization
 	};
 
 	const url = `https://${ociRef.registry}/v2/${ociRef.path}/blobs/uploads/`;
@@ -319,12 +349,13 @@ async function postUploadSessionId(output: Log, ociRef: OCIRef | OCICollectionRe
 			output.write(`${url}: Got 202 status code, but no location header found.`, LogLevel.Error);
 			return undefined;
 		}
+		output.write(`Generated Upload URL: ${locationHeader}`, LogLevel.Trace);
 		return locationHeader;
 	} else {
 		// Any other statusCode besides 202 is unexpected
 		// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#error-codes
-		const displayResBody = resBody ? ` -> ${resBody}` : '';
-		output.write(`${url}: Unexpected status code '${statusCode}'${displayResBody}`, LogLevel.Error);
+		const parsed = JSON.parse(resBody?.toString() || '{}');
+		output.write(`${url}: Unexpected status code '${statusCode}' \n${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Error);
 		return undefined;
 	}
 }
