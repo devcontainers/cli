@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RequestOptions } from 'https';
-import { https } from 'follow-redirects';
+import { https, http } from 'follow-redirects';
 import ProxyAgent from 'proxy-agent';
 import * as url from 'url';
 import { Log, LogLevel } from './log';
@@ -20,11 +20,17 @@ export function request(options: { type: string; url: string; headers: Record<st
 			headers: options.headers,
 			agent: new ProxyAgent(),
 		};
-		const req = https.request(reqOptions, res => {
+
+		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		if (output && plainHTTP) {
+			output.write('Sending as plain HTTP request', LogLevel.Warning);
+		}
+
+		const req = (plainHTTP ? http : https).request(reqOptions, res => {
 			if (res.statusCode! < 200 || res.statusCode! > 299) {
 				reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
 				if (output) {
-					output.write(`HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Error);
+					output.write(`[-] HTTP request failed with status code ${res.statusCode}: : ${res.statusMessage}`, LogLevel.Trace);
 				}
 			} else {
 				res.on('error', reject);
@@ -53,7 +59,13 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 			headers: options.headers,
 			agent: new ProxyAgent(),
 		};
-		const req = https.request(reqOptions, res => {
+
+		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		if (output && plainHTTP) {
+			output.write('Sending as plain HTTP request', LogLevel.Warning);
+		}
+
+		const req = (plainHTTP ? http : https).request(reqOptions, res => {
 			res.on('error', reject);
 			if (output) {
 				output.write(`HEAD ${options.url} -> ${res.statusCode}`, LogLevel.Trace);
@@ -67,7 +79,7 @@ export function headRequest(options: { url: string; headers: Record<string, stri
 
 // Send HTTP Request.
 // Does not throw on status code, but rather always returns 'statusCode', 'resHeaders', and 'resBody'.
-export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, _output?: Log) {
+export function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output?: Log) {
 	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions = {
@@ -78,7 +90,13 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 			headers: options.headers,
 			agent: new ProxyAgent(),
 		};
-		const req = https.request(reqOptions, res => {
+
+		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		if (output && plainHTTP) {
+			output.write('Sending as plain HTTP request', LogLevel.Warning);
+		}
+
+		const req = (plainHTTP ? http : https).request(reqOptions, res => {
 			res.on('error', reject);
 
 			// Resolve response body
