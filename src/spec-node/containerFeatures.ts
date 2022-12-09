@@ -272,8 +272,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
 		;
+	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
-		'# syntax=docker/dockerfile:1.4' : ''}
+		'# syntax=docker/dockerfile:1.4' :
+		syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
