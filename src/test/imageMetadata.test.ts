@@ -156,6 +156,8 @@ describe('Image Metadata', function () {
 					const metadata = internalGetImageMetadata0(details, true, nullLog);
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
+					assert.strictEqual(metadata[0].remoteEnv.TEST, 'ENV');
+					assert.strictEqual(metadata[0].remoteEnv.TEST_ESCAPING, '{\n  "fo$o": "ba\'r"\n}');
 					await shellExec(`docker exec ${response.containerId} test -f /postCreateCommand.txt`);
 					await shellExec(`docker rm -f ${response.containerId}`);
 				});
