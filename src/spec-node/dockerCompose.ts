@@ -541,7 +541,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     security_opt:${securityOpts.map(securityOpt => `
       - ${securityOpt}`).join('')}` : ''}${additionalLabels.length ? `
     labels:${additionalLabels.map(label => `
-      - ${label.replace(/\$/g, '$$$$')}`).join('')}` : ''}${mounts.length ? `
+      - '${label.replace(/\$/g, '$$$$').replace(/'/g, '\'\'')}'`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
       - ${m.source}:${m.target}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
