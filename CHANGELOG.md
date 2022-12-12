@@ -4,6 +4,12 @@ Notable changes.
 
 ## December 2022
 
+### [0.26.0]
+
+- A more spec-compliant/resilient OCI distribution implementation. (https://github.com/devcontainers/cli/pull/318)
+- Update NPM package dependencies. (https://github.com/devcontainers/cli/pull/315)
+- Fix escaping of embedded JSON. (https://github.com/devcontainers/cli/pull/324)
+
 ### [0.25.3]
 
 - Emit a JSON summary of the result of the `features publish` and `templates publish` commands (https://github.com/devcontainers/cli/pull/305)
