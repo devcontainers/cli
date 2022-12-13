@@ -117,6 +117,9 @@ function provisionOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'dotfiles-repository': { type: 'string', description: 'Git URL to clone a dotfiles repository from.' },
+		'dotfiles-install-command': { type: 'string', implies: 'dotfiles-repository', description: 'Command to install the dotfiles with. If none is given a list of script names (install.sh, install, bootstrap.sh, bootstrap, setup.sh and setup) are checked for in the checked out dotfiles repository and if none is found all top-level dotfiles are symlinked from the container\'s home folder.' },
+		'dotfiles-target-path': { type: 'string', implies: 'dotfiles-repository', description: 'Folder path to clone the dotfiles repository to.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -179,6 +182,9 @@ async function provision({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'dotfiles-repository': dotfilesRepository,
+	'dotfiles-install-command': dotfilesInstallCommand,
+	'dotfiles-target-path': dotfilesTargetPath,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -217,6 +223,11 @@ async function provision({
 				external: external === 'true'
 			};
 		}) : [],
+		dotfiles: {
+			repository: dotfilesRepository,
+			installCommand: dotfilesInstallCommand,
+			targetPath: dotfilesTargetPath,
+		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
@@ -519,6 +530,9 @@ function runUserCommandsOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'dotfiles-repository': { type: 'string', description: 'Git URL to clone a dotfiles repository from.' },
+		'dotfiles-install-command': { type: 'string', implies: 'dotfiles-repository', description: 'Command to install the dotfiles with. If none is given a list of script names (install.sh, install, bootstrap.sh, bootstrap, setup.sh and setup) are checked for in the checked out dotfiles repository and if none is found all top-level dotfiles are symlinked from the container\'s home folder.' },
+		'dotfiles-target-path': { type: 'string', implies: 'dotfiles-repository', description: 'Folder path to clone the dotfiles repository to.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -570,6 +584,9 @@ async function doRunUserCommands({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'dotfiles-repository': dotfilesRepository,
+	'dotfiles-install-command': dotfilesInstallCommand,
+	'dotfiles-target-path': dotfilesTargetPath,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -615,6 +632,11 @@ async function doRunUserCommands({
 			skipPostAttach,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {
+				repository: dotfilesRepository,
+				installCommand: dotfilesInstallCommand,
+				targetPath: dotfilesTargetPath,
+			},
 		}, disposables);
 
 		const { common } = params;

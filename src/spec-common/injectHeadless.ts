@@ -19,6 +19,7 @@ import { containerSubstitute } from './variableSubstitution';
 import { delay } from './async';
 import { Log, LogEvent, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { buildProcessTrees, findProcesses, Process, processTreeToString } from './proc';
+import { installDotfiles } from './dotfiles';
 
 export enum ResolverProgress {
 	Begin,
@@ -44,6 +45,7 @@ export interface ResolverParameters {
 	env: NodeJS.ProcessEnv;
 	cwd: string;
 	isLocalContainer: boolean;
+	dotfilesConfiguration: DotfilesConfiguration;
 	progress: (current: ResolverProgress) => void;
 	output: Log;
 	allowSystemConfigChange: boolean;
@@ -185,6 +187,12 @@ export interface ContainerProperties {
 	launchRootShellServer?: () => Promise<ShellServer>;
 }
 
+export interface DotfilesConfiguration {
+	repository: string | undefined;
+	installCommand: string | undefined;
+	targetPath: string;
+}
+
 export async function getContainerProperties(options: {
 	params: ResolverParameters;
 	createdAt: string | undefined;
@@ -306,6 +314,9 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
 	if (params.postCreate.enabled) {
 		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false);
+	}
+	if (params.dotfilesConfiguration) {
+		await installDotfiles(params, containerProperties, remoteEnv);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
@@ -513,7 +524,7 @@ async function createFile(shellServer: ShellServer, location: string) {
 	}
 }
 
-function createFileCommand(location: string) {
+export function createFileCommand(location: string) {
 	return `test ! -f '${location}' && set -o noclobber && mkdir -p '${path.posix.dirname(location)}' && { > '${location}' ; } 2> /dev/null`;
 }
 
