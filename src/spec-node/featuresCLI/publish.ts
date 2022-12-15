@@ -92,7 +92,10 @@ async function featuresPublish({
 
         result = {
             ...result,
-            [f.id]: publishResult,
+            [f.id]: {
+                ...publishResult,
+                version: f.version,
+            }
         };
     }
 

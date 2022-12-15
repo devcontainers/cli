@@ -93,7 +93,10 @@ async function templatesPublish({
 
         result = {
             ...result,
-            [t.id]: publishResult,
+            [t.id]: {
+                ...publishResult,
+                version: t.version,
+            }
         };
     }
 

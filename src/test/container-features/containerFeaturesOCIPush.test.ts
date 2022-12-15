@@ -126,13 +126,15 @@ describe('Test OCI Push Helper Functions', () => {
 		assert.deepEqual(res, expected);
 
 		// Generate entire manifest to be able to calculate content digest
-		const { manifestStr, digest } = await calculateManifestAndContentDigest(output, res, undefined);
+		const digestContainer = await calculateManifestAndContentDigest(output, res, undefined);
+		const contentDigest = digestContainer.contentDigest;
+		const manifestStr = digestContainer.manifestStr;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
 		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
 
 		// This is the canonical digest of the manifest
-		assert.strictEqual('9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', digest);
+		assert.strictEqual('9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
