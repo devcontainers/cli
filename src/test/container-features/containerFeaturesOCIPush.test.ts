@@ -6,12 +6,19 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { ExecResult, shellExec } from '../testUtils';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeLocalFile } from '../../spec-utils/pfs';
+import { readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
+import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 
 const pkg = require('../../../package.json');
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 const testAssetsDir = `${__dirname}/assets`;
+
+interface PublishResult {
+	publishedVersions: string[];
+	digest: string;
+	version: string;
+}
 
 describe('Test OCI Push against reference registry', async function () {
 	this.timeout('240s');
@@ -24,9 +31,13 @@ describe('Test OCI Push against reference registry', async function () {
 		await shellExec(`docker rm registry -f`, {}, false, true);
 
 		// Install CLI
-		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await shellExec(`rm -rf ${tmp}`);
 		await shellExec(`mkdir -p ${tmp}`);
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+
+		// Copy contents of simple example to tmp
+		// Do this so we can make changes to the files on disk to simulate editing/updating Features.
+		await shellExec(`cp -r ${__dirname}/example-v2-features-sets/simple ${tmp}/simple-feature-set`);
 
 		// Write htpasswd file to simulate basic auth.
 		// Generated from 'htpasswd -cB -b auth.htpasswd myuser mypass'
@@ -48,12 +59,13 @@ registry`;
 	});
 
 	it('Publish Features to registry', async () => {
-		const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
+		const collectionFolder = `${tmp}/simple-feature-set`;
 		let success = false;
 
 		let publishResult: ExecResult | undefined = undefined;
 		let infoTagsResult: ExecResult | undefined = undefined;
 		let infoManifestResult: ExecResult | undefined = undefined;
+		let secondPublishResult: ExecResult | undefined = undefined;
 
 		try {
 			publishResult = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
@@ -65,6 +77,34 @@ registry`;
 
 		assert.isTrue(success);
 		assert.isDefined(publishResult);
+
+
+		{
+			const result: { [featureId: string]: PublishResult } = JSON.parse(publishResult.stdout);
+			assert.equal(Object.keys(result).length, 2);
+
+			const color = result['color'];
+			assert.isDefined(color);
+			assert.isDefined(color.digest);
+			assert.deepEqual(color.publishedVersions, [
+				'1',
+				'1.0',
+				'1.0.0',
+				'latest',
+			]);
+			assert.strictEqual(color.version, '1.0.0');
+
+			const hello = result['hello'];
+			assert.isDefined(hello);
+			assert.isDefined(hello.digest);
+			assert.deepEqual(hello.publishedVersions, [
+				'1',
+				'1.0',
+				'1.0.0',
+				'latest',
+			]);
+			assert.strictEqual(hello.version, '1.0.0');
+		}
 
 		// --- See that the Features can be queried from the Dev Container CLI.
 
@@ -99,6 +139,52 @@ registry`;
 		assert.match(manifest, regex);
 
 		success = false; // Reset success flag.
+
+		// -- Increment the version of a single Feature and run publish again
+
+		const featureMetadataFilePath = `${collectionFolder}/src/hello/devcontainer-feature.json`;
+		const featureMetadata: Feature = JSON.parse((await readLocalFile(featureMetadataFilePath)).toString());
+		featureMetadata.version = '1.0.1';
+		await writeLocalFile(featureMetadataFilePath, JSON.stringify(featureMetadata, null, 2));
+
+		try {
+			secondPublishResult = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features publish sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(secondPublishResult);
+
+		{
+
+			const result: { [featureId: string]: PublishResult } = JSON.parse(secondPublishResult.stdout);
+			assert.equal(Object.keys(result).length, 2);
+
+			// -- Color was not changed, so it should not have been published again.
+			const color = result['color'];
+			assert.isDefined(color);
+			assert.isObject(color);
+			// Check that the color object has no properties
+			assert.isUndefined(color.digest);
+			assert.isUndefined(color.publishedVersions);
+			assert.isUndefined(color.version);
+
+			// -- The breakfix version of hello was updated, so major and minor should be published again, too.
+			const hello = result['hello'];
+			assert.isDefined(hello);
+			assert.isDefined(hello.digest);
+			assert.isArray(hello.publishedVersions);
+			assert.deepEqual(hello.publishedVersions, [
+				'1',
+				'1.0',
+				'1.0.1',
+				'latest',
+			]);
+			assert.strictEqual(hello.version, '1.0.1');
+		}
 	});
 });
 
