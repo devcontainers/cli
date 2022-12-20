@@ -4,6 +4,10 @@ Notable changes.
 
 ## December 2022
 
+### [0.26.1]
+
+- Add more detail to the output of `publish` commands (https://github.com/devcontainers/cli/pull/326)
+
 ### [0.26.0]
 
 - A more spec-compliant/resilient OCI distribution implementation. (https://github.com/devcontainers/cli/pull/318)

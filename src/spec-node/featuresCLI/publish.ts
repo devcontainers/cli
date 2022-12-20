@@ -90,9 +90,14 @@ async function featuresPublish({
             process.exit(1);
         }
 
+        const thisResult = (publishResult?.digest && publishResult?.publishedVersions.length > 0) ? {
+            ...publishResult,
+            version: f.version,
+        } : {};
+
         result = {
             ...result,
-            [f.id]: publishResult,
+            [f.id]: thisResult,
         };
     }
 
