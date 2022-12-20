@@ -33,6 +33,15 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
+		it('should execute successfully with valid config and dotfiles', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --dotfiles-repository https://github.com/devcontainers/dotfiles`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
 		it('should execute successfully with valid config with features', async () => {
 			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-features`);
 			const response = JSON.parse(res.stdout);

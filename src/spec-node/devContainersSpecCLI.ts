@@ -384,6 +384,7 @@ async function doBuild({
 			skipPostAttach: true,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
+			dotfiles: {}
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -968,6 +969,7 @@ export async function doExec({
 			skipPostAttach: false,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {}
 		}, disposables);
 
 		const { common } = params;

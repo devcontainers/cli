@@ -396,6 +396,7 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		log: text => quiet ? null : process.stderr.write(text),
+		dotfiles: {}
 	};
 
 	try {
@@ -492,5 +493,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
 		experimentalImageMetadata: !args.skipImageMetadata,
+		dotfiles: {}
 	}, disposables);
 }
