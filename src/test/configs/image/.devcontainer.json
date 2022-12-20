@@ -1,6 +1,9 @@
 {
 	"image": "ubuntu:latest",
+	"postCreateCommand": "touch /postCreateCommand.txt",
 	"remoteEnv": {
+		"TEST": "ENV",
+		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}",
 		"LOCAL_PATH": "${localEnv:PATH}",
 		"CONTAINER_PATH": "${containerEnv:PATH}"
 	}

@@ -12,7 +12,7 @@ import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 import { publishOptions } from '../collectionCommonUtils/publish';
-import { getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
+import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 
 const collectionType = 'feature';
@@ -44,7 +44,7 @@ async function featuresPublish({
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
-        log: (str) => process.stdout.write(str),
+        log: (str) => process.stderr.write(str),
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
@@ -67,6 +67,8 @@ async function featuresPublish({
         process.exit(1);
     }
 
+    let result = {};
+
     for (const f of metadata.features) {
         output.write(`Processing feature: ${f.id}...`, LogLevel.Info);
 
@@ -77,16 +79,40 @@ async function featuresPublish({
 
         const resource = `${registry}/${namespace}/${f.id}`;
         const featureRef = getRef(output, resource);
-        await doPublishCommand(f.version, featureRef, outputDir, output, collectionType);
+        if (!featureRef) {
+            output.write(`(!) Could not parse provided Feature identifier: '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
+        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType);
+        if (!publishResult) {
+            output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
+        const thisResult = (publishResult?.digest && publishResult?.publishedVersions.length > 0) ? {
+            ...publishResult,
+            version: f.version,
+        } : {};
+
+        result = {
+            ...result,
+            [f.id]: thisResult,
+        };
     }
 
-    const featureCollectionRef: OCICollectionRef = {
-        registry: registry,
-        path: namespace,
-        version: 'latest'
-    };
+    const featureCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
+    if (!featureCollectionRef) {
+        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}'`, LogLevel.Error);
+        process.exit(1);
+    }
 
-    await doPublishMetadata(featureCollectionRef, outputDir, output, collectionType);
+    if (! await doPublishMetadata(featureCollectionRef, outputDir, output, collectionType)) {
+        output.write(`(!) ERR: Failed to publish '${featureCollectionRef.registry}/${featureCollectionRef.path}'`, LogLevel.Error);
+        process.exit(1);
+    }
+
+    console.log(JSON.stringify(result));
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });

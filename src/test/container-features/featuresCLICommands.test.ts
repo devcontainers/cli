@@ -3,7 +3,7 @@ import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
-import { getSermanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
+import { getSemanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedVersions } from '../../spec-configuration/containerCollectionsOCI';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -416,7 +416,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions: string[] = [];
 		let expectedSemVer = ['1', '1.0', '1.0.0', 'latest'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -425,7 +425,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
 		let expectedSemVer = ['1', '1.0', '1.0.1', 'latest'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -434,7 +434,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', 'latest'];
 		let expectedSemVer = ['1', '1.1', '1.1.0', 'latest'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -443,7 +443,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
 		let expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -452,7 +452,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '1.1', '1.1.0', '2', '2.0', '2.0.0', 'latest'];
 		let expectedSemVer = ['1.0', '1.0.2'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -461,7 +461,7 @@ describe('test function getSermanticVersions', () => {
 		let publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
 		let expectedSemVer = ['1', '1.0', '1.0.1'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
@@ -469,7 +469,7 @@ describe('test function getSermanticVersions', () => {
 		let version = '1.0.1';
 		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
 
-		let semanticVersions = getSermanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
 		assert.isUndefined(semanticVersions);
 	});
 });
@@ -478,6 +478,9 @@ describe('test function getPublishedVersions', async () => {
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
 		const featureRef = getRef(output, resource);
+		if (!featureRef) {
+			assert.fail('featureRef should not be undefined');
+		}
 		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});

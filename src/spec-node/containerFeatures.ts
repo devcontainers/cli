@@ -39,7 +39,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		// no feature extensions - return
 		return {
 			updatedImageName: [imageName],
-			imageMetadata: imageBuildInfo.metadata,
+			imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, extendImageDetails?.featuresConfig),
 			imageDetails: async () => imageBuildInfo.imageDetails,
 			labels: extendImageDetails?.labels,
 		};
@@ -471,8 +471,8 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'--build-arg', `BASE_IMAGE=${imageName}`,
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `IGNORE_PATTERN=${remoteUserUIDIgnorePattern}`,
-		'--build-arg', `NEW_UID=${await cliHost.getuid()}`,
-		'--build-arg', `NEW_GID=${await cliHost.getgid()}`,
+		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
+		'--build-arg', `NEW_GID=${await cliHost.getgid!()}`,
 		'--build-arg', `IMAGE_USER=${imageUser}`,
 		emptyFolder,
 	];

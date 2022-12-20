@@ -15,7 +15,7 @@ function updateSemanticVersionsList(publishedVersions: string[], version: string
 	return;
 }
 
-export function getSermanticVersions(version: string, publishedVersions: string[], output: Log) {
+export function getSemanticVersions(version: string, publishedVersions: string[], output: Log) {
 	if (publishedVersions.includes(version)) {
 		output.write(`(!) WARNING: Version ${version} already exists, skipping ${version}...`, LogLevel.Warning);
 		return undefined;
@@ -44,30 +44,36 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 	const publishedVersions = await getPublishedVersions(ociRef, output);
 
 	if (!publishedVersions) {
-		process.exit(1);
+		return;
 	}
 
-	const semanticVersions: string[] | undefined = getSermanticVersions(version, publishedVersions, output);
+	const semanticVersions: string[] | undefined = getSemanticVersions(version, publishedVersions, output);
 
 	if (!!semanticVersions) {
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
 		const pathToTgz = path.join(outputDir, getArchiveName(ociRef.id, collectionType));
-		if (! await pushOCIFeatureOrTemplate(output, ociRef, pathToTgz, semanticVersions, collectionType)) {
-			output.write(`(!) ERR: Failed to publish ${collectionType}: ${ociRef.resource}`, LogLevel.Error);
-			process.exit(1);
+		const digest = await pushOCIFeatureOrTemplate(output, ociRef, pathToTgz, semanticVersions, collectionType);
+		if (!digest) {
+			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
+			return;
 		}
-		output.write(`Published ${collectionType}: ${ociRef.id}...`, LogLevel.Info);
+		output.write(`Published ${collectionType}: '${ociRef.id}'`, LogLevel.Info);
+		return { publishedVersions: semanticVersions, digest };
 	}
+
+	return {}; // Not an error if no versions were published, likely they just already existed and were skipped.
 }
 
-export async function doPublishMetadata(collectionRef: OCICollectionRef, outputDir: string, output: Log, collectionType: string) {
+export async function doPublishMetadata(collectionRef: OCICollectionRef, outputDir: string, output: Log, collectionType: string): Promise<string | undefined> {
 	// Publishing Feature/Template Collection Metadata
 	output.write('Publishing collection metadata...', LogLevel.Info);
 
 	const pathToCollectionFile = path.join(outputDir, OCICollectionFileName);
-	if (! await pushCollectionMetadata(output, collectionRef, pathToCollectionFile, collectionType)) {
+	const publishedDigest = await pushCollectionMetadata(output, collectionRef, pathToCollectionFile, collectionType);
+	if (!publishedDigest) {
 		output.write(`(!) ERR: Failed to publish collection metadata: ${OCICollectionFileName}`, LogLevel.Error);
-		process.exit(1);
+		return;
 	}
-	output.write('Published collection metadata...', LogLevel.Info);
+	output.write('Published collection metadata.', LogLevel.Info);
+	return publishedDigest;
 }

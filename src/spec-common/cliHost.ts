@@ -36,8 +36,8 @@ export interface CLIHost {
 	readDir(dirpath: string): Promise<string[]>;
 	readDirWithTypes?(dirpath: string): Promise<[string, FileTypeBitmask][]>;
 	getUsername(): Promise<string>;
-	getuid(): Promise<number>;
-	getgid(): Promise<number>;
+	getuid?: () => Promise<number>;
+	getgid?: () => Promise<number>;
 	toCommonURI(filePath: string): Promise<URI | undefined>;
 	connect: ConnectFunction;
 	reconnect?(): Promise<void>;
@@ -80,8 +80,8 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 		},
 		readDir: readLocalDir,
 		getUsername: getLocalUsername,
-		getuid: async () => process.getuid(),
-		getgid: async () => process.getgid(),
+		getuid: process.platform === 'linux' || process.platform === 'darwin' ? async () => process.getuid!() : undefined,
+		getgid: process.platform === 'linux' || process.platform === 'darwin' ? async () => process.getgid!() : undefined,
 		toCommonURI: async (filePath) => URI.file(filePath),
 		connect,
 	};
@@ -104,30 +104,26 @@ function cygwinUnixSocketCookieToBuffer(cookie: string) {
 
 // The cygwin/git bash ssh-agent server will reply us with the cookie back (16 bytes)
 // + identifiers (12 bytes), skip them while forwarding data from ssh-agent to the client
-function skipHeader(headerSize: number, cb: SourceCallback<Buffer>, abort: Abort, data?: Buffer): number {
-	if (abort || data === undefined) {
-		cb(abort);
-		return headerSize;
+function skipHeader(headerSize: number, err: Abort, data?: Buffer) {
+	if (err || data === undefined) {
+		return { headerSize, err };
 	}
 
 	if (headerSize === 0) {
 		// Fast path avoiding data buffer manipulation
 		// We don't need to modify the received data (handshake header
 		// already removed)
-		cb(null, data);
+		return { headerSize, data };
 	} else if (data.length > headerSize) {
 		// We need to remove part of the data to forward
 		data = data.slice(headerSize, data.length);
 		headerSize = 0;
-		cb(null, data);
+		return { headerSize, data };
 	} else {
 		// We need to remove all forwarded data
 		headerSize = headerSize - data.length;
-		cb(null, Buffer.of());
+		return { headerSize };
 	}
-
-	// Return the updated headerSize
-	return headerSize;
 }
 
 // Function to handle the Cygwin/Gpg4win socket filtering
@@ -155,6 +151,18 @@ function handleUnixSocketOnWindows(socket: net.Socket, socketPath: string): Dupl
 		}
 		pendingSinkCalls = [];
 	};
+
+	function doSource(abort: Abort, cb: SourceCallback<Buffer>) {
+		(connectionDuplex as Duplex<Buffer, Buffer>).source(abort, function (err, data) {
+			const res = skipHeader(headerSize, err, data);
+			headerSize = res.headerSize;
+			if (res.err || res.data) {
+				cb(res.err || null, res.data);
+			} else {
+				doSource(abort, cb);
+			}
+		});
+	}
 
 	(async () => {
 		const buf = await readLocalFile(socketPath);
@@ -211,9 +219,7 @@ function handleUnixSocketOnWindows(socket: net.Socket, socketPath: string): Dupl
 				// The received data from ssh-agent/gpg-agent server is filtered
 				// to skip the handshake header.
 				for (let callback of pendingSourceCallbacks) {
-					(connectionDuplex as Duplex<Buffer, Buffer>).source(callback.abort, function (abort, data) {
-						headerSize = skipHeader(headerSize, callback.cb, abort, data);
-					});
+					doSource(callback.abort, callback.cb);
 				}
 				pendingSourceCallbacks = [];
 
@@ -233,9 +239,7 @@ function handleUnixSocketOnWindows(socket: net.Socket, socketPath: string): Dupl
 	// pull-stream source that remove the first <headerSize> bytes
 	let source: Source<Buffer> = function (abort: Abort, cb: SourceCallback<Buffer>) {
 		if (connectionDuplex !== undefined) {
-			connectionDuplex.source(abort, function (abort, data) {
-				headerSize = skipHeader(headerSize, cb, abort, data);
-			});
+			doSource(abort, cb);
 		} else {
 			pendingSourceCallbacks.push({ abort: abort, cb: cb });
 		}

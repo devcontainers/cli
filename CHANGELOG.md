@@ -2,11 +2,44 @@
 
 Notable changes.
 
+## December 2022
+
+### [0.26.1]
+
+- Add more detail to the output of `publish` commands (https://github.com/devcontainers/cli/pull/326)
+
+### [0.26.0]
+
+- A more spec-compliant/resilient OCI distribution implementation. (https://github.com/devcontainers/cli/pull/318)
+- Update NPM package dependencies. (https://github.com/devcontainers/cli/pull/315)
+- Fix escaping of embedded JSON. (https://github.com/devcontainers/cli/pull/324)
+
+### [0.25.3]
+
+- Emit a JSON summary of the result of the `features publish` and `templates publish` commands (https://github.com/devcontainers/cli/pull/305)
+- Fix: "ssh-add: communication with agent failed" (https://github.com/microsoft/vscode-remote-release/issues/7601)
+
 ## November 2022
+
+### [0.25.2]
+
+- Fix Feature/Template publishing issue when a capital letter is in the repo name (https://github.com/devcontainers/cli/pull/303)
+
+### [0.25.1]
+- Fix regression in https://github.com/devcontainers/cli/pull/298
+
+### [0.25.0]
+
+- `features test`: Respect image label metadata. (https://github.com/devcontainers/cli/pull/288)
+- Surface first error (https://github.com/microsoft/vscode-remote-release/issues/7382)
+- `templates publish`: Exit for "Failed to PUT manifest for tag x" error. (https://github.com/devcontainers/cli/pull/296)
+- Respect devcontainer.json when using image without features. (https://github.com/devcontainers/cli/issues/299)
+- Emit response from registry on failed `postUploadSessionId` (https://github.com/devcontainers/cli/pull/298)
+- downcase OCI identifiers and validate input of getRef() (https://github.com/devcontainers/cli/pull/293)
 
 ### [0.24.1]
 
--   `features test`: Respects testing scenarios where 'remoteUser' is non-root (https://github.com/devcontainers/cli/pull/286)
+- `features test`: Respects testing scenarios where 'remoteUser' is non-root (https://github.com/devcontainers/cli/pull/286)
 
 ### [0.24.0]
 

@@ -2,7 +2,9 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspace",
+	"postCreateCommand": "touch /postCreateCommand.txt",
 	"remoteEnv": {
-		"TEST": "ENV"
+		"TEST": "ENV",
+		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}"
 	}
 }

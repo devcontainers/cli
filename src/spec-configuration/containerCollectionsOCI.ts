@@ -11,9 +11,11 @@ export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
-export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string };
+export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
 
-// ghcr.io/devcontainers/features/go:1.0.0
+// Represents the unique OCI identifier for a Feature or Template.
+// eg:  ghcr.io/devcontainers/features/go:1.0.0
+// Constructed by 'getRef()'
 export interface OCIRef {
 	registry: string; 		// 'ghcr.io'
 	owner: string;			// 'devcontainers'
@@ -24,11 +26,14 @@ export interface OCIRef {
 	version?: string;		// '1.0.0'
 }
 
-// ghcr.io/devcontainers/features:latest
+// Represents the unique OCI identifier for a Collection's Metadata artifact.
+// eg:  ghcr.io/devcontainers/features:latest
+// Constructed by 'getCollectionRef()'
 export interface OCICollectionRef {
 	registry: string;		// 'ghcr.io'
 	path: string;			// 'devcontainers/features'
-	version: 'latest';		// 'latest'
+	resource: string;		// 'ghcr.io/devcontainers/features'
+	version: 'latest';		// 'latest' (always)
 }
 
 export interface OCILayer {
@@ -58,13 +63,38 @@ interface OCITagList {
 	tags: string[];
 }
 
-export function getRef(output: Log, resourceAndVersion: string): OCIRef {
+// Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
+// Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
+//
+// Entire path ('namespace' in spec terminology) for the given repository 
+// (eg: devcontainers/features/go)
+const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
+// MUST be either (a) the digest of the manifest or (b) a tag
+// MUST be at most 128 characters in length and MUST match the following regular expression:
+const regexForReference = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
-	// ex: ghcr.io/codspace/features/ruby:1
-	// ex: ghcr.io/codspace/templates/ruby:1
-	const splitOnColon = resourceAndVersion.split(':');
-	const resource = splitOnColon[0];
-	const version = splitOnColon[1] ? splitOnColon[1] : 'latest';
+// https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
+// Attempts to parse the given string into an OCIRef
+export function getRef(output: Log, input: string): OCIRef | undefined {
+	// Normalize input by downcasing entire string
+	input = input.toLowerCase();
+
+	const indexOfLastColon = input.lastIndexOf(':');
+
+	let resource = '';
+	let version = ''; // TODO: Support parsing out manifest digest (...@sha256:...)
+
+	// 'If' condition is true in the following cases:
+	//  1. The final colon is before the first slash (a port) :  eg:   ghcr.io:8081/codspace/features/ruby
+	//  2. There is no version :      				   			 eg:   ghcr.io/codspace/features/ruby
+	// In both cases, assume 'latest' tag.
+	if (indexOfLastColon === -1 || indexOfLastColon < input.indexOf('/')) {
+		resource = input;
+		version = 'latest';
+	} else {
+		resource = input.substring(0, indexOfLastColon);
+		version = input.substring(indexOfLastColon + 1);
+	}
 
 	const splitOnSlash = resource.split('/');
 
@@ -75,13 +105,27 @@ export function getRef(output: Log, resourceAndVersion: string): OCIRef {
 
 	const path = `${namespace}/${id}`;
 
-	output.write(`resource: ${resource}`, LogLevel.Trace);
-	output.write(`id: ${id}`, LogLevel.Trace);
-	output.write(`version: ${version}`, LogLevel.Trace);
-	output.write(`owner: ${owner}`, LogLevel.Trace);
-	output.write(`namespace: ${namespace}`, LogLevel.Trace);
-	output.write(`registry: ${registry}`, LogLevel.Trace);
-	output.write(`path: ${path}`, LogLevel.Trace);
+	output.write(`> input: ${input}`, LogLevel.Trace);
+	output.write(`>`, LogLevel.Trace);
+	output.write(`> resource: ${resource}`, LogLevel.Trace);
+	output.write(`> id: ${id}`, LogLevel.Trace);
+	output.write(`> version: ${version}`, LogLevel.Trace);
+	output.write(`> owner: ${owner}`, LogLevel.Trace);
+	output.write(`> namespace: ${namespace}`, LogLevel.Trace); // TODO: We assume 'namespace' includes at least one slash (eg: 'devcontainers/features')
+	output.write(`> registry: ${registry}`, LogLevel.Trace);
+	output.write(`> path: ${path}`, LogLevel.Trace);
+
+	// Validate results of parse.
+
+	if (!regexForPath.exec(path)) {
+		output.write(`Parsed path '${path}' for input '${input}' failed validation.`, LogLevel.Error);
+		return undefined;
+	}
+
+	if (!regexForReference.test(version)) {
+		output.write(`Parsed version '${version}' for input '${input}' failed validation.`, LogLevel.Error);
+		return undefined;
+	}
 
 	return {
 		id,
@@ -94,12 +138,38 @@ export function getRef(output: Log, resourceAndVersion: string): OCIRef {
 	};
 }
 
+export function getCollectionRef(output: Log, registry: string, namespace: string): OCICollectionRef | undefined {
+	// Normalize input by downcasing entire string
+	registry = registry.toLowerCase();
+	namespace = namespace.toLowerCase();
+
+	const path = namespace;
+	const resource = `${registry}/${path}`;
+
+	output.write(`> Inputs: registry='${registry}' namespace='${namespace}'`, LogLevel.Trace);
+	output.write(`>`, LogLevel.Trace);
+	output.write(`> resource: ${resource}`, LogLevel.Trace);
+
+	if (!regexForPath.exec(path)) {
+		output.write(`Parsed path '${path}' from input failed validation.`, LogLevel.Error);
+		return undefined;
+	}
+
+	return {
+		registry,
+		path,
+		resource,
+		version: 'latest'
+	};
+}
+
 // Validate if a manifest exists and is reachable about the declared feature/template.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
 export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessEnv, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
-	if (ref.registry.indexOf('.') < 0) {
+	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
+		output.write(`ERR: Registry '${ref.registry}' is not a valid domain name or IP address.`, LogLevel.Error);
 		return undefined;
 	}
 
@@ -132,9 +202,9 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, env, 'pull');
-		if (auth) {
-			headers['authorization'] = `Bearer ${auth}`;
+		const authorization = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, env, 'pull');
+		if (authorization) {
+			headers['authorization'] = authorization;
 		}
 
 		const options = {
@@ -148,12 +218,74 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 		return manifest;
 	} catch (e) {
+		// A 404 is expected here if the manifest does not exist on the remote.
+		output.write(`Did not fetch manifest: ${e}`, LogLevel.Trace);
 		return undefined;
 	}
 }
 
+// Exported Function
+// Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
+export async function fetchAuthorization(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
+	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
+	const scopeToken = await generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
+
+	// Prefer returned a Bearer token retrieved from the /token endpoint.
+	if (scopeToken) {
+		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
+		return `Bearer ${scopeToken}`;
+	}
+
+	// If all we have are Basic auth credentials, return those for the caller to use.
+	if (basicAuthTokenBase64) {
+		output.write(`Using basic auth token for registry '${registry}'`, LogLevel.Trace);
+		return `Basic ${basicAuthTokenBase64}`;
+	}
+
+	// If we have no credentials, and we weren't able to get a scope token anonymously, return undefined.
+	return undefined;
+}
+
+
+// * Internal helper for 'fetchAuthorization(...)'
+// Attempts to get the Basic auth credentials for the provided registry.
+// These may be programatically crafted via environment variables (GITHUB_TOKEN),
+// parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
+// TODO: or directly read out of the local docker config file/credential helper.
+async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS.ProcessEnv): Promise<string | undefined> {
+	// TODO: Also read OS keychain/docker config for auth in various registries!
+
+	let userToken: string | undefined = undefined;
+	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
+		output.write('Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
+		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
+	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
+		// eg: DEVCONTAINERS_OCI_AUTH=domain1|user1|token1,domain2|user2|token2
+		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
+		const authContext = authContexts.find(a => a.split('|')[0] === registry);
+
+		if (authContext) {
+			output.write(`Using match from DEVCONTAINERS_OCI_AUTH for registry '${registry}'`, LogLevel.Trace);
+			const split = authContext.split('|');
+			userToken = `${split[1]}:${split[2]}`;
+		}
+	}
+
+	if (userToken) {
+		return Buffer.from(userToken).toString('base64');
+	}
+
+	// Represents anonymous access.
+	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Warning);
+	return undefined;
+}
+
+// * Internal helper for 'fetchAuthorization(...)'
 // https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
-export async function fetchRegistryAuthToken(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
+// Using the provided Basic auth credentials, (or if none, anonymously), to ask the registry's '/token' endpoint for a token.
+// Some registries (eg: ghcr.io) expect a scoped token to target resources and will not operate with just Basic Auth.
+// Other registries (eg: the OCI Reference Implementation) will not return a valid token from '/token'
+async function generateScopeTokenCredential(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
 	if (registry === 'mcr.microsoft.com') {
 		return undefined;
 	}
@@ -162,31 +294,18 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		'user-agent': 'devcontainer'
 	};
 
-	// TODO: Read OS keychain/docker config for auth in various registries!
-
-	let userToken = '';
-	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-		userToken = env['GITHUB_TOKEN'];
-	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
-		// eg: DEVCONTAINERS_OCI_AUTH=domain1:token1,domain2:token2
-		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
-		const authContext = authContexts.find(a => a.split(':')[0] === registry);
-		if (authContext && authContext.length === 2) {
-			userToken = authContext.split(':')[1];
-		}
-	} else {
-		output.write('No oauth authentication credentials found.', LogLevel.Trace);
+	if (!basicAuthTokenBase64) {
+		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
 	}
 
-	if (userToken) {
-		const base64Encoded = Buffer.from(`USERNAME:${userToken}`).toString('base64');
-		headers['authorization'] = `Basic ${base64Encoded}`;
+	if (basicAuthTokenBase64) {
+		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
 	}
 
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
 	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
-	output.write(`url: ${url}`, LogLevel.Trace);
+	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
 
 	const options = {
 		type: 'GET',
@@ -198,8 +317,9 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 	try {
 		authReq = await request(options, output);
 	} catch (e: any) {
-		output.write(`Failed to get registry auth token with error: ${e}`, LogLevel.Error);
-		return undefined;
+		// This is ok if the registry is trying to speak Basic Auth with us.
+		output.write(`Not used a scoped token for ${registry}: ${e}`, LogLevel.Trace);
+		return;
 	}
 
 	if (!authReq) {
@@ -207,17 +327,17 @@ export async function fetchRegistryAuthToken(output: Log, registry: string, ociR
 		return undefined;
 	}
 
-	let token: string | undefined;
+	let scopeToken: string | undefined;
 	try {
-		token = JSON.parse(authReq.toString())?.token;
+		scopeToken = JSON.parse(authReq.toString())?.token;
 	} catch {
 		// not JSON
 	}
-	if (!token) {
+	if (!scopeToken) {
 		output.write('Failed to parse registry auth token response', LogLevel.Error);
 		return undefined;
 	}
-	return token;
+	return scopeToken;
 }
 
 // Lists published versions/tags of a feature/template 
@@ -226,17 +346,17 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 	try {
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
-		let authToken = await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
+		let authorization = await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
 
-		if (!authToken) {
-			output.write(`(!) ERR: Failed to publish ${collectionType}: ${ref.resource}`, LogLevel.Error);
+		if (!authorization) {
+			output.write(`(!) ERR: Failed to get published versions for ${collectionType}: ${ref.resource}`, LogLevel.Error);
 			return undefined;
 		}
 
 		const headers: HEADERS = {
 			'user-agent': 'devcontainer',
 			'accept': 'application/json',
-			'authorization': `Bearer ${authToken}`
+			'authorization': authorization
 		};
 
 		const options = {
@@ -283,9 +403,9 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 			'accept': 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const auth = authToken ?? await fetchRegistryAuthToken(output, ociRef.registry, ociRef.path, env, 'pull');
-		if (auth) {
-			headers['authorization'] = `Bearer ${auth}`;
+		const authorization = authToken ?? await fetchAuthorization(output, ociRef.registry, ociRef.path, env, 'pull');
+		if (authorization) {
+			headers['authorization'] = authorization;
 		}
 
 		const options = {

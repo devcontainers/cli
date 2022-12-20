@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { fetchRegistryAuthToken, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
+import { fetchAuthorization, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
 import { request } from '../spec-utils/httpRequest';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
@@ -112,7 +112,7 @@ export interface ResolverResult {
 	composeProjectName?: string;
 }
 
-export interface SubstitutedConfig<T> {
+export interface SubstitutedConfig<T extends DevContainerConfig | ImageMetadataEntry[]> {
 	config: T;
 	raw: T;
 	substitute: SubstituteConfig;
@@ -120,10 +120,11 @@ export interface SubstitutedConfig<T> {
 
 export type SubstituteConfig = <U extends DevContainerConfig | ImageMetadataEntry>(value: U) => U;
 
-export function addSubstitution<T>(config: SubstitutedConfig<T>, substitute: SubstituteConfig): SubstitutedConfig<T> {
+export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntry[]>(config: SubstitutedConfig<T>, substitute: SubstituteConfig): SubstitutedConfig<T> {
 	const substitute0 = config.substitute;
+	const subsConfig = config.config;
 	return {
-		config: substitute(config.config),
+		config: (Array.isArray(subsConfig) ? subsConfig.map(substitute) : substitute(subsConfig)) as T,
 		raw: config.raw,
 		substitute: value => substitute(substitute0(value)),
 	};
@@ -215,7 +216,10 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 export async function inspectImageInRegistry(output: Log, name: string, authToken?: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const ref = getRef(output, resourceAndVersion);
-	const auth = authToken ?? await fetchRegistryAuthToken(output, ref.registry, ref.path, process.env, 'pull');
+	if (!ref) {
+		throw new Error(`Could not parse image name '${name}'`);
+	}
+	const auth = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
 	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
@@ -233,7 +237,7 @@ export async function inspectImageInRegistry(output: Log, name: string, authToke
 	};
 
 	if (auth) {
-		headers['authorization'] = `Bearer ${auth}`;
+		headers['authorization'] = auth;
 	}
 
 	const options = {

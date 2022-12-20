@@ -12,7 +12,7 @@ import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
 import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 import { packageTemplates } from './packageImpl';
-import { getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
+import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 
 const collectionType = 'template';
@@ -45,7 +45,7 @@ async function templatesPublish({
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
-        log: (str) => process.stdout.write(str),
+        log: (str) => process.stderr.write(str),
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
@@ -68,6 +68,8 @@ async function templatesPublish({
         process.exit(1);
     }
 
+    let result = {};
+
     for (const t of metadata.templates) {
         output.write(`Processing template: ${t.id}...`, LogLevel.Info);
 
@@ -78,16 +80,40 @@ async function templatesPublish({
 
         const resource = `${registry}/${namespace}/${t.id}`;
         const templateRef = getRef(output, resource);
-        await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        if (!templateRef) {
+            output.write(`(!) Could not parse provided Template identifier: '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
+        const publishResult = await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        if (!publishResult) {
+            output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
+            process.exit(1);
+        }
+
+        const thisResult = (publishResult?.digest && publishResult?.publishedVersions?.length > 0) ? {
+            ...publishResult,
+            version: t.version,
+        } : {};
+
+        result = {
+            ...result,
+            [t.id]: thisResult,
+        };
     }
 
-    const templateCollectionRef: OCICollectionRef = {
-        registry: registry,
-        path: namespace,
-        version: 'latest'
-    };
+    const templateCollectionRef: OCICollectionRef | undefined = getCollectionRef(output, registry, namespace);
+    if (!templateCollectionRef) {
+        output.write(`(!) Could not parse provided collection identifier with registry '${registry}' and namespace '${namespace}'`, LogLevel.Error);
+        process.exit(1);
+    }
 
-    await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType);
+    if (! await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType)) {
+        output.write(`(!) ERR: Failed to publish '${templateCollectionRef.registry}/${templateCollectionRef.path}'`, LogLevel.Error);
+        process.exit(1);
+    }
+
+    console.log(JSON.stringify(result));
 
     // Cleanup
     await rmLocal(outputDir, { recursive: true, force: true });

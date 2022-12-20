@@ -6,6 +6,7 @@ logs
 *.tgz
 tmp
 tmp[0-9]
+tmp/*
 build-tmp
 .DS_Store
 .env
