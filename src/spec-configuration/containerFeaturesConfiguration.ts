@@ -556,9 +556,16 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(output: Log, config: DevContainerConfig, workspaceRoot: string, env: NodeJS.ProcessEnv, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
+async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
+	const { platform, output, skipFeatureAutoMapping, env, } = params;
+
+	let configPath = config.configFilePath.path;
+	if (platform === 'win32' && configPath.startsWith('/')) {
+		configPath = configPath.substring(1);
+	}
+
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, config.configFilePath.path, workspaceRoot, env, userFeature, skipFeatureAutoMapping);
+		const newFeatureSet = await processFeatureIdentifier(output, configPath, workspaceRoot, env, userFeature, skipFeatureAutoMapping);
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
