@@ -32,7 +32,7 @@ jobs:
           # "src/test/container-features/e2e.test.ts",
           # "src/test/container-features/featureHelpers.test.ts",
           # "src/test/container-features/featuresCLICommands.test.ts",
-          # "src/test/container-features/generateFeaturesConfig.test.ts",
+          "src/test/container-features/generateFeaturesConfig.test.ts",
           # "src/test/container-templates/containerTemplatesOCI.test.ts",
           # "src/test/container-templates/templatesCLICommands.test.ts",
           # "src/test/dockerComposeUtils.test.ts",
