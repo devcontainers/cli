@@ -168,6 +168,15 @@ export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
 }
 
+export interface ContainerFeatureInternalParams {
+	extensionPath: string;
+	cwd: string;
+	output: Log;
+	env: NodeJS.ProcessEnv;
+	skipFeatureAutoMapping: boolean;
+	platform: string;
+}
+
 export const multiStageBuildExploration = false;
 
 // Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
@@ -451,7 +460,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
@@ -480,7 +489,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params.output, config, workspaceRoot, params.env, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
+	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
