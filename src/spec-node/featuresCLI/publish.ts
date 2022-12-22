@@ -101,6 +101,7 @@ async function featuresPublish({
 
             let publishedLegacyIds: string[] = [];
 			for await (const legacyId of f.legacyIds) {
+                output.write(`Processing feature: ${legacyId}...`, LogLevel.Info);
 				let legacyResource = `${registry}/${namespace}/${legacyId}`;
 				const legacyFeatureRef = getRef(output, legacyResource);
 
