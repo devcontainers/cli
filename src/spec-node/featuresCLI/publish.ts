@@ -97,29 +97,29 @@ async function featuresPublish({
         } : {};
 
         if (ispublished && f.legacyIds) {
-			output.write(`Processing legacyIds for '${f.id}'...`, LogLevel.Info);
+            output.write(`Processing legacyIds for '${f.id}'...`, LogLevel.Info);
 
             let publishedLegacyIds: string[] = [];
-			for await (const legacyId of f.legacyIds) {
+            for await (const legacyId of f.legacyIds) {
                 output.write(`Processing feature: ${legacyId}...`, LogLevel.Info);
-				let legacyResource = `${registry}/${namespace}/${legacyId}`;
-				const legacyFeatureRef = getRef(output, legacyResource);
+                let legacyResource = `${registry}/${namespace}/${legacyId}`;
+                const legacyFeatureRef = getRef(output, legacyResource);
 
-				if (!legacyFeatureRef) {
-					output.write(`(!) Could not parse provided Feature identifier: '${legacyResource}'`, LogLevel.Error);
+                if (!legacyFeatureRef) {
+                    output.write(`(!) Could not parse provided Feature identifier: '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);
-				}
+                }
 
                 const publishResult = await doPublishCommand(f.version, legacyFeatureRef, outputDir, output, collectionType, f.id);
                 if (!publishResult) {
                     output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);
                 }
-                
+
                 if (publishResult?.digest && publishResult?.publishedVersions.length > 0) {
                     publishedLegacyIds.push(legacyId);
                 }
-			}
+            }
 
             if (publishedLegacyIds.length > 0) {
                 thisResult = {
@@ -127,7 +127,7 @@ async function featuresPublish({
                     publishedLegacyIds,
                 };
             }
-		}
+        }
 
         result = {
             ...result,
