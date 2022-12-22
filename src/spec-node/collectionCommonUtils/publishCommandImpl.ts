@@ -58,7 +58,6 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 			return;
 		}
 		output.write(`Published ${collectionType}: '${ociRef.id}'`, LogLevel.Info);
-
 		return { publishedVersions: semanticVersions, digest };
 	}
 
