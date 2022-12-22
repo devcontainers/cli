@@ -1,0 +1,21 @@
+{
+    "id": "new-color",
+    "version": "1.0.1",
+    "name": "A feature to remind you of your favorite color",
+    "options": {
+        "favorite": {
+            "type": "string",
+            "enum": [
+                "red",
+                "gold",
+                "green"
+            ],
+            "default": "red",
+            "description": "Choose your favorite color."
+        }
+    },
+    "legacyIds": [
+        "color",
+        "old-color"
+    ]
+}

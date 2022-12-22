@@ -18,6 +18,7 @@ interface PublishResult {
 	publishedVersions: string[];
 	digest: string;
 	version: string;
+	publishedlegacyIds?: string[];
 }
 
 describe('Test OCI Push against reference registry', async function () {
@@ -38,6 +39,7 @@ describe('Test OCI Push against reference registry', async function () {
 		// Copy contents of simple example to tmp
 		// Do this so we can make changes to the files on disk to simulate editing/updating Features.
 		await shellExec(`cp -r ${__dirname}/example-v2-features-sets/simple ${tmp}/simple-feature-set`);
+		await shellExec(`cp -r ${__dirname}/example-v2-features-sets/renaming-feature ${tmp}/renaming-feature`);
 
 		// Write htpasswd file to simulate basic auth.
 		// Generated from 'htpasswd -cB -b auth.htpasswd myuser mypass'
@@ -93,6 +95,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(color.version, '1.0.0');
+			assert.isUndefined(color.publishedlegacyIds);
 
 			const hello = result['hello'];
 			assert.isDefined(hello);
@@ -104,6 +107,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(hello.version, '1.0.0');
+			assert.isUndefined(hello.publishedlegacyIds);
 		}
 
 		// --- See that the Features can be queried from the Dev Container CLI.
@@ -185,6 +189,116 @@ registry`;
 			]);
 			assert.strictEqual(hello.version, '1.0.1');
 		}
+	});
+
+	it('Publish Features to registry with legacyIds', async () => {
+		const collectionFolder = `${__dirname}/example-v2-features-sets/renaming-feature`;
+		let success = false;
+
+		let publishResult: ExecResult | undefined = undefined;
+		let infoTagsResult: ExecResult | undefined = undefined;
+		let infoManifestResult: ExecResult | undefined = undefined;
+
+		try {
+			publishResult = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features2 ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features publish sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(publishResult);
+
+		{
+			const result: { [featureId: string]: PublishResult } = JSON.parse(publishResult.stdout);
+			assert.equal(Object.keys(result).length, 2);
+
+			const newColor = result['new-color'];
+			assert.isDefined(newColor);
+			assert.isDefined(newColor.digest);
+			assert.deepEqual(newColor.publishedVersions, [
+				'1',
+				'1.0',
+				'1.0.1',
+				'latest',
+			]);
+			assert.strictEqual(newColor.version, '1.0.1');
+			assert.deepEqual(newColor.publishedlegacyIds, [
+				'color',
+				'old-color'
+			]);
+
+			const hello = result['hello'];
+			assert.isDefined(hello);
+			assert.isDefined(hello.digest);
+			assert.deepEqual(hello.publishedVersions, [
+				'1',
+				'1.0',
+				'1.0.0',
+				'latest',
+			]);
+			assert.strictEqual(hello.version, '1.0.0');
+			assert.isUndefined(hello.publishedlegacyIds);
+		}
+
+		// --- See that the manifest of legacyIds and ID are equal
+		success = false; // Reset success flag.
+		try {
+			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/new-color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoManifestResult);
+		const manifest = infoManifestResult.stdout;
+
+		success = false; // Reset success flag.
+		try {
+			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoManifestResult);
+		const legacyManifest = infoManifestResult.stdout;
+		assert.deepEqual(manifest, legacyManifest);
+
+		success = false; // Reset success flag.
+		try {
+			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/old-color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoManifestResult);
+		const legacyManifest2 = infoManifestResult.stdout;
+		assert.deepEqual(manifest, legacyManifest2);
+
+		// --- Simple Feature
+		success = false; // Reset success flag.
+		try {
+			infoTagsResult = await shellExec(`${cli} features info tags localhost:5000/octocat/features2/hello --output-format json --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			success = true;
+
+		} catch (error) {
+			assert.fail('features info tags sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(infoTagsResult);
+		const tags = JSON.parse(infoTagsResult.stdout);
+		const publishedVersions: string[] = tags['publishedVersions'];
+		assert.equal(publishedVersions.length, 4);
 	});
 });
 
