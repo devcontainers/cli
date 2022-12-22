@@ -18,6 +18,9 @@ const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 const variables = /\$\{?(?<variable>[a-zA-Z0-9_]+)\}?/g;
 
+const positiveVariableExpression = /\${(?<variable>[a-zA-Z_][a-zA-Z0-9_]*):\+(?<word>[^\s]+)*}/g;
+const negativeVariableExpression = /\${(?<variable>[a-zA-Z_][a-zA-Z0-9_]*):-(?<word>[^\s]+)*}/g;
+
 export interface Dockerfile {
 	preamble: {
 		version: string | undefined;
@@ -138,7 +141,40 @@ function extractInstructions(stageStr: string) {
 		});
 }
 
+function handleExpressionVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
+	const regexes = [
+		{ regex: negativeVariableExpression, operation: (isSet: boolean, value: string) => isSet ? '' : value },
+		{ regex: positiveVariableExpression, operation: (isSet: boolean, value: string) => isSet ? value : '' },
+	];
+
+	return regexes.map(({ regex, operation }) => {
+		regex.lastIndex = 0;
+		const matches = [...str.matchAll(regex)];
+		if (matches.length !== 0) {
+			return matches.map(match => {
+				const variable = match.groups!.variable;
+				const word = match.groups!.word;
+				const isSet = findValue(dockerfile, buildArgs, baseImageEnv, variable, stage, beforeInstructionIndex) ? true : false;
+				const value = operation(isSet, word);
+				return {
+					begin: match.index!,
+					end: match.index! + match[0].length,
+					value,
+				};
+			})
+			.reverse()
+			.reduce((str, { begin, end, value }) => str.substring(0, begin) + value + str.substring(end), str);
+		}
+	}).join('');
+}
+
 function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
+	// Handle replacing variable expressions first (${var:+word}) if they exist
+	if (positiveVariableExpression.test(str) || negativeVariableExpression.test(str)) {
+		const image = handleExpressionVariables(dockerfile, buildArgs, baseImageEnv, str, stage, beforeInstructionIndex);
+		return image;
+	}
+
 	return [...str.matchAll(variables)]
 		.map(match => {
 			const variable = match.groups!.variable;
