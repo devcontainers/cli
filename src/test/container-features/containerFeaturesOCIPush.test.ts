@@ -18,7 +18,7 @@ interface PublishResult {
 	publishedVersions: string[];
 	digest: string;
 	version: string;
-	publishedlegacyIds?: string[];
+	publishedLegacyIds?: string[];
 }
 
 describe('Test OCI Push against reference registry', async function () {
@@ -95,7 +95,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(color.version, '1.0.0');
-			assert.isUndefined(color.publishedlegacyIds);
+			assert.isUndefined(color.publishedLegacyIds);
 
 			const hello = result['hello'];
 			assert.isDefined(hello);
@@ -107,7 +107,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(hello.version, '1.0.0');
-			assert.isUndefined(hello.publishedlegacyIds);
+			assert.isUndefined(hello.publishedLegacyIds);
 		}
 
 		// --- See that the Features can be queried from the Dev Container CLI.
@@ -224,7 +224,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(newColor.version, '1.0.1');
-			assert.deepEqual(newColor.publishedlegacyIds, [
+			assert.deepEqual(newColor.publishedLegacyIds, [
 				'color',
 				'old-color'
 			]);
@@ -239,7 +239,7 @@ registry`;
 				'latest',
 			]);
 			assert.strictEqual(hello.version, '1.0.0');
-			assert.isUndefined(hello.publishedlegacyIds);
+			assert.isUndefined(hello.publishedLegacyIds);
 		}
 
 		// --- See that the manifest of legacyIds and ID are equal

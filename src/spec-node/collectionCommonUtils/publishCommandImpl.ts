@@ -1,7 +1,7 @@
 import path from 'path';
 import * as semver from 'semver';
 import { Log, LogLevel } from '../../spec-utils/log';
-import { getPublishedVersions, getRef, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
+import { getPublishedVersions, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { getArchiveName, OCICollectionFileName } from './packageCommandImpl';
 import { pushCollectionMetadata, pushOCIFeatureOrTemplate } from '../../spec-configuration/containerCollectionsOCIPush';
 
@@ -39,7 +39,7 @@ export function getSemanticVersions(version: string, publishedVersions: string[]
 	return semanticVersions;
 }
 
-export async function doPublishCommand(version: string, ociRef: OCIRef, outputDir: string, output: Log, collectionType: string, legacyIds?: string[]) {
+export async function doPublishCommand(version: string, ociRef: OCIRef, outputDir: string, output: Log, collectionType: string, archiveId?: string) {
 	output.write(`Fetching published versions...`, LogLevel.Info);
 	const publishedVersions = await getPublishedVersions(ociRef, output);
 
@@ -51,7 +51,7 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 
 	if (!!semanticVersions) {
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-		const pathToTgz = path.join(outputDir, getArchiveName(ociRef.id, collectionType));
+		const pathToTgz = path.join(outputDir, getArchiveName(archiveId ?? ociRef.id, collectionType));
 		const digest = await pushOCIFeatureOrTemplate(output, ociRef, pathToTgz, semanticVersions, collectionType);
 		if (!digest) {
 			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
@@ -59,32 +59,7 @@ export async function doPublishCommand(version: string, ociRef: OCIRef, outputDi
 		}
 		output.write(`Published ${collectionType}: '${ociRef.id}'`, LogLevel.Info);
 
-		if (legacyIds) {
-			output.write(`Publishing legacyIds of '${ociRef.id}'...`, LogLevel.Info);
-
-			for await (const legacyId of legacyIds) {
-				output.write(`Publishing legacyId: ${legacyId}...`, LogLevel.Info);
-				output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-
-				let legacyResource = `${ociRef.registry}/${ociRef.namespace}/${legacyId}`;
-				const featureRef = getRef(output, legacyResource);
-
-				if (!featureRef) {
-					output.write(`(!) Could not parse provided Feature identifier: '${legacyResource}'`, LogLevel.Error);
-					return;
-				}
-
-				const digest = await pushOCIFeatureOrTemplate(output, featureRef, pathToTgz, semanticVersions, collectionType);
-				if (!digest) {
-					output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
-					return;
-				}
-
-				output.write(`Published ${collectionType}: '${legacyId}'`, LogLevel.Info);
-			}
-		}
-
-		return (legacyIds ? { publishedVersions: semanticVersions, digest, publishedlegacyIds: legacyIds } : { publishedVersions: semanticVersions, digest });
+		return { publishedVersions: semanticVersions, digest };
 	}
 
 	return {}; // Not an error if no versions were published, likely they just already existed and were skipped.
