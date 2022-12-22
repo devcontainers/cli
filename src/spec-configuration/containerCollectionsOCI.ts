@@ -6,12 +6,12 @@ import * as jsonc from 'jsonc-parser';
 import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
+import { HEADERS } from './httpOCIRegistry';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
-export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
 
 export interface CommonParams {
 	env: NodeJS.ProcessEnv;
@@ -230,126 +230,6 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 		output.write(`Did not fetch manifest: ${e}`, LogLevel.Trace);
 		return undefined;
 	}
-}
-
-// Exported Function
-// Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
-export async function fetchAuthorizationHeader(params: CommonParams, registry: string, ociRepoPath: string, operationScopes: string): Promise<string | undefined> {
-	const { output } = params;
-
-	const basicAuthTokenBase64 = await getBasicAuthCredential(params, registry);
-	const scopeToken = await fetchRegistryBearerToken(params, registry, ociRepoPath, operationScopes, basicAuthTokenBase64);
-
-	// Prefer returned a Bearer token retrieved from the /token endpoint.
-	if (scopeToken) {
-		output.write(`Using scope token for registry '${registry}'`, LogLevel.Trace);
-		return `Bearer ${scopeToken}`;
-	}
-
-	// If all we have are Basic auth credentials, return those for the caller to use.
-	if (basicAuthTokenBase64) {
-		output.write(`Using basic auth token for registry '${registry}'`, LogLevel.Trace);
-		return `Basic ${basicAuthTokenBase64}`;
-	}
-
-	// If we have no credentials, and we weren't able to get a scope token anonymously, return undefined.
-	return undefined;
-}
-
-
-// * Internal helper for 'fetchAuthorizationHeader(...)'
-// Attempts to get the Basic auth credentials for the provided registry.
-// These may be programatically crafted via environment variables (GITHUB_TOKEN),
-// parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
-// TODO: or directly read out of the local docker config file/credential helper.
-async function getBasicAuthCredential(params: CommonParams, registry: string): Promise<string | undefined> {
-	const { output, env } = params;
-
-	let userToken: string | undefined = undefined;
-	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-		output.write('Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
-		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
-	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
-		// eg: DEVCONTAINERS_OCI_AUTH=realm1|user1|token1,realm2|user2|token2
-		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
-		const authContext = authContexts.find(a => a.split('|')[0] === registry);
-
-		if (authContext) {
-			output.write(`Using match from DEVCONTAINERS_OCI_AUTH for registry '${registry}'`, LogLevel.Trace);
-			const split = authContext.split('|');
-			userToken = `${split[1]}:${split[2]}`;
-		}
-	}
-
-	if (userToken) {
-		return Buffer.from(userToken).toString('base64');
-	}
-
-	// Represents anonymous access.
-	output.write(`No authentication credentials found for registry '${registry}'.`, LogLevel.Warning);
-	return undefined;
-}
-
-// * Internal helper for 'fetchAuthorizationHeader(...)'
-// https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
-// Using the provided Basic auth credentials, (or if none, anonymously), to ask the registry's '/token' endpoint for a token.
-// Some registries (eg: ghcr.io) expect a scoped token to target resources and will not operate with just Basic Auth.
-// Other registries (eg: the OCI Reference Implementation) will not return a valid token from '/token'
-async function fetchRegistryBearerToken(params: CommonParams, registry: string, ociRepoPath: string, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
-	const { output } = params;
-
-	if (registry === 'mcr.microsoft.com') {
-		return undefined;
-	}
-
-	const headers: HEADERS = {
-		'user-agent': 'devcontainer'
-	};
-
-	if (!basicAuthTokenBase64) {
-		basicAuthTokenBase64 = await getBasicAuthCredential(params, registry);
-	}
-
-	if (basicAuthTokenBase64) {
-		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
-	}
-
-	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
-	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
-	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
-	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
-
-	const options = {
-		type: 'GET',
-		url: url,
-		headers: headers
-	};
-
-	let authReq: Buffer;
-	try {
-		authReq = await request(options, output);
-	} catch (e: any) {
-		// This is ok if the registry is trying to speak Basic Auth with us.
-		output.write(`Not used a scoped token for ${registry}: ${e}`, LogLevel.Trace);
-		return;
-	}
-
-	if (!authReq) {
-		output.write('Failed to get registry auth token', LogLevel.Error);
-		return undefined;
-	}
-
-	let scopeToken: string | undefined;
-	try {
-		scopeToken = JSON.parse(authReq.toString())?.token;
-	} catch {
-		// not JSON
-	}
-	if (!scopeToken) {
-		output.write('Failed to parse registry auth token response', LogLevel.Error);
-		return undefined;
-	}
-	return scopeToken;
 }
 
 // Lists published versions/tags of a feature/template 
