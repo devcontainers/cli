@@ -395,6 +395,9 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
+		dockerPath: args.dockerPath,
+		dockerComposePath: args.dockerComposePath,
+		useBuildKit: (args.dockerPath || args.dockerComposePath) ? 'never' : 'auto',
 		log: text => quiet ? null : process.stderr.write(text),
 	};
 
@@ -444,6 +447,9 @@ async function exec(testCommandArgs: FeaturesTestCommandInput, cmd: string, args
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
 		'experimental-image-metadata': !testCommandArgs.skipImageMetadata,
+		'docker-path': testCommandArgs.dockerPath,
+		'docker-compose-path': testCommandArgs.dockerComposePath,
+		'useBuildKit': (testCommandArgs.dockerPath || testCommandArgs.dockerComposePath) ? 'never' : 'auto',
 		cmd,
 		args,
 		_: [
@@ -459,8 +465,9 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 	const { logLevel, quiet, disposables } = args;
 	return await createDockerParams({
 		workspaceFolder,
-		dockerPath: undefined,
-		dockerComposePath: undefined,
+		dockerPath: args.dockerPath,
+		dockerComposePath: args.dockerComposePath,
+		useBuildKit: (args.dockerPath || args.dockerComposePath) ? 'never' : 'auto',
 		containerDataFolder: undefined,
 		containerSystemDataFolder: undefined,
 		mountWorkspaceGitRoot: false,
@@ -484,7 +491,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		remoteEnv: {},
 		additionalCacheFroms: [],
 		omitLoggerHeader: true,
-		useBuildKit: 'auto',
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,

@@ -11,8 +11,6 @@ export const staticProvisionParams = {
     additionalMounts: [],
     updateRemoteUserUIDDefault: 'on' as 'on',
     additionalCacheFroms: [],
-    dockerPath: undefined,
-    dockerComposePath: undefined,
     containerDataFolder: undefined,
     containerSystemDataFolder: undefined,
     configFile: undefined,
@@ -28,8 +26,6 @@ export const staticProvisionParams = {
 
 export const staticExecParams = {
     'user-data-folder': undefined,
-    'docker-path': undefined,
-    'docker-compose-path': undefined,
     'container-data-folder': undefined,
     'container-system-data-folder': undefined,
     'id-label': undefined,
