@@ -10,7 +10,7 @@ import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
-import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
+import { getArchiveName, OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 import { packageTemplates } from './packageImpl';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
@@ -85,7 +85,8 @@ async function templatesPublish({
             process.exit(1);
         }
 
-        const publishResult = await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        const archiveName = getArchiveName(t.id, collectionType);
+        const publishResult = await doPublishCommand(t.version, templateRef, outputDir, output, collectionType, archiveName);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
