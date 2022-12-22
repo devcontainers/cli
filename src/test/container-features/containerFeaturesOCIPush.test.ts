@@ -39,7 +39,6 @@ describe('Test OCI Push against reference registry', async function () {
 		// Copy contents of simple example to tmp
 		// Do this so we can make changes to the files on disk to simulate editing/updating Features.
 		await shellExec(`cp -r ${__dirname}/example-v2-features-sets/simple ${tmp}/simple-feature-set`);
-		await shellExec(`cp -r ${__dirname}/example-v2-features-sets/renaming-feature ${tmp}/renaming-feature`);
 
 		// Write htpasswd file to simulate basic auth.
 		// Generated from 'htpasswd -cB -b auth.htpasswd myuser mypass'
