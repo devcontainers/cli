@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+	"features": {
+		"ghcr.io/codspace/features/fruit:1": {},
+		"ghcr.io/codspace/features/hello:1.0.7": {}
+	}
+}
