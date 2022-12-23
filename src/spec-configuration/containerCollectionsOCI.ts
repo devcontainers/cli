@@ -305,8 +305,8 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
 
-	// TODO: Probably add other registries here, but I'm not sure which ones.
-	const isOauth2 = registry.endsWith('azurecr.io');
+	// TODO: Add other registries here as needed.
+	const isOauth2 = registry.endsWith('azurecr.io') || registry.endsWith('azurecr.cn') || registry.endsWith('azurecr.us');
 	const url = `https://${authServer}/${isOauth2 ? 'oauth2/' : ''}token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
 	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
 
