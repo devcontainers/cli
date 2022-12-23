@@ -304,7 +304,10 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 
 	const authServer = registry === 'docker.io' ? 'auth.docker.io' : registry;
 	const registryServer = registry === 'docker.io' ? 'registry.docker.io' : registry;
-	const url = `https://${authServer}/token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
+
+	// TODO: Probably add other registries here, but I'm not sure which ones.
+	const isOauth2 = registry.endsWith('azurecr.io');
+	const url = `https://${authServer}/${isOauth2 ? 'oauth2/' : ''}token?scope=repository:${ociRepoPath}:${operationScopes}&service=${registryServer}`;
 	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
 
 	const options = {
@@ -329,12 +332,17 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 
 	let scopeToken: string | undefined;
 	try {
-		scopeToken = JSON.parse(authReq.toString())?.token;
+		const obj = JSON.parse(authReq.toString());
+		if (obj.token !== undefined) {
+			scopeToken = obj.token;
+		} else if (obj.access_token !== undefined) {
+			scopeToken = obj.access_token
+		}
 	} catch {
 		// not JSON
 	}
 	if (!scopeToken) {
-		output.write('Failed to parse registry auth token response', LogLevel.Error);
+		output.write('Failed to parse registry auth token response: ' + authReq.toString(), LogLevel.Error);
 		return undefined;
 	}
 	return scopeToken;
