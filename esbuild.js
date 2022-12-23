@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const uri = require('vscode-uri');
 
+const compileForPkg = process.argv.indexOf('--compile-for-pkg') !== -1;
 const minify = process.argv.indexOf('--production') !== -1;
 const watch = process.argv.indexOf('--watch') !== -1;
 
@@ -58,7 +59,10 @@ const watch = process.argv.indexOf('--watch') !== -1;
 		watch,
 		platform: 'node',
 		target: 'node14.14.0',
-		external: ['vscode-dev-containers'],
+		external: ['vscode-dev-containers'].concat(compileForPkg ? ['node-pty'] : []),
+		define: {
+			'process.env.COMPILE_FOR_PKG': `${compileForPkg === true}`
+		},
 		mainFields: ['module', 'main'],
 		outdir: 'dist',
 		plugins: [plugin],
