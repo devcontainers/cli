@@ -257,7 +257,9 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 }
 
 export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
-	const pty = await loadNativeModule<typeof ptyType>('node-pty');
+	const pty = !!process.env.COMPILE_FOR_PKG
+		? (require('node-pty') as typeof ptyType)
+		: (await loadNativeModule<typeof ptyType>('node-pty'));
 	if (!pty) {
 		throw new Error('Missing node-pty');
 	}
