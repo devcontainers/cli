@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { fetchAuthorization, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { fetchAuthorizationHeader, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
@@ -337,7 +337,7 @@ describe('Test OCI Push Helper Functions', () => {
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
-		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(output, process.env, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
+		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
 		assert.strictEqual(manifest?.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
 	});
 
@@ -347,7 +347,7 @@ describe('Test OCI Push Helper Functions', () => {
 			assert.fail('getRef() for the Feature should not be undefined');
 		}
 		const { registry, resource } = ociFeatureRef;
-		const sessionAuth = await fetchAuthorization(output, registry, resource, process.env, 'pull');
+		const sessionAuth = await fetchAuthorizationHeader({ output, env: process.env }, registry, resource, 'pull');
 		if (!sessionAuth) {
 			assert.fail('Could not get registry auth token');
 		}

@@ -39,6 +39,8 @@ async function featuresInfoTags({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
+	const params = { output, env: process.env };
+
 	const featureOciRef = getRef(output, featureId);
 	if (!featureOciRef) {
 		if (outputFormat === 'json') {
@@ -49,7 +51,7 @@ async function featuresInfoTags({
 		process.exit(1);
 	}
 
-	const publishedVersions = await getPublishedVersions(featureOciRef, output, true);
+	const publishedVersions = await getPublishedVersions(params, featureOciRef, true);
 	if (!publishedVersions || publishedVersions.length === 0) {
 		if (outputFormat === 'json') {
 			console.log(JSON.stringify({}), LogLevel.Info);

@@ -18,7 +18,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp1'));
-		const files = await fetchTemplate(output, selectedTemplate, dest);
+		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -47,7 +47,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
-		const files = await fetchTemplate(output, selectedTemplate, dest);
+		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -76,7 +76,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
-		const files = await fetchTemplate(output, selectedTemplate, dest);
+		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -108,7 +108,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
-		const files = await fetchTemplate(output, selectedTemplate, dest);
+		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
 		assert.ok(files);
 		// Expected:
 		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt

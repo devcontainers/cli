@@ -48,6 +48,8 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
+    const params = { output, env: process.env };
+
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);
 
@@ -85,7 +87,7 @@ async function featuresPublish({
         }
 
         const archiveName = getArchiveName(f.id, collectionType);
-        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType, archiveName);
+        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
@@ -111,7 +113,7 @@ async function featuresPublish({
                     process.exit(1);
                 }
 
-                const publishResult = await doPublishCommand(f.version, legacyFeatureRef, outputDir, output, collectionType, archiveName);
+                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, output, collectionType, archiveName);
                 if (!publishResult) {
                     output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);
@@ -142,7 +144,7 @@ async function featuresPublish({
         process.exit(1);
     }
 
-    if (! await doPublishMetadata(featureCollectionRef, outputDir, output, collectionType)) {
+    if (! await doPublishMetadata(params, featureCollectionRef, outputDir, collectionType)) {
         output.write(`(!) ERR: Failed to publish '${featureCollectionRef.registry}/${featureCollectionRef.path}'`, LogLevel.Error);
         process.exit(1);
     }

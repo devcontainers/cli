@@ -13,6 +13,11 @@ export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devconta
 
 export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
 
+export interface CommonParams {
+	env: NodeJS.ProcessEnv;
+	output: Log;
+}
+
 // Represents the unique OCI identifier for a Feature or Template.
 // eg:  ghcr.io/devcontainers/features/go:1.0.0
 // Constructed by 'getRef()'
@@ -165,7 +170,9 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 
 // Validate if a manifest exists and is reachable about the declared feature/template.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessEnv, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+	const { output } = params;
+
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
 	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
@@ -181,7 +188,7 @@ export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessE
 	}
 	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifest = await getManifest(output, env, manifestUrl, ref, authToken);
+	const manifest = await getManifest(params, manifestUrl, ref, authToken);
 
 	if (!manifest) {
 		return;
@@ -195,14 +202,15 @@ export async function fetchOCIManifestIfExists(output: Log, env: NodeJS.ProcessE
 	return manifest;
 }
 
-export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: string, ref: OCIRef | OCICollectionRef, authToken?: string | false, mimeType?: string): Promise<OCIManifest | undefined> {
+export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, authToken?: string | false, mimeType?: string): Promise<OCIManifest | undefined> {
+	const { output } = params;
 	try {
 		const headers: HEADERS = {
 			'user-agent': 'devcontainer',
 			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, env, 'pull');
+		const authorization = authToken ?? await fetchAuthorizationHeader(params, ref.registry, ref.path, 'pull');
 		if (authorization) {
 			headers['authorization'] = authorization;
 		}
@@ -226,9 +234,11 @@ export async function getManifest(output: Log, env: NodeJS.ProcessEnv, url: stri
 
 // Exported Function
 // Will attempt to generate/fetch the correct authorization header for subsequent requests (Bearer or Basic)
-export async function fetchAuthorization(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string): Promise<string | undefined> {
-	const basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
-	const scopeToken = await generateScopeTokenCredential(output, registry, ociRepoPath, env, operationScopes, basicAuthTokenBase64);
+export async function fetchAuthorizationHeader(params: CommonParams, registry: string, ociRepoPath: string, operationScopes: string): Promise<string | undefined> {
+	const { output } = params;
+
+	const basicAuthTokenBase64 = await getBasicAuthCredential(params, registry);
+	const scopeToken = await fetchRegistryBearerToken(params, registry, ociRepoPath, operationScopes, basicAuthTokenBase64);
 
 	// Prefer returned a Bearer token retrieved from the /token endpoint.
 	if (scopeToken) {
@@ -247,20 +257,20 @@ export async function fetchAuthorization(output: Log, registry: string, ociRepoP
 }
 
 
-// * Internal helper for 'fetchAuthorization(...)'
+// * Internal helper for 'fetchAuthorizationHeader(...)'
 // Attempts to get the Basic auth credentials for the provided registry.
 // These may be programatically crafted via environment variables (GITHUB_TOKEN),
 // parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
 // TODO: or directly read out of the local docker config file/credential helper.
-async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS.ProcessEnv): Promise<string | undefined> {
-	// TODO: Also read OS keychain/docker config for auth in various registries!
+async function getBasicAuthCredential(params: CommonParams, registry: string): Promise<string | undefined> {
+	const { output, env } = params;
 
 	let userToken: string | undefined = undefined;
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
 		output.write('Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
 	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
-		// eg: DEVCONTAINERS_OCI_AUTH=domain1|user1|token1,domain2|user2|token2
+		// eg: DEVCONTAINERS_OCI_AUTH=realm1|user1|token1,realm2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
 		const authContext = authContexts.find(a => a.split('|')[0] === registry);
 
@@ -280,12 +290,14 @@ async function getBasicAuthCredential(output: Log, registry: string, env: NodeJS
 	return undefined;
 }
 
-// * Internal helper for 'fetchAuthorization(...)'
+// * Internal helper for 'fetchAuthorizationHeader(...)'
 // https://github.com/oras-project/oras-go/blob/97a9c43c52f9d89ecf5475bc59bd1f96c8cc61f6/registry/remote/auth/scope.go#L60-L74
 // Using the provided Basic auth credentials, (or if none, anonymously), to ask the registry's '/token' endpoint for a token.
 // Some registries (eg: ghcr.io) expect a scoped token to target resources and will not operate with just Basic Auth.
 // Other registries (eg: the OCI Reference Implementation) will not return a valid token from '/token'
-async function generateScopeTokenCredential(output: Log, registry: string, ociRepoPath: string, env: NodeJS.ProcessEnv, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
+async function fetchRegistryBearerToken(params: CommonParams, registry: string, ociRepoPath: string, operationScopes: string, basicAuthTokenBase64: string | undefined = undefined): Promise<string | undefined> {
+	const { output } = params;
+
 	if (registry === 'mcr.microsoft.com') {
 		return undefined;
 	}
@@ -295,7 +307,7 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 	};
 
 	if (!basicAuthTokenBase64) {
-		basicAuthTokenBase64 = await getBasicAuthCredential(output, registry, env);
+		basicAuthTokenBase64 = await getBasicAuthCredential(params, registry);
 	}
 
 	if (basicAuthTokenBase64) {
@@ -342,11 +354,12 @@ async function generateScopeTokenCredential(output: Log, registry: string, ociRe
 
 // Lists published versions/tags of a feature/template 
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
-export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boolean = false, collectionType: string = 'feature'): Promise<string[] | undefined> {
+export async function getPublishedVersions(params: CommonParams, ref: OCIRef, sorted: boolean = false, collectionType: string = 'feature'): Promise<string[] | undefined> {
+	const { output } = params;
 	try {
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
-		let authorization = await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
+		let authorization = await fetchAuthorizationHeader(params, ref.registry, ref.path, 'pull');
 
 		if (!authorization) {
 			output.write(`(!) ERR: Failed to get published versions for ${collectionType}: ${ref.resource}`, LogLevel.Error);
@@ -391,9 +404,11 @@ export async function getPublishedVersions(ref: OCIRef, output: Log, sorted: boo
 	}
 }
 
-export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
+
+	const { output } = params;
 	try {
 		await mkdirpLocal(ociCacheDir);
 		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
@@ -403,7 +418,7 @@ export async function getBlob(output: Log, env: NodeJS.ProcessEnv, url: string, 
 			'accept': 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorization(output, ociRef.registry, ociRef.path, env, 'pull');
+		const authorization = authToken ?? await fetchAuthorizationHeader(params, ociRef.registry, ociRef.path, 'pull');
 		if (authorization) {
 			headers['authorization'] = authorization;
 		}
