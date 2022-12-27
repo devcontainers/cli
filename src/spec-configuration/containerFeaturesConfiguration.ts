@@ -13,8 +13,8 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
-import { OCIManifest, OCIRef } from './containerCollectionsOCI';
 import { uriToFsPath } from './configurationCommonUtils';
+import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -359,7 +359,8 @@ const cleanupIterationFetchAndMerge = async (tempTarballPath: string, output: Lo
 	}
 };
 
-function getRequestHeaders(sourceInformation: SourceInformation, env: NodeJS.ProcessEnv, output: Log) {
+function getRequestHeaders(params: CommonParams, sourceInformation: SourceInformation) {
+	const { env, output } = params;
 	let headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } = {
 		'user-agent': 'devcontainer'
 	};
@@ -558,13 +559,14 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
 async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
-	const { platform, output, skipFeatureAutoMapping, env, } = params;
+	const { platform, output } = params;
 
 	let configPath = uriToFsPath(config.configFilePath, platform);
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(output, configPath, workspaceRoot, env, userFeature, skipFeatureAutoMapping);
+		const newFeatureSet = await processFeatureIdentifier(params, configPath, workspaceRoot, userFeature);
+
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
@@ -573,7 +575,8 @@ async function processUserFeatures(params: ContainerFeatureInternalParams, confi
 	return featuresConfig;
 }
 
-export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, userFeatureId: string) {
+export async function getFeatureIdType(params: CommonParams, userFeatureId: string) {
+	const { output } = params;
 	// See the specification for valid feature identifiers:
 	//   > https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 	//
@@ -606,7 +609,7 @@ export async function getFeatureIdType(output: Log, env: NodeJS.ProcessEnv, user
 		return { type: 'github-repo', manifest: undefined };
 	}
 
-	const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(output, env, userFeatureId);
+	const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(params, userFeatureId);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	} else {
@@ -656,7 +659,9 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(output: Log, configPath: string, _workspaceRoot: string, env: NodeJS.ProcessEnv, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(params: CommonParams, configPath: string, _workspaceRoot: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+	const { output } = params;
+
 	output.write(`* Processing feature: ${userFeature.id}`);
 
 	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
@@ -666,7 +671,7 @@ export async function processFeatureIdentifier(output: Log, configPath: string, 
 		userFeature.id = getBackwardCompatibleFeatureId(output, userFeature.id);
 	}
 
-	const { type, manifest } = await getFeatureIdType(output, env, userFeature.id);
+	const { type, manifest } = await getFeatureIdType(params, userFeature.id);
 
 	// cached feature
 	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
@@ -888,7 +893,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			if (sourceInfoType === 'oci') {
 				output.write(`Fetching from OCI`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
-				const success = await fetchOCIFeature(output, params.env, featureSet, ociCacheDir, featCachePath);
+				const success = await fetchOCIFeature(params, featureSet, ociCacheDir, featCachePath);
 				if (!success) {
 					const err = `Could not download OCI feature: ${featureSet.sourceInformation.featureRef.id}`;
 					throw new Error(err);
@@ -928,7 +933,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			}
 
 			output.write(`Detected tarball`, LogLevel.Trace);
-			const headers = getRequestHeaders(featureSet.sourceInformation, params.env, output);
+			const headers = getRequestHeaders(params, featureSet.sourceInformation);
 
 			// Ordered list of tarballUris to attempt to fetch from.
 			let tarballUris: string[] = [];

@@ -5,7 +5,7 @@ import { delay } from '../spec-common/async';
 import { headRequest, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile } from '../spec-utils/pfs';
-import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, fetchAuthorization, HEADERS, OCICollectionRef, OCILayer, OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, fetchAuthorizationHeader, HEADERS, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams } from './containerCollectionsOCI';
 
 interface ManifestContainer {
 	manifestObj: OCIManifest;
@@ -17,10 +17,11 @@ interface ManifestContainer {
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string): Promise<string | undefined> {
+export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string): Promise<string | undefined> {
+	const { output } = params;
+
 	output.write(`-- Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
 	output.write(`${JSON.stringify(ociRef, null, 2)}`, LogLevel.Trace);
-	const env = process.env;
 
 	if (!(await isLocalFile(pathToTgz))) {
 		output.write(`Blob ${pathToTgz} does not exist.`, LogLevel.Error);
@@ -30,7 +31,7 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	const dataBytes = fs.readFileSync(pathToTgz);
 
 	// Generate registry auth token with `pull,push` scopes.
-	const authorization = await fetchAuthorization(output, ociRef.registry, ociRef.path, env, 'pull,push');
+	const authorization = await fetchAuthorizationHeader(params, ociRef.registry, ociRef.path, 'pull,push');
 	if (!authorization) {
 		output.write(`Failed to get registry auth token`, LogLevel.Error);
 		return;
@@ -46,7 +47,7 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-	const existingManifest = await fetchOCIManifestIfExists(output, env, ociRef, manifest.contentDigest, authorization);
+	const existingManifest = await fetchOCIManifestIfExists(params, ociRef, manifest.contentDigest, authorization);
 	if (manifest.contentDigest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
 		return await putManifestWithTags(output, manifest, ociRef, tags, authorization);
@@ -99,12 +100,13 @@ export async function pushOCIFeatureOrTemplate(output: Log, ociRef: OCIRef, path
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry (see 'devcontainer-collection.json')
 // 	   Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry  (see 'devcontainer-collection.json')
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushCollectionMetadata(output: Log, collectionRef: OCICollectionRef, pathToCollectionJson: string, collectionType: string): Promise<string | undefined> {
+export async function pushCollectionMetadata(params: CommonParams, collectionRef: OCICollectionRef, pathToCollectionJson: string, collectionType: string): Promise<string | undefined> {
+	const { output } = params;
+
 	output.write(`Starting push of latest ${collectionType} collection for namespace '${collectionRef.path}' to '${collectionRef.registry}'`);
 	output.write(`${JSON.stringify(collectionRef, null, 2)}`, LogLevel.Trace);
-	const env = process.env;
 
-	const authorization = await fetchAuthorization(output, collectionRef.registry, collectionRef.path, env, 'pull,push');
+	const authorization = await fetchAuthorizationHeader(params, collectionRef.registry, collectionRef.path, 'pull,push');
 	if (!authorization) {
 		output.write(`Failed to get registry auth token`, LogLevel.Error);
 		return;
@@ -126,7 +128,7 @@ export async function pushCollectionMetadata(output: Log, collectionRef: OCIColl
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
-	const existingManifest = await fetchOCIManifestIfExists(output, env, collectionRef, manifest.contentDigest, authorization);
+	const existingManifest = await fetchOCIManifestIfExists(params, collectionRef, manifest.contentDigest, authorization);
 	if (manifest.contentDigest && existingManifest) {
 		output.write(`Not reuploading blobs, digest already exists.`, LogLevel.Trace);
 		return await putManifestWithTags(output, manifest, collectionRef, ['latest'], authorization);

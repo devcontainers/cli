@@ -2,7 +2,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import * as os from 'os';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
-import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
+import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { DevContainerConfig } from './configuration';
 import { Template } from './containerTemplatesConfiguration';
@@ -21,7 +21,8 @@ export interface SelectedTemplate {
 	features: TemplateFeatureOption[];
 }
 
-export async function fetchTemplate(output: Log, selectedTemplate: SelectedTemplate, templateDestPath: string, userProvidedTmpDir?: string): Promise<string[] | undefined> {
+export async function fetchTemplate(params: CommonParams, selectedTemplate: SelectedTemplate, templateDestPath: string, userProvidedTmpDir?: string): Promise<string[] | undefined> {
+	const { output } = params;
 
 	let { id: userSelectedId, options: userSelectedOptions } = selectedTemplate;
 	const templateRef = getRef(output, userSelectedId);
@@ -30,7 +31,7 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 		return;
 	}
 
-	const ociManifest = await fetchOCITemplateManifestIfExistsFromUserIdentifier(output, process.env, userSelectedId);
+	const ociManifest = await fetchOCITemplateManifestIfExistsFromUserIdentifier(params, userSelectedId);
 	if (!ociManifest) {
 		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
 		return;
@@ -40,7 +41,7 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const blobResult = await getBlob(output, process.env, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
+	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
@@ -120,12 +121,14 @@ export async function fetchTemplate(output: Log, selectedTemplate: SelectedTempl
 }
 
 
-async function fetchOCITemplateManifestIfExistsFromUserIdentifier(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+async function fetchOCITemplateManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+	const { output } = params;
+
 	const templateRef = getRef(output, identifier);
 	if (!templateRef) {
 		return undefined;
 	}
-	return await fetchOCIManifestIfExists(output, env, templateRef, manifestDigest, authToken);
+	return await fetchOCIManifestIfExists(params, templateRef, manifestDigest, authToken);
 }
 
 function replaceTemplatedValues(output: Log, template: string, options: TemplateOptions) {
