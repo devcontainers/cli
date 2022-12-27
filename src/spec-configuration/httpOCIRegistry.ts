@@ -8,64 +8,73 @@ export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content
 export async function requestEnsureAuthenticated(params: CommonParams, registry: string, ociRepoPath: string, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, existingAuthHeader?: string) {
 	const { output } = params;
 
+	// If the user has a cached auth token, attempt to use that first.
 	if (existingAuthHeader) {
 		httpOptions.headers.authorization = existingAuthHeader;
 	}
 
 	const responseAttempt = await requestResolveHeaders(httpOptions, output);
 
-	// Per the specification, on 401 retry the request after 
-	// fetching a Bearer token for the appropriate realm provided at the 'WWW-Authenticate' header.
-	if (responseAttempt.statusCode === 401) {
-		const wwwAuthenticate = responseAttempt.resHeaders['www-authenticate'];
-		if (wwwAuthenticate) {
-			// Www-Authenticate: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
-			const wwwAuthenticateParts = wwwAuthenticate.split(' ');
-			if (wwwAuthenticateParts[0] === 'Bearer') {
-				const realm = wwwAuthenticateParts[1].split('=')[1];
-				const service = wwwAuthenticateParts[2].split('=')[1];
-				const scope = wwwAuthenticateParts[3].split('=')[1];
-				const bearerToken = await fetchRegistryBearerToken(params, ociRepoPath, realm, service, scope);
-				if (bearerToken) {
-					httpOptions.headers.authorization = `Bearer ${bearerToken}`;
-					const responseWithBearerToken = await requestResolveHeaders(httpOptions, output);
-					if (responseWithBearerToken.statusCode === 401) {
-						// Provided token was not valid.
-						return;
-					}
-					return {
-						response: responseWithBearerToken,
-						authHeader: `Bearer ${bearerToken}`, // Cache token for use in future requests.
-					};
-				}
-			}
-		}
-		// Fall back attempting the request with Basic auth.
-		const basicAuthCredential = await getBasicAuthCredential(params, registry, ociRepoPath);
-		if (basicAuthCredential) {
-			httpOptions.headers.authorization = `Basic ${basicAuthCredential}`;
-			const responseWithBasicAuth = await requestResolveHeaders(httpOptions, output);
-			if (responseWithBasicAuth.statusCode === 401) {
-				// Provided token was not valid.
-				return;
-			}
-			return {
-				response: responseWithBasicAuth,
-				authHeader: `Basic ${basicAuthCredential}`, // Cache token for use in future requests.
-			};
-		}
-	} else {
-		// Return the original response.
+	// For anything except a 401 response
+	// Simply return the original response to the caller.
+	if (responseAttempt.statusCode !== 401) {
 		return {
 			response: responseAttempt,
-			authHeader: existingAuthHeader, // Cache token for use in future requests.
+			authHeader: existingAuthHeader, // Let caller cache token for use in future requests.
 		};
 	}
 
-	// Failure to authenticate after a 401.
-	// Likely, the registry does not support WWW-Authenticate challenges.
+	// -- 'responseAttempt' status code was 401 at this point.
+
+	// Attempt to authenticate via WWW-Authenticate Header.
+	const wwwAuthenticate = responseAttempt.resHeaders['WWW-Authenticate'] || responseAttempt.resHeaders['www-authenticate'];
+	if (wwwAuthenticate) {
+		output.write('Attempting to authenticate via WWW-Athenticate header.', LogLevel.Trace);
+
+		// Www-Authenticate: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
+		const wwwAuthenticateParts = wwwAuthenticate.split(' ');
+		if (wwwAuthenticateParts[0] === 'Bearer') {
+			const realm = wwwAuthenticateParts[1].split('=')[1];
+			const service = wwwAuthenticateParts[2].split('=')[1];
+			const scope = wwwAuthenticateParts[3].split('=')[1];
+			const bearerToken = await fetchRegistryBearerToken(params, ociRepoPath, realm, service, scope);
+			if (bearerToken) {
+				httpOptions.headers.authorization = `Bearer ${bearerToken}`;
+				const responseWithBearerToken = await requestResolveHeaders(httpOptions, output);
+				if (responseWithBearerToken.statusCode === 401) {
+					// Provided token was not valid.
+					return;
+				}
+				return {
+					response: responseWithBearerToken,
+					authHeader: `Bearer ${bearerToken}`, // Let caller cache token for use in future requests.
+				};
+			}
+		}
+	}
+
+	// No WWW-Authenticate Header + 401 from server.
+	// Fall back attempting the request with Basic auth.
+	const basicAuthCredential = await getBasicAuthCredential(params, registry, ociRepoPath);
+	if (basicAuthCredential) {
+		output.write('Attempting to authenticate with Basic Auth Credentials', LogLevel.Trace);
+
+		httpOptions.headers.authorization = `Basic ${basicAuthCredential}`;
+		const responseWithBasicAuth = await requestResolveHeaders(httpOptions, output);
+		if (responseWithBasicAuth.statusCode === 401) {
+			// Provided token was not valid.
+			return;
+		}
+		return {
+			response: responseWithBasicAuth,
+			authHeader: `Basic ${basicAuthCredential}`, // Let caller cache token for use in future requests.
+		};
+	}
+
+	// Reauthenticating failed
 	return;
 }
+
 
 
 // Attempts to get the Basic auth credentials for the provided registry.
