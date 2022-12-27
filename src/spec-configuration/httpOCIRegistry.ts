@@ -1,5 +1,5 @@
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
-import { Log, LogLevel } from '../spec-utils/log';
+import { LogLevel } from '../spec-utils/log';
 import { CommonParams } from './containerCollectionsOCI';
 
 export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
@@ -43,6 +43,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 				const responseWithBearerToken = await requestResolveHeaders(httpOptions, output);
 				if (responseWithBearerToken.statusCode === 401) {
 					// Provided token was not valid.
+					output.write('401 while attempting to authenticate via WWW-Athenticate header.', LogLevel.Trace);
 					return;
 				}
 				return {
@@ -63,6 +64,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 		const responseWithBasicAuth = await requestResolveHeaders(httpOptions, output);
 		if (responseWithBasicAuth.statusCode === 401) {
 			// Provided token was not valid.
+			output.write('401 while attempting to with Basic Auth credentials.', LogLevel.Trace);
 			return;
 		}
 		return {
@@ -72,6 +74,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 	}
 
 	// Reauthenticating failed
+	output.write('Failed to send an authenticated request to registry.', LogLevel.Trace);
 	return;
 }
 
