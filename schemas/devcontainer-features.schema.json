@@ -139,6 +139,10 @@
                             "description": "Machine specific settings that should be copied into the container."
                         }
                     }
+                },
+                "deprecated": {
+                    "type": "boolean",
+                    "description": "Indicates that the Feature is deprecated, and will not receive any further updates/support. This property is intended to be used by the supporting tools for highlighting Feature deprecation."
                 }
             },
             "required": [
