@@ -1,13 +1,16 @@
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
-import { CommonParams } from './containerCollectionsOCI';
+import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
 
-export type HEADERS = { 'authorization'?: string; 'user-agent': string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
+export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
 
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
-export async function requestEnsureAuthenticated(params: CommonParams, registry: string, ociRepoPath: string, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, existingAuthHeader?: string) {
+export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef, existingAuthHeader?: string) {
 	const { output } = params;
+	const { registry, path } = ociRef;
 
+	// -- Update headers
+	httpOptions.headers['user-agent'] = 'devcontainer';
 	// If the user has a cached auth token, attempt to use that first.
 	if (existingAuthHeader) {
 		httpOptions.headers.authorization = existingAuthHeader;
@@ -34,10 +37,12 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 		// Www-Authenticate: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
 		const wwwAuthenticateParts = wwwAuthenticate.split(' ');
 		if (wwwAuthenticateParts[0] === 'Bearer') {
-			const realm = wwwAuthenticateParts[1].split('=')[1];
-			const service = wwwAuthenticateParts[2].split('=')[1];
-			const scope = wwwAuthenticateParts[3].split('=')[1];
-			const bearerToken = await fetchRegistryBearerToken(params, ociRepoPath, realm, service, scope);
+			const wwwAuthenticateData = {
+				realm: wwwAuthenticateParts[1].split('=')[1],
+				service: wwwAuthenticateParts[2].split('=')[1],
+				operationScopes: wwwAuthenticateParts[3].split('=')[1],
+			};
+			const bearerToken = await fetchRegistryBearerToken(params, path, wwwAuthenticateData);
 			if (bearerToken) {
 				httpOptions.headers.authorization = `Bearer ${bearerToken}`;
 				const responseWithBearerToken = await requestResolveHeaders(httpOptions, output);
@@ -56,7 +61,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 
 	// No WWW-Authenticate Header + 401 from server.
 	// Fall back attempting the request with Basic auth.
-	const basicAuthCredential = await getBasicAuthCredential(params, registry, ociRepoPath);
+	const basicAuthCredential = await getBasicAuthCredential(params, registry, path);
 	if (basicAuthCredential) {
 		output.write('Attempting to authenticate with Basic Auth Credentials', LogLevel.Trace);
 
@@ -78,14 +83,13 @@ export async function requestEnsureAuthenticated(params: CommonParams, registry:
 	return;
 }
 
-
-
 // Attempts to get the Basic auth credentials for the provided registry.
 // These may be programatically crafted via environment variables (GITHUB_TOKEN),
 // parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
-// TODO: or directly read out of the local docker config file/credential helper.
 async function getBasicAuthCredential(params: CommonParams, realm: string, service: string): Promise<string | undefined> {
 	const { output, env } = params;
+
+	// TODO: Directly read out of the local docker config file/credential helper.
 
 	let userToken: string | undefined = undefined;
 	if (!!env['GITHUB_TOKEN'] && service === 'ghcr.io' && realm.startsWith('https://ghcr.io/')) {
@@ -108,13 +112,14 @@ async function getBasicAuthCredential(params: CommonParams, realm: string, servi
 	}
 
 	// Represents anonymous access.
-	output.write(`No authentication credentials found for realm '${realm}'.`, LogLevel.Warning);
+	output.write(`No authentication credentials found for realm '${realm}'.`, LogLevel.Trace);
 	return undefined;
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-async function fetchRegistryBearerToken(params: CommonParams, ociRepoPath: string, realm: string, service: string, operationScopes: string): Promise<string | undefined> {
+async function fetchRegistryBearerToken(params: CommonParams, ociRepoPath: string, wwwAuthenticateData: { realm: string; service: string; operationScopes: string }): Promise<string | undefined> {
 	const { output } = params;
+	const { realm, service, operationScopes } = wwwAuthenticateData;
 
 	// TODO: Remove this.
 	if (realm.includes('mcr.microsoft.com')) {
@@ -136,10 +141,13 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRepoPath: strin
 		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
 	}
 
-	// realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
+	// realm="https://auth.docker.io/token"
+	// service="registry.docker.io"
+	// scope="repository:samalba/my-app:pull,push"
+	// Example:
 	// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
 	const url = `${realm}?service=${service}&scope=repository:${ociRepoPath}:${operationScopes}`;
-	output.write(`Fetching scope token from: ${url}`, LogLevel.Trace);
+	output.write(`Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
 
 	const options = {
 		type: 'GET',
@@ -152,13 +160,13 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRepoPath: strin
 		authReq = await request(options, output);
 	} catch (e: any) {
 		// This is ok if the registry is trying to speak Basic Auth with us.
-		output.write(`Not used a scoped token for ${service}: ${e}`, LogLevel.Trace);
+		output.write(`Could not fetch bearer token for '${service}': ${e}`, LogLevel.Error);
 		return;
 	}
 
 	if (!authReq) {
-		output.write('Failed to get registry auth token', LogLevel.Error);
-		return undefined;
+		output.write(`Did not receive bearer token for '${service}'`, LogLevel.Error);
+		return;
 	}
 
 	let scopeToken: string | undefined;
@@ -168,8 +176,9 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRepoPath: strin
 		// not JSON
 	}
 	if (!scopeToken) {
-		output.write('Failed to parse registry auth token response', LogLevel.Error);
-		return undefined;
+		output.write(`Unexpected bearer token response format for '${service}'`, LogLevel.Error);
+		return;
 	}
+
 	return scopeToken;
 }
