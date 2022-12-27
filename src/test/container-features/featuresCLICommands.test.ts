@@ -481,7 +481,7 @@ describe('test function getPublishedVersions', async () => {
 		if (!featureRef) {
 			assert.fail('featureRef should not be undefined');
 		}
-		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
+		const versionsList = await getPublishedVersions({ output, env: process.env }, featureRef) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
 });

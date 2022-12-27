@@ -10,6 +10,8 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
+const params = { output, env: process.env };
+
 describe('getIdSafe should return safe environment variable name', function () {
 
 	it('should replace a "-" with "_"', function () {
@@ -62,7 +64,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'docker-in-docker',
 				options: {}
 			};
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -83,7 +85,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'octocat/myfeatures/helloworld',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -111,7 +113,7 @@ describe('validate processFeatureIdentifier', async function () {
 				id: 'octocat/myfeatures/helloworld@v0.0.4',
 				options: {},
 			};
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -141,7 +143,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -161,7 +163,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const customConfigPath = path.join(workspaceRoot, '.devcontainer', 'devcontainer.json');
 
-			const featureSet = await processFeatureIdentifier(output, customConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, customConfigPath, workspaceRoot, userFeature);
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'featureA');
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureA'), userFeatureId: './featureA' });
@@ -176,7 +178,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const customConfigPath = path.join(workspaceRoot, 'devcontainer.json');
 
-			const featureSet = await processFeatureIdentifier(output, customConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, customConfigPath, workspaceRoot, userFeature);
 
 			assert.exists(featureSet);
 			assert.strictEqual(featureSet?.features[0].id, 'featureB');
@@ -189,7 +191,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -223,7 +225,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			if (!featureSet) {
 				assert.fail('processFeatureIdentifier returned null');
 			}
@@ -261,7 +263,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer', 'devcontainer.json');
 
-			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, testSpecificConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -273,7 +275,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer.json');
 
-			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, testSpecificConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -285,7 +287,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 			const testSpecificConfigPath = path.join(workspaceRoot, '.devcontainer.json');
 
-			const featureSet = await processFeatureIdentifier(output, testSpecificConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, testSpecificConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -295,7 +297,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -305,7 +307,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -315,7 +317,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -325,7 +327,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -335,7 +337,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -345,7 +347,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -355,7 +357,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -365,7 +367,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 
@@ -375,7 +377,7 @@ describe('validate processFeatureIdentifier', async function () {
 				options: {},
 			};
 
-			const featureSet = await processFeatureIdentifier(output, defaultConfigPath, workspaceRoot, process.env, userFeature);
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
 			assert.notExists(featureSet);
 		});
 	});

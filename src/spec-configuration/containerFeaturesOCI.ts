@@ -1,6 +1,6 @@
 import { Log, LogLevel } from '../spec-utils/log';
 import { Feature, FeatureSet } from './containerFeaturesConfiguration';
-import { fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
+import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
 
 export function tryGetOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet | undefined {
 	const featureRef = getRef(output, identifier);
@@ -31,17 +31,20 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 	return featureSet;
 }
 
-export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(output: Log, env: NodeJS.ProcessEnv, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+	const { output } = params;
+
 	const featureRef = getRef(output, identifier);
 	if (!featureRef) {
 		return undefined;
 	}
-	return await fetchOCIManifestIfExists(output, env, featureRef, manifestDigest, authToken);
+	return await fetchOCIManifestIfExists(params, featureRef, manifestDigest, authToken);
 }
 
 // Download a feature from which a manifest was previously downloaded.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-blobs
-export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string): Promise<boolean> {
+export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string): Promise<boolean> {
+	const { output } = params;
 
 	if (featureSet.sourceInformation.type !== 'oci') {
 		output.write(`FeatureSet is not an OCI featureSet.`, LogLevel.Error);
@@ -53,7 +56,7 @@ export async function fetchOCIFeature(output: Log, env: NodeJS.ProcessEnv, featu
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${featureSet.sourceInformation.manifest?.layers[0].digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const blobResult = await getBlob(output, env, blobUrl, ociCacheDir, featCachePath, featureRef);
+	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef);
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${featureSet.sourceInformation.featureRef.resource}`);
