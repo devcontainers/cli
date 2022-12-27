@@ -14,6 +14,7 @@ import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { uriToFsPath } from './configurationCommonUtils';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -174,7 +175,7 @@ export interface ContainerFeatureInternalParams {
 	output: Log;
 	env: NodeJS.ProcessEnv;
 	skipFeatureAutoMapping: boolean;
-	platform: string;
+	platform: NodeJS.Platform;
 }
 
 export const multiStageBuildExploration = false;
@@ -559,10 +560,8 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
 	const { platform, output, skipFeatureAutoMapping, env, } = params;
 
-	let configPath = config.configFilePath.path;
-	if (platform === 'win32' && configPath.startsWith('/')) {
-		configPath = configPath.substring(1);
-	}
+	let configPath = uriToFsPath(config.configFilePath, platform);
+	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
 	for (const userFeature of userFeatures) {
 		const newFeatureSet = await processFeatureIdentifier(output, configPath, workspaceRoot, env, userFeature, skipFeatureAutoMapping);
