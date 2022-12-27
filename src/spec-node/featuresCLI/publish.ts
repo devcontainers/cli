@@ -113,7 +113,7 @@ async function featuresPublish({
                     process.exit(1);
                 }
 
-                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, output, collectionType, archiveName);
+                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName);
                 if (!publishResult) {
                     output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);
