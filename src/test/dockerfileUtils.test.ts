@@ -257,6 +257,56 @@ FROM "\${BASE_IMAGE}"
         const image = findBaseImage(extracted, {}, undefined);
         assert.strictEqual(image, 'ubuntu:latest');
     });
+
+    describe('Variable substitution', () => {
+        it('Positive variable expression with value specified', async () => {
+            const dockerfile = `
+ARG cloud
+FROM \${cloud:+mcr.microsoft.com/}azure-cli:latest
+`;
+            const extracted = extractDockerfile(dockerfile);
+            assert.strictEqual(extracted.stages.length, 1);
+            const image = findBaseImage(extracted, {
+                'cloud': 'true'
+            }, undefined);
+            assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
+        });
+
+        it('Positive variable expression with no value specified', async () => {
+            const dockerfile = `
+ARG cloud
+FROM \${cloud:+mcr.microsoft.com/}azure-cli:latest
+`;
+            const extracted = extractDockerfile(dockerfile);
+            assert.strictEqual(extracted.stages.length, 1);
+            const image = findBaseImage(extracted, {}, undefined);
+            assert.strictEqual(image, 'azure-cli:latest');
+        });
+        
+        it('Negative variable expression with value specified', async () => {
+            const dockerfile = `
+ARG cloud
+FROM \${cloud:-mcr.microsoft.com/}azure-cli:latest
+`;
+            const extracted = extractDockerfile(dockerfile);
+            assert.strictEqual(extracted.stages.length, 1);
+            const image = findBaseImage(extracted, {
+                'cloud': 'ghcr.io/'
+            }, undefined);
+            assert.strictEqual(image, 'ghcr.io/azure-cli:latest');
+        });
+        
+        it('Negative variable expression with no value specified', async () => {
+            const dockerfile = `
+ARG cloud
+FROM \${cloud:-mcr.microsoft.com/}azure-cli:latest
+`;
+            const extracted = extractDockerfile(dockerfile);
+            assert.strictEqual(extracted.stages.length, 1);
+            const image = findBaseImage(extracted, {}, undefined);
+            assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
+        });
+    });
 });
 
 describe('findUserStatement', () => {
