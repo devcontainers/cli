@@ -47,6 +47,8 @@ export interface Feature {
 	included: boolean; // set programmatically
 	customizations?: VSCodeCustomizations;
 	installsAfter?: string[];
+	legacyIds?: string[];
+	currentId?: string; // set programmatically
 }
 
 export type FeatureOption = {

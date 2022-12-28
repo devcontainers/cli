@@ -8,6 +8,7 @@ import { Log, LogLevel } from '../../spec-utils/log';
 import path from 'path';
 import { DevContainerConfig, isDockerFileConfig } from '../../spec-configuration/configuration';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
+import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export interface SourceInformation {
 	source: string;
@@ -86,6 +87,8 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 		if (!(await addsAdditionalTemplateProps(tmpSrcDir, jsonPath, output))) {
 			return;
 		}
+	} else if (collectionType === 'feature') {
+		await addsAdditionalFeatureProps(jsonPath, output);
 	}
 
 	const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
@@ -139,6 +142,19 @@ async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTempla
 	return true;
 }
 
+// Programmatically adds 'currentId' if 'legacyIds' exist.
+async function addsAdditionalFeatureProps(devcontainerFeatureJsonPath: string, output: Log): Promise<void> {
+	const devcontainerFeatureJsonString: Buffer = await readLocalFile(devcontainerFeatureJsonPath);
+	let featureData: Feature = jsonc.parse(devcontainerFeatureJsonString.toString());
+
+	if (featureData.legacyIds && featureData.legacyIds.length > 0) {
+		featureData.currentId = featureData.id;
+		output.write(`Programmatically adding currentId:${featureData.currentId}...`, LogLevel.Trace);
+
+		await writeLocalFile(devcontainerFeatureJsonPath, JSON.stringify(featureData, null, 4));
+	}
+}
+
 async function getDevcontainerFilePath(srcFolder: string): Promise<string | undefined> {
 	const devcontainerFile = path.join(srcFolder, '.devcontainer.json');
 	const devcontainerFileWithinDevcontainerFolder = path.join(srcFolder, '.devcontainer/devcontainer.json');
@@ -185,6 +201,8 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 					output.write(`Feature '${c}' is missing an install.sh`, LogLevel.Error);
 					return;
 				}
+
+				await addsAdditionalFeatureProps(jsonPath, output);
 			} else if (collectionType === 'template') {
 				if (!(await addsAdditionalTemplateProps(tmpSrcDir, jsonPath, output))) {
 					return;
