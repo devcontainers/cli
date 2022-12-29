@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { fetchAuthorizationHeader, DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
@@ -346,19 +346,15 @@ describe('Test OCI Push Helper Functions', () => {
 		if (!ociFeatureRef) {
 			assert.fail('getRef() for the Feature should not be undefined');
 		}
-		const { registry, resource } = ociFeatureRef;
-		const sessionAuth = await fetchAuthorizationHeader({ output, env: process.env }, registry, resource, 'pull');
-		if (!sessionAuth) {
-			assert.fail('Could not get registry auth token');
-		}
 
-		const tarLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5', sessionAuth);
+
+		const tarLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5');
 		assert.isTrue(tarLayerBlobExists);
 
-		const configLayerBlobExists = await checkIfBlobExists(output, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', sessionAuth);
+		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
 		assert.isTrue(configLayerBlobExists);
 
-		const randomStringDoesNotExist = await checkIfBlobExists(output, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3', sessionAuth);
+		const randomStringDoesNotExist = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3');
 		assert.isFalse(randomStringDoesNotExist);
 	});
 });

@@ -1,5 +1,5 @@
 import { Argv } from 'yargs';
-import { fetchAuthorizationHeader, fetchOCIManifestIfExists, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { fetchOCIManifestIfExists, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
@@ -44,8 +44,8 @@ async function featuresInfoManifest({
 	if (!featureRef) {
 		return undefined;
 	}
-	const authorization = await fetchAuthorizationHeader(params, featureRef.registry, featureRef.path, 'pull');
-	const manifest = await fetchOCIManifestIfExists(params, featureRef, undefined, authorization);
+
+	const manifest = await fetchOCIManifestIfExists(params, featureRef, undefined);
 
 	console.log(JSON.stringify(manifest, undefined, 4));
 	await dispose();

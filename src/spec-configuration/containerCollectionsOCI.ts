@@ -3,10 +3,9 @@ import * as semver from 'semver';
 import * as tar from 'tar';
 import * as jsonc from 'jsonc-parser';
 
-import { request } from '../spec-utils/httpRequest';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
-import { HEADERS } from './httpOCIRegistry';
+import { requestEnsureAuthenticated } from './httpOCIRegistry';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
@@ -16,6 +15,7 @@ export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devconta
 export interface CommonParams {
 	env: NodeJS.ProcessEnv;
 	output: Log;
+	cachedAuthHeader?: string;
 }
 
 // Represents the unique OCI identifier for a Feature or Template.
@@ -170,7 +170,7 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 
 // Validate if a manifest exists and is reachable about the declared feature/template.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<OCIManifest | undefined> {
 	const { output } = params;
 
 	// Simple mechanism to avoid making a DNS request for 
@@ -188,7 +188,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	}
 	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifest = await getManifest(params, manifestUrl, ref, authToken);
+	const manifest = await getManifest(params, manifestUrl, ref);
 
 	if (!manifest) {
 		return;
@@ -202,64 +202,79 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	return manifest;
 }
 
-export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, authToken?: string | false, mimeType?: string): Promise<OCIManifest | undefined> {
+export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<OCIManifest | undefined> {
 	const { output } = params;
+	let body: string = '';
 	try {
-		const headers: HEADERS = {
+		const headers = {
 			'user-agent': 'devcontainer',
 			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorizationHeader(params, ref.registry, ref.path, 'pull');
-		if (authorization) {
-			headers['authorization'] = authorization;
-		}
-
-		const options = {
-			type: 'GET',
+		const httpOptions = {
+			type: 'GET',	
 			url: url,
 			headers: headers
 		};
 
-		const response = await request(options);
-		const manifest: OCIManifest = JSON.parse(response.toString());
+		const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+		if (!res) {
+			output.write('Request failed', LogLevel.Error);
+			return;
+		}
 
-		return manifest;
+		const { resBody, statusCode } = res.response;
+		body = resBody.toString();
+
+		// NOTE: A 404 is expected here if the manifest does not exist on the remote.
+		if (statusCode > 299) {
+			output.write(`Did not fetch manifest: ${body}`, LogLevel.Trace);
+			return;
+		}
+
+		return JSON.parse(body);
 	} catch (e) {
-		// A 404 is expected here if the manifest does not exist on the remote.
-		output.write(`Did not fetch manifest: ${e}`, LogLevel.Trace);
-		return undefined;
+		output.write(`Failed to parse manifest: ${body}`, LogLevel.Error);
+		return;
 	}
 }
 
 // Lists published versions/tags of a feature/template 
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
-export async function getPublishedVersions(params: CommonParams, ref: OCIRef, sorted: boolean = false, collectionType: string = 'feature'): Promise<string[] | undefined> {
+export async function getPublishedVersions(params: CommonParams, ref: OCIRef, sorted: boolean = false): Promise<string[] | undefined> {
 	const { output } = params;
 	try {
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
-		let authorization = await fetchAuthorizationHeader(params, ref.registry, ref.path, 'pull');
-
-		if (!authorization) {
-			output.write(`(!) ERR: Failed to get published versions for ${collectionType}: ${ref.resource}`, LogLevel.Error);
-			return undefined;
-		}
-
-		const headers: HEADERS = {
-			'user-agent': 'devcontainer',
+		const headers = {
 			'accept': 'application/json',
-			'authorization': authorization
 		};
 
-		const options = {
+		const httpOptions = {
 			type: 'GET',
 			url: url,
 			headers: headers
 		};
 
-		const response = await request(options);
-		const publishedVersionsResponse: OCITagList = JSON.parse(response.toString());
+		const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+		if (!res) {
+			output.write('Request failed', LogLevel.Error);
+			return;
+		}
+
+		const { statusCode, resBody } = res.response;
+		const body = resBody.toString();
+
+		// Expected when publishing for the first time
+		if (statusCode === 404) {
+			return [];
+			// Unexpected Error
+		} else if (statusCode > 299) {
+			output.write(`(!) ERR: Could not fetch published tags for '${ref.namespace}/${ref.id}' : ${resBody ?? ''} `, LogLevel.Error);
+			return;
+		}
+
+		const publishedVersionsResponse: OCITagList = JSON.parse(body);
 
 		if (!sorted) {
 			return publishedVersionsResponse.tags;
@@ -274,17 +289,12 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 
 		return hasLatest ? ['latest', ...sortedVersions] : sortedVersions;
 	} catch (e) {
-		// Publishing for the first time
-		if (e?.message.includes('HTTP 404: Not Found')) {
-			return [];
-		}
-
-		output.write(`(!) ERR: Could not fetch published tags for '${ref.namespace}/${ref.id}' : ${e?.message ?? ''} `, LogLevel.Error);
-		return undefined;
+		output.write(`Failed to parse published versions: ${e}`, LogLevel.Error);
+		return;
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, authToken?: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -293,26 +303,30 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		await mkdirpLocal(ociCacheDir);
 		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
 
-		const headers: HEADERS = {
-			'user-agent': 'devcontainer',
+		const headers = {
 			'accept': 'application/vnd.oci.image.manifest.v1+json',
 		};
 
-		const authorization = authToken ?? await fetchAuthorizationHeader(params, ociRef.registry, ociRef.path, 'pull');
-		if (authorization) {
-			headers['authorization'] = authorization;
-		}
-
-		const options = {
+		const httpOptions = {
 			type: 'GET',
 			url: url,
 			headers: headers
 		};
 
-		const blob = await request(options, output);
+		const res = await requestEnsureAuthenticated(params, httpOptions, ociRef);
+		if (!res) {
+			output.write('Request failed', LogLevel.Error);
+			return;
+		}
+
+		const { statusCode, resBody } = res.response;
+		if (statusCode > 299) {
+			output.write(`Failed to fetch blob (${url}): ${resBody}`, LogLevel.Error);
+			return;
+		}
 
 		await mkdirpLocal(destCachePath);
-		await writeLocalFile(tempTarballPath, blob);
+		await writeLocalFile(tempTarballPath, resBody);
 
 		const files: string[] = [];
 		await tar.x(
@@ -362,7 +376,7 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 			files, metadata
 		};
 	} catch (e) {
-		output.write(`error: ${e}`, LogLevel.Error);
-		return undefined;
+		output.write(`Error getting blob: ${e}`, LogLevel.Error);
+		return;
 	}
 }
