@@ -13,6 +13,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
+import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
 
 // v1
@@ -168,6 +169,15 @@ export interface GithubApiReleaseAsset {
 // Information is lost, but for the node layer we need not care about which set a given feature came from.
 export interface CollapsedFeaturesConfig {
 	allFeatures: Feature[];
+}
+
+export interface ContainerFeatureInternalParams {
+	extensionPath: string;
+	cwd: string;
+	output: Log;
+	env: NodeJS.ProcessEnv;
+	skipFeatureAutoMapping: boolean;
+	platform: NodeJS.Platform;
 }
 
 export const multiStageBuildExploration = false;
@@ -454,7 +464,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv; skipFeatureAutoMapping: boolean }, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
@@ -483,7 +493,7 @@ export async function generateFeaturesConfig(params: { extensionPath: string; cw
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig, params.skipFeatureAutoMapping);
+	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -550,9 +560,15 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 
 // Process features contained in devcontainer.json
 // Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(params: CommonParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, skipFeatureAutoMapping: boolean): Promise<FeaturesConfig> {
+async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
+	const { platform, output } = params;
+
+	let configPath = uriToFsPath(config.configFilePath, platform);
+	output.write(`configPath: ${configPath}`, LogLevel.Trace);
+
 	for (const userFeature of userFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(params, config.configFilePath.path, workspaceRoot, userFeature, skipFeatureAutoMapping);
+		const newFeatureSet = await processFeatureIdentifier(params, configPath, workspaceRoot, userFeature);
+
 		if (!newFeatureSet) {
 			throw new Error(`Failed to process feature ${userFeature.id}`);
 		}
