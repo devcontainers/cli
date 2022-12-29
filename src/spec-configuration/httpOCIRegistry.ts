@@ -76,7 +76,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			const wwwAuthenticateData = {
 				realm: realmGroup[1],
 				service: serviceGroup[1],
-				operationScopes: scopeGroup[1],
+				scope: scopeGroup[1],
 			};
 
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, wwwAuthenticateData);
@@ -137,10 +137,9 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, wwwAuthenticateData: { realm: string; service: string; operationScopes: string }): Promise<string | undefined> {
+async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, wwwAuthenticateData: { realm: string; service: string; scope: string }): Promise<string | undefined> {
 	const { output } = params;
-	const { realm, service, operationScopes } = wwwAuthenticateData;
-	const { path } = ociRef;
+	const { realm, service, scope } = wwwAuthenticateData;
 
 	// TODO: Remove this.
 	if (realm.includes('mcr.microsoft.com')) {
@@ -167,7 +166,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	// scope="repository:samalba/my-app:pull,push"
 	// Example:
 	// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
-	const url = `${realm}?service=${service}&scope=repository:${path}:${operationScopes}`;
+	const url = `${realm}?service=${service}&scope=${scope}`;
 	output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
 
 	const options = {
