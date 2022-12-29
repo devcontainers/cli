@@ -2,7 +2,7 @@ import path from 'path';
 import * as semver from 'semver';
 import { Log, LogLevel } from '../../spec-utils/log';
 import { CommonParams, getPublishedVersions, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
-import { getArchiveName, OCICollectionFileName } from './packageCommandImpl';
+import { OCICollectionFileName } from './packageCommandImpl';
 import { pushCollectionMetadata, pushOCIFeatureOrTemplate } from '../../spec-configuration/containerCollectionsOCIPush';
 
 let semanticVersions: string[] = [];
@@ -39,7 +39,7 @@ export function getSemanticVersions(version: string, publishedVersions: string[]
 	return semanticVersions;
 }
 
-export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string) {
+export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string, archiveName: string) {
 	const { output } = params;
 
 	output.write(`Fetching published versions...`, LogLevel.Info);
@@ -53,7 +53,7 @@ export async function doPublishCommand(params: CommonParams, version: string, oc
 
 	if (!!semanticVersions) {
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
-		const pathToTgz = path.join(outputDir, getArchiveName(ociRef.id, collectionType));
+		const pathToTgz = path.join(outputDir, archiveName);
 		const digest = await pushOCIFeatureOrTemplate(params, ociRef, pathToTgz, semanticVersions, collectionType);
 		if (!digest) {
 			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);

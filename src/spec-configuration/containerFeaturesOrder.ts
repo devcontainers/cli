@@ -49,12 +49,36 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         feature,
         before: new Set(),
         after: new Set(),
-    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.userFeatureId, feature), new Map<string, FeatureNode>());
+    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.userFeatureId.split(':')[0], feature), new Map<string, FeatureNode>());
 
-    const nodes = [...nodesById.values()];
+    let nodes = [...nodesById.values()];
+
+    // Currently legacyIds only contain an id, hence append `registry/namespace` to it.
+    nodes = nodes.map(node => {
+        if (node.feature.sourceInformation.type === 'oci' && node.feature.features[0].legacyIds && node.feature.features[0].legacyIds.length > 0) {
+            const featureRef = node.feature.sourceInformation.featureRef;
+            if (featureRef) {
+                node.feature.features[0].legacyIds = node.feature.features[0].legacyIds.map(legacyId => `${featureRef.registry}/${featureRef.namespace}/` + legacyId);
+                node.feature.features[0].currentId = `${featureRef.registry}/${featureRef.namespace}/${node.feature.features[0].currentId}`;
+            }
+        }
+        return node;
+    });
+
     for (const later of nodes) {
         for (const firstId of later.feature.features[0].installsAfter || []) {
-            const first = nodesById.get(firstId);
+            let first = nodesById.get(firstId);
+
+            // Check for legacyIds (back compat)
+            if (!first) {
+                first = nodes.find(node => node.feature.features[0].legacyIds?.includes(firstId));
+            }
+
+            // Check for currentId (forward compat)
+            if (!first) {
+                first = nodes.find(node => node.feature.features[0].currentId === firstId);
+            }
+
             // soft dependencies
             if (first) {
                 later.after.add(first);
@@ -100,7 +124,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
 
     const missing = new Set(nodesById.keys());
     for (const feature of orderedFeatures) {
-        missing.delete(feature.sourceInformation.userFeatureId);
+        missing.delete(feature.sourceInformation.userFeatureId.split(':')[0]);
     }
 
     if (missing.size !== 0) {

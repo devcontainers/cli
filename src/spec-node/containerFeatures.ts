@@ -104,7 +104,8 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	await createLocalFeatures(params, dstFolder);
 
 	// Processes the user's configuration.
-	const featuresConfig = await generateFeaturesConfig(params.common, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
+	const platform = params.common.cliHost.platform;
+	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {
