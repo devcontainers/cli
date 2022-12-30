@@ -242,7 +242,7 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	if (!res) {
 		throw new Error(`Failed to fetch blob for ${resourceAndVersion}.`);
 	}
-	const blob = res.response.resBody.toString();
+	const blob = res.resBody.toString();
 	const obj = JSON.parse(blob);
 	return {
 		Id: manifest.config.digest,

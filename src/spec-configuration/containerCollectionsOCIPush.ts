@@ -197,7 +197,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 
 		// Retry logic: when request fails with HTTP 429: too many requests
 		// TODO: Wrap into `requestEnsureAuthenticated`?
-		if (res.response.statusCode === 429) {
+		if (res.statusCode === 429) {
 			output.write(`Failed to PUT manifest for tag ${tag} due to too many requests. Retrying...`, LogLevel.Warning);
 			await delay(2000);
 
@@ -208,7 +208,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 			}
 		}
 
-		const { statusCode, resBody, resHeaders } = res.response;
+		const { statusCode, resBody, resHeaders } = res;
 
 		if (statusCode !== 201) {
 			const parsed = JSON.parse(resBody?.toString() || '{}');
@@ -264,7 +264,7 @@ async function putBlob(params: CommonParams, blobPutLocationUriPath: string, oci
 		return false;
 	}
 
-	const { statusCode, resBody } = res.response;
+	const { statusCode, resBody } = res;
 
 	if (statusCode !== 201) {
 		const parsed = JSON.parse(resBody?.toString() || '{}');
@@ -346,7 +346,7 @@ export async function checkIfBlobExists(params: CommonParams, ociRef: OCIRef | O
 		return false;
 	}
 
-	const statusCode = res.response.statusCode;
+	const statusCode = res.statusCode;
 	output.write(`${url}: ${statusCode}`, LogLevel.Trace);
 	return statusCode === 200;
 }
@@ -365,7 +365,7 @@ async function postUploadSessionId(params: CommonParams, ociRef: OCIRef | OCICol
 		return;
 	}
 
-	const { statusCode, resBody, resHeaders } = res.response;
+	const { statusCode, resBody, resHeaders } = res;
 
 	output.write(`${url}: ${statusCode}`, LogLevel.Trace);
 	if (statusCode === 202) {

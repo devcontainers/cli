@@ -40,11 +40,9 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	// For anything except a 401 response
 	// Simply return the original response to the caller.
 	if (initialAttemptRes.statusCode !== 401) {
-		output.write(`[httpOci] [${initialAttemptRes.statusCode} - Cached/NoAuth: ${httpOptions.url}]`, LogLevel.Trace);
-		return {
-			response: initialAttemptRes,
-			authHeader: cachedAuthHeader, // Let caller cache token for use in future requests.
-		};
+		const authScenario = cachedAuthHeader ? 'Cached' : 'NoAuth';
+		output.write(`[httpOci] ${initialAttemptRes.statusCode} (${authScenario}): ${httpOptions.url}`, LogLevel.Trace);
+		return initialAttemptRes;
 	}
 
 	// -- 'responseAttempt' status code was 401 at this point.
@@ -107,10 +105,13 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	// Retry the request with the updated authorization header.
 	const reattemptRes = await requestResolveHeaders(httpOptions, output);
 	output.write(`[httpOci] ${reattemptRes.statusCode} on reattempt after auth: ${httpOptions.url}`, LogLevel.Trace);
-	return {
-		response: reattemptRes,
-		authHeader: reattemptRes.statusCode !== 401 ? httpOptions.headers.authorization : undefined, // Let caller cache token for use in future requests.
-	};
+
+	// Cache the auth header if the request did not result in an unauthorized response.
+	if (reattemptRes.statusCode !== 401) {
+		params.cachedAuthHeader = httpOptions.headers.authorization;
+	}
+
+	return reattemptRes;
 }
 
 // Attempts to get the Basic auth credentials for the provided registry.

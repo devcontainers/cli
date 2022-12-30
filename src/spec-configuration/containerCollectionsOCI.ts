@@ -223,7 +223,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 			return;
 		}
 
-		const { resBody, statusCode } = res.response;
+		const { resBody, statusCode } = res;
 		body = resBody.toString();
 
 		// NOTE: A 404 is expected here if the manifest does not exist on the remote.
@@ -262,7 +262,7 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 			return;
 		}
 
-		const { statusCode, resBody } = res.response;
+		const { statusCode, resBody } = res;
 		const body = resBody.toString();
 
 		// Expected when publishing for the first time
@@ -319,7 +319,7 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 			return;
 		}
 
-		const { statusCode, resBody } = res.response;
+		const { statusCode, resBody } = res;
 		if (statusCode > 299) {
 			output.write(`Failed to fetch blob (${url}): ${resBody}`, LogLevel.Error);
 			return;
