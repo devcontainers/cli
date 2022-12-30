@@ -26,7 +26,7 @@ import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
 import { getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
-import { request } from '../spec-utils/httpRequest';
+import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -232,14 +232,18 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${manifest.config.digest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const options = {
+	const httpOptions = {
 		type: 'GET',
 		url: blobUrl,
-		headers: { 'user-agent': 'devcontainer' }
+		headers: {}
 	};
 
-	const blob = await request(options, output);
-	const obj = JSON.parse(blob.toString());
+	const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+	if (!res) {
+		throw new Error(`Failed to fetch blob for ${resourceAndVersion}.`);
+	}
+	const blob = res.response.resBody.toString();
+	const obj = JSON.parse(blob);
 	return {
 		Id: manifest.config.digest,
 		Config: obj.config,
