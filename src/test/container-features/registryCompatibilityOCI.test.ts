@@ -41,7 +41,6 @@ describe('Registry Compatibility', function () {
 
 		describe(`devcontainer features info manifest`, async () => {
 
-
 			it('fetches manifest anonymously from ACR', async () => {
 
 				let infoManifestResult: { stdout: string; stderr: string } | null = null;
