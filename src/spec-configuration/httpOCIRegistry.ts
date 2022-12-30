@@ -1,8 +1,20 @@
+import * as os from 'os';
+import * as path from 'path';
+
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
+import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
 
 export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
+
+interface DockerConfigFile {
+	auths: {
+		[registry: string]: {
+			auth: string;
+		};
+	};
+}
 
 // WWW-Authenticate Regex
 // realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
@@ -10,7 +22,6 @@ export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'conten
 const realmRegex = /realm="([^"]+)"/;
 const serviceRegex = /service="([^"]+)"/;
 const scopeRegex = /scope="([^"]+)"/;
-
 
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
 export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef) {
@@ -109,12 +120,12 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 	const { output, env } = params;
 	const { registry } = ociRef;
 
-	// TODO: Directly read out of the local docker config file/credential helper.
+	// TODO: Ask docker credential helper for credentials.
 
-	let userToken: string | undefined = undefined;
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
-		userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
+		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
+		return Buffer.from(userToken).toString('base64');
 	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=service1|user1|token1,service2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
@@ -123,12 +134,27 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 		if (authContext) {
 			output.write(`[httpOci] Using match from DEVCONTAINERS_OCI_AUTH for registry '${registry}'`, LogLevel.Trace);
 			const split = authContext.split('|');
-			userToken = `${split[1]}:${split[2]}`;
+			const userToken = `${split[1]}:${split[2]}`;
+			return Buffer.from(userToken)
+				.toString('base64');
 		}
-	}
+	} else {
+		const homeDir = os.homedir();
+		if (homeDir) {
+			const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
+			if (await isLocalFile(dockerConfigPath)) {
+				try {
+					const dockerConfig: DockerConfigFile = JSON.parse((await readLocalFile(dockerConfigPath)).toString());
 
-	if (userToken) {
-		return Buffer.from(userToken).toString('base64');
+					if (dockerConfig.auths && dockerConfig.auths[registry] && dockerConfig.auths[registry].auth) {
+						output.write(`[httpOci] Found auth for registry '${registry}' in docker config.json`, LogLevel.Trace);
+						return dockerConfig.auths[registry].auth;
+					}
+				} catch (err) {
+					output.write(`[httpOci] Found docker config.json, but failed parse it: ${err}`, LogLevel.Trace);
+				}
+			}
+		}
 	}
 
 	// Represents anonymous access.
@@ -191,12 +217,14 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 
 	let scopeToken: string | undefined;
 	try {
-		scopeToken = JSON.parse(authReq.toString())?.token;
+		const json = JSON.parse(authReq.toString());
+		scopeToken = json.token || json.access_token; // ghcr uses 'token', acr uses 'access_token'
 	} catch {
 		// not JSON
 	}
 	if (!scopeToken) {
 		output.write(`[httpOci] Unexpected bearer token response format for '${service}'`, LogLevel.Error);
+		output.write(`httpOci] Response: ${authReq.toString()}`, LogLevel.Trace);
 		return;
 	}
 
