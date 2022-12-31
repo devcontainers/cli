@@ -39,8 +39,6 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
 
-	// TODO: Cache/prefetch authorization header here?
-
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
 	const existingManifest = await fetchOCIManifestIfExists(params, ociRef, manifest.contentDigest);
 	if (manifest.contentDigest && existingManifest) {
@@ -114,8 +112,6 @@ export async function pushCollectionMetadata(params: CommonParams, collectionRef
 		return;
 	}
 	output.write(`Generated manifest: \n${JSON.stringify(manifest?.manifestObj, undefined, 4)}`, LogLevel.Trace);
-
-	// TODO: Cache/prefetch authorization header here?
 
 	// If the exact manifest digest already exists in the registry, we don't need to push individual blobs (it's already there!) 
 	const existingManifest = await fetchOCIManifestIfExists(params, collectionRef, manifest.contentDigest);
