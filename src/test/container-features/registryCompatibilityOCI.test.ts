@@ -21,6 +21,7 @@ describe('Registry Compatibility', function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
+	// TODO: Matrix this test against all tested registries)
 	describe('Azure Container Registry', () => {
 
 		describe(`'devcontainer up' with a Feature anonymously pulled from ACR`, () => {

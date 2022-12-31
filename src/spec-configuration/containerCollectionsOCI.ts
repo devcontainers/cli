@@ -15,7 +15,7 @@ export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devconta
 export interface CommonParams {
 	env: NodeJS.ProcessEnv;
 	output: Log;
-	cachedAuthHeader?: string;
+	cachedAuthHeader?: Record<string, string>; // <registry, authHeader>
 }
 
 // Represents the unique OCI identifier for a Feature or Template.

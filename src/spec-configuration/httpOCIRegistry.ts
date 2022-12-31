@@ -1,5 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
+import * as jsonc from 'jsonc-parser';
 
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
@@ -25,14 +26,18 @@ const scopeRegex = /scope="([^"]+)"/;
 
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
 export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef) {
+	// If needed, Initialize the Authorization header cache. 
+	if (!params.cachedAuthHeader) {
+		params.cachedAuthHeader = {};
+	}
 	const { output, cachedAuthHeader } = params;
 
 	// -- Update headers
 	httpOptions.headers['user-agent'] = 'devcontainer';
 	// If the user has a cached auth token, attempt to use that first.
-	if (cachedAuthHeader) {
-		output.write('[httpOci] Applying cachedAuthHeader...', LogLevel.Trace);
-		httpOptions.headers.authorization = cachedAuthHeader;
+	if (cachedAuthHeader[ociRef.registry]) {
+		output.write(`[httpOci] Applying cachedAuthHeader for registry ${ociRef.registry}...`, LogLevel.Trace);
+		httpOptions.headers.authorization = cachedAuthHeader[ociRef.registry];
 	}
 
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
@@ -108,7 +113,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 	// Cache the auth header if the request did not result in an unauthorized response.
 	if (reattemptRes.statusCode !== 401) {
-		params.cachedAuthHeader = httpOptions.headers.authorization;
+		params.cachedAuthHeader[ociRef.registry] = httpOptions.headers.authorization;
 	}
 
 	return reattemptRes;
@@ -140,27 +145,27 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 				.toString('base64');
 		}
 	} else {
-		const homeDir = os.homedir();
-		if (homeDir) {
-			const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
-			if (await isLocalFile(dockerConfigPath)) {
-				try {
-					const dockerConfig: DockerConfigFile = JSON.parse((await readLocalFile(dockerConfigPath)).toString());
+		try {
+			const homeDir = os.homedir();
+			if (homeDir) {
+				const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
+				if (await isLocalFile(dockerConfigPath)) {
+					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
 					if (dockerConfig.auths && dockerConfig.auths[registry] && dockerConfig.auths[registry].auth) {
 						output.write(`[httpOci] Found auth for registry '${registry}' in docker config.json`, LogLevel.Trace);
 						return dockerConfig.auths[registry].auth;
 					}
-				} catch (err) {
-					output.write(`[httpOci] Found docker config.json, but failed parse it: ${err}`, LogLevel.Trace);
 				}
 			}
+		} catch (err) {
+			output.write(`[httpOci] Failed to read docker config.json: ${err}`, LogLevel.Trace);
 		}
 	}
 
 	// Represents anonymous access.
-	output.write(`[httpOci] No authentication credentials found for registry='${registry}'.`, LogLevel.Trace);
-	return undefined;
+	output.write(`[httpOci] No authentication credentials found for registry '${registry}'. Accessing anonymously.`, LogLevel.Trace);
+	return;
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
