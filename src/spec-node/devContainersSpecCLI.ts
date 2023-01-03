@@ -457,9 +457,6 @@ async function doBuild({
 			await inspectDockerImage(params, config.image, true);
 			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
 
-			if (buildxPlatform || buildxPush) {
-				throw new ContainerError({ description: '--platform or --push require dockerfilePath.' });
-			}
 			if (buildxOutput) {
 				throw new ContainerError({ description: '--output requires dockerfilePath.' });
 			}
