@@ -39,7 +39,7 @@
 		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
 		"definitions-copy": "copyfiles --all \"node_modules/vscode-dev-containers/**/*\" dist",
 		"npm-pack": "npm pack",
-		"pkg-pack": "cross-env PKG_CACHE_PATH=node_modules/.pkg-cache pkg --out-path dist --targets linux-x64,linux-arm64,win-x64,win-arm64 devcontainer.js",
+		"pkg-pack": "cross-env PKG_CACHE_PATH=node_modules/.pkg-cache pkg -c package.json -o dist/devcontainer devcontainer.js",
 		"clean": "npm-run-all clean-dist clean-built",
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
@@ -47,6 +47,17 @@
 		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts",
 		"test-container-templates": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-templates/*.test.ts"
+	},
+	"pkg": {
+		"assets": [
+			"scripts/updateUID.Dockerfile"
+		],
+		"targets": [
+			"linux-x64",
+			"linux-arm64",
+			"win-x64",
+			"win-arm64"
+		]
 	},
 	"files": [
 		"CHANGELOG.md",
