@@ -2,6 +2,16 @@
 
 Notable changes.
 
+## January 2023
+
+### [0.27.0]
+
+- Fix: Failed to fetch local disk feature on Windows (https://github.com/devcontainers/cli/pull/333)
+- Features: Adds 'deprecated' property (https://github.com/devcontainers/cli/pull/346)
+- Features: Adds 'legacyIds' property (https://github.com/devcontainers/cli/pull/335)
+- Follow Docker Token Authentication Specification (https://github.com/devcontainers/cli/pull/341)
+- Fix: Handle parsing variable expression in dockerfile (https://github.com/devcontainers/cli/pull/337)
+
 ## December 2022
 
 ### [0.26.1]
