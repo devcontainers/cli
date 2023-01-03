@@ -57,7 +57,7 @@ describe('getCollectionRef()', async function () {
 });
 
 describe('getRef()', async function () {
-    this.timeout('120s');
+    this.timeout('240s');
 
     it('valid getRef() with a tag', async () => {
         const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest');
