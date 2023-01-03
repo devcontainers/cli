@@ -26,17 +26,37 @@ jobs:
     - name: Lint
       run: yarn lint
     - name: Package
-      run: yarn package
-    - name: TGZ name
+      run: yarn package && yarn package-standalone
+    - name: Version and tag
       run: |
         VERSION=$(jq -r '.version' < package.json)
-        echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
-        echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
+        echo "VER=${VERSION}" | tee -a $GITHUB_ENV
+        echo "TAG=${VERSION}-${GITHUB_SHA:0:8}" | tee -a $GITHUB_ENV
     - name: Store TGZ
       uses: actions/upload-artifact@v2
       with:
-        name: ${{ env.TGZ_UPLOAD }}
-        path: ${{ env.TGZ }}
+        name: devcontainers-cli-${{ env.TAG }}.tgz
+        path: devcontainers-cli-${{ env.VER }}.tgz
+    - name: Store PKG linux-x86
+      uses: actions/upload-artifact@v2
+      with:
+        name: devcontainers-cli-linux-x86-${{ env.TAG }}
+        path: dist/devcontainers-cli-linux-x86
+    - name: Store PKG linux-arm64
+      uses: actions/upload-artifact@v2
+      with:
+        name: devcontainers-cli-linux-arm64-${{ env.TAG }}
+        path: dist/devcontainers-cli-linux-arm64
+    - name: Store PKG win-x86
+      uses: actions/upload-artifact@v2
+      with:
+        name: devcontainers-cli-win-x86-${{ env.TAG }}
+        path: dist/devcontainers-cli-win-x86
+    - name: Store PKG win-x86
+      uses: actions/upload-artifact@v2
+      with:
+        name: devcontainers-cli-win-arm64-${{ env.TAG }}
+        path: dist/devcontainers-cli-win-arm64
   tests-matrix:
     name: Tests Matrix
     runs-on: ubuntu-latest
@@ -73,8 +93,12 @@ jobs:
     - name: Type-Check
       run: yarn type-check
     - name: Package
-      run: yarn package
+      run: yarn package && yarn package-standalone
     - name: Run Tests
+      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
+    - name: Run Tests on standalone binary
+      env:
+        TEST_STANDALONE_PKG: 1
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
   tests:
     name: Tests
