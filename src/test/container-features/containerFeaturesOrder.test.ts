@@ -7,8 +7,7 @@ import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
-import { devContainerDown, shellExec } from '../testUtils';
-import path from 'path';
+import { devContainerDown, shellExec, setupCLI } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
@@ -177,17 +176,13 @@ describe('Container features install order', function () {
     }
 });
 
-describe('test overrideFeatureInstall option', function() {
+describe('test overrideFeatureInstall option', function () {
     this.timeout('500s');
 
-    const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-    const cli = `npx --prefix ${tmp} devcontainer`;
+    const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-    before('Install', async () => {
-        await shellExec(`rm -rf ${tmp}/node_modules`);
-        await shellExec(`mkdir -p ${tmp}`);
-        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-    });
+    before('Install', installCLI);
+    after('Install', uninstallCLI);
 
     describe('image-with-v2-features-with-overrideFeatureInstallOrder', function () {
         it('should succeed', async () => {

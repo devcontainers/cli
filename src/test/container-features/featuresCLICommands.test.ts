@@ -1,8 +1,7 @@
 import { assert } from 'chai';
-import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
-import { ExecResult, shellExec } from '../testUtils';
+import { ExecResult, shellExec, setupCLI } from '../testUtils';
 import { getSemanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedVersions } from '../../spec-configuration/containerCollectionsOCI';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -12,15 +11,13 @@ const pkg = require('../../../package.json');
 describe('CLI features subcommands', async function () {
 	this.timeout('240s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { tmp, cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
 	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await installCLI();
 		await shellExec(`rm -rf ${tmp}/output`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
+	after('Install', uninstallCLI);
 
 	describe('features test', async function () {
 
@@ -258,7 +255,7 @@ describe('CLI features subcommands', async function () {
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
 
-			// With --global-scenarios-only, 
+			// With --global-scenarios-only,
 			// the default values should NOT be included in the test
 			// and therefore we should NOT see the following outputs.
 			assert.isFalse(result.stderr.includes('my favorite color is red'));
