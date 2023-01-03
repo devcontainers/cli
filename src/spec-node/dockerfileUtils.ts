@@ -11,9 +11,9 @@ export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, Remo
 
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
-const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
+const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
 
-const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
+const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
 const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 
@@ -46,13 +46,23 @@ export interface Instruction {
 	value: string | undefined;
 }
 
+function parseFromStatement(line: string): From {
+  const match = fromStatement.exec(line);
+  if (!match) {
+    return { image: 'unknown' };
+  }
+  let { platfrom, image, label } = match.groups as unknown as From;
+  image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
+  return { platfrom, image, label };
+}
+
 export function extractDockerfile(dockerfile: string): Dockerfile {
 	const fromStatementsAhead = /(?=^[\t ]*FROM)/gm;
 	const parts = dockerfile.split(fromStatementsAhead);
 	const preambleStr = fromStatementsAhead.test(parts[0] || '') ? '' : parts.shift()!;
 	const stageStrs = parts;
 	const stages = stageStrs.map(stageStr => ({
-		from: fromStatement.exec(stageStr)?.groups as unknown as From || { image: 'unknown' },
+		from: parseFromStatement(stageStr),
 		instructions: extractInstructions(stageStr),
 	}));
 	const directives = extractDirectives(preambleStr);
