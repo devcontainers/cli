@@ -17,6 +17,7 @@ import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, get
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
+import { ContainerError } from '../spec-common/errors';
 
 // Escapes environment variable keys.
 //
@@ -53,15 +54,35 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
 
 	const args: string[] = [];
+	if (!params.buildKitVersion &&
+		(params.buildxPlatform || params.buildxPush)) {
+		throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
+	}
 	if (params.buildKitVersion) {
-		args.push(
-			'buildx', 'build',
-			'--load', // (short for --output=docker, i.e. load into normal 'docker images' collection)
-		);
+		args.push('buildx', 'build');
+
+		// --platform
+		if (params.buildxPlatform) {
+			output.write('Setting BuildKit platform(s): ' + params.buildxPlatform, LogLevel.Trace);
+			args.push('--platform', params.buildxPlatform);
+		}
+
+		// --push/--output
+		if (params.buildxPush) {
+			args.push('--push');
+		} else {
+			if (params.buildxOutput) {
+				args.push('--output', params.buildxOutput);
+			} else {
+				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
+			}
+		}
+
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
 		}
 	} else {
+		// Not using buildx
 		args.push(
 			'build',
 		);
