@@ -457,9 +457,6 @@ async function doBuild({
 			await inspectDockerImage(params, config.image, true);
 			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
 
-			if (buildxOutput) {
-				throw new ContainerError({ description: '--output requires dockerfilePath.' });
-			}
 			if (imageNames) {
 				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
 				imageNameResult = imageNames;
