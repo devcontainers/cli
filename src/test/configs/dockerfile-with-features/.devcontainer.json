@@ -6,8 +6,8 @@
 		}
 	},
 	"features": {
-		"docker-in-docker": "latest",
-		"codspace/myfeatures/helloworld": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/feature-starter/hello:1": {
 			"greeting": "howdy"
 		}
 	}
