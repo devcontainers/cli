@@ -40,6 +40,7 @@ jobs:
           # "src/test/dockerUtils.test.ts",
           # "src/test/imageMetadata.test.ts",
           # "src/test/variableSubstitution.test.ts",
+          # "src/test/container-features/registryCompatibilityOCI.test.ts",
           # # Run all except the above:
           # "--exclude .....",
         ]

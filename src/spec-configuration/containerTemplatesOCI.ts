@@ -41,7 +41,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, undefined, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
+	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
@@ -121,14 +121,14 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 }
 
 
-async function fetchOCITemplateManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+async function fetchOCITemplateManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
 	const { output } = params;
 
 	const templateRef = getRef(output, identifier);
 	if (!templateRef) {
 		return undefined;
 	}
-	return await fetchOCIManifestIfExists(params, templateRef, manifestDigest, authToken);
+	return await fetchOCIManifestIfExists(params, templateRef, manifestDigest);
 }
 
 function replaceTemplatedValues(output: Log, template: string, options: TemplateOptions) {

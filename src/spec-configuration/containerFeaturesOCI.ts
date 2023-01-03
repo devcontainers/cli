@@ -31,14 +31,14 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 	return featureSet;
 }
 
-export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string, authToken?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
 	const { output } = params;
 
 	const featureRef = getRef(output, identifier);
 	if (!featureRef) {
 		return undefined;
 	}
-	return await fetchOCIManifestIfExists(params, featureRef, manifestDigest, authToken);
+	return await fetchOCIManifestIfExists(params, featureRef, manifestDigest);
 }
 
 // Download a feature from which a manifest was previously downloaded.
