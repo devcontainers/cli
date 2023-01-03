@@ -25,6 +25,8 @@ jobs:
       run: yarn type-check
     - name: Lint
       run: yarn lint
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
     - name: Package
       run: yarn package && yarn package-standalone
     - name: Version and tag
