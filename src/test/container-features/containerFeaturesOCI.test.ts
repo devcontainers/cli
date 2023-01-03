@@ -5,7 +5,7 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 describe('getCollectionRef()', async function () {
-    this.timeout('240s');
+    this.timeout('150s');
 
 
     it('valid getCollectionRef()', async () => {
@@ -57,7 +57,7 @@ describe('getCollectionRef()', async function () {
 });
 
 describe('getRef()', async function () {
-    this.timeout('240s');
+    this.timeout('150s');
 
     it('valid getRef() with a tag', async () => {
         const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest');

@@ -12,7 +12,7 @@ import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUti
 const pkg = require('../../package.json');
 
 describe('Dev Containers CLI', function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;

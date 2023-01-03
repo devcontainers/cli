@@ -14,7 +14,7 @@ export const output = makeLog(createPlainLog(text => process.stderr.write(text),
 const pkg = require('../../../package.json');
 
 describe('tests apply command', async function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
@@ -64,7 +64,7 @@ describe('tests apply command', async function () {
 });
 
 describe('tests packageTemplates()', async function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
 

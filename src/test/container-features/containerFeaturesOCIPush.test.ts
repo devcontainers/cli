@@ -22,7 +22,7 @@ interface PublishResult {
 }
 
 describe('Test OCI Push against reference registry', async function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp', Date.now().toString()));
 	const cli = `npx --prefix ${tmp} devcontainer`;

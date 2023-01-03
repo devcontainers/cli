@@ -6,7 +6,7 @@ import * as path from 'path';
 import { readLocalFile } from '../../spec-utils/pfs';
 
 describe('fetchTemplate', async function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	it('template apply docker-from-docker without features and with user options', async () => {
 

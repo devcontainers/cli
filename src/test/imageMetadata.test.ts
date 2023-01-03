@@ -26,7 +26,7 @@ function configWithRaw<T extends DevContainerConfig | ImageMetadataEntry[]>(raw:
 }
 
 describe('Image Metadata', function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;

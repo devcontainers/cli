@@ -10,7 +10,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 const pkg = require('../../../package.json');
 
 describe('CLI features subcommands', async function () {
-	this.timeout('240s');
+	this.timeout('150s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
