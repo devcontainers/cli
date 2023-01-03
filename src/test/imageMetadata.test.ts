@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { DevContainerConfig, HostGPURequirements } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
@@ -13,7 +12,7 @@ import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
-import { buildKitOptions, shellExec, testSubstitute } from './testUtils';
+import { buildKitOptions, shellExec, testSubstitute, setupCLI } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -28,17 +27,16 @@ function configWithRaw<T extends DevContainerConfig | ImageMetadataEntry[]>(raw:
 describe('Image Metadata', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 	const testFolder = `${__dirname}/configs/image-metadata`;
 
 	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+		await installCLI();
 		await shellExec(`docker build -t image-metadata-test-base ${testFolder}/base-image`);
 	});
-	
+
+	after('Install', uninstallCLI);
+
 	describe('CLI', () => {
 
 		buildKitOptions.forEach(({ text, options }) => {
@@ -125,7 +123,7 @@ describe('Image Metadata', function () {
 				'compose-image-without-features-minimal',
 			].forEach(testFolderName => {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
-			
+
 				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
 						return;
@@ -142,7 +140,7 @@ describe('Image Metadata', function () {
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
 				});
-	
+
 				it(`up should avoid new image when possible [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
 						return;
@@ -207,7 +205,7 @@ describe('Image Metadata', function () {
 			},
 			Ports: [],
 		};
-	
+
 		it('should read metadata from existing container', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,
@@ -236,7 +234,7 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
-	
+
 		it('should add config for existing container without id labels', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,
@@ -264,7 +262,7 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
-	
+
 		it('should update config for existing container', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,

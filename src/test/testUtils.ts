@@ -1,5 +1,8 @@
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
 import { SubstituteConfig } from '../spec-node/utils';
 
 export interface BuildKitOption {
@@ -88,11 +91,44 @@ export async function commandMarkerTests(cli: string, workspaceFolder: string, e
 }
 
 export const testSubstitute: SubstituteConfig = value => {
-	if ('id' in value) {
-		return {
-			...value,
-			id: (value as any).id + '-substituted'
-		};
-	}
-	return value;
+    if ('id' in value) {
+        return {
+            ...value,
+            id: (value as any).id + '-substituted'
+        };
+    }
+    return value;
 };
+
+export function setupCLI(version: string) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcontainercli-tests-'));
+    switch (process.env.TEST_STANDALONE_PKG) {
+        case '1':
+        case 'true':
+            const bin = `devcontainer-${os.platform() === 'win32' ? 'win' : 'linux'}-${os.arch()}`;
+            return {
+                tmp,
+                cli: path.join(tmp, bin),
+                async installCLI() {
+                    await shellExec(`mkdir -p ${tmp}`);
+                    await shellExec(`cp -a ${path.join('dist', bin)} ${tmp}`);
+                },
+                async uninstallCLI() {
+                    await shellExec(`rm -rf ${tmp}`);
+                }
+            };
+        default:
+            return {
+                tmp,
+                cli: `npx --prefix ${tmp} devcontainer`,
+                async installCLI() {
+                    await shellExec(`mkdir -p ${tmp}`);
+                    await shellExec(`rm -rf ${tmp}/node_modules`);
+                    await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${version}.tgz`);
+                },
+                async uninstallCLI() {
+                    await shellExec(`rm -rf ${tmp}`);
+                }
+            };
+    }
+}

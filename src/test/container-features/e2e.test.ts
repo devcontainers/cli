@@ -4,23 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from 'chai';
-import * as path from 'path';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
+import { devContainerDown, devContainerUp, shellExec, setupCLI } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
 describe('Dev Container Features E2E (remote)', function () {
     this.timeout('120s');
 
-    const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-    const cli = `npx --prefix ${tmp} devcontainer`;
+    const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-    before('Install', async () => {
-        await shellExec(`rm -rf ${tmp}/node_modules`);
-        await shellExec(`mkdir -p ${tmp}`);
-        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-    });
+    before('Install', installCLI);
+    after('Install', uninstallCLI);
 
     describe('Configs with invalid features should fail', () => {
         it('should fail when a non-existent v1 feature is in the config', async () => {
@@ -116,14 +111,10 @@ describe('Dev Container Features E2E (remote)', function () {
 describe('Dev Container Features E2E - local cache/short-hand notation', function () {
     this.timeout('240s');
 
-    const tmp = path.resolve(process.cwd(), path.join(__dirname, 'tmp3'));
-    const cli = `npx --prefix ${tmp} devcontainer`;
+    const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-    before('Install', async () => {
-        await shellExec(`rm -rf ${tmp}/node_modules`);
-        await shellExec(`mkdir -p ${tmp}`);
-        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-    });
+    before('Install', installCLI);
+    after('Install', uninstallCLI);
 
     describe(`image-with-v1-features-node-python-local-cache with --skipFeatureAutoMapping`, () => {
         let containerId: string | null = null;
@@ -145,14 +136,10 @@ describe('Dev Container Features E2E - local cache/short-hand notation', functio
 describe('Dev Container Features E2E (local-path)', function () {
     this.timeout('120s');
 
-    const tmp = path.resolve(process.cwd(), path.join(__dirname, 'tmp1'));
-    const cli = `npx --prefix ${tmp} devcontainer`;
+    const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-    before('Install', async () => {
-        await shellExec(`rm -rf ${tmp}/node_modules`);
-        await shellExec(`mkdir -p ${tmp}`);
-        await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-    });
+    before('Install', installCLI);
+    after('Install', uninstallCLI);
 
     describe(`dockerfile-with-v2-local-features-config-inside-dev-container-folder `, () => {
         let containerId: string | null = null;
@@ -175,21 +162,21 @@ describe('Dev Container Features E2E (local-path)', function () {
         });
     });
 
-        describe(`dockerfile-with-v2-local-features-config-outside-dev-container-folder `, () => {
-            let containerId: string | null = null;
-            const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-outside-dev-container-folder`;
-            beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
-            afterEach(async () => await devContainerDown({ containerId }));
+    describe(`dockerfile-with-v2-local-features-config-outside-dev-container-folder `, () => {
+        let containerId: string | null = null;
+        const testFolder = `${__dirname}/configs/dockerfile-with-v2-local-features-config-outside-dev-container-folder`;
+        beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
+        afterEach(async () => await devContainerDown({ containerId }));
 
-            it('should exec the color command', async () => {
-                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
-                const response = JSON.parse(res.stdout);
-                console.log(res.stderr);
-                assert.equal(response.outcome, 'success');
-                assert.match(res.stderr, /my favorite color is gold/);
-            });
+        it('should exec the color command', async () => {
+            const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
+            const response = JSON.parse(res.stdout);
+            console.log(res.stderr);
+            assert.equal(response.outcome, 'success');
+            assert.match(res.stderr, /my favorite color is gold/);
+        });
 
-            it('should exec the helloworld command', async () => {
+        it('should exec the helloworld command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
             const response = JSON.parse(res.stdout);
             console.log(res.stderr);

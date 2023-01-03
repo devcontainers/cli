@@ -3,7 +3,7 @@ import { DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configurati
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import { ExecResult, shellExec } from '../testUtils';
+import { ExecResult, shellExec, setupCLI } from '../testUtils';
 import * as path from 'path';
 import * as fs from 'fs';
 import { readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
@@ -24,17 +24,14 @@ interface PublishResult {
 describe('Test OCI Push against reference registry', async function () {
 	this.timeout('240s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp', Date.now().toString()));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { tmp, cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
 	before('Install CLI and Start reference implementation registry', async () => {
 		// Clean up any potential previous runs
 		await shellExec(`docker rm registry -f`, {}, false, true);
 
 		// Install CLI
-		await shellExec(`rm -rf ${tmp}`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+		await installCLI();
 
 		// Copy contents of simple example to tmp
 		// Do this so we can make changes to the files on disk to simulate editing/updating Features.
@@ -58,6 +55,8 @@ registry`;
 		// Login with basic auth creds
 		await shellExec('docker login -u myuser -p mypass localhost:5000');
 	});
+
+	after('Install', uninstallCLI);
 
 	it('Publish Features to registry', async () => {
 		const collectionFolder = `${tmp}/simple-feature-set`;
@@ -301,7 +300,7 @@ registry`;
 	});
 });
 
-//  NOTE: 
+//  NOTE:
 //  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
 describe('Test OCI Push Helper Functions', () => {
 	it('Generates the correct tgz manifest layer', async () => {
