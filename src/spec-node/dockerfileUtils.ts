@@ -16,7 +16,8 @@ const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)
 const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s"]+)"?(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
 const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
-const variables = /\$\{?(?<variable>[a-zA-Z0-9_]+)\}?/g;
+
+const argumentExpression = /\$\{?(?<variable>[^:\}]+)(?<isVarExp>:(?<option>-|\+)(?<word>[^\}]+))?\}?/g;
 
 export interface Dockerfile {
 	preamble: {
@@ -138,11 +139,29 @@ function extractInstructions(stageStr: string) {
 		});
 }
 
-function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
-	return [...str.matchAll(variables)]
+function getExpressionValue(option: string, isSet: boolean, word: string, value: string) {
+	const operations: Record<string, Function> = { 
+		'-': (isSet: boolean, word: string, value: string) => isSet ? value : word,
+		'+': (isSet: boolean, word: string, value: string) => isSet ? word : value,
+	};
+
+	return operations[option](isSet, word, value).replace(/^['"]|['"]$/g, ''); // remove quotes from start and end of the string
+}
+
+function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {			
+	return [...str.matchAll(argumentExpression)]
 		.map(match => {
 			const variable = match.groups!.variable;
-			const value = findValue(dockerfile, buildArgs, baseImageEnv, variable, stage, beforeInstructionIndex) || '';
+			const isVarExp = match.groups!.isVarExp ? true : false;
+			let value = findValue(dockerfile, buildArgs, baseImageEnv, variable, stage, beforeInstructionIndex) || '';
+			if (isVarExp) {
+				// Handle replacing variable expressions (${var:+word}) if they exist
+				const option = match.groups!.option;
+				const word = match.groups!.word;
+				const isSet = value !== '';
+				value = getExpressionValue(option, isSet, word, value);
+			}
+
 			return {
 				begin: match.index!,
 				end: match.index! + match[0].length,
