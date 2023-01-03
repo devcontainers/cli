@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { fetchAuthorization, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
+import { fetchAuthorizationHeader, getManifest, getRef, HEADERS } from '../spec-configuration/containerCollectionsOCI';
 import { request } from '../spec-utils/httpRequest';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
@@ -215,16 +215,17 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 
 export async function inspectImageInRegistry(output: Log, name: string, authToken?: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
+	const params = { output, env: process.env };
 	const ref = getRef(output, resourceAndVersion);
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);
 	}
-	const auth = authToken ?? await fetchAuthorization(output, ref.registry, ref.path, process.env, 'pull');
+	const auth = authToken ?? await fetchAuthorizationHeader(params, ref.registry, ref.path, 'pull');
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
 	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifest = await getManifest(output, process.env, manifestUrl, ref, auth || false, 'application/vnd.docker.distribution.manifest.v2+json');
+	const manifest = await getManifest(params, manifestUrl, ref, auth || false, 'application/vnd.docker.distribution.manifest.v2+json');
 	if (!manifest) {
 		throw new Error(`No manifest found for ${resourceAndVersion}.`);
 	}

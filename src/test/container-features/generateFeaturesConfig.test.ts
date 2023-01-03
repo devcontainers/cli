@@ -2,6 +2,7 @@ import { assert } from 'chai';
 import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
+import * as process from 'process';
 import { mkdirpLocal } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
@@ -15,7 +16,8 @@ describe('validate generateFeaturesConfig()', function () {
 
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
-    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '', skipFeatureAutoMapping: false };
+    const platform = process.platform;
+    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '', skipFeatureAutoMapping: false, platform };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {

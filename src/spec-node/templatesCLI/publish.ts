@@ -10,7 +10,7 @@ import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
-import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
+import { getArchiveName, OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 import { packageTemplates } from './packageImpl';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
@@ -49,6 +49,8 @@ async function templatesPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
+    const params = { output, env: process.env };
+
     // Package templates
     const outputDir = path.join(os.tmpdir(), `/templates-output-${Date.now()}`);
 
@@ -85,7 +87,8 @@ async function templatesPublish({
             process.exit(1);
         }
 
-        const publishResult = await doPublishCommand(t.version, templateRef, outputDir, output, collectionType);
+        const archiveName = getArchiveName(t.id, collectionType);
+        const publishResult = await doPublishCommand(params, t.version, templateRef, outputDir, collectionType, archiveName);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
@@ -108,7 +111,7 @@ async function templatesPublish({
         process.exit(1);
     }
 
-    if (! await doPublishMetadata(templateCollectionRef, outputDir, output, collectionType)) {
+    if (! await doPublishMetadata(params, templateCollectionRef, outputDir, collectionType)) {
         output.write(`(!) ERR: Failed to publish '${templateCollectionRef.registry}/${templateCollectionRef.path}'`, LogLevel.Error);
         process.exit(1);
     }

@@ -10,7 +10,7 @@ import { doFeaturesPackageCommand } from './packageCommandImpl';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
-import { OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
+import { getArchiveName, OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
 import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
@@ -48,6 +48,8 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
+    const params = { output, env: process.env };
+
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);
 
@@ -84,16 +86,51 @@ async function featuresPublish({
             process.exit(1);
         }
 
-        const publishResult = await doPublishCommand(f.version, featureRef, outputDir, output, collectionType);
+        const archiveName = getArchiveName(f.id, collectionType);
+        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
         }
 
-        const thisResult = (publishResult?.digest && publishResult?.publishedVersions.length > 0) ? {
+        const isPublished = (publishResult?.digest && publishResult?.publishedVersions.length > 0);
+        let thisResult = isPublished ? {
             ...publishResult,
             version: f.version,
         } : {};
+
+        if (isPublished && f.legacyIds) {
+            output.write(`Processing legacyIds for '${f.id}'...`, LogLevel.Info);
+
+            let publishedLegacyIds: string[] = [];
+            for await (const legacyId of f.legacyIds) {
+                output.write(`Processing legacyId: '${legacyId}'...`, LogLevel.Info);
+                let legacyResource = `${registry}/${namespace}/${legacyId}`;
+                const legacyFeatureRef = getRef(output, legacyResource);
+
+                if (!legacyFeatureRef) {
+                    output.write(`(!) Could not parse provided Feature identifier: '${legacyResource}'`, LogLevel.Error);
+                    process.exit(1);
+                }
+
+                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName);
+                if (!publishResult) {
+                    output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
+                    process.exit(1);
+                }
+
+                if (publishResult?.digest && publishResult?.publishedVersions.length > 0) {
+                    publishedLegacyIds.push(legacyId);
+                }
+            }
+
+            if (publishedLegacyIds.length > 0) {
+                thisResult = {
+                    ...thisResult,
+                    publishedLegacyIds,
+                };
+            }
+        }
 
         result = {
             ...result,
@@ -107,7 +144,7 @@ async function featuresPublish({
         process.exit(1);
     }
 
-    if (! await doPublishMetadata(featureCollectionRef, outputDir, output, collectionType)) {
+    if (! await doPublishMetadata(params, featureCollectionRef, outputDir, collectionType)) {
         output.write(`(!) ERR: Failed to publish '${featureCollectionRef.registry}/${featureCollectionRef.path}'`, LogLevel.Error);
         process.exit(1);
     }

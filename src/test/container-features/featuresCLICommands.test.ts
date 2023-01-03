@@ -329,6 +329,71 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport);
 		});
 
+		it('installsAfter fruit -> hello', async function () {
+			const collectionFolder = `${__dirname}/configs/example-installsAfter`;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} up --workspace-folder ${collectionFolder} --log-level trace`);
+
+			} catch (error) {
+				assert.fail('devcontainers up should not throw - installsAfter logic failed');
+			}
+
+			const response = JSON.parse(result.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		// 'hello' contains 'installsAfter' with a 'legacyId: color' https://github.com/codspace/features/blob/main/src/hello/devcontainer-feature.json#L20
+		// 'color' is renamed to 'new-color' https://github.com/codspace/features/blob/main/src/new-color/devcontainer-feature.json#L19
+		// .devcontainer.json
+		// "features": {
+		// 	  "ghcr.io/codspace/features/hello:1": {},
+		// 	  "ghcr.io/codspace/features/new-color:1": {}
+		// }
+		it('installsAfter hello -> new-color (back compat check for legacyIds)', async function () {
+			const collectionFolder = `${__dirname}/configs/example-legacyIds`;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} up --workspace-folder ${collectionFolder} --log-level trace`);
+
+			} catch (error) {
+				assert.fail('devcontainers up should not throw - installsAfter logic failed');
+			}
+
+			const response = JSON.parse(result.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		// 'flower' contains 'installsAfter' with new ID 'new-color' https://github.com/codspace/features/blob/main/src/flower/devcontainer-feature.json#L19
+		// 'color' is renamed to 'new-color' https://github.com/codspace/features/blob/main/src/new-color/devcontainer-feature.json#L19
+		// .devcontainer.json
+		// "features": {
+		// 	  "ghcr.io/codspace/features/flower:1": {},
+		// 	  "ghcr.io/codspace/features/color:1": {}
+		// }
+		it('installsAfter flower -> color (forward compat check for legacyIds)', async function () {
+			const collectionFolder = `${__dirname}/configs/example-legacyIds-2`;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} up --workspace-folder ${collectionFolder} --log-level trace`);
+
+			} catch (error) {
+				assert.fail('devcontainers up should not throw - installsAfter logic failed');
+			}
+
+			const response = JSON.parse(result.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
 		it('succeeds testing a scenario with a Dockerfile', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/dockerfile-scenario-test`;
 			let success = false;
@@ -481,7 +546,7 @@ describe('test function getPublishedVersions', async () => {
 		if (!featureRef) {
 			assert.fail('featureRef should not be undefined');
 		}
-		const versionsList = await getPublishedVersions(featureRef, output) ?? [];
+		const versionsList = await getPublishedVersions({ output, env: process.env }, featureRef) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
 	});
 });

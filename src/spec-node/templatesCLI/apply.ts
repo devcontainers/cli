@@ -71,7 +71,8 @@ async function templateApply({
 		features
 	};
 
-	const files = await fetchTemplate(output, selectedTemplate, workspaceFolder, userProvidedTmpDir);
+
+	const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {
 		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
 		process.exit(1);

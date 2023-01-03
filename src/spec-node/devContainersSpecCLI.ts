@@ -838,9 +838,9 @@ async function readConfiguration({
 
 async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
 	const { cliHost, output } = params;
-	const { cwd, env } = cliHost;
+	const { cwd, env, platform } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
-	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
+	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
 }
 
 function execOptions(y: Argv) {
