@@ -39,26 +39,26 @@ jobs:
       with:
         name: devcontainers-cli-${{ env.TAG }}.tgz
         path: devcontainers-cli-${{ env.VER }}.tgz
-    - name: Store PKG linux-x86
+    - name: Store devcontainer-linux-x64
       uses: actions/upload-artifact@v2
       with:
-        name: devcontainers-cli-linux-x86-${{ env.TAG }}
-        path: dist/devcontainers-cli-linux-x86
-    - name: Store PKG linux-arm64
+        name: devcontainer-linux-x64-${{ env.TAG }}
+        path: dist/devcontainer-linux-x64
+    - name: Store devcontainer-linux-arm64
       uses: actions/upload-artifact@v2
       with:
-        name: devcontainers-cli-linux-arm64-${{ env.TAG }}
-        path: dist/devcontainers-cli-linux-arm64
-    - name: Store PKG win-x86
+        name: devcontainer-linux-arm64-${{ env.TAG }}
+        path: dist/devcontainer-linux-arm64
+    - name: Store devcontainer-win-x64.exe
       uses: actions/upload-artifact@v2
       with:
-        name: devcontainers-cli-win-x86-${{ env.TAG }}
-        path: dist/devcontainers-cli-win-x86
-    - name: Store PKG win-x86
+        name: devcontainer-win-x64-${{ env.TAG }}.exe
+        path: dist/devcontainer-win-x64.exe
+    - name: Store devcontainer-win-arm64.exe
       uses: actions/upload-artifact@v2
       with:
-        name: devcontainers-cli-win-arm64-${{ env.TAG }}
-        path: dist/devcontainers-cli-win-arm64
+        name: devcontainer-win-arm64-${{ env.TAG }}.exe
+        path: dist/devcontainer-win-arm64.exe
   tests-matrix:
     name: Tests Matrix
     runs-on: ubuntu-latest
