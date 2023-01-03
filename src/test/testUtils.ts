@@ -105,7 +105,9 @@ export function setupCLI(version: string) {
     switch (process.env.TEST_STANDALONE_PKG) {
         case '1':
         case 'true':
-            const bin = `devcontainer-${os.platform() === 'win32' ? 'win' : 'linux'}-${os.arch()}`;
+            const OS = os.platform() === 'win32' ? 'win' : 'linux';
+            const suffix = os.platform() === 'win32' ? '.exe' : '';
+            const bin = `devcontainer-${OS}-${os.arch()}${suffix}`;
             return {
                 tmp,
                 cli: path.join(tmp, bin),

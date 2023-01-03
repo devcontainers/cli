@@ -58,6 +58,10 @@ jobs:
     - name: Type-Check
       run: yarn type-check
     - name: Package
-      run: yarn package
+      run: yarn package && yarn package-standalone
     - name: Run Tests
+      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args-windows }}
+    - name: Run Tests on standalone binary
+      env:
+        TEST_STANDALONE_PKG: 1
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args-windows }}
