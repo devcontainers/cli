@@ -1,44 +1,6 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 {
-	"name": "Dev Containers CLI",
-	"build": {
-		"dockerfile": "Dockerfile",
-		"args": { 
-			"VARIANT": "16-bullseye"
-		}
-	},
-	"mounts": [
-		// Keep command history across instances
-		"source=dev-containers-cli-bashhistory,target=/home/node/commandhistory"
-	],
-
-	"postCreateCommand": "yarn install",
-
-	"remoteUser": "node",
-	
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:1": {}
-	},
-	
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"dbaeumer.vscode-eslint",
-				"GitHub.vscode-pull-request-github"
-			]
-		},
-		"codespaces": {
-			"repositories": {
-				"devcontainers/features": {
-					"permissions": {
-						"contents": "write",
-						"workflows": "write"
-					}
-				}
-			}
-		}
+		"ghcr.io/devcontainers/features/docker-from-docker:1": {}
 	}
 }
