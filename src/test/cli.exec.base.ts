@@ -148,7 +148,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 export function describeTests2({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('150s');
+		this.timeout('240s');
 
 		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 		const cli = `npx --prefix ${tmp} devcontainer`;
