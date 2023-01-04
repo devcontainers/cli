@@ -4,22 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from 'chai';
-import * as path from 'path';
-import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
+import { devContainerDown, devContainerUp, shellExec, setupCLI } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
 describe('Registry Compatibility', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-	});
+	const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
+
+	before('Install', installCLI);
+	after('Install', uninstallCLI);
 
 	// TODO: Matrix this test against all tested registries
 	describe('Azure Container Registry', () => {
