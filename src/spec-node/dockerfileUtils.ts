@@ -51,9 +51,9 @@ function parseFromStatement(line: string): From {
   if (!match) {
     return { image: 'unknown' };
   }
-  let { platfrom, image, label } = match.groups as unknown as From;
+	let { platform, image, label } = match.groups as unknown as From;
   image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
-  return { platfrom, image, label };
+	return { platform, image, label };
 }
 
 export function extractDockerfile(dockerfile: string): Dockerfile {
