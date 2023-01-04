@@ -54,9 +54,9 @@ jobs:
         repository: ${{ github.repository }}
         files: |
           devcontainers-cli-${{ env.VER }}.tgz
-          dist/devcontainer-linux-x64
-          dist/devcontainer-linux-arm64
-          dist/devcontainer-macos-x64
-          dist/devcontainer-macos-arm64
-          dist/devcontainer-win-x64.exe
-          dist/devcontainer-win-arm64.exe
+          devcontainer-linux-x64
+          devcontainer-linux-arm64
+          devcontainer-macos-x64
+          devcontainer-macos-arm64
+          devcontainer-win-x64.exe
+          devcontainer-win-arm64.exe

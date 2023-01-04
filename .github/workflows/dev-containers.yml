@@ -15,7 +15,16 @@ concurrency:
 jobs:
   cli:
     name: CLI
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: ubuntu,  pkg: node,       os-name: linux, node: 16 }
+          - { os: ubuntu,  pkg: standalone, os-name: linux, node: 16 }
+          - { os: macos,   pkg: standalone, os-name: macos, node: 16 }
+          - { os: windows, pkg: standalone, os-name: win,   node: 16, exe-suf: '.exe' }
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -24,54 +33,51 @@ jobs:
       shell: bash
       run: |
         VER=$(cat package.json | jq -r '.version');
+        TAG=${VER}-${GITHUB_SHA:0:8};
         echo "VER=${VER}" >> $GITHUB_ENV;
-        echo "TAG=${VER}-${GITHUB_SHA:0:8}" >> $GITHUB_ENV;
+        echo "TAG=${TAG}" >> $GITHUB_ENV;
+        if [[ "${{ matrix.pkg }}" == "node" ]]; then
+          echo "PKG_NPM_SCRIPT=package" >> $GITHUB_ENV;
+          echo "ARTIFACT_SLUG=devcontainers-cli-${TAG}.tgz" >> $GITHUB_ENV;
+          echo "ARTIFACT_PATH=devcontainers-cli-${VER}.tgz" >> $GITHUB_ENV;
+        else
+          echo "PKG_NPM_SCRIPT=package-standalone-${{ matrix.os-name }}-x64" >> $GITHUB_ENV;
+          echo "ARTIFACT_SLUG=devcontainer-${{ matrix.os-name }}-x64-${TAG}${{ matrix.exe-suf }}" >> $GITHUB_ENV;
+          echo "ARTIFACT_PATH=dist/devcontainer-${{ matrix.os-name }}-x64${{ matrix.exe-suf }}" >> $GITHUB_ENV;
+        fi
     - uses: actions/setup-node@v3
       with:
-        node-version: '16.x'
-        registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+        node-version: '${{ matrix.node }}.x'
+        registry-url: 'https://npm.pkg.github.com'
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
-        key: ${{ runner.os }}-${{ env.VER }}-node16-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
+        key: ${{ runner.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
         path: node_modules
     - name: Install Dependencies
       shell: bash
       run: yarn install --frozen-lockfile
-    - name: Type-Check
+    - name: Type Check
+      if: matrix.pkg == 'node'
       shell: bash
       run: yarn type-check
     - name: Lint
+      if: matrix.pkg == 'node'
       shell: bash
       run: yarn lint
-    - name: Setup QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Install ldid
-      shell: bash
-      run: |
-        sudo wget --no-hsts -q -O /usr/bin/ldid "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus6/ldid_linux_$(uname -p)";
-        sudo chmod +x /usr/bin/ldid;
-        which -a ldid;
     - name: Package
       shell: bash
-      run: yarn package && yarn package-standalone
+      run: yarn ${{ env.PKG_NPM_SCRIPT }}
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: devcontainers-cli-${{ env.TAG }}
-        path: |
-          devcontainers-cli-${{ env.VER }}.tgz
-          dist/devcontainer-linux-x64
-          dist/devcontainer-linux-arm64
-          dist/devcontainer-macos-x64
-          dist/devcontainer-macos-arm64
-          dist/devcontainer-win-x64.exe
-          dist/devcontainer-win-arm64.exe
+        name: ${{ env.ARTIFACT_SLUG }}
+        path: ${{ env.ARTIFACT_PATH }}
 
   tests-matrix:
     needs: cli
-    name: Tests Matrix
+    name: Test
     runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: true
@@ -107,30 +113,10 @@ jobs:
              --exclude src/test/cli.up.test.ts \
              'src/test/**/*.test.ts'"
         include:
-          - os: ubuntu
-            pkg: standalone
-            node: 16
-            os-name: linux
-            exe-suf: ''
-            mocha-args: "'src/test/**/*.test.ts'"
-          - os: macos
-            pkg: standalone
-            node: 16
-            os-name: macos
-            exe-suf: ''
-            mocha-args: "'src/test/**/*.test.ts'"
-          - os: windows
-            pkg: standalone
-            node: 16
-            os-name: win
-            exe-suf: '.exe'
-            mocha-args: 'src/test/container-features/containerFeaturesOCI.test.ts'
-          - os: windows
-            pkg: standalone
-            node: 16
-            os-name: win
-            exe-suf: '.exe'
-            mocha-args: 'src/test/container-features/generateFeaturesConfig.test.ts'
+          - { os: ubuntu,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/cli.exec.{buildKit,nonBuildKit}.*.test.ts' }
+          - { os: ubuntu,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
+          - { os: macos,   pkg: standalone, node: 16, os-name: macos, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
+          - { os: windows, pkg: standalone, node: 16, os-name: win,   mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts', exe-suf: '.exe' }
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -145,15 +131,21 @@ jobs:
         echo "TAG=${TAG}" >> $GITHUB_ENV;
         if [[ "${{ matrix.pkg }}" == "node" ]]; then
           echo "TEST_STANDALONE_PKG=0" >> $GITHUB_ENV;
+          echo "ARTIFACT_PATH=." >> $GITHUB_ENV;
+          echo "ARTIFACT_NAME=devcontainers-cli-${VER}.tgz" >> $GITHUB_ENV;
+          echo "ARTIFACT_SLUG=devcontainers-cli-${TAG}.tgz" >> $GITHUB_ENV;
         else
           echo "TEST_STANDALONE_PKG=1" >> $GITHUB_ENV;
+          echo "ARTIFACT_PATH=dist" >> $GITHUB_ENV;
+          echo "ARTIFACT_NAME=devcontainer-${{ matrix.os-name }}-x64${{ matrix.exe-suf }}" >> $GITHUB_ENV;
+          echo "ARTIFACT_SLUG=devcontainer-${{ matrix.os-name }}-x64-${TAG}${{ matrix.exe-suf }}" >> $GITHUB_ENV;
         fi
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
+        scope: '@microsoft'
         node-version: '${{ matrix.node }}.x'
         registry-url: 'https://npm.pkg.github.com'
-        scope: '@microsoft'
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
@@ -165,12 +157,24 @@ jobs:
     - name: Download artifact
       uses: actions/download-artifact@v3
       with:
-        name: devcontainers-cli-${{ env.TAG }}
+        name: ${{ env.ARTIFACT_SLUG }}
+        path: ${{ env.ARTIFACT_PATH }}
+    - name: Install docker for macOS
+      if: matrix.os == 'macos'
+      shell: bash
+      env:
+        HOMEBREW_ACCEPT_EULA: Y
+        HOMEBREW_NO_AUTO_UPDATE: 1
+        HOMEBREW_NO_INSTALL_CLEANUP: Y
+      run: |
+        brew install docker;
+        colima start;
+        docker ps -a;
     - name: Run Tests
       shell: bash
       run: |
         if [[ "$TEST_STANDALONE_PKG" == "1" ]]; then
-          chmod +x dist/devcontainer-${{ matrix.os-name }}-x64${{ matrix.exe-suf }};
+          chmod +x ${ARTIFACT_PATH}/${ARTIFACT_NAME};
         fi
         yarn test-matrix --forbid-only ${{ matrix.mocha-args }};
 
