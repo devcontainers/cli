@@ -105,8 +105,13 @@ export function setupCLI(version: string) {
     switch (process.env.TEST_STANDALONE_PKG) {
         case '1':
         case 'true':
-            const OS = os.platform() === 'win32' ? 'win' : 'linux';
-            const suffix = os.platform() === 'win32' ? '.exe' : '';
+            const { OS, suffix } = (() => {
+                switch (os.platform()) {
+                    case 'win32': return { OS: 'win', suffix: '.exe' };
+                    case 'darwin': return { OS: 'macos', suffix: '' };
+                    default: return { OS: 'linux', suffix: '' };
+                }
+            })();
             const bin = `devcontainer-${OS}-${os.arch()}${suffix}`;
             return {
                 tmp,

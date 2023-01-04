@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        persist-credentials: false
     - name: Setup Node.js
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v3
       with:
         node-version: '14.x'
         registry-url: 'https://registry.npmjs.org'
@@ -27,20 +29,34 @@ jobs:
             throw Error('Version Mismatch');
           }
         "
-    - name: TGZ name
+    - name: Env
       run: |
-        VERSION=$(jq -r '.version' < package.json)
-        echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
-        echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
-    - name: Download TGZ
+        TAG="${{ github.ref }}";
+        TAG="${TAG#refs/tags/}";
+        echo "TAG=${TAG}" >> $GITHUB_ENV;
+        VER=$(cat package.json | jq -r '.version')
+        echo "VER=${VER}" >> $GITHUB_ENV;
+    - name: Download Artifacts
       uses: dawidd6/action-download-artifact@6f8f427fb41886a66b82ea11a5a15d1454c79415
       with:
         workflow: dev-containers.yml
         workflow_conclusion: success
         commit: ${{ github.sha }}
-        name: ${{ env.TGZ_UPLOAD }}
-        path: .
-    - name: Publish TGZ
-      run: npm publish ${TGZ} --access public
+    - name: Publish package
+      run: npm publish devcontainers-cli-${VER}.tgz --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    - name: Create GitHub release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: CHANGELOG.txt
+        tag_name: ${{ env.TAG }}
+        repository: ${{ github.repository }}
+        files: |
+          devcontainers-cli-${{ env.VER }}.tgz
+          dist/devcontainer-linux-x64
+          dist/devcontainer-linux-arm64
+          dist/devcontainer-macos-x64
+          dist/devcontainer-macos-arm64
+          dist/devcontainer-win-x64.exe
+          dist/devcontainer-win-arm64.exe

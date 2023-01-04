@@ -8,104 +8,177 @@ on:
     branches:
       - '**'
 
+concurrency:
+  group: test-${{ github.event_name }}-from-${{ github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   cli:
     name: CLI
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v1
+    - uses: actions/checkout@v3
+      with:
+        persist-credentials: false
+    - name: Env
+      shell: bash
+      run: |
+        VER=$(cat package.json | jq -r '.version');
+        echo "VER=${VER}" >> $GITHUB_ENV;
+        echo "TAG=${VER}-${GITHUB_SHA:0:8}" >> $GITHUB_ENV;
+    - uses: actions/setup-node@v3
       with:
         node-version: '16.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Cache node_modules
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-${{ env.VER }}-node16-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
+        path: node_modules
     - name: Install Dependencies
+      shell: bash
       run: yarn install --frozen-lockfile
     - name: Type-Check
+      shell: bash
       run: yarn type-check
     - name: Lint
+      shell: bash
       run: yarn lint
-    - name: Set up QEMU
+    - name: Setup QEMU
       uses: docker/setup-qemu-action@v2
-    - name: Package
-      run: yarn package && yarn package-standalone
-    - name: Version and tag
+    - name: Install ldid
+      shell: bash
       run: |
-        VERSION=$(jq -r '.version' < package.json)
-        echo "VER=${VERSION}" | tee -a $GITHUB_ENV
-        echo "TAG=${VERSION}-${GITHUB_SHA:0:8}" | tee -a $GITHUB_ENV
-    - name: Store TGZ
-      uses: actions/upload-artifact@v2
+        sudo wget --no-hsts -q -O /usr/bin/ldid "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus6/ldid_linux_$(uname -p)";
+        sudo chmod +x /usr/bin/ldid;
+        which -a ldid;
+    - name: Package
+      shell: bash
+      run: yarn package && yarn package-standalone
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
       with:
-        name: devcontainers-cli-${{ env.TAG }}.tgz
-        path: devcontainers-cli-${{ env.VER }}.tgz
-    - name: Store devcontainer-linux-x64
-      uses: actions/upload-artifact@v2
-      with:
-        name: devcontainer-linux-x64-${{ env.TAG }}
-        path: dist/devcontainer-linux-x64
-    - name: Store devcontainer-linux-arm64
-      uses: actions/upload-artifact@v2
-      with:
-        name: devcontainer-linux-arm64-${{ env.TAG }}
-        path: dist/devcontainer-linux-arm64
-    - name: Store devcontainer-win-x64.exe
-      uses: actions/upload-artifact@v2
-      with:
-        name: devcontainer-win-x64-${{ env.TAG }}.exe
-        path: dist/devcontainer-win-x64.exe
-    - name: Store devcontainer-win-arm64.exe
-      uses: actions/upload-artifact@v2
-      with:
-        name: devcontainer-win-arm64-${{ env.TAG }}.exe
-        path: dist/devcontainer-win-arm64.exe
+        name: devcontainers-cli-${{ env.TAG }}
+        path: |
+          devcontainers-cli-${{ env.VER }}.tgz
+          dist/devcontainer-linux-x64
+          dist/devcontainer-linux-arm64
+          dist/devcontainer-macos-x64
+          dist/devcontainer-macos-arm64
+          dist/devcontainer-win-x64.exe
+          dist/devcontainer-win-arm64.exe
+
   tests-matrix:
+    needs: cli
     name: Tests Matrix
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        mocha-args: [
-          "src/test/container-features/e2e.test.ts",
-          "src/test/container-features/featuresCLICommands.test.ts",
-          "src/test/container-features/containerFeaturesOrder.test.ts",
-          "src/test/cli.build.test.ts",
-          "src/test/cli.exec.buildKit.1.test.ts",
-          "src/test/cli.exec.buildKit.2.test.ts",
-          "src/test/cli.exec.nonBuildKit.1.test.ts",
-          "src/test/cli.exec.nonBuildKit.2.test.ts",
-          "src/test/cli.test.ts",
-          "src/test/cli.up.test.ts",
-          "src/test/container-features/containerFeaturesOCIPush.test.ts",
-          "src/test/container-features/registryCompatibilityOCI.test.ts",
+        os: [ubuntu]
+        pkg: [node]
+        node: [16]
+        mocha-args:
+          - src/test/container-features/e2e.test.ts
+          - src/test/container-features/featuresCLICommands.test.ts
+          - src/test/container-features/containerFeaturesOrder.test.ts
+          - src/test/cli.build.test.ts
+          - src/test/cli.exec.buildKit.1.test.ts
+          - src/test/cli.exec.buildKit.2.test.ts
+          - src/test/cli.exec.nonBuildKit.1.test.ts
+          - src/test/cli.exec.nonBuildKit.2.test.ts
+          - src/test/cli.test.ts
+          - src/test/cli.up.test.ts
+          - src/test/container-features/containerFeaturesOCIPush.test.ts
+          - src/test/container-features/registryCompatibilityOCI.test.ts
           # Run all except the above:
-          "--exclude src/test/container-features/registryCompatibilityOCI.test.ts --exclude src/test/container-features/containerFeaturesOCIPush.test.ts --exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts 'src/test/**/*.test.ts'",
-        ]
+          - "--exclude src/test/container-features/registryCompatibilityOCI.test.ts \
+             --exclude src/test/container-features/containerFeaturesOCIPush.test.ts \
+             --exclude src/test/container-features/e2e.test.ts \
+             --exclude src/test/container-features/featuresCLICommands.test.ts \
+             --exclude src/test/container-features/containerFeaturesOrder.test.ts \
+             --exclude src/test/cli.build.test.ts \
+             --exclude src/test/cli.exec.buildKit.1.test.ts \
+             --exclude src/test/cli.exec.buildKit.2.test.ts \
+             --exclude src/test/cli.exec.nonBuildKit.1.test.ts \
+             --exclude src/test/cli.exec.nonBuildKit.2.test.ts \
+             --exclude src/test/cli.test.ts \
+             --exclude src/test/cli.up.test.ts \
+             'src/test/**/*.test.ts'"
+        include:
+          - os: ubuntu
+            pkg: standalone
+            node: 16
+            os-name: linux
+            exe-suf: ''
+            mocha-args: "'src/test/**/*.test.ts'"
+          - os: macos
+            pkg: standalone
+            node: 16
+            os-name: macos
+            exe-suf: ''
+            mocha-args: "'src/test/**/*.test.ts'"
+          - os: windows
+            pkg: standalone
+            node: 16
+            os-name: win
+            exe-suf: '.exe'
+            mocha-args: 'src/test/container-features/containerFeaturesOCI.test.ts'
+          - os: windows
+            pkg: standalone
+            node: 16
+            os-name: win
+            exe-suf: '.exe'
+            mocha-args: 'src/test/container-features/generateFeaturesConfig.test.ts'
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
-    - name: Setup Node.js
-      uses: actions/setup-node@v1
+      uses: actions/checkout@v3
       with:
-        node-version: '16.x'
+        persist-credentials: false
+    - name: Env
+      shell: bash
+      run: |
+        VER=$(cat package.json | jq -r '.version');
+        TAG=${VER}-${GITHUB_SHA:0:8};
+        echo "VER=${VER}" >> $GITHUB_ENV;
+        echo "TAG=${TAG}" >> $GITHUB_ENV;
+        if [[ "${{ matrix.pkg }}" == "node" ]]; then
+          echo "TEST_STANDALONE_PKG=0" >> $GITHUB_ENV;
+        else
+          echo "TEST_STANDALONE_PKG=1" >> $GITHUB_ENV;
+        fi
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '${{ matrix.node }}.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Cache node_modules
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
+        path: node_modules
     - name: Install Dependencies
+      shell: bash
       run: yarn install --frozen-lockfile
-    - name: Type-Check
-      run: yarn type-check
-    - name: Package
-      run: yarn package && yarn package-standalone-linux-x64
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: devcontainers-cli-${{ env.TAG }}
     - name: Run Tests
-      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
-    - name: Run Tests on standalone binary
-      env:
-        TEST_STANDALONE_PKG: 1
-      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
+      shell: bash
+      run: |
+        if [[ "$TEST_STANDALONE_PKG" == "1" ]]; then
+          chmod +x dist/devcontainer-${{ matrix.os-name }}-x64${{ matrix.exe-suf }};
+        fi
+        yarn test-matrix --forbid-only ${{ matrix.mocha-args }};
+
   tests:
     name: Tests
     needs: tests-matrix
     runs-on: ubuntu-latest
     steps:
     - name: Done
-      run: echo Test Matrix done.
+      shell: bash
+      run: echo "Test Matrix done."
