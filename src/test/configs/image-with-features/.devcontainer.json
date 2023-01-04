@@ -1,8 +1,8 @@
 {
-	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16",
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:1": {},
-		"codspace/myfeatures/helloworld": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/feature-starter/hello:1": {
 			"greeting": "howdy"
 		}
 	}

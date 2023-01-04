@@ -76,8 +76,15 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-		it('should succeed with supported --platform', async () => {
+		it('should succeed (dockerfile) with supported --platform', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --platform linux/amd64`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+		});
+
+		it('should succeed (image) with supported --platform', async () => {
+			const testFolder = `${__dirname}/configs/image-with-features`;
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --platform linux/amd64`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');

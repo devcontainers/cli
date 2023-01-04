@@ -35,7 +35,7 @@ export interface Stage {
 }
 
 export interface From {
-	platfrom?: string;
+	platform?: string;
 	image: string;
 	label?: string;
 }
