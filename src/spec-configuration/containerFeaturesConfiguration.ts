@@ -262,7 +262,7 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 	}
 
 	if (feature?.legacyIds && feature.legacyIds.length > 0 && feature.id !== feature.currentId) {
-		warningHeader += `(!) WARNING: Using the old Feature ID, update the reference to "${feature.currentId}".`;
+		warningHeader += `(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "${feature.currentId}".`;
 	}
 
 	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
