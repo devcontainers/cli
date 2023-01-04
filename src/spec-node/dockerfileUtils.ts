@@ -17,7 +17,7 @@ const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?"?(?<image>[^\s
 const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 
-const argumentExpression = /\$\{?(?<variable>[^:\}]+)(?<isVarExp>:(?<option>-|\+)(?<word>[^\}]+))?\}?/g;
+const argumentExpression = /\$\{?(?<variable>[a-zA-Z0-9_]+)(?<isVarExp>:(?<option>-|\+)(?<word>[^\}]+))?\}?/g;
 
 export interface Dockerfile {
 	preamble: {
