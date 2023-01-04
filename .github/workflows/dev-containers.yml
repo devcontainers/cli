@@ -95,7 +95,7 @@ jobs:
     - name: Type-Check
       run: yarn type-check
     - name: Package
-      run: yarn package && yarn package-standalone
+      run: yarn package && yarn package-standalone-linux-x64
     - name: Run Tests
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
     - name: Run Tests on standalone binary
