@@ -47,12 +47,12 @@ export interface Instruction {
 }
 
 function parseFromStatement(line: string): From {
-  const match = fromStatement.exec(line);
-  if (!match) {
-    return { image: 'unknown' };
-  }
+	const match = fromStatement.exec(line);
+	if (!match) {
+		return { image: 'unknown' };
+	}
 	let { platform, image, label } = match.groups as unknown as From;
-  image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
+	image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
 	return { platform, image, label };
 }
 
