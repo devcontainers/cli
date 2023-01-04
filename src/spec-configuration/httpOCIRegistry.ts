@@ -35,9 +35,10 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	// -- Update headers
 	httpOptions.headers['user-agent'] = 'devcontainer';
 	// If the user has a cached auth token, attempt to use that first.
-	if (cachedAuthHeader[ociRef.registry]) {
+	const maybeCachedAuthHeader = cachedAuthHeader[ociRef.registry];
+	if (maybeCachedAuthHeader) {
 		output.write(`[httpOci] Applying cachedAuthHeader for registry ${ociRef.registry}...`, LogLevel.Trace);
-		httpOptions.headers.authorization = cachedAuthHeader[ociRef.registry];
+		httpOptions.headers.authorization = maybeCachedAuthHeader;
 	}
 
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
@@ -45,8 +46,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	// For anything except a 401 response
 	// Simply return the original response to the caller.
 	if (initialAttemptRes.statusCode !== 401) {
-		const authScenario = cachedAuthHeader ? 'Cached' : 'NoAuth';
-		output.write(`[httpOci] ${initialAttemptRes.statusCode} (${authScenario}): ${httpOptions.url}`, LogLevel.Trace);
+		output.write(`[httpOci] ${initialAttemptRes.statusCode} (${maybeCachedAuthHeader ? 'Cached' : 'NoAuth'}): ${httpOptions.url}`, LogLevel.Trace);
 		return initialAttemptRes;
 	}
 
