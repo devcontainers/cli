@@ -4,6 +4,12 @@ Notable changes.
 
 ## January 2023
 
+### [0.27.1]
+
+- Fix: Modify argument regex to only allow certain set of values (https://github.com/devcontainers/cli/pull/361)
+- Fix: Fixed fromStatement parsing to parse quotes in variable expressions (https://github.com/devcontainers/cli/pull/356)
+- Fix: Allow prebuilding image without a Dockerfile (https://github.com/devcontainers/cli/pull/352)
+
 ### [0.27.0]
 
 - Fix: Failed to fetch local disk feature on Windows (https://github.com/devcontainers/cli/pull/333)
