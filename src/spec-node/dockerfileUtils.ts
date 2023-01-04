@@ -47,13 +47,13 @@ export interface Instruction {
 }
 
 function parseFromStatement(line: string): From {
-  const match = fromStatement.exec(line);
-  if (!match) {
-    return { image: 'unknown' };
-  }
-  let { platfrom, image, label } = match.groups as unknown as From;
-  image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
-  return { platfrom, image, label };
+	const match = fromStatement.exec(line);
+	if (!match) {
+		return { image: 'unknown' };
+	}
+	let { platform, image, label } = match.groups as unknown as From;
+	image = image.replace(/^['"]|['"]$/g, ''); // remove quotes
+	return { platform, image, label };
 }
 
 export function extractDockerfile(dockerfile: string): Dockerfile {
