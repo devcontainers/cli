@@ -481,6 +481,11 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
+if [ "" != '' ]
+then
+	echo ''
+fi
+
 echo 'Feature       : Unknown'
 echo 'Description   : '
 echo 'Id            : ./test'
@@ -560,11 +565,191 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
+if [ "" != '' ]
+then
+	echo ''
+fi
+
 echo 'Feature       : My Test Feature'
 echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
 echo 'Id            : ghcr.io/my-org/my-repo/test'
 echo 'Version       : 1.2.3'
 echo 'Documentation : https://my-test-feature.localhost'
+echo 'Options       :'
+echo '    VERSION=latest
+    OTHEROPTION=true'
+echo ===========================================================================
+
+set -a
+. ../devcontainer-features.builtin.env
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+
+		const actual = getFeatureInstallWrapperScript(feature, set, options);
+		assert.equal(actual, expected);
+    });
+
+	it('returns a valid script with warnings for deprecated Features', () => {
+        const feature: Feature = {
+			id: 'test',
+			value: {
+				version: 'latest',
+				otherOption: true
+			},
+			included: true,
+			name: 'My Test Feature',
+			description: 'This is an awesome feature (with ""quotes" for \'escaping\' test)',
+			version: '1.2.3',
+			documentationURL: 'https://my-test-feature.localhost',
+			deprecated: true,
+		};
+		const set: FeatureSet = {
+			features: [feature],
+			sourceInformation: {
+				type: 'oci',
+				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
+				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
+				featureRef: {
+					registry: 'ghcr.io',
+					owner: 'my-org',
+					namespace: 'my-org/my-repo',
+					path: 'my-org/my-repo/test',
+					resource: 'ghcr.io/my-org/my-repo/test',
+					id: 'test',
+					version: '1.2.3',
+				},
+				manifest: {
+					schemaVersion: 1,
+					mediaType: '',
+					config: {
+						digest: '',
+						mediaType: '',
+						size: 0,
+					},
+					layers: [],
+				}
+			}
+		};
+		const options = [
+			'VERSION=latest',
+			'OTHEROPTION=true',
+		];
+
+		const expected =
+`#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo 'ERROR: Feature "My Test Feature" (ghcr.io/my-org/my-repo/test) failed to install! Look at the documentation at https://my-test-feature.localhost for help troubleshooting this error.'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+if [ "(!) WARNING: Using the deprecated Feature "test". This Feature will no longer receive any further updates/support.\n" != '' ]
+then
+	echo '(!) WARNING: Using the deprecated Feature "test". This Feature will no longer receive any further updates/support.\n'
+fi
+
+echo 'Feature       : My Test Feature'
+echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
+echo 'Id            : ghcr.io/my-org/my-repo/test'
+echo 'Version       : 1.2.3'
+echo 'Documentation : https://my-test-feature.localhost'
+echo 'Options       :'
+echo '    VERSION=latest
+    OTHEROPTION=true'
+echo ===========================================================================
+
+set -a
+. ../devcontainer-features.builtin.env
+. ./devcontainer-features.env
+set +a
+
+chmod +x ./install.sh
+./install.sh
+`;
+
+		const actual = getFeatureInstallWrapperScript(feature, set, options);
+		assert.equal(actual, expected);
+    });
+
+	it('returns a valid script with warnings for renamed Features', () => {
+        const feature: Feature = {
+			id: 'test',
+			value: {
+				version: 'latest',
+				otherOption: true
+			},
+			included: true,
+			name: 'My New Test Feature',
+			description: 'This is an awesome feature (with ""quotes" for \'escaping\' test)',
+			version: '1.2.3',
+			documentationURL: 'https://my-new-test-feature.localhost',
+			legacyIds: [
+				'test'
+			],
+			currentId: 'ghcr.io/my-org/my-repo/new-test'
+		};
+		const set: FeatureSet = {
+			features: [feature],
+			sourceInformation: {
+				type: 'oci',
+				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
+				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
+				featureRef: {
+					registry: 'ghcr.io',
+					owner: 'my-org',
+					namespace: 'my-org/my-repo',
+					path: 'my-org/my-repo/test',
+					resource: 'ghcr.io/my-org/my-repo/test',
+					id: 'test',
+					version: '1.2.3',
+				},
+				manifest: {
+					schemaVersion: 1,
+					mediaType: '',
+					config: {
+						digest: '',
+						mediaType: '',
+						size: 0,
+					},
+					layers: [],
+				}
+			}
+		};
+		const options = [
+			'VERSION=latest',
+			'OTHEROPTION=true',
+		];
+
+		const expected =
+`#!/bin/sh
+set -e
+
+on_exit () {
+	[ $? -eq 0 ] && exit
+	echo 'ERROR: Feature "My New Test Feature" (ghcr.io/my-org/my-repo/test) failed to install! Look at the documentation at https://my-new-test-feature.localhost for help troubleshooting this error.'
+}
+
+trap on_exit EXIT
+
+echo ===========================================================================
+if [ "(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "ghcr.io/my-org/my-repo/new-test"." != '' ]
+then
+	echo '(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "ghcr.io/my-org/my-repo/new-test".'
+fi
+
+echo 'Feature       : My New Test Feature'
+echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
+echo 'Id            : ghcr.io/my-org/my-repo/test'
+echo 'Version       : 1.2.3'
+echo 'Documentation : https://my-new-test-feature.localhost'
 echo 'Options       :'
 echo '    VERSION=latest
     OTHEROPTION=true'
