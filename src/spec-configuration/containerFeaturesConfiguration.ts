@@ -270,7 +270,7 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
 		: '';
 
-	return `#!/bin/bash
+	return `#!/bin/sh
 set -e
 
 on_exit () {
@@ -281,9 +281,11 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [[ "${warningHeader}" != '' ]]; then
+if [ "${warningHeader}" != '' ]
+then
 	echo '${warningHeader}'
 fi
+
 echo 'Feature       : ${name}'
 echo 'Description   : ${description}'
 echo 'Id            : ${id}'
