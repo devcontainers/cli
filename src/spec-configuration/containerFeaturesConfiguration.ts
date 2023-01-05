@@ -258,11 +258,11 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 
 	let warningHeader = '';
 	if (feature.deprecated) {
-		warningHeader += `(!) WARNING: Using the deprecated Feature "${feature.id}". This Feature will no longer receive any further updates/support.\n`;
+		warningHeader += `(!) WARNING: Using the deprecated Feature "${escapeQuotesForShell(feature.id)}". This Feature will no longer receive any further updates/support.\n`;
 	}
 
-	if (feature?.legacyIds && feature.legacyIds.length > 0 && feature.id !== feature.currentId) {
-		warningHeader += `(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "${feature.currentId}".`;
+	if (feature?.legacyIds && feature.legacyIds.length > 0 && feature.currentId && feature.id !== feature.currentId) {
+		warningHeader += `(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "${escapeQuotesForShell(feature.currentId)}".`;
 	}
 
 	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
@@ -270,7 +270,7 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
 		: '';
 
-	return `#!/bin/sh
+	return `#!/bin/bash
 set -e
 
 on_exit () {
@@ -281,7 +281,9 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-echo '${warningHeader}'
+if [[ "${warningHeader}" != '' ]]; then
+	echo '${warningHeader}'
+fi
 echo 'Feature       : ${name}'
 echo 'Description   : ${description}'
 echo 'Id            : ${id}'
