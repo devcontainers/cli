@@ -256,6 +256,16 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 	const documentation = escapeQuotesForShell(feature.documentationURL ?? '');
 	const optionsIndented = escapeQuotesForShell(options.map(x => `    ${x}`).join('\n'));
 
+	let warningHeader = '';
+	if (feature.deprecated) {
+		warningHeader += `(!) WARNING: Using the deprecated Feature "${escapeQuotesForShell(feature.id)}". This Feature will no longer receive any further updates/support.\n`;
+	}
+
+	if (feature?.legacyIds && feature.legacyIds.length > 0 && feature.currentId && feature.id !== feature.currentId) {
+		warningHeader += `(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "${escapeQuotesForShell(feature.currentId)}".`;
+	}
+
+	const echoWarning = warningHeader ? `echo '${warningHeader}'` : '';
 	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
 	const troubleshootingMessage = documentation
 		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
@@ -272,6 +282,7 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
+${echoWarning}
 echo 'Feature       : ${name}'
 echo 'Description   : ${description}'
 echo 'Id            : ${id}'
