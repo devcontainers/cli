@@ -481,10 +481,6 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [ "" != '' ]
-then
-	echo ''
-fi
 
 echo 'Feature       : Unknown'
 echo 'Description   : '
@@ -565,10 +561,6 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [ "" != '' ]
-then
-	echo ''
-fi
 
 echo 'Feature       : My Test Feature'
 echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
@@ -651,11 +643,7 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [ "(!) WARNING: Using the deprecated Feature "test". This Feature will no longer receive any further updates/support.\n" != '' ]
-then
-	echo '(!) WARNING: Using the deprecated Feature "test". This Feature will no longer receive any further updates/support.\n'
-fi
-
+echo '(!) WARNING: Using the deprecated Feature "test". This Feature will no longer receive any further updates/support.\n'
 echo 'Feature       : My Test Feature'
 echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
 echo 'Id            : ghcr.io/my-org/my-repo/test'
@@ -740,11 +728,7 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [ "(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "ghcr.io/my-org/my-repo/new-test"." != '' ]
-then
-	echo '(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "ghcr.io/my-org/my-repo/new-test".'
-fi
-
+echo '(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "ghcr.io/my-org/my-repo/new-test".'
 echo 'Feature       : My New Test Feature'
 echo 'Description   : This is an awesome feature (with ""quotes" for '\\''escaping'\\'' test)'
 echo 'Id            : ghcr.io/my-org/my-repo/test'

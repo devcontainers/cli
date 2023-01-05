@@ -265,6 +265,7 @@ export function getFeatureInstallWrapperScript(feature: Feature, featureSet: Fea
 		warningHeader += `(!) WARNING: This feature has been renamed. Please update the reference in devcontainer.json to "${escapeQuotesForShell(feature.currentId)}".`;
 	}
 
+	const echoWarning = warningHeader ? `echo '${warningHeader}'` : '';
 	const errorMessage = `ERROR: Feature "${name}" (${id}) failed to install!`;
 	const troubleshootingMessage = documentation
 		? ` Look at the documentation at ${documentation} for help troubleshooting this error.`
@@ -281,11 +282,7 @@ on_exit () {
 trap on_exit EXIT
 
 echo ===========================================================================
-if [ "${warningHeader}" != '' ]
-then
-	echo '${warningHeader}'
-fi
-
+${echoWarning}
 echo 'Feature       : ${name}'
 echo 'Description   : ${description}'
 echo 'Id            : ${id}'
