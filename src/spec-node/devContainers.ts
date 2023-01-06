@@ -141,7 +141,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		dotfilesConfiguration: {
 			repository: options.dotfiles.repository,
 			installCommand: options.dotfiles.installCommand,
-			targetPath: options.dotfiles.targetPath || '~/dotfiles',
+			targetPath: options.dotfiles.targetPath,
 		}
 	};
 
