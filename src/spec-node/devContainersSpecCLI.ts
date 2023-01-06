@@ -117,7 +117,7 @@ function provisionOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
-		'dotfiles-repository': { type: 'string', description: 'Git URL to clone a dotfiles repository from.' },
+		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git) or owner/repository of a GitHub repository. },
 		'dotfiles-install-command': { type: 'string', implies: 'dotfiles-repository', description: 'Command to install the dotfiles with. If none is given a list of script names (install.sh, install, bootstrap.sh, bootstrap, setup.sh and setup) are checked for in the checked out dotfiles repository and if none is found all top-level dotfiles are symlinked from the container\'s home folder.' },
 		'dotfiles-target-path': { type: 'string', implies: 'dotfiles-repository', description: 'Folder path to clone the dotfiles repository to.' },
 	})
