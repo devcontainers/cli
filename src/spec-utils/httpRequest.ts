@@ -119,3 +119,6 @@ export function requestResolveHeaders(options: { type: string; url: string; head
 		req.end();
 	});
 }
+
+// follow-redirects uses maxBodyLength of 10MB by default
+export const maxBodyLength = 10 * 1024 * 1024;
