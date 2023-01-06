@@ -72,7 +72,7 @@ then
 	if [ ! -z "$dotfiles" ]
 	then
 		echo Linking dotfiles: $dotfiles
-		ln -sf $dotfiles ~ 2>/dev/null
+		ln -snf $dotfiles ~ 2>/dev/null
 	else
 		echo No dotfiles found.
 	fi
