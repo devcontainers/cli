@@ -119,7 +119,7 @@ function provisionOptions(y: Argv) {
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git) or owner/repository of a GitHub repository. },
 		'dotfiles-install-command': { type: 'string', implies: 'dotfiles-repository', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository's root folder.' },
-		'dotfiles-target-path': { type: 'string', implies: 'dotfiles-repository', description: 'Folder path to clone the dotfiles repository to.' },
+		'dotfiles-target-path': { type: 'string', implies: 'dotfiles-repository', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
