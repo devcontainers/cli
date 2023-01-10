@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/git": {}
+	},
+	"remoteUser": "node"
+}
