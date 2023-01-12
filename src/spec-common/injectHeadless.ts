@@ -315,9 +315,6 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	if (params.postCreate.enabled) {
 		await runPostCreateCommands(params, containerProperties, updatedConfig, remoteEnv, false);
 	}
-	if (params.dotfilesConfiguration) {
-		await installDotfiles(params, containerProperties, remoteEnv);
-	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
 	};
@@ -356,6 +353,10 @@ export async function runPostCreateCommands(params: ResolverParameters, containe
 	await runPostCreateCommand(params, containerProperties, config, 'postCreateCommand', remoteEnv, false);
 	if (skipNonBlocking && waitFor === 'postCreateCommand') {
 		return 'skipNonBlocking';
+	}
+
+	if (params.dotfilesConfiguration) {
+		await installDotfiles(params, containerProperties, remoteEnv);
 	}
 
 	if (stopForPersonalization) {

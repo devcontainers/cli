@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
@@ -72,7 +73,7 @@ then
 	if [ ! -z "$dotfiles" ]
 	then
 		echo Linking dotfiles: $dotfiles
-		ln -snf $dotfiles ~ 2>/dev/null
+		ln -sf $dotfiles ~ 2>/dev/null
 	else
 		echo No dotfiles found.
 	fi
@@ -107,6 +108,5 @@ function quoteValue(value: string | undefined) {
 }
 
 function getDotfilesMarkerFile(properties: ContainerProperties) {
-	const machineLocation = path.posix.join(typeof properties === 'string' ? properties : properties.userDataFolder, 'data/Machine');
-	return path.posix.join(machineLocation, '.dotfilesMarker');
+	return path.posix.join(properties.userDataFolder, '.dotfilesMarker');
 }
