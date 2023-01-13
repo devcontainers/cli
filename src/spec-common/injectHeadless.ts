@@ -670,7 +670,7 @@ async function patchEtcProfile(params: ResolverParameters, containerProperties: 
 
 async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log; containerSessionDataFolder?: string }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config?: CommonMergedDevContainerConfig) {
 	let env = await readUserEnvFromCache(params.containerSessionDataFolder, containerProperties.shellServer);
-	if (env) {
+	if (env && Object.keys(env).length) {
 		return env;
 	}
 
