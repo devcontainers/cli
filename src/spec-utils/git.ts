@@ -1,4 +1,5 @@
-import fs, { PathLike } from 'fs';
+import os from 'os';
+import fs from 'fs/promises';
 import child_process from 'child_process';
 import path from 'path';
 
@@ -12,10 +13,29 @@ interface GitRepo {
   isolateConfig?: boolean;
 }
 
-export function cloneGitRepo(remoteUrl: string): string {
+export function isGitUrl(url: string): boolean {
+  const urlPathWithGitSuffix = /.git(?:#.+)?$/;
+  const isUrl = url.startsWith('http://') || url.startsWith('https://');
+
+  if (isUrl && urlPathWithGitSuffix.test(url)) {
+    return true;
+  }
+
+  if (
+    url.startsWith('git@') ||
+    url.startsWith('git://') ||
+    url.startsWith('github.com/')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function cloneGitRepo(remoteUrl: string): Promise<string> {
   const repo = parseRemoteUrl(remoteUrl);
 
-  return _cloneGitRepo(repo);
+  return await _cloneGitRepo(repo);
 }
 
 function fetchArgs(remoteUrl: string, ref: string): Array<string> {
@@ -29,10 +49,12 @@ function fetchArgs(remoteUrl: string, ref: string): Array<string> {
   return args;
 }
 
-function _cloneGitRepo(repo: GitRepo): string {
+async function _cloneGitRepo(repo: GitRepo): Promise<string> {
   const fetch = fetchArgs(repo.remote, repo.ref);
 
-  const root = fs.mkdtempSync('vscode-dev-containers');
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'vscode-dev-containers-')
+  );
   let [stdout, stderr] = execGitWithinDir(repo, root, 'init');
   if (stderr) {
     throw new Error(`failed to init git repo in ${root}: ${stderr}`);
@@ -50,7 +72,7 @@ function _cloneGitRepo(repo: GitRepo): string {
     throw new Error(`failed to fetch ${repo.remote}#${repo.ref}: ${stderr}`);
   }
 
-  const checkoutDir = checkoutRepo(repo, root);
+  const checkoutDir = await checkoutRepo(repo, root);
   [stdout, stderr] = execGitWithinDir(repo, checkoutDir, 'submodule', 'update', '--init', '--recursive'); // prettier-ignore
   if (stderr) {
     throw new Error(`failed to update submodules: ${stderr}`);
@@ -59,7 +81,7 @@ function _cloneGitRepo(repo: GitRepo): string {
   return root;
 }
 
-function checkoutRepo(repo: GitRepo, dir: string): string {
+async function checkoutRepo(repo: GitRepo, dir: string): Promise<string> {
   const [_, stderr] = execGitWithinDir(repo, dir, 'checkout', repo.ref); // prettier-ignore
   if (stderr) {
     const [_, err] = execGitWithinDir(repo, dir, 'checkout', 'FETCH_HEAD'); // prettier-ignore
@@ -69,12 +91,13 @@ function checkoutRepo(repo: GitRepo, dir: string): string {
   }
 
   if (repo.subdir) {
-    const subdir = fs.realpathSync(path.join(dir, repo.subdir));
+    const subdir = await fs.realpath(path.join(dir, repo.subdir));
     if (!subdir.startsWith(dir)) {
       throw new Error(`subdir ${repo.subdir} is outside of ${dir}`);
     }
 
-    if (!fs.statSync(subdir).isDirectory()) {
+    const stats = await fs.stat(subdir);
+    if (!stats.isDirectory()) {
       throw new Error(`subdir ${repo.subdir} is not a directory`);
     }
 
@@ -84,7 +107,11 @@ function checkoutRepo(repo: GitRepo, dir: string): string {
   return dir;
 }
 
-function execGitWithinDir(repo: GitRepo, dir: string, ...args: Array<string>) {
+function execGitWithinDir(
+  repo: GitRepo,
+  dir: string,
+  ...args: Array<string>
+): [string, string] {
   args.push('-c', 'protocol.file.allow=never');
   let env: Record<string, string> = {
     GIT_PROTOCOL_FROM_USER: '0',
@@ -98,7 +125,7 @@ function execGitWithinDir(repo: GitRepo, dir: string, ...args: Array<string>) {
   const options = { cwd: dir, env: env };
   const result = child_process.spawnSync('git', args, options);
 
-  return result.stdout.toString(), result.stderr.toString();
+  return [result.stdout.toString(), result.stderr.toString()];
 }
 
 function getRefAndSubdir(fragment: string) {
