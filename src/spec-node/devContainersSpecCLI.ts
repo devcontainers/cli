@@ -117,6 +117,7 @@ function provisionOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -179,6 +180,7 @@ async function provision({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'container-session-data-folder': containerSessionDataFolder,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -228,6 +230,7 @@ async function provision({
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
+		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 	};
 
