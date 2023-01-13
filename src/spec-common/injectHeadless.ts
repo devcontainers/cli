@@ -19,6 +19,7 @@ import { containerSubstitute } from './variableSubstitution';
 import { delay } from './async';
 import { Log, LogEvent, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { buildProcessTrees, findProcesses, Process, processTreeToString } from './proc';
+import { installDotfiles } from './dotfiles';
 
 export enum ResolverProgress {
 	Begin,
@@ -44,6 +45,7 @@ export interface ResolverParameters {
 	env: NodeJS.ProcessEnv;
 	cwd: string;
 	isLocalContainer: boolean;
+	dotfilesConfiguration: DotfilesConfiguration;
 	progress: (current: ResolverProgress) => void;
 	output: Log;
 	allowSystemConfigChange: boolean;
@@ -184,6 +186,12 @@ export interface ContainerProperties {
 	remoteExecAsRoot?: ExecFunction;
 	shellServer: ShellServer;
 	launchRootShellServer?: () => Promise<ShellServer>;
+}
+
+export interface DotfilesConfiguration {
+	repository: string | undefined;
+	installCommand: string | undefined;
+	targetPath: string;
 }
 
 export async function getContainerProperties(options: {
@@ -346,6 +354,10 @@ export async function runPostCreateCommands(params: ResolverParameters, containe
 	await runPostCreateCommand(params, containerProperties, config, 'postCreateCommand', remoteEnv, false);
 	if (skipNonBlocking && waitFor === 'postCreateCommand') {
 		return 'skipNonBlocking';
+	}
+
+	if (params.dotfilesConfiguration) {
+		await installDotfiles(params, containerProperties, remoteEnv);
 	}
 
 	if (stopForPersonalization) {
@@ -514,7 +526,7 @@ async function createFile(shellServer: ShellServer, location: string) {
 	}
 }
 
-function createFileCommand(location: string) {
+export function createFileCommand(location: string) {
 	return `test ! -f '${location}' && set -o noclobber && mkdir -p '${path.posix.dirname(location)}' && { > '${location}' ; } 2> /dev/null`;
 }
 

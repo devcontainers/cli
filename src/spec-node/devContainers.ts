@@ -59,6 +59,11 @@ export interface ProvisionOptions {
 	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	dotfiles: {
+		repository?: string;
+		installCommand?: string;
+		targetPath?: string;
+	};
 }
 
 export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -135,6 +140,11 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		experimentalImageMetadata: options.experimentalImageMetadata,
 		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		dotfilesConfiguration: {
+			repository: options.dotfiles.repository,
+			installCommand: options.dotfiles.installCommand,
+			targetPath: options.dotfiles.targetPath || '~/dotfiles',
+		}
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
