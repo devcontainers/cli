@@ -157,10 +157,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
+	let gitContext: string | undefined;
 	let dockerfile: string | undefined;
 	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
-	let gitContext = '';
 	if (serviceInfo.build) {
 		let { context, dockerfilePath, target } = serviceInfo.build;
 		if (isGitUrl(context)) {
