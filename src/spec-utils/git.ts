@@ -9,7 +9,6 @@ interface GitRepo {
   remote: string;
   ref: string;
   subdir?: string;
-
   isolateConfig?: boolean;
 }
 
