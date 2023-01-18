@@ -669,8 +669,13 @@ async function patchEtcProfile(params: ResolverParameters, containerProperties: 
 }
 
 async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log; containerSessionDataFolder?: string }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config?: CommonMergedDevContainerConfig) {
-	let env = await readUserEnvFromCache(params.containerSessionDataFolder, containerProperties.shellServer);
-	if (env && Object.keys(env).length) {
+	let userEnvProbe = getUserEnvProb(config, params);
+	if (!userEnvProbe || userEnvProbe === 'none') {
+		return {};
+	}
+
+	let env = await readUserEnvFromCache(userEnvProbe, params, containerProperties.shellServer);
+	if (env) {
 		return env;
 	}
 
@@ -682,18 +687,18 @@ async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSy
 	}
 
 	if (env) {
-		await updateUserEnvCache(env, params.containerSessionDataFolder, containerProperties.shellServer);
+		await updateUserEnvCache(env, userEnvProbe, params, containerProperties.shellServer);
 	}
 
 	return env || {};
 }
 
-async function readUserEnvFromCache(cacheDir?: string, shellServer?: ShellServer) {
-	if (!shellServer || !cacheDir) {
+async function readUserEnvFromCache(userEnvProbe: UserEnvProbe, params: { output: Log; containerSessionDataFolder?: string }, shellServer?: ShellServer) {
+	if (!shellServer || !params.containerSessionDataFolder) {
 		return undefined;
 	}
 
-	const cacheFile = path.posix.join(cacheDir, 'env.json');
+	const cacheFile = path.posix.join(params.containerSessionDataFolder, `${userEnvProbe}.json`);
 	try {
 		if (await isFile(shellServer, cacheFile)) {
 			const { stdout } = await shellServer.exec(`cat '${cacheFile}'`);
@@ -701,35 +706,31 @@ async function readUserEnvFromCache(cacheDir?: string, shellServer?: ShellServer
 		}
 	}
 	catch (e) {
-
+		params.output.write(`Failed to read/parse user env cache: ${e}`, LogLevel.Error);
 	}
 
 	return undefined;
 }
 
-async function updateUserEnvCache(env: Record<string, string>, cacheDir?: string, shellServer?: ShellServer) {
-	if (!shellServer || !cacheDir || !env) {
+async function updateUserEnvCache(env: Record<string, string>, userEnvProbe: UserEnvProbe, params: { output: Log; containerSessionDataFolder?: string }, shellServer?: ShellServer) {
+	if (!shellServer || !params.containerSessionDataFolder) {
 		return;
 	}
 
-	const cacheFile = path.posix.join(cacheDir, 'env.json');
+	const cacheFile = path.posix.join(params.containerSessionDataFolder, `${userEnvProbe}.json`);
 	try {
 		await shellServer.exec(`mkdir -p '${path.posix.dirname(cacheFile)}' && cat > '${cacheFile}' << 'envJSON'
 ${JSON.stringify(env, null, '\t')}
 envJSON
-	`);
+`);
 	}
 	catch (e) {
-
+		params.output.write(`Failed to cache user env: ${e}`, LogLevel.Error);
 	}
 }
 
 async function runUserEnvProbe(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config: CommonMergedDevContainerConfig | undefined, cmd: string, sep: string) {
-	let userEnvProbe = config?.userEnvProbe;
-	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
-	if (!userEnvProbe) {
-		userEnvProbe = params.defaultUserEnvProbe;
-	}
+	let userEnvProbe = getUserEnvProb(config, params);
 	if (userEnvProbe === 'none') {
 		return {};
 	}
@@ -824,6 +825,15 @@ Merged:    ${typeof env.PATH === 'string' ? `'${env.PATH}'` : 'None'}` : ''}`);
 		params.output.write(toErrorText(err && (err.stack || err.message) || 'Error reading shell environment.'));
 		return {};
 	}
+}
+
+function getUserEnvProb(config: CommonMergedDevContainerConfig | undefined, params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log; }) {
+	let userEnvProbe = config?.userEnvProbe;
+	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
+	if (!userEnvProbe) {
+		userEnvProbe = params.defaultUserEnvProbe;
+	}
+	return userEnvProbe;
 }
 
 function mergePaths(shellPath: string, containerPath: string, rootUser: boolean) {
