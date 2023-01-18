@@ -830,7 +830,7 @@ Merged:    ${typeof env.PATH === 'string' ? `'${env.PATH}'` : 'None'}` : ''}`);
 	}
 }
 
-function getUserEnvProb(config: CommonMergedDevContainerConfig | undefined, params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log; }) {
+function getUserEnvProb(config: CommonMergedDevContainerConfig | undefined, params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }) {
 	let userEnvProbe = config?.userEnvProbe;
 	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
 	if (!userEnvProbe) {
