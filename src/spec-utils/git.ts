@@ -54,25 +54,25 @@ async function _cloneGitRepo(repo: GitRepo): Promise<string> {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), 'vscode-dev-containers-')
   );
-  let [stdout, stderr, err] = execGitWithinDir(repo, root, 'init');
+  let [, stderr, err] = execGitWithinDir(repo, root, 'init');
   if (err) {
     throw new Error(`failed to init git repo in ${root}: ${stderr}`);
   }
 
-  [stdout, stderr, err] = execGitWithinDir(repo, root, 'remote', 'add', 'origin', repo.remote); // prettier-ignore
+  [, stderr, err] = execGitWithinDir(repo, root, 'remote', 'add', 'origin', repo.remote); // prettier-ignore
   if (err) {
     throw new Error(
       `failed to add remote ${repo.remote} to ${root}: ${stderr}`
     );
   }
 
-  [stdout, stderr, err] = execGitWithinDir(repo, root, ...fetch);
+  [, stderr, err] = execGitWithinDir(repo, root, ...fetch);
   if (err) {
     throw new Error(`failed to fetch ${repo.remote}#${repo.ref}: ${stderr}`);
   }
 
   const checkoutDir = await checkoutRepo(repo, root);
-  [stdout, stderr, err] = execGitWithinDir(repo, checkoutDir, 'submodule', 'update', '--init', '--recursive'); // prettier-ignore
+  [, stderr, err] = execGitWithinDir(repo, checkoutDir, 'submodule', 'update', '--init', '--recursive'); // prettier-ignore
   if (err) {
     throw new Error(`failed to update submodules: ${stderr}`);
   }
@@ -83,7 +83,7 @@ async function _cloneGitRepo(repo: GitRepo): Promise<string> {
 async function checkoutRepo(repo: GitRepo, dir: string): Promise<string> {
   const [_, stderr, err] = execGitWithinDir(repo, dir, 'checkout', repo.ref); // prettier-ignore
   if (err) {
-    const [_, __, err2] = execGitWithinDir(repo, dir, 'checkout', 'FETCH_HEAD'); // prettier-ignore
+    const [, , err2] = execGitWithinDir(repo, dir, 'checkout', 'FETCH_HEAD'); // prettier-ignore
     if (err2) {
       throw new Error(`failed to checkout ${repo.ref}: ${stderr}`);
     }
