@@ -23,18 +23,17 @@ export const V1_DEVCONTAINER_FEATURES_FILE_NAME = 'devcontainer-features.json';
 // v2
 export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
-export interface Feature {
+export type Feature = SchemaFeatureProperties & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
+
+// Properties who are members of the schema
+export interface SchemaFeatureProperties {
 	id: string;
 	version?: string;
 	name?: string;
 	description?: string;
-	cachePath?: string;
-	internalVersion?: string; // set programmatically
-	consecutiveId?: string;
 	documentationURL?: string;
 	licenseURL?: string;
 	options?: Record<string, FeatureOption>;
-	buildArg?: string; // old properties for temporary compatibility
 	containerEnv?: Record<string, string>;
 	mounts?: Mount[];
 	init?: boolean;
@@ -42,15 +41,27 @@ export interface Feature {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
-	include?: string[];
-	exclude?: string[];
-	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
-	included: boolean; // set programmatically
 	customizations?: VSCodeCustomizations;
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
-	currentId?: string; // set programmatically
+}
+
+// Properties that are set programmatically for book-keeping purposes
+export interface InternalFeatureProperties {
+	cachePath?: string;
+	internalVersion?: string;
+	consecutiveId?: string;
+	value: boolean | string | Record<string, boolean | string | undefined>;
+	currentId?: string;
+	included: boolean;
+}
+
+// Old or deprecated properties maintained for backwards compatibility
+export interface DeprecatedSchemaFeatureProperties {
+	buildArg?: string;
+	include?: string[];
+	exclude?: string[];
 }
 
 export type FeatureOption = {
