@@ -57,6 +57,7 @@ export interface ProvisionOptions {
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
+	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 	dotfiles: {
 		repository?: string;
@@ -137,6 +138,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		experimentalImageMetadata: options.experimentalImageMetadata,
+		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
 		dotfilesConfiguration: {
 			repository: options.dotfiles.repository,

@@ -64,6 +64,7 @@ export interface ResolverParameters {
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
+	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 }
 
@@ -667,22 +668,72 @@ async function patchEtcProfile(params: ResolverParameters, containerProperties: 
 	}
 }
 
-async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config?: CommonMergedDevContainerConfig) {
-	const env = await runUserEnvProbe(params, containerProperties, config, 'cat /proc/self/environ', '\0');
+async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log; containerSessionDataFolder?: string }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config?: CommonMergedDevContainerConfig) {
+	let userEnvProbe = getUserEnvProb(config, params);
+	if (!userEnvProbe || userEnvProbe === 'none') {
+		return {};
+	}
+
+	let env = await readUserEnvFromCache(userEnvProbe, params, containerProperties.shellServer);
 	if (env) {
 		return env;
 	}
-	params.output.write('userEnvProbe: falling back to printenv');
-	const env2 = await runUserEnvProbe(params, containerProperties, config, 'printenv', '\n');
-	return env2 || {};
+
+	params.output.write('userEnvProbe: not found in cache');
+	env = await runUserEnvProbe(userEnvProbe, params, containerProperties, 'cat /proc/self/environ', '\0');
+	if (!env) {
+		params.output.write('userEnvProbe: falling back to printenv');
+		env = await runUserEnvProbe(userEnvProbe, params, containerProperties, 'printenv', '\n');
+	}
+
+	if (env) {
+		await updateUserEnvCache(env, userEnvProbe, params, containerProperties.shellServer);
+	}
+
+	return env || {};
 }
 
-async function runUserEnvProbe(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config: CommonMergedDevContainerConfig | undefined, cmd: string, sep: string) {
-	let userEnvProbe = config?.userEnvProbe;
-	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
-	if (!userEnvProbe) {
-		userEnvProbe = params.defaultUserEnvProbe;
+async function readUserEnvFromCache(userEnvProbe: UserEnvProbe, params: { output: Log; containerSessionDataFolder?: string }, shellServer?: ShellServer) {
+	if (!shellServer || !params.containerSessionDataFolder) {
+		return undefined;
 	}
+
+	const cacheFile = getUserEnvCacheFilePath(userEnvProbe, params.containerSessionDataFolder);
+	try {
+		if (await isFile(shellServer, cacheFile)) {
+			const { stdout } = await shellServer.exec(`cat '${cacheFile}'`);
+			return JSON.parse(stdout);
+		}
+	}
+	catch (e) {
+		params.output.write(`Failed to read/parse user env cache: ${e}`, LogLevel.Error);
+	}
+
+	return undefined;
+}
+
+async function updateUserEnvCache(env: Record<string, string>, userEnvProbe: UserEnvProbe, params: { output: Log; containerSessionDataFolder?: string }, shellServer?: ShellServer) {
+	if (!shellServer || !params.containerSessionDataFolder) {
+		return;
+	}
+
+	const cacheFile = getUserEnvCacheFilePath(userEnvProbe, params.containerSessionDataFolder);
+	try {
+		await shellServer.exec(`mkdir -p '${path.posix.dirname(cacheFile)}' && cat > '${cacheFile}' << 'envJSON'
+${JSON.stringify(env, null, '\t')}
+envJSON
+`);
+	}
+	catch (e) {
+		params.output.write(`Failed to cache user env: ${e}`, LogLevel.Error);
+	}
+}
+
+function getUserEnvCacheFilePath(userEnvProbe: UserEnvProbe, cacheFolder: string): string {
+	return path.posix.join(cacheFolder, `env-${userEnvProbe}.json`);
+}
+
+async function runUserEnvProbe(userEnvProbe: UserEnvProbe, params: { allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, cmd: string, sep: string) {
 	if (userEnvProbe === 'none') {
 		return {};
 	}
@@ -777,6 +828,15 @@ Merged:    ${typeof env.PATH === 'string' ? `'${env.PATH}'` : 'None'}` : ''}`);
 		params.output.write(toErrorText(err && (err.stack || err.message) || 'Error reading shell environment.'));
 		return {};
 	}
+}
+
+function getUserEnvProb(config: CommonMergedDevContainerConfig | undefined, params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }) {
+	let userEnvProbe = config?.userEnvProbe;
+	params.output.write(`userEnvProbe: ${userEnvProbe || params.defaultUserEnvProbe}${userEnvProbe ? '' : ' (default)'}`);
+	if (!userEnvProbe) {
+		userEnvProbe = params.defaultUserEnvProbe;
+	}
+	return userEnvProbe;
 }
 
 function mergePaths(shellPath: string, containerPath: string, rootUser: boolean) {

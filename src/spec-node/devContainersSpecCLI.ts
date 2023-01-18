@@ -120,6 +120,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -185,6 +186,7 @@ async function provision({
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
+	'container-session-data-folder': containerSessionDataFolder,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -239,6 +241,7 @@ async function provision({
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
+		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 	};
 
@@ -528,6 +531,7 @@ function runUserCommandsOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -582,6 +586,7 @@ async function doRunUserCommands({
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
+	'container-session-data-folder': containerSessionDataFolder,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -632,6 +637,7 @@ async function doRunUserCommands({
 				installCommand: dotfilesInstallCommand,
 				targetPath: dotfilesTargetPath,
 			},
+			containerSessionDataFolder,
 		}, disposables);
 
 		const { common } = params;
