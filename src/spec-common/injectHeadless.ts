@@ -680,10 +680,10 @@ async function probeUserEnv(params: { defaultUserEnvProbe: UserEnvProbe; allowSy
 	}
 
 	params.output.write('userEnvProbe: not found in cache');
-	env = await runUserEnvProbe(params, containerProperties, config, 'cat /proc/self/environ', '\0');
+	env = await runUserEnvProbe(userEnvProbe, params, containerProperties, 'cat /proc/self/environ', '\0');
 	if (!env) {
 		params.output.write('userEnvProbe: falling back to printenv');
-		env = await runUserEnvProbe(params, containerProperties, config, 'printenv', '\n');
+		env = await runUserEnvProbe(userEnvProbe, params, containerProperties, 'printenv', '\n');
 	}
 
 	if (env) {
@@ -698,7 +698,7 @@ async function readUserEnvFromCache(userEnvProbe: UserEnvProbe, params: { output
 		return undefined;
 	}
 
-	const cacheFile = path.posix.join(params.containerSessionDataFolder, `${userEnvProbe}.json`);
+	const cacheFile = getUserEnvCacheFilePath(userEnvProbe, params.containerSessionDataFolder);
 	try {
 		if (await isFile(shellServer, cacheFile)) {
 			const { stdout } = await shellServer.exec(`cat '${cacheFile}'`);
@@ -717,7 +717,7 @@ async function updateUserEnvCache(env: Record<string, string>, userEnvProbe: Use
 		return;
 	}
 
-	const cacheFile = path.posix.join(params.containerSessionDataFolder, `${userEnvProbe}.json`);
+	const cacheFile = getUserEnvCacheFilePath(userEnvProbe, params.containerSessionDataFolder);
 	try {
 		await shellServer.exec(`mkdir -p '${path.posix.dirname(cacheFile)}' && cat > '${cacheFile}' << 'envJSON'
 ${JSON.stringify(env, null, '\t')}
@@ -729,8 +729,11 @@ envJSON
 	}
 }
 
-async function runUserEnvProbe(params: { defaultUserEnvProbe: UserEnvProbe; allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, config: CommonMergedDevContainerConfig | undefined, cmd: string, sep: string) {
-	let userEnvProbe = getUserEnvProb(config, params);
+function getUserEnvCacheFilePath(userEnvProbe: UserEnvProbe, cacheFolder: string): string {
+	return path.posix.join(cacheFolder, `env-${userEnvProbe}.json`);
+}
+
+async function runUserEnvProbe(userEnvProbe: UserEnvProbe, params: { allowSystemConfigChange: boolean; output: Log }, containerProperties: { shell: string; remoteExec: ExecFunction; installFolder?: string; env?: NodeJS.ProcessEnv; shellServer?: ShellServer; launchRootShellServer?: (() => Promise<ShellServer>); user?: string }, cmd: string, sep: string) {
 	if (userEnvProbe === 'none') {
 		return {};
 	}
