@@ -159,7 +159,7 @@ function parseRemoteUrl(url: string): GitRepo {
   } else {
     const uri = URI.parse(url);
     const [ref, subdir] = getRefAndSubdir(uri.fragment);
-    const remoteUri = uri.with({ fragment: undefined });
+    const remoteUri = uri.with({ fragment: null });
 
     repo = { remote: remoteUri.toString(), ref, subdir };
   }
