@@ -1,0 +1,3 @@
+{
+	"postAttachCommand": "touch /postAttachCommand.txt"
+}
