@@ -45,6 +45,11 @@ export interface SchemaFeatureProperties {
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
+	onCreateCommand?: string | string[];
+	updateContentCommand?: string | string[];
+	postCreateCommand?: string | string[];
+	postStartCommand?: string | string[];
+	postAttachCommand?: string | string[];
 }
 
 // Properties that are set programmatically for book-keeping purposes

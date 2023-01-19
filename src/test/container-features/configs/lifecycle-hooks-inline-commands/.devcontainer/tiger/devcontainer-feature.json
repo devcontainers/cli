@@ -1,0 +1,11 @@
+{
+    "id": "tiger",
+    "version": "8.9.10",
+    "name": "Echos the tiger emoji. That is it!",
+    "options": {},
+    "updateContentCommand": "touch tiger.updateContentCommand.testMarker",
+    "onCreateCommand": "touch tiger.onCreateCommand.testMarker",
+    "postCreateCommand": "touch tiger.postCreateCommand.testMarker",
+    "postStartCommand": "touch tiger.postStartCommand.testMarker",
+    "postAttachCommand": "touch tiger.postAttachCommand.testMarker"
+}

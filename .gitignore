@@ -11,3 +11,4 @@ build-tmp
 .DS_Store
 .env
 output
+*.testMarker

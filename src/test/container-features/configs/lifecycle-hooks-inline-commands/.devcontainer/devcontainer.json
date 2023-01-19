@@ -1,0 +1,14 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"./tiger": {},
+		"./panda": {}
+	},
+	"updateContentCommand": "touch devContainer.updateContentCommand.testMarker",
+	"onCreateCommand": "touch devContainer.onCreateCommand.testMarker",
+	"postCreateCommand": "touch devContainer.postCreateCommand.testMarker",
+	"postStartCommand": "touch devContainer.postStartCommand.testMarker",
+	"postAttachCommand": "touch devContainer.postAttachCommand.testMarker"
+}

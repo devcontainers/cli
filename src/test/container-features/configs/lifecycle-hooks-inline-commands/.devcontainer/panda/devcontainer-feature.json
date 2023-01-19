@@ -1,0 +1,11 @@
+{
+    "id": "panda",
+    "version": "4.5.6",
+    "name": "Echos the panda emoji. That is it!",
+    "options": {},
+    "updateContentCommand": "touch panda.updateContentCommand.testMarker",
+    "onCreateCommand": "touch panda.onCreateCommand.testMarker",
+    "postCreateCommand": "touch panda.postCreateCommand.testMarker",
+    "postStartCommand": "touch panda.postStartCommand.testMarker",
+    "postAttachCommand": "touch panda.postAttachCommand.testMarker"
+}

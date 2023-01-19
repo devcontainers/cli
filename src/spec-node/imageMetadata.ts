@@ -46,6 +46,11 @@ const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMet
 ];
 
 const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
+	'onCreateCommand',
+	'updateContentCommand',
+	'postCreateCommand',
+	'postStartCommand',
+	'postAttachCommand',
 	'init',
 	'privileged',
 	'capAdd',
