@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 {
-	"name": "Golang application",
-	
-	// docker-compose.yaml with context set as git URL
+	"name": "Jekyll",
 	"dockerComposeFile": "docker-compose.yaml",
 
-	// Service name in docker-compose.yaml
+	// Folder to open when starting the container
+	"workspaceFolder": "/workspace",
+	// Service in the compose file to use for the container
 	"service": "app",
+	
+	// Set *default* container specific settings.json values on container create.
+	"settings": {},
+	// Add the IDs of extensions you want installed when the container is created.
+	"extensions": [],
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	"forwardPorts": [
+		// Jekyll server
+		4000,
+		// Live reload server
+		35729
+	],
 
-	// Workspace folder to open in container
-	"workspaceFolder": "/root",
-
-	// Ports to forward from container to host
-	"forwardPorts": [8080]
+	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
+	"remoteUser": "vscode"
 }

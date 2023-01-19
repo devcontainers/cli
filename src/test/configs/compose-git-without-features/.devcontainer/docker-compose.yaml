@@ -2,28 +2,8 @@ version: '3'
 services:
   app:
     build: 
-      context: https://github.com/ShauryaAg/productapi-go.git
-      dockerfile: docker/Dockerfile # dockerfile path present in the git repo
+      context: https://github.com/devcontainers/devcontainers.github.io.git#gh-pages
+      dockerfile: .devcontainer/Dockerfile # dockerfile path present in the git repo
     environment:
-      - PORT=8080
-      - SECRET=secret
-      - SEED_DB=false
-      - MONGODB_URI=mongodb://root:example@mongo:27017/
-    restart: on-failure
-    depends_on:
-      - mongo
-    links:
-      - mongo
-
-  mongo:
-    container_name: mongo
-    image: mongo
-    restart: always
-    ports:
-      - 27017:27017
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=example
-
-volumes:
-  mongo:
+      - VARIANT=bullseye
+      - NODE_VERSION=lts/*
