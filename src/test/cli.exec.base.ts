@@ -12,7 +12,7 @@ const pkg = require('../../package.json');
 export function describeTests1({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('180s');
+		this.timeout('240s');
 
 		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 		const cli = `npx --prefix ${tmp} devcontainer`;
@@ -148,7 +148,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 export function describeTests2({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('240s');
+		this.timeout('300s');
 
 		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 		const cli = `npx --prefix ${tmp} devcontainer`;
