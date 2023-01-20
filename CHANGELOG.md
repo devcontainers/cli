@@ -4,6 +4,10 @@ Notable changes.
 
 ## January 2023
 
+### [0.29.0]
+
+- Add `set-up` command. (https://github.com/microsoft/vscode-remote-release/issues/7872)
+
 ### [0.28.0]
 
 - Features preamble: Add warnings for Feature renames & deprecation. (https://github.com/devcontainers/cli/pull/366)
