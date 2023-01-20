@@ -339,5 +339,53 @@ build:
             // TODO: fix this test 
             // assert.throws(async () => await cloneGitRepo(info.build!.context), `subdir notasubdir is not a directory`);
         });
+
+        it('Parses git URL as SSH', async () => {
+            // Prepare
+            const input = `
+    build:
+        context: git@github.com/user/repo.git
+    `;
+
+            // Execute
+            const info = loadYamlAndGetBuildInfoForService(input);
+            const isGit = isGitUrl(info.build!.context);
+            
+            // Verify
+            assert.deepEqual(info, {
+                image: undefined,
+                build: {
+                    context: 'git@github.com/user/repo.git',
+                    dockerfilePath: 'Dockerfile',
+                    target: undefined,
+                    args: undefined,
+                }
+            });
+            assert.isTrue(isGit);
+        });
+
+        it('Parsing fails git URL is invalid SSH', async () => {
+            // Prepare
+            const input = `
+    build:
+        context: notgit$notgithub.com:user/repo.git
+    `;
+
+            // Execute
+            const info = loadYamlAndGetBuildInfoForService(input);
+            const isGit = isGitUrl(info.build!.context);
+            
+            // Verify
+            assert.deepEqual(info, {
+                image: undefined,
+                build: {
+                    context: 'notgit$notgithub.com:user/repo.git',
+                    dockerfilePath: 'Dockerfile',
+                    target: undefined,
+                    args: undefined,
+                }
+            });
+            assert.isFalse(isGit);
+        });
     });
 });
