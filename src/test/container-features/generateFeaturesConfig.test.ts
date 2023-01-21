@@ -72,7 +72,6 @@ describe('validate generateFeaturesConfig()', function () {
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-mkdir -p /tmp/build-features && \\
 echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
 
@@ -131,7 +130,6 @@ RUN cd /tmp/build-features/second_2 \\
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-mkdir -p /tmp/build-features && \\
 echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
 

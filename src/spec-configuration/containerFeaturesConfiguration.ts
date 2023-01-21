@@ -237,7 +237,9 @@ FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 USER root
 
 ${(() => {
-	return useBuildKitBuildContexts ? '' : `
+	return useBuildKitBuildContexts ? `
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
+` : `
 COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
 `;
 })()}
@@ -319,7 +321,6 @@ function escapeQuotesForShell(input: string) {
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features/') {
 	let result = `RUN \\
-mkdir -p /tmp/build-features && \\
 echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
 echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
 
