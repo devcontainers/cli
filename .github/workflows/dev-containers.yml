@@ -172,6 +172,8 @@ jobs:
         docker ps -a;
     - name: Run Tests
       shell: bash
+      env:
+        NODE_NO_WARNINGS: ${{ env.TEST_STANDALONE_PKG }}
       run: |
         if [[ "$TEST_STANDALONE_PKG" == "1" ]]; then
           chmod +x ${ARTIFACT_PATH}/${ARTIFACT_NAME};
