@@ -218,32 +218,22 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 }
 
 // TODO: Move to node layer.
-export function getContainerFeaturesBaseDockerFile(useBuildKitBuildContexts = false) {
+export function getContainerFeaturesBaseDockerFile() {
 	return `
 #{featureBuildStages}
 
 #{nonBuildKitFeatureContentFallback}
-${(() => {
-	return useBuildKitBuildContexts ? `` : `
+
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
 RUN chmod -R 0700 /tmp/build-features
-`;
-})()}
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-${(() => {
-	return useBuildKitBuildContexts ? `
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
-RUN chmod -R 0700 /tmp/build-features
-` : `
 COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
-`;
-})()}
 
 #{featureLayer}
 
@@ -330,16 +320,19 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/bu
 	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
+		const source = path.posix.join(contentSourceRootPath, folder!);
 		if (!useBuildKitBuildContexts) {
-			result += `RUN cd /tmp/build-features/${folder} \\
+			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} /tmp/build-features/${folder}
+RUN chmod -R 0700 /tmp/build-features/${folder} \\
+&& cd /tmp/build-features/${folder} \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
 `;
 		} else {
-			const source = path.posix.join(contentSourceRootPath, folder!);
 			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
     cp -ar /tmp/build-features-src/${folder} /tmp/build-features/ \\
+ && chmod -R 0700 /tmp/build-features/${folder} \\
  && cd /tmp/build-features/${folder} \\
  && chmod +x ./install.sh \\
  && ./install.sh \\
@@ -352,18 +345,21 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/bu
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
+			const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
 			if (!useBuildKitBuildContexts) {
 				result += `
-RUN cd /tmp/build-features/${feature.consecutiveId} \\
+COPY --chown=root:root --from=dev_containers_feature_content_source ${source} /tmp/build-features/${feature.consecutiveId}
+RUN chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
+&& cd /tmp/build-features/${feature.consecutiveId} \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 `;
 			} else {
-				const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
 				result += `
 RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
     cp -ar /tmp/build-features-src/${feature.consecutiveId} /tmp/build-features/ \\
+ && chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
  && cd /tmp/build-features/${feature.consecutiveId} \\
  && chmod +x ./devcontainer-features-install.sh \\
  && ./devcontainer-features-install.sh \\
