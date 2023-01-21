@@ -29,7 +29,6 @@ export interface ProvisionOptions {
 	workspaceFolder: string | undefined;
 	workspaceMountConsistency?: BindMountConsistency;
 	mountWorkspaceGitRoot: boolean;
-	idLabels: string[];
 	configFile: URI | undefined;
 	overrideConfigFile: URI | undefined;
 	logLevel: LogLevel;
@@ -57,16 +56,22 @@ export interface ProvisionOptions {
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	experimentalImageMetadata: boolean;
+	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	dotfiles: {
+		repository?: string;
+		installCommand?: string;
+		targetPath?: string;
+	};
 }
 
-export async function launch(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]) {
+export async function launch(options: ProvisionOptions, idLabels: string[], disposables: (() => Promise<unknown> | undefined)[]) {
 	const params = await createDockerParams(options, disposables);
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
 
-	const result = await resolve(params, options.configFile, options.overrideConfigFile, options.idLabels, options.additionalFeatures ?? {});
+	const result = await resolve(params, options.configFile, options.overrideConfigFile, idLabels, options.additionalFeatures ?? {});
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {
@@ -132,7 +137,13 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		experimentalImageMetadata: options.experimentalImageMetadata,
+		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		dotfilesConfiguration: {
+			repository: options.dotfiles.repository,
+			installCommand: options.dotfiles.installCommand,
+			targetPath: options.dotfiles.targetPath || '~/dotfiles',
+		}
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

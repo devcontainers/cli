@@ -39,8 +39,8 @@ export interface DevContainerFeature {
 }
 
 export interface DevContainerFromImageConfig {
-	configFilePath: URI;
-	image: string;
+	configFilePath?: URI;
+	image?: string; // Only optional when setting up an existing container as a dev container.
 	name?: string;
 	forwardPorts?: (number | string)[];
 	appPort?: number | string | (number | string)[];

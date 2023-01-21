@@ -11,9 +11,9 @@ import { URI } from 'vscode-uri';
 
 export interface SubstitutionContext {
 	platform: NodeJS.Platform;
-	configFile: URI;
-	localWorkspaceFolder: string | undefined;
-	containerWorkspaceFolder: string | undefined;
+	configFile?: URI;
+	localWorkspaceFolder?: string;
+	containerWorkspaceFolder?: string;
 	env: NodeJS.ProcessEnv;
 }
 
@@ -33,9 +33,9 @@ export function substitute<T extends object>(context: SubstitutionContext, value
 	return substitute0(replace, value);
 }
 
-export function beforeContainerSubstitute<T extends object>(idLabels: Record<string, string>, value: T): T {
+export function beforeContainerSubstitute<T extends object>(idLabels: Record<string, string> | undefined, value: T): T {
 	let devcontainerId: string | undefined;
-	return substitute0(replaceDevContainerId.bind(undefined, () => devcontainerId || (devcontainerId = devcontainerIdForLabels(idLabels))), value);
+	return substitute0(replaceDevContainerId.bind(undefined, () => devcontainerId || (idLabels && (devcontainerId = devcontainerIdForLabels(idLabels)))), value);
 }
 
 export function containerSubstitute<T extends object>(platform: NodeJS.Platform, configFile: URI | undefined, containerEnv: NodeJS.ProcessEnv, value: T): T {
@@ -124,10 +124,10 @@ function replaceContainerEnv(isWindows: boolean, configFile: URI | undefined, co
 	}
 }
 
-function replaceDevContainerId(getDevContainerId: () => string, match: string, variable: string) {
+function replaceDevContainerId(getDevContainerId: () => string | undefined, match: string, variable: string) {
 	switch (variable) {
 		case 'devcontainerId':
-			return getDevContainerId();
+			return getDevContainerId() || match;
 
 		default:
 			return match;

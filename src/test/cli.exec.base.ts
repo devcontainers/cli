@@ -11,7 +11,7 @@ const pkg = require('../../package.json');
 export function describeTests1({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('180s');
+		this.timeout('240s');
 
 		const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
@@ -143,7 +143,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 export function describeTests2({ text, options }: BuildKitOption) {
 
 	describe('Dev Containers CLI', function () {
-		this.timeout('240s');
+		this.timeout('300s');
 
 		const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 

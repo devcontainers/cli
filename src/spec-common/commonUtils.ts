@@ -346,11 +346,12 @@ async function findLocalWindowsExecutable(command: string, cwd = process.cwd(), 
 			}
 		}
 	}
-	// No PATH environment. Make path absolute to the cwd.
+	// No PATH environment. Bail out.
 	if (paths === void 0 || paths.length === 0) {
-		output.write(`findLocalWindowsExecutable: No PATH to look up exectuable '${command}'.`);
-		const fullPath = path.join(cwd, command);
-		return await findLocalWindowsExecutableWithExtension(fullPath) || fullPath;
+		output.write(`findLocalWindowsExecutable: No PATH to look up executable '${command}'.`);
+		const err = new Error(`No PATH to look up executable '${command}'.`);
+		(err as any).code = 'ENOENT';
+		throw err;
 	}
 	// We have a simple file name. We get the path variable from the env
 	// and try to find the executable on the path.
@@ -367,9 +368,11 @@ async function findLocalWindowsExecutable(command: string, cwd = process.cwd(), 
 			return withExtension;
 		}
 	}
+	// Not found in PATH. Bail out.
 	output.write(`findLocalWindowsExecutable: Exectuable '${command}' not found on PATH '${pathValue}'.`);
-	const fullPath = path.join(cwd, command);
-	return await findLocalWindowsExecutableWithExtension(fullPath) || fullPath;
+	const err = new Error(`Exectuable '${command}' not found on PATH '${pathValue}'.`);
+	(err as any).code = 'ENOENT';
+	throw err;
 }
 
 const pathext = process.env.PATHEXT;

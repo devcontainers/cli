@@ -13,8 +13,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { UnpackPromise } from '../spec-utils/types';
-import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe } from '../spec-common/injectHeadless';
+import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
@@ -30,7 +29,7 @@ import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
-import { beforeContainerSubstitute, containerSubstitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
@@ -60,6 +59,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
 	y.command('up', 'Create and run dev container', provisionOptions, provisionHandler);
+	y.command('set-up', 'Set up an existing container as a dev container', setUpOptions, setUpHandler);
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
@@ -117,6 +117,10 @@ function provisionOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
+		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
+		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -179,12 +183,17 @@ async function provision({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'dotfiles-repository': dotfilesRepository,
+	'dotfiles-install-command': dotfilesInstallCommand,
+	'dotfiles-target-path': dotfilesTargetPath,
+	'container-session-data-folder': containerSessionDataFolder,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
+	const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder!);
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -193,7 +202,6 @@ async function provision({
 		workspaceFolder,
 		workspaceMountConsistency,
 		mountWorkspaceGitRoot,
-		idLabels: idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder!),
 		configFile: config ? URI.file(path.resolve(process.cwd(), config)) : undefined,
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
 		logLevel: mapLogLevel(logLevel),
@@ -217,6 +225,11 @@ async function provision({
 				external: external === 'true'
 			};
 		}) : [],
+		dotfiles: {
+			repository: dotfilesRepository,
+			installCommand: dotfilesInstallCommand,
+			targetPath: dotfilesTargetPath,
+		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
 		additionalCacheFroms: addCacheFroms,
@@ -228,10 +241,11 @@ async function provision({
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		experimentalImageMetadata,
+		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 	};
 
-	const result = await doProvision(options);
+	const result = await doProvision(options, idLabels);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
 	console.log(JSON.stringify(result));
 	if (result.outcome === 'success') {
@@ -241,13 +255,13 @@ async function provision({
 	process.exit(exitCode);
 }
 
-async function doProvision(options: ProvisionOptions) {
+async function doProvision(options: ProvisionOptions, idLabels: string[]) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const result = await launch(options, disposables);
+		const result = await launch(options, idLabels, disposables);
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -272,7 +286,165 @@ async function doProvision(options: ProvisionOptions) {
 	}
 }
 
-export type Result = UnpackPromise<ReturnType<typeof doProvision>> & { backgroundProcessPID?: number };
+function setUpOptions(y: Argv) {
+	return y.options({
+		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
+		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
+		'container-id': { type: 'string', required: true, description: 'Id of the container.' },
+		'config': { type: 'string', description: 'devcontainer.json path.' },
+		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
+		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
+		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
+		'skip-post-create': { type: 'boolean', default: false, description: 'Do not run onCreateCommand, updateContentCommand, postCreateCommand, postStartCommand or postAttachCommand and do not install dotfiles.' },
+		'skip-non-blocking-commands': { type: 'boolean', default: false, description: 'Stop running user commands after running the command configured with waitFor or the updateContentCommand by default.' },
+		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
+		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
+		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
+		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
+		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+	})
+		.check(argv => {
+			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
+			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
+				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			return true;
+		});
+}
+
+type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>>;
+
+function setUpHandler(args: SetUpArgs) {
+	(async () => setUp(args))().catch(console.error);
+}
+
+async function setUp(args: SetUpArgs) {
+	const result = await doSetUp(args);
+	const exitCode = result.outcome === 'error' ? 1 : 0;
+	console.log(JSON.stringify(result));
+	await result.dispose();
+	process.exit(exitCode);
+}
+
+async function doSetUp({
+	'user-data-folder': persistedFolder,
+	'docker-path': dockerPath,
+	'container-data-folder': containerDataFolder,
+	'container-system-data-folder': containerSystemDataFolder,
+	'container-id': containerId,
+	config: configParam,
+	'log-level': logLevel,
+	'log-format': logFormat,
+	'terminal-rows': terminalRows,
+	'terminal-columns': terminalColumns,
+	'default-user-env-probe': defaultUserEnvProbe,
+	'skip-post-create': skipPostCreate,
+	'skip-non-blocking-commands': skipNonBlocking,
+	'remote-env': addRemoteEnv,
+	'dotfiles-repository': dotfilesRepository,
+	'dotfiles-install-command': dotfilesInstallCommand,
+	'dotfiles-target-path': dotfilesTargetPath,
+	'container-session-data-folder': containerSessionDataFolder,
+}: SetUpArgs) {
+
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+	try {
+		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
+		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
+		const params = await createDockerParams({
+			dockerPath,
+			dockerComposePath: undefined,
+			containerSessionDataFolder,
+			containerDataFolder,
+			containerSystemDataFolder,
+			workspaceFolder: undefined,
+			mountWorkspaceGitRoot: false,
+			configFile,
+			overrideConfigFile: undefined,
+			logLevel: mapLogLevel(logLevel),
+			logFormat,
+			log: text => process.stderr.write(text),
+			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
+			defaultUserEnvProbe,
+			removeExistingContainer: false,
+			buildNoCache: false,
+			expectExistingContainer: false,
+			postCreateEnabled: !skipPostCreate,
+			skipNonBlocking,
+			prebuild: false,
+			persistedFolder,
+			additionalMounts: [],
+			updateRemoteUserUIDDefault: 'never',
+			remoteEnv: envListToObj(addRemoteEnvs),
+			additionalCacheFroms: [],
+			useBuildKit: 'auto',
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxOutput: undefined,
+			skipFeatureAutoMapping: false,
+			skipPostAttach: false,
+			experimentalImageMetadata: true,
+			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {
+				repository: dotfilesRepository,
+				installCommand: dotfilesInstallCommand,
+				targetPath: dotfilesTargetPath,
+			},
+		}, disposables);
+
+		const { common } = params;
+		const { cliHost, output } = common;
+		const configs = configFile && await readDevContainerConfigFile(cliHost, undefined, configFile, params.mountWorkspaceGitRoot, output, undefined, undefined);
+		if (configFile && !configs) {
+			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });
+		}
+
+		const config0 = configs?.config || {
+			raw: {},
+			config: {},
+			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
+		};
+
+		const container = await inspectContainer(params, containerId);
+		if (!container) {
+			bailOut(common.output, 'Dev container not found.');
+		}
+
+		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
+		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
+
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, true, output).config;
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		await setupInContainer(common, containerProperties, mergedConfig);
+		return {
+			outcome: 'success' as 'success',
+			dispose,
+		};
+	} catch (originalError) {
+		const originalStack = originalError?.stack;
+		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
+			description: 'An error occurred running user commands in the container.',
+			originalError
+		});
+		if (originalStack) {
+			console.error(originalStack);
+		}
+		return {
+			outcome: 'error' as 'error',
+			message: err.message,
+			description: err.description,
+			dispose,
+		};
+	}
+}
 
 function buildOptions(y: Argv) {
 	return y.options({
@@ -346,7 +518,6 @@ async function doBuild({
 			containerSystemDataFolder: undefined,
 			workspaceFolder,
 			mountWorkspaceGitRoot: false,
-			idLabels: getDefaultIdLabels(workspaceFolder),
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -373,6 +544,7 @@ async function doBuild({
 			skipPostAttach: true,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
+			dotfiles: {}
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -454,6 +626,10 @@ async function doBuild({
 			}
 		} else {
 
+			if (!config.image) {
+				throw new ContainerError({ description: 'No image information specified in devcontainer.json.' });
+			}
+
 			await inspectDockerImage(params, config.image, true);
 			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
 
@@ -495,7 +671,7 @@ function runUserCommandsOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -513,6 +689,10 @@ function runUserCommandsOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
+		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
+		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
+		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -522,6 +702,9 @@ function runUserCommandsOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -564,14 +747,19 @@ async function doRunUserCommands({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'experimental-image-metadata': experimentalImageMetadata,
+	'dotfiles-repository': dotfilesRepository,
+	'dotfiles-install-command': dotfilesInstallCommand,
+	'dotfiles-target-path': dotfilesTargetPath,
+	'container-session-data-folder': containerSessionDataFolder,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
+			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -582,7 +770,6 @@ async function doRunUserCommands({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
-			idLabels,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -609,22 +796,33 @@ async function doRunUserCommands({
 			skipPostAttach,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {
+				repository: dotfilesRepository,
+				installCommand: dotfilesInstallCommand,
+				targetPath: dotfilesTargetPath,
+			},
+			containerSessionDataFolder,
 		}, disposables);
 
 		const { common } = params;
 		const { cliHost, output } = common;
-		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
+		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
 		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
-		if (!configs) {
+		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const { config: config0, workspaceConfig } = configs;
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
+		const config0 = configs?.config || {
+			raw: {},
+			config: {},
+			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
+		};
+
+		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
@@ -634,7 +832,7 @@ async function doRunUserCommands({
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
 		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
@@ -667,7 +865,7 @@ function readConfigurationOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -687,6 +885,9 @@ function readConfigurationOptions(y: Argv) {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
+			}
+			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -724,8 +925,9 @@ async function readConfiguration({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
+			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
@@ -740,16 +942,21 @@ async function readConfiguration({
 			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
 		}, pkg, sessionStart, disposables);
 
-		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
+		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
 		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
-		if (!configs) {
+		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		let configuration = configs.config;
+
+		let configuration = configs?.config || {
+			raw: {},
+			config: {},
+			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
+		};
 
 		const dockerCLI = dockerPath || 'docker';
 		const dockerComposeCLI = dockerComposeCLIConfig({
@@ -764,7 +971,7 @@ async function readConfiguration({
 			env: cliHost.env,
 			output
 		};
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
+		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
 		if (container) {
 			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
@@ -781,15 +988,15 @@ async function readConfiguration({
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
-				const imageBuildInfo = await getImageBuildInfo(params, configs.config, experimentalImageMetadata);
-				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configs.config, featuresConfiguration).config;
+				const imageBuildInfo = await getImageBuildInfo(params, configuration, experimentalImageMetadata);
+				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
 		}
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
 				configuration: configuration.config,
-				workspace: configs.workspaceConfig,
+				workspace: configs?.workspaceConfig,
 				featuresConfiguration,
 				mergedConfiguration: mergedConfig,
 			}) + '\n', err => err ? reject(err) : resolve());
@@ -821,7 +1028,7 @@ function execOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -854,6 +1061,9 @@ function execOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -900,8 +1110,9 @@ export async function doExec({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
+			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -912,7 +1123,6 @@ export async function doExec({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
-			idLabels,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -940,28 +1150,34 @@ export async function doExec({
 			skipPostAttach: false,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {}
 		}, disposables);
 
 		const { common } = params;
 		const { cliHost, output } = common;
-		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
+		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
 		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
-		if (!configs) {
+		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
-		const { config, workspaceConfig } = configs;
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels);
+		const config = configs?.config || {
+			raw: {},
+			config: {},
+			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
+		};
+
+		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
-		const containerProperties = await createContainerProperties(params, container.Id, workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
+		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
