@@ -383,26 +383,25 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 	const { common } = params;
 	let response = {} as LaunchResult;
 
+	const idLabels = [ `devcontainer.local_folder=${workspaceFolder}` ];
 	const options: ProvisionOptions = {
 		...staticProvisionParams,
 		workspaceFolder,
 		logLevel: common.getLogLevel(),
 		mountWorkspaceGitRoot: true,
-		idLabels: [
-			`devcontainer.local_folder=${workspaceFolder}`
-		],
 		remoteEnv: common.remoteEnv,
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		log: text => quiet ? null : process.stderr.write(text),
+		dotfiles: {}
 	};
 
 	try {
 		if (quiet) {
 			// Launch container but don't await it to reduce output noise
 			let isResolved = false;
-			const p = launch(options, disposables);
+			const p = launch(options, idLabels, disposables);
 			p.then(function (res) {
 				process.stdout.write('\n');
 				response = res;
@@ -415,7 +414,7 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 			}
 		} else {
 			// Stream all the container setup logs.
-			response = await launch(options, disposables);
+			response = await launch(options, idLabels, disposables);
 		}
 
 		return {
@@ -464,7 +463,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		containerDataFolder: undefined,
 		containerSystemDataFolder: undefined,
 		mountWorkspaceGitRoot: false,
-		idLabels: [],
 		configFile: undefined,
 		overrideConfigFile: undefined,
 		logLevel,
@@ -492,5 +490,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
 		experimentalImageMetadata: !args.skipImageMetadata,
+		dotfiles: {}
 	}, disposables);
 }

@@ -108,7 +108,7 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 }
 
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
-	return 'image' in config ? config.image : getFolderImageName(params.common);
+	return 'image' in config && config.image ? config.image : getFolderImageName(params.common);
 }
 export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[]): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string> }> {
 	const { config } = configWithRaw;
