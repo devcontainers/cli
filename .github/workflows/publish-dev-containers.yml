@@ -4,6 +4,20 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      npm-publish:
+        type: boolean
+        default: false
+        description: "Publish to NPM"
+      make-release:
+        type: boolean
+        default: false
+        description: "Make GitHub Release"
+      draft-release:
+        type: boolean
+        default: false
+        description: "Make GitHub Draft Release"
 
 jobs:
   main:
@@ -13,50 +27,100 @@ jobs:
       uses: actions/checkout@v3
       with:
         persist-credentials: false
+
     - name: Setup Node.js
+      if: github.repository == 'devcontainers/cli' && (github.event_name != 'workflow_dispatch' || inputs.npm-publish == true)
       uses: actions/setup-node@v3
       with:
         node-version: '14.x'
         registry-url: 'https://registry.npmjs.org'
         scope: '@devcontainers'
+
     - name: Verify Versions
+      if: github.repository == 'devcontainers/cli' && (github.event_name != 'workflow_dispatch' || inputs.npm-publish == true)
+      shell: bash
       run: |
         node -e "
           const packageRef = 'refs/tags/v' + require('./package.json').version;
           const githubRef = '${{ github.ref }}';
-          if (packageRef !== githubRef && packageRef + '-pre-release' != githubRef) {
+          if (githubRef.includes(packageRef)) {
             console.log('::error::' + 'Version Mismatch.', packageRef, githubRef);
             throw Error('Version Mismatch');
           }
         "
-    - name: Env
-      run: |
-        TAG="${{ github.ref }}";
-        TAG="${TAG#refs/tags/}";
-        echo "TAG=${TAG}" >> $GITHUB_ENV;
-        VER=$(cat package.json | jq -r '.version')
-        echo "VER=${VER}" >> $GITHUB_ENV;
+
     - name: Download Artifacts
-      uses: dawidd6/action-download-artifact@6f8f427fb41886a66b82ea11a5a15d1454c79415
+      uses: dawidd6/action-download-artifact@v2
       with:
+        commit: ${{ github.sha }}
         workflow: dev-containers.yml
         workflow_conclusion: success
-        commit: ${{ github.sha }}
-    - name: Publish package
+
+    - name: Env
+      shell: bash
+      run: |
+        VER=$(cat package.json | jq -r '.version')
+        echo "VER=${VER}" >> $GITHUB_ENV;
+        echo "SLUG=${VER}-${GITHUB_SHA:0:8}" >> $GITHUB_ENV;
+
+        TAG="${{ github.ref }}";
+        if [[ "${{ github.event_name }}" != 'workflow_dispatch' ]]; then
+          TAG="${TAG#refs/tags/}";
+        else
+          TAG="$(git describe --abbrev=0 --tags)";
+        fi
+        echo "TAG=${TAG}" >> $GITHUB_ENV;
+
+        if [[ "$TAG" =~ "-pre-release" ]]; then
+          echo "PRERELEASE=true" >> $GITHUB_ENV;
+        else
+          echo "PRERELEASE=false" >> $GITHUB_ENV;
+        fi
+
+        find . -type f \(                          \
+              -name "devcontainer-linux-x64"       \
+          -or -name "devcontainer-linux-arm64"     \
+          -or -name "devcontainer-macos-x64"       \
+          -or -name "devcontainer-macos-arm64"     \
+          -or -name "devcontainer-win-x64.exe"     \
+          -or -name "devcontainer-win-arm64.exe"   \
+          -or -name "devcontainers-cli-0.29.0.tgz" \
+        \)    -exec mv {} . \;
+
+    - name: Publish npm package
+      if: github.repository == 'devcontainers/cli' && (github.event_name != 'workflow_dispatch' || inputs.npm-publish == true)
       run: npm publish devcontainers-cli-${VER}.tgz --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    - name: Create GitHub release
-      uses: softprops/action-gh-release@v1
+
+    - name: Upload release smoketest artifacts
+      if: github.event_name == 'workflow_dispatch' && inputs.make-release != true && inputs.draft-release != true
+      uses: actions/upload-artifact@v3
       with:
-        body_path: CHANGELOG.txt
-        tag_name: ${{ env.TAG }}
-        repository: ${{ github.repository }}
-        files: |
-          devcontainers-cli-${{ env.VER }}.tgz
+        name: devcontainers-cli-${{ env.SLUG }}
+        path: |
           devcontainer-linux-x64
           devcontainer-linux-arm64
           devcontainer-macos-x64
           devcontainer-macos-arm64
           devcontainer-win-x64.exe
           devcontainer-win-arm64.exe
+          devcontainers-cli-${{ env.VER }}.tgz
+
+    - name: Create GitHub release
+      if: github.event_name != 'workflow_dispatch' || inputs.make-release == true || inputs.draft-release == true
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: CHANGELOG.md
+        tag_name: ${{ env.TAG }}
+        repository: ${{ github.repository }}
+        prerelease: ${{ env.PRERELEASE == 'true' }}
+        draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft-release == true }}
+        files: |
+          devcontainer-linux-x64
+          devcontainer-linux-arm64
+          devcontainer-macos-x64
+          devcontainer-macos-arm64
+          devcontainer-win-x64.exe
+          devcontainer-win-arm64.exe
+          devcontainers-cli-${{ env.VER }}.tgz

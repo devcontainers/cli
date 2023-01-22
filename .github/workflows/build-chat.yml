@@ -11,6 +11,7 @@ on:
 
 jobs:
   main:
+    if: github.repository == 'devcontainers/cli'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions

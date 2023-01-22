@@ -13,11 +13,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changed:
+    name: Check for changed files
+    runs-on: ubuntu-latest
+    outputs:
+      any_changed: ${{ steps.changes.outputs.any_changed }}
+      any_deleted: ${{ steps.changes.outputs.any_deleted }}
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check if source files changed
+        id: changes
+        uses: tj-actions/changed-files@v35.4.4
+        with:
+          files: |
+            *.js
+            *.json
+            yarn.lock
+            package.json
+            .github/workflows/dev-containers.yml
+            src/**
+            build/**
+            scripts/**
+      - name: Report changes
+        shell: bash
+        run: |
+          echo '${{ toJSON(steps.changes.outputs) }}'
+
   cli:
     name: CLI
     runs-on: ${{ matrix.os }}-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - { os: ubuntu,  pkg: node,       os-name: linux, node: 16 }
@@ -76,11 +106,12 @@ jobs:
         path: ${{ env.ARTIFACT_PATH }}
 
   tests-matrix:
-    needs: cli
     name: Test
+    needs: [changed, cli]
+    if: needs.changed.outputs.any_changed == 'true' || needs.changed.outputs.any_deleted == 'true'
     runs-on: ${{ matrix.os }}-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ubuntu]
         pkg: [node]
