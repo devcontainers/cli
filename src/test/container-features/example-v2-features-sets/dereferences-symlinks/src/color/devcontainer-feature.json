@@ -1,0 +1,6 @@
+{
+    "id": "color",
+    // I am a comment inside json
+    "version": "1.0.0",
+    "name": "A feature to remind you of your favorite color"
+}

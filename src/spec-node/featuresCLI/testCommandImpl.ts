@@ -165,7 +165,7 @@ async function doRunAutoTest(feature: string, workspaceFolder: string, featureTe
 	}
 
 	// Move the entire test directory for the given Feature into the workspaceFolder
-	await cpDirectoryLocal(featureTestFolder, workspaceFolder);
+	await cpDirectoryLocal(featureTestFolder, workspaceFolder, {dereference: true});
 
 	// Move the test library script into the workspaceFolder test scripts folder.
 	await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
@@ -224,7 +224,7 @@ async function doScenario(pathToTestDir: string, targetFeatureOrGlobal: string, 
 		await createContainerFromWorkingDirectory(params, workspaceFolder, args);
 
 		// Move the entire test directory for the given Feature into the workspaceFolder
-		await cpDirectoryLocal(pathToTestDir, workspaceFolder);
+		await cpDirectoryLocal(pathToTestDir, workspaceFolder, {dereference: true});
 
 		// Move the test library script into the workspaceFolder
 		await cliHost.writeFile(path.join(workspaceFolder, TEST_LIBRARY_SCRIPT_NAME), Buffer.from(testLibraryScript));
@@ -310,7 +310,7 @@ async function generateDefaultProjectFromFeatures(
 	for (const featureId of featuresToTest) {
 		// Copy the feature source code to the temp folder
 		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
-		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
+		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`, {dereference: true});
 	}
 
 	let template = devcontainerTemplate
@@ -356,7 +356,7 @@ async function generateProjectFromScenario(
 
 		// Copy the feature source code to the temp folder
 		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
-		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
+		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`, {dereference: true});
 
 		// Reference Feature in the devcontainer.json
 		updatedFeatures[`./${featureId}`] = featureValue;
@@ -369,7 +369,7 @@ async function generateProjectFromScenario(
 	// This lets the scenario use things like Dockerfiles, shell scripts, etc. in the build.
 	const localPathToAdditionalConfigFolder = `${collectionsDirectory}/test/${targetFeatureOrGlobal}/${scenarioId}`;
 	if (await cliHost.isFolder(localPathToAdditionalConfigFolder)) {
-		await cpDirectoryLocal(localPathToAdditionalConfigFolder, `${tmpFolder}/.devcontainer`);
+		await cpDirectoryLocal(localPathToAdditionalConfigFolder, `${tmpFolder}/.devcontainer`, {dereference: true});
 	}
 
 	// Update permissions on the copied files to make them readable/writable/executable by everyone

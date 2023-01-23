@@ -416,6 +416,28 @@ describe('CLI features subcommands', async function () {
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
 		});
+
+		it('succeeds when a feature set includes symlinks', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/dereferences-symlinks`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --log-level trace`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'color'
+✅ Passed:      'hello'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+		});
 	});
 
 	describe('features package', function () {

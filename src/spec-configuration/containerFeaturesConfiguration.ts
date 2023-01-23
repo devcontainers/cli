@@ -928,7 +928,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			if (sourceInfoType === 'local-cache') {
 				// create copy of the local features to set the environment variables for them.
 				await mkdirpLocal(featCachePath);
-				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
+				await cpDirectoryLocal(localFeaturesFolder, featCachePath, {dereference: true});
 
 				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
@@ -941,7 +941,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				output.write(`Detected local file path`, LogLevel.Trace);
 				await mkdirpLocal(featCachePath);
 				const executionPath = featureSet.sourceInformation.resolvedFilePath;
-				await cpDirectoryLocal(executionPath, featCachePath);
+				await cpDirectoryLocal(executionPath, featCachePath, {dereference: true});
 
 				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath))) {
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;

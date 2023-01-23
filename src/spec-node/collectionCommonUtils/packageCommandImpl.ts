@@ -75,7 +75,7 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 
 	const devcontainerJsonName = `devcontainer-${collectionType}.json`;
 	const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
-	await cpDirectoryLocal(targetFolder, tmpSrcDir);
+	await cpDirectoryLocal(targetFolder, tmpSrcDir, {dereference: true});
 
 	const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
 	if (!(await isLocalFile(jsonPath))) {
@@ -189,7 +189,7 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 			}
 
 			const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
-			await cpDirectoryLocal(folder, tmpSrcDir);
+			await cpDirectoryLocal(folder, tmpSrcDir, {dereference: true});
 
 			const archiveName = getArchiveName(c, collectionType);
 
