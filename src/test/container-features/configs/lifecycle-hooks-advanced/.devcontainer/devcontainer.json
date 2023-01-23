@@ -1,0 +1,17 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"./otter": {},
+		"./rabbit": {}
+	},
+	// "updateContentCommand": "touch devContainer.updateContentCommand.testMarker",
+	// "onCreateCommand": "touch devContainer.onCreateCommand.testMarker",
+	// "postCreateCommand": [
+	// 	"touch",
+	// 	"devContainer.postCreateCommand.testMarker"
+	// ],
+	"postStartCommand": "touch `rabbit`.postStartCommand.testMarker", // The 'rabbit' command is installed and added to the path by .devcontainer/rabbit/install.sh
+	"postAttachCommand": "touch `otter`.postAttachCommand.testMarker" // The 'otter'  command is installed and added to the path by .devcontainer/otter/install.sh
+}

@@ -1,0 +1,13 @@
+{
+    "id": "rabbit",
+    "version": "100.200.300",
+    "options": {}
+    //     "onCreateCommand": "touch rabbit.onCreateCommand.testMarker",
+    //     "updateContentCommand": [
+    //         "touch",
+    //         "panda.updateContentCommand.testMarker"
+    //     ],
+    //     "postCreateCommand": "touch panda.postCreateCommand.testMarker",
+    //     "postStartCommand": "touch panda.postStartCommand.testMarker",
+    //     "postAttachCommand": "touch panda.postAttachCommand.testMarker"
+}

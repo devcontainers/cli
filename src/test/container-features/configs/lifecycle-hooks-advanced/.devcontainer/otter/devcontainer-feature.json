@@ -1,0 +1,13 @@
+{
+    "id": "otter",
+    "version": "1.2.3",
+    "options": {}
+    // "onCreateCommand": "touch tiger.onCreateCommand.testMarker",
+    // "updateContentCommand": "touch tiger.updateContentCommand.testMarker",
+    // "postCreateCommand": "touch tiger.postCreateCommand.testMarker",
+    // "postStartCommand": "touch tiger.postStartCommand.testMarker",
+    // "postAttachCommand": [
+    //     "touch",
+    //     "tiger.postAttachCommand.testMarker"
+    // ]
+}
