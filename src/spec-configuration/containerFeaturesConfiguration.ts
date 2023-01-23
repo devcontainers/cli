@@ -591,7 +591,7 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig): Promise<FeaturesConfig> {
 	const { platform, output } = params;
 
-	let configPath = uriToFsPath(config.configFilePath, platform);
+	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, platform);
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
 	for (const userFeature of userFeatures) {
@@ -689,7 +689,7 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(params: CommonParams, configPath: string, _workspaceRoot: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(params: CommonParams, configPath: string | undefined, _workspaceRoot: string, userFeature: DevContainerFeature, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	const { output } = params;
 
 	output.write(`* Processing feature: ${userFeature.id}`);
@@ -781,6 +781,10 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		}
 
 		// Local-path features are expected to be a sub-folder of the '$WORKSPACE_ROOT/.devcontainer' folder.
+		if (!configPath) {
+			output.write('A local feature requires a configuration path.', LogLevel.Error);
+			return undefined;
+		}
 		const featureFolderPath = path.join(path.dirname(configPath), userFeature.id);
 
 		// Ensure we aren't escaping .devcontainer folder

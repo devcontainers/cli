@@ -4,6 +4,16 @@ Notable changes.
 
 ## January 2023
 
+### [0.29.0]
+
+- Add `set-up` command. (https://github.com/microsoft/vscode-remote-release/issues/7872)
+
+### [0.28.0]
+
+- Features preamble: Add warnings for Feature renames & deprecation. (https://github.com/devcontainers/cli/pull/366)
+- Add dotfiles functionallity. (https://github.com/devcontainers/cli/pull/362)
+- Cache user env for performance improvement. (https://github.com/devcontainers/cli/pull/374)
+
 ### [0.27.1]
 
 - Fix: Modify argument regex to only allow certain set of values (https://github.com/devcontainers/cli/pull/361)
