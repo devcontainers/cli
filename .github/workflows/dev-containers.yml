@@ -45,15 +45,15 @@ jobs:
 
   cli:
     name: CLI
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu,  pkg: node,       os-name: linux, node: 16 }
-          - { os: ubuntu,  pkg: standalone, os-name: linux, node: 16 }
-          - { os: macos,   pkg: standalone, os-name: macos, node: 16 }
-          - { os: windows, pkg: standalone, os-name: win,   node: 16, exe-suf: '.exe' }
+          - { os: ubuntu-20.04,  pkg: node,       os-name: linux, node: 16 }
+          - { os: ubuntu-20.04,  pkg: standalone, os-name: linux, node: 16 }
+          - { os: macos-11,      pkg: standalone, os-name: macos, node: 16 }
+          - { os: windows-2019,  pkg: standalone, os-name: win,   node: 16, exe-suf: '.exe' }
 
     steps:
     - uses: actions/checkout@v3
@@ -109,11 +109,11 @@ jobs:
     name: Test
     needs: [changed, cli]
     if: needs.changed.outputs.any_changed == 'true' || needs.changed.outputs.any_deleted == 'true'
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu]
+        os: [ubuntu-20.04]
         pkg: [node]
         node: [16]
         mocha-args:
@@ -144,10 +144,10 @@ jobs:
              --exclude src/test/cli.up.test.ts \
              'src/test/**/*.test.ts'"
         include:
-          - { os: ubuntu,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/cli.exec.{buildKit,nonBuildKit}.*.test.ts' }
-          - { os: ubuntu,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
-          - { os: macos,   pkg: standalone, node: 16, os-name: macos, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
-          - { os: windows, pkg: standalone, node: 16, os-name: win,   mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts', exe-suf: '.exe' }
+          - { os: ubuntu-20.04,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/cli.exec.{buildKit,nonBuildKit}.*.test.ts' }
+          - { os: ubuntu-20.04,  pkg: standalone, node: 16, os-name: linux, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
+          - { os: macos-11,      pkg: standalone, node: 16, os-name: macos, mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts' }
+          - { os: windows-2019,  pkg: standalone, node: 16, os-name: win,   mocha-args: 'src/test/container-features/{containerFeaturesOCI,generateFeaturesConfig}.test.ts', exe-suf: '.exe' }
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -191,7 +191,7 @@ jobs:
         name: ${{ env.ARTIFACT_SLUG }}
         path: ${{ env.ARTIFACT_PATH }}
     - name: Install docker for macOS
-      if: matrix.os == 'macos'
+      if: startsWith(matrix.os, 'macos')
       shell: bash
       env:
         HOMEBREW_ACCEPT_EULA: Y
