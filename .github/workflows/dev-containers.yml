@@ -83,7 +83,7 @@ jobs:
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
-        key: ${{ runner.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
+        key: ${{ matrix.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
         path: node_modules
     - name: Install Dependencies
       shell: bash
@@ -180,7 +180,7 @@ jobs:
     - name: Cache node_modules
       uses: actions/cache@v3
       with:
-        key: ${{ runner.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
+        key: ${{ matrix.os }}-${{ env.VER }}-node${{ matrix.node }}-node_modules-${{ hashFiles('**/yarn.lock', '**/package.json') }}
         path: node_modules
     - name: Install Dependencies
       shell: bash
