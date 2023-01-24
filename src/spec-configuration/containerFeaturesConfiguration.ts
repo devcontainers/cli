@@ -243,7 +243,7 @@ export function getContainerFeaturesBaseDockerFile() {
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
 COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
-RUN chmod -R 0700 /tmp/build-features
+RUN chmod -R 0777 /tmp/build-features
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
