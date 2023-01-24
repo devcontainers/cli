@@ -99,17 +99,17 @@ describe('Feature lifecycle hooks', function () {
 				// to run a script bundled with the Feature, the user needs to use the '${featureRoot}' variable.
 				// This variable can only be used in a devcontainer-feature.json's lifecycle scripts.
 				// And will return the temporary directory where the Feature's files are copied to.
-				assert.match(outputOfExecCommand, /helperScript.rabbit.onCreateCommand.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.rabbit.updateContent.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.rabbit.postCreate.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.rabbit.postStart.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.rabbit.postAttach.markerFile/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.updateContent.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.postCreate.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.postStart.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.postAttach.testMarker/);
 
-				assert.match(outputOfExecCommand, /helperScript.otter.onCreateCommand.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.otter.updateContent.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.otter.postCreate.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.otter.postStart.markerFile/);
-				assert.match(outputOfExecCommand, /helperScript.otter.postAttach.markerFile/);
+				assert.match(outputOfExecCommand, /helperScript.otter.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.otter.updateContent.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.otter.postCreate.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.otter.postStart.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.otter.postAttach.testMarker/);
 			});
 		});
 	});
