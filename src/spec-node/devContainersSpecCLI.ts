@@ -90,14 +90,14 @@ function findWorkspaceFolder(): string | undefined {
   let ceilingDirsEnv = process.env.DEVCONTAINERS_CEILING_DIRECTORIES;
 	const ceilingDirs = ceilingDirsEnv ? ceilingDirsEnv.split(':') : [];
 	while (true){
-		if(ceilingDirs.some(ceiling=>!path.relative(target, ceiling))){
-			break;
-		}
 		if(fs.existsSync(target + '/.devcontainer')){
 			if(!fs.lstatSync(target + '/.devcontainer').isDirectory){
 				throw new Error('not a directory');
 			}
 			return target;
+		}
+		if(ceilingDirs.some(ceiling=>!path.relative(target, ceiling))){
+			break;
 		}
 		target = path.resolve(target, '..');
 	}
