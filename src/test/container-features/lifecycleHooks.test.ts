@@ -45,23 +45,23 @@ describe('Feature lifecycle hooks', function () {
 				const outputOfExecCommand = res.stderr;
 				console.log(outputOfExecCommand);
 
-				assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /3.panda.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /6.panda.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /9.panda.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /12.panda.postAttachCommand.testMarker/);
+				assert.match(outputOfExecCommand, /panda.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /panda.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /panda.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /panda.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /panda.postAttachCommand.testMarker/);
 
-				assert.match(outputOfExecCommand, /1.tiger.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /4.tiger.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /7.tiger.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /10.tiger.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /13.tiger.postAttachCommand.testMarker/);
+				assert.match(outputOfExecCommand, /tiger.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /tiger.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /tiger.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /tiger.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /tiger.postAttachCommand.testMarker/);
 
-				assert.match(outputOfExecCommand, /2.devContainer.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /5.devContainer.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /8.devContainer.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /11.devContainer.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
+				assert.match(outputOfExecCommand, /devContainer.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /devContainer.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /devContainer.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /devContainer.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /devContainer.postAttachCommand.testMarker/);
 			});
 		});
 	});
@@ -123,9 +123,4 @@ describe('Feature lifecycle hooks', function () {
 			});
 		});
 	});
-
-	// describe('lifecycle-hooks-parallel-execution', () => {
-	// 	assert.fail('TODO');
-	// });
-
 });
