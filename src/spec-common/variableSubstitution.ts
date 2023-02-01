@@ -124,6 +124,16 @@ function replaceContainerEnv(isWindows: boolean, configFile: URI | undefined, co
 	}
 }
 
+function replaceFeatureRoot(featureRoot: string | undefined, match: string, variable: string) {
+	switch (variable) {
+		case 'featureRoot':
+			return featureRoot || match;
+
+		default:
+			return match;
+	}
+}
+
 function replaceDevContainerId(getDevContainerId: () => string | undefined, match: string, variable: string) {
 	switch (variable) {
 		case 'devcontainerId':
@@ -168,4 +178,12 @@ function devcontainerIdForLabels(idLabels: Record<string, string>): string {
 		.toString(32)
 		.padStart(52, '0');
 	return uniqueId;
+}
+
+export function substituteFeatureRoot(lifecycleHook: string | string[] | undefined, cachePath: string | undefined): string | string[] | undefined {
+	if (!lifecycleHook || !cachePath) {
+		return lifecycleHook;
+	}
+
+	return substitute0(replaceFeatureRoot.bind(undefined, cachePath), lifecycleHook);
 }

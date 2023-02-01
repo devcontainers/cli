@@ -1,16 +1,16 @@
 {
     "id": "rabbit",
     "version": "100.200.300",
-    "options": {}
-    // "updateContentCommand": "${featureRoot}/helper_script.sh updateContentCommand",
-    // "onCreateCommand": "${featureRoot}/helper_script.sh onCreateCommand",
-    // "postCreateCommand": "${featureRoot}/helper_script.sh postCreateCommand",
-    // "postStartCommand": [
-    //     "${featureRoot}/helper_script.sh",
-    //     "postStartCommand"
-    // ],
-    // "onAttachCommand": [
-    //     "${featureRoot}/helper_script.sh",
-    //     "onAttachCommand"
-    // ]
+    "options": {},
+    "updateContentCommand": "${featureRoot}/helper_script.sh updateContentCommand",
+    "onCreateCommand": "${featureRoot}/helper_script.sh onCreateCommand",
+    "postCreateCommand": "${featureRoot}/helper_script.sh postCreateCommand",
+    "postStartCommand": [
+        "${featureRoot}/helper_script.sh",
+        "postStartCommand"
+    ],
+    "postAttachCommand": [
+        "${featureRoot}/helper_script.sh",
+        "postAttachCommand"
+    ]
 }

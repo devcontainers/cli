@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import path from 'path';
 import { ContainerError } from '../spec-common/errors';
+import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -45,12 +47,16 @@ const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMet
 	'remoteEnv',
 ];
 
-const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
+const pickFeatureLifecycleHookProperties: Exclude<keyof SchemaFeatureLifecycleHooks, 'id'>[] = [
 	'onCreateCommand',
 	'updateContentCommand',
 	'postCreateCommand',
 	'postStartCommand',
 	'postAttachCommand',
+];
+
+const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
+	...pickFeatureLifecycleHookProperties,
 	'init',
 	'privileged',
 	'capAdd',
@@ -252,7 +258,19 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 
-	const raw = featuresConfig?.featureSets.map(featureSet => featureSet.features.map(feature => ({
+	// Variable substitution
+	const _ = featuresConfig?.featureSets.forEach(featureSet =>
+		featureSet.features.forEach(f => {
+			pickFeatureLifecycleHookProperties.forEach(hook => {
+				const buildPath = `/tmp/build-features/${f.consecutiveId}`;
+				if (f[hook]) {
+					f[hook] = substituteFeatureRoot(f[hook], buildPath);
+				}
+			});
+		}));
+
+	const raw = featuresConfig?.featureSets.map(featureSet =>
+		featureSet.features.map(feature => ({
 		id: featureSet.sourceInformation.userFeatureId,
 		...pick(feature, effectivePickFeatureProperties),
 	}))).flat() || [];

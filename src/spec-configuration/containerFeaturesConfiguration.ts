@@ -23,10 +23,18 @@ export const V1_DEVCONTAINER_FEATURES_FILE_NAME = 'devcontainer-features.json';
 // v2
 export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
-export type Feature = SchemaFeatureProperties & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
+export type Feature = SchemaFeatureBaseProperties & SchemaFeatureLifecycleHooks & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
+
+export interface SchemaFeatureLifecycleHooks {
+	onCreateCommand?: string | string[];
+	updateContentCommand?: string | string[];
+	postCreateCommand?: string | string[];
+	postStartCommand?: string | string[];
+	postAttachCommand?: string | string[];
+}
 
 // Properties who are members of the schema
-export interface SchemaFeatureProperties {
+export interface SchemaFeatureBaseProperties {
 	id: string;
 	version?: string;
 	name?: string;
@@ -45,11 +53,6 @@ export interface SchemaFeatureProperties {
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
-	onCreateCommand?: string | string[];
-	updateContentCommand?: string | string[];
-	postCreateCommand?: string | string[];
-	postStartCommand?: string | string[];
-	postAttachCommand?: string | string[];
 }
 
 // Properties that are set programmatically for book-keeping purposes
