@@ -4,7 +4,10 @@
     "options": {},
     "updateContentCommand": "${featureRoot}/helper_script.sh updateContentCommand",
     "onCreateCommand": "${featureRoot}/helper_script.sh onCreateCommand",
-    "postCreateCommand": "${featureRoot}/helper_script.sh postCreateCommand",
+    "postCreateCommand": {
+        "parallel1": "${featureRoot}/helper_script.sh parallel_postCreateCommand_1",
+        "parallel2": "${featureRoot}/helper_script.sh parallel_postCreateCommand_2"
+    },
     "postStartCommand": [
         "${featureRoot}/helper_script.sh",
         "postStartCommand"

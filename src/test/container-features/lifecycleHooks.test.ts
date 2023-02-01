@@ -95,21 +95,31 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(outputOfExecCommand, /i-am-a-rabbit.postStartCommand.testMarker/);
 				assert.match(outputOfExecCommand, /i-am-an-otter.postAttachCommand.testMarker/);
 
+				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_1.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_2.testMarker/);
+
 				// Since lifecycle scripts are executed relative to the workspace folder,
 				// to run a script bundled with the Feature, the user needs to use the '${featureRoot}' variable.
 				// This variable can only be used in a devcontainer-feature.json's lifecycle scripts.
 				// And will return the temporary directory where the Feature's files are copied to.
+
+				// -- 'Rabbit' Feature
 				assert.match(outputOfExecCommand, /helperScript.rabbit.onCreateCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.rabbit.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /helperScript.rabbit.postCreateCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.rabbit.postStartCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.rabbit.postAttachCommand.testMarker/);
 
+				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_1.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_2.testMarker/);
+
+				// -- 'Otter' Feature
 				assert.match(outputOfExecCommand, /helperScript.otter.onCreateCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.otter.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /helperScript.otter.postCreateCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.otter.postStartCommand.testMarker/);
 				assert.match(outputOfExecCommand, /helperScript.otter.postAttachCommand.testMarker/);
+
+				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_1.testMarker/);
+				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_2.testMarker/);
 			});
 		});
 	});
