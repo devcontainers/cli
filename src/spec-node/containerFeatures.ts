@@ -285,7 +285,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
-	const dockerfile = getContainerFeaturesBaseDockerFile()
+	let dockerfile = getContainerFeaturesBaseDockerFile()
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('{contentSourceRootPath}', contentSourceRootPath)
 		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
@@ -294,6 +294,14 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
 		;
+	
+	const rawContainerEnv = imageMetadata.raw.find(entry => entry.containerEnv)?.containerEnv;
+	if (rawContainerEnv !== undefined) {
+		let keys = Object.keys(rawContainerEnv);
+		const concatenatedEnv = keys.map(k => `ENV ${k}=${rawContainerEnv![k]}`).join('\n');
+		dockerfile += concatenatedEnv;
+	}
+
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
 		'# syntax=docker/dockerfile:1.4' :

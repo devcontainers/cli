@@ -1,0 +1,11 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/java:1": {
+            "version": "none"
+        }
+    },
+    "containerEnv": {
+        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current"
+    }
+}
