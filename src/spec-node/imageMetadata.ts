@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path from 'path';
 import { ContainerError } from '../spec-common/errors';
 import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
@@ -259,7 +258,8 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 
 	// Variable substitution
-	const _ = featuresConfig?.featureSets.forEach(featureSet =>
+	// eslint-disable-next-line code-no-unused-expressions
+	featuresConfig?.featureSets.forEach(featureSet =>
 		featureSet.features.forEach(f => {
 			pickFeatureLifecycleHookProperties.forEach(hook => {
 				const buildPath = `/tmp/build-features/${f.consecutiveId}`;
