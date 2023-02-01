@@ -13,7 +13,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
@@ -835,7 +835,7 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
+		const result = await runLifecycleHooks(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,

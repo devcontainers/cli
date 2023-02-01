@@ -55,7 +55,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	const configWithRaw = addSubstitution(configs.config, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 	const { config } = configWithRaw;
 
-	await runUserCommand({ ...params, common: { ...common, output: common.postCreate.output } }, config.initializeCommand, common.postCreate.onDidInput);
+	await runUserCommand({ ...params, common: { ...common, output: common.lifecycleHook.output } }, config.initializeCommand, common.lifecycleHook.onDidInput);
 
 	let result: ResolverResult;
 	if (isDockerFileConfig(config) || 'image' in config) {
