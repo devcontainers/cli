@@ -75,7 +75,7 @@ interface OCIImageIndexEntry {
 	platform: {
 		architecture: string;
 		os: string;
-	}
+	};
 }
 
 // https://github.com/opencontainers/image-spec/blob/main/manifest.md#example-image-manifest
@@ -246,7 +246,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 }
 
 // https://github.com/opencontainers/image-spec/blob/main/manifest.md
-export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture, os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
+export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
 	const imageIndex: OCIImageIndex = await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
 	if (!imageIndex || !imageIndex.manifests) {
 		return undefined;
@@ -276,7 +276,7 @@ async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRe
 		};
 
 		const httpOptions = {
-			type: 'GET',	
+			type: 'GET',
 			url: url,
 			headers: headers
 		};

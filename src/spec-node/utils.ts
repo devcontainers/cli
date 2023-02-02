@@ -214,7 +214,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, platformInfo: { arch: NodeJS.Architecture, os: NodeJS.Platform }, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, name: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const params = { output, env: process.env };
 	const ref = getRef(output, resourceAndVersion);
