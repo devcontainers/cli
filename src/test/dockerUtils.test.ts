@@ -14,7 +14,7 @@ describe('Docker utils', function () {
 
 	it('inspect image in docker.io', async () => {
 		const imageName = 'docker.io/library/ubuntu:latest';
-		const config = await inspectImageInRegistry(output, imageName);
+		const config = await inspectImageInRegistry(output, { arch: 'x64', os: 'linux' }, imageName);
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);
@@ -22,7 +22,7 @@ describe('Docker utils', function () {
 
 	it('inspect image in mcr.microsoft.com', async () => {
 		const imageName = 'mcr.microsoft.com/devcontainers/rust:1';
-		const config = await inspectImageInRegistry(output, imageName);
+		const config = await inspectImageInRegistry(output, { arch: 'x64', os: 'linux' }, imageName);
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);
@@ -34,7 +34,7 @@ describe('Docker utils', function () {
 
 	it('inspect image in ghcr.io', async () => {
 		const imageName = 'ghcr.io/chrmarti/cache-from-test/images/test-cache:latest';
-		const config = await inspectImageInRegistry(output, imageName);
+		const config = await inspectImageInRegistry(output, { arch: 'x64', os: 'linux' }, imageName);
 		assert.ok(config);
 		assert.ok(config.Id);
 		assert.ok(config.Config.Cmd);

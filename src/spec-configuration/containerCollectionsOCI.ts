@@ -68,6 +68,23 @@ interface OCITagList {
 	tags: string[];
 }
 
+interface OCIImageIndexEntry {
+	mediaType: string;
+	size: number;
+	digest: string;
+	platform: {
+		architecture: string;
+		os: string;
+	};
+}
+
+// https://github.com/opencontainers/image-spec/blob/main/manifest.md#example-image-manifest
+interface OCIImageIndex {
+	schemaVersion: number;
+	mediaType: string;
+	manifests: OCIImageIndexEntry[];
+}
+
 // Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
 //
@@ -77,6 +94,28 @@ const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*
 // MUST be either (a) the digest of the manifest or (b) a tag
 // MUST be at most 128 characters in length and MUST match the following regular expression:
 const regexForReference = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
+
+// https://go.dev/doc/install/source#environment
+// Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
+export function mapNodeArchitectureToGOARCH(arch: NodeJS.Architecture): string {
+	switch (arch) {
+		case 'x64':
+			return 'amd64';
+		default:
+			return arch;
+	}
+}
+
+// https://go.dev/doc/install/source#environment
+// Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
+export function mapNodeOSToGOOS(os: NodeJS.Platform): string {
+	switch (os) {
+		case 'win32':
+			return 'windows';
+		default:
+			return os;
+	}
+}
 
 // https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Attempts to parse the given string into an OCIRef
@@ -203,16 +242,41 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 }
 
 export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<OCIManifest | undefined> {
+	return await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+}
+
+// https://github.com/opencontainers/image-spec/blob/main/manifest.md
+export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
+	const imageIndex: OCIImageIndex = await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
+	if (!imageIndex || !imageIndex.manifests) {
+		return undefined;
+	}
+
+	const ociFriendlyPlatformInfo = {
+		arch: mapNodeArchitectureToGOARCH(platformInfo.arch),
+		os: mapNodeOSToGOOS(platformInfo.os),
+	};
+
+	// Find a manifest for the current architecture and OS.
+	return imageIndex.manifests.find(m => {
+		if (m.platform?.architecture === ociFriendlyPlatformInfo.arch && m.platform?.os === ociFriendlyPlatformInfo.os) {
+			return m;
+		}
+		return undefined;
+	});
+}
+
+async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<any | undefined> {
 	const { output } = params;
 	let body: string = '';
 	try {
 		const headers = {
 			'user-agent': 'devcontainer',
-			'accept': mimeType || 'application/vnd.oci.image.manifest.v1+json',
+			'accept': mimeType,
 		};
 
 		const httpOptions = {
-			type: 'GET',	
+			type: 'GET',
 			url: url,
 			headers: headers
 		};
@@ -228,13 +292,14 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 
 		// NOTE: A 404 is expected here if the manifest does not exist on the remote.
 		if (statusCode > 299) {
-			output.write(`Did not fetch manifest: ${body}`, LogLevel.Trace);
+			output.write(`Did not fetch target with expected mimetype '${mimeType}': ${body}`, LogLevel.Trace);
 			return;
 		}
-
-		return JSON.parse(body);
+		const parsed = JSON.parse(body);
+		output.write(`Fetched: ${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Trace);
+		return parsed;
 	} catch (e) {
-		output.write(`Failed to parse manifest: ${body}`, LogLevel.Error);
+		output.write(`Failed to parse JSON with mimeType '${mimeType}': ${body}`, LogLevel.Error);
 		return;
 	}
 }
@@ -247,7 +312,7 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
 		const headers = {
-			'accept': 'application/json',
+			'Accept': 'application/json',
 		};
 
 		const httpOptions = {
@@ -304,7 +369,7 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		const tempTarballPath = path.join(ociCacheDir, 'blob.tar');
 
 		const headers = {
-			'accept': 'application/vnd.oci.image.manifest.v1+json',
+			'Accept': 'application/vnd.oci.image.manifest.v1+json',
 		};
 
 		const httpOptions = {
