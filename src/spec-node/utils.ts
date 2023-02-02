@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
+import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
@@ -192,9 +192,10 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 		if (!pullImageOnError) {
 			throw err;
 		}
+		const cliHost = 'cliHost' in params ? params.cliHost : params.common.cliHost;
 		const output = 'cliHost' in params ? params.output : params.common.output;
 		try {
-			return await inspectImageInRegistry(output, imageName);
+			return await inspectImageInRegistry(output, { arch: cliHost.arch, os: cliHost.platform }, imageName);
 		} catch (err2) {
 			output.write(`Error fetching image details: ${err2?.message}`);
 		}
@@ -213,7 +214,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: { arch: NodeJS.Architecture, os: NodeJS.Platform }, name: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const params = { output, env: process.env };
 	const ref = getRef(output, resourceAndVersion);
@@ -224,12 +225,29 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
 	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
+
+	let targetDigest: string | undefined = undefined;
 	const manifest = await getManifest(params, manifestUrl, ref, 'application/vnd.docker.distribution.manifest.v2+json');
-	if (!manifest) {
+	if (manifest) {
+		targetDigest = manifest.config.digest;
+	} else {
+		// If we couldn't fetch the manifest, perhaps the registry supports querying for the 'Image Index'
+		// Spec: https://github.com/opencontainers/image-spec/blob/main/image-index.md
+		const imageIndexEntry = await getImageIndexEntryForPlatform(params, manifestUrl, ref, platformInfo);
+		if (imageIndexEntry) {
+			const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
+			const a = await getManifest(params, manifestUrl, ref);
+			if (a) {
+				targetDigest = a.config.digest;
+			}
+		}
+	}
+
+	if (!targetDigest) {
 		throw new Error(`No manifest found for ${resourceAndVersion}.`);
 	}
 
-	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${manifest.config.digest}`;
+	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${targetDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const httpOptions = {
@@ -245,7 +263,7 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	const blob = res.resBody.toString();
 	const obj = JSON.parse(blob);
 	return {
-		Id: manifest.config.digest,
+		Id: targetDigest,
 		Config: obj.config,
 	};
 }
