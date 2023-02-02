@@ -15,7 +15,7 @@ import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
+import { getContainerEnvMetadata, getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 
@@ -285,7 +285,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
-	let dockerfile = getContainerFeaturesBaseDockerFile()
+	const dockerfile = getContainerFeaturesBaseDockerFile()
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('{contentSourceRootPath}', contentSourceRootPath)
 		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
@@ -293,15 +293,8 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
+		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
 		;
-	
-	const rawContainerEnv = imageMetadata.raw.find(entry => entry.containerEnv)?.containerEnv;
-	if (rawContainerEnv !== undefined) {
-		let keys = Object.keys(rawContainerEnv);
-		const concatenatedEnv = keys.map(k => `ENV ${k}=${rawContainerEnv![k]}`).join('\n');
-		dockerfile += concatenatedEnv;
-	}
-
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
 		'# syntax=docker/dockerfile:1.4' :
