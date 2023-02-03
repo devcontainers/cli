@@ -9,12 +9,12 @@ import yargs, { Argv } from 'yargs';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution } from './utils';
+import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
-import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
+import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
@@ -193,7 +193,7 @@ async function provision({
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
-	const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder!);
+	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -245,7 +245,7 @@ async function provision({
 		skipPersistingCustomizationsFromFeatures: false,
 	};
 
-	const result = await doProvision(options, idLabels);
+	const result = await doProvision(options, providedIdLabels);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
 	console.log(JSON.stringify(result));
 	if (result.outcome === 'success') {
@@ -255,13 +255,13 @@ async function provision({
 	process.exit(exitCode);
 }
 
-async function doProvision(options: ProvisionOptions, idLabels: string[]) {
+async function doProvision(options: ProvisionOptions, providedIdLabels: string[] | undefined) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const result = await launch(options, idLabels, disposables);
+		const result = await launch(options, providedIdLabels, disposables);
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -758,8 +758,7 @@ async function doRunUserCommands({
 	};
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -822,7 +821,7 @@ async function doRunUserCommands({
 			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
 		};
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
@@ -926,8 +925,7 @@ async function readConfiguration({
 	let output: Log | undefined;
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
@@ -971,7 +969,7 @@ async function readConfiguration({
 			env: cliHost.env,
 			output
 		};
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
 			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
@@ -1111,8 +1109,7 @@ export async function doExec({
 	};
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -1171,7 +1168,7 @@ export async function doExec({
 			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
 		};
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
@@ -1206,8 +1203,4 @@ export async function doExec({
 			dispose,
 		};
 	}
-}
-
-function getDefaultIdLabels(workspaceFolder: string) {
-	return [`${hostFolderLabel}=${workspaceFolder}`];
 }
