@@ -27,6 +27,7 @@ import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
+import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -459,4 +460,41 @@ export async function getLocalCacheFolder() {
 
 export function getEmptyContextFolder(common: ResolverParameters) {
 	return common.cliHost.path.join(common.persistedFolder, 'empty-folder');
+}
+
+export async function findContainerAndIdLabels(params: DockerResolverParameters | DockerCLIParameters, containerId: string | undefined, providedIdLabels: string[] | undefined, workspaceFolder: string | undefined, configFile: string | undefined, removeContainerWithOldLabels?: boolean | string) {
+	if (providedIdLabels) {
+		return {
+			container: containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, providedIdLabels),
+			idLabels: providedIdLabels,
+		};
+	}
+	let container: ContainerDetails | undefined;
+	if (containerId) {
+		container = await inspectContainer(params, containerId);
+	} else if (workspaceFolder && configFile) {
+		container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`]);
+		if (!container) {
+			// Fall back to old labels.
+			container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`]);
+			if (container) {
+				if (container.Config.Labels?.[configFileLabel]) {
+					// But ignore containers with new labels.
+					container = undefined;
+				} else if (removeContainerWithOldLabels === true || removeContainerWithOldLabels === container.Id) {
+					// Remove container, so it will be rebuilt with new labels.
+					await dockerCLI(params, 'rm', '-f', container.Id);
+					container = undefined;
+				}
+			}
+		}
+	} else {
+		throw new Error(`Either containerId or workspaceFolder and configFile must be provided.`);
+	}
+	return {
+		container,
+		idLabels: !container || container.Config.Labels?.[configFileLabel] ?
+			[`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`] :
+			[`${hostFolderLabel}=${workspaceFolder}`],
+	};
 }
