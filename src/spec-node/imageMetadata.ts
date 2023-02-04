@@ -286,7 +286,7 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	featuresConfig?.featureSets.forEach(featureSet =>
 		featureSet.features.forEach(f => {
 			pickFeatureLifecycleHookProperties.forEach(hook => {
-				const buildPath = `/tmp/build-features/${f.consecutiveId}`;
+				const buildPath = `/opt/build-features/${f.consecutiveId}`;
 				if (f[hook]) {
 					f[hook] = substituteFeatureRoot(f[hook], buildPath);
 				}

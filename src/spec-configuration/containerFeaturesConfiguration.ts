@@ -25,6 +25,8 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
 export type Feature = SchemaFeatureBaseProperties & SchemaFeatureLifecycleHooks & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
 
+export const CONTAINER_BUILD_FEATURES_DIR = '/opt/build-features';
+
 export interface SchemaFeatureLifecycleHooks {
 	onCreateCommand?: string | string[];
 	updateContentCommand?: string | string[];
@@ -245,14 +247,14 @@ export function getContainerFeaturesBaseDockerFile() {
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /tmp/build-features/
-RUN chmod -R 0777 /tmp/build-features
+COPY --from=dev_containers_feature_content_source {contentSourceRootPath} /opt/build-features/
+RUN chmod -R 0777 /opt/build-features
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
+COPY --from=dev_containers_feature_content_normalize /opt/build-features /opt/build-features
 
 #{featureLayer}
 
@@ -331,15 +333,15 @@ function escapeQuotesForShell(input: string) {
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string) {
 	let result = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env
 
 `;
 
 	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
-		result += `RUN cd /tmp/build-features/${folder} \\
+		result += `RUN cd /opt/build-features/${folder} \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -350,7 +352,7 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/bu
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
 			result += `
-RUN cd /tmp/build-features/${feature.consecutiveId} \\
+RUN cd /opt/build-features/${feature.consecutiveId} \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 

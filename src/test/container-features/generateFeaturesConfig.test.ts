@@ -72,14 +72,14 @@ describe('validate generateFeaturesConfig()', function () {
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env
 
-RUN cd /tmp/build-features/first_1 \\
+RUN cd /opt/build-features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-RUN cd /tmp/build-features/second_2 \\
+RUN cd /opt/build-features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -130,16 +130,16 @@ RUN cd /tmp/build-features/second_2 \\
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /opt/build-features/devcontainer-features.builtin.env
 
 
-RUN cd /tmp/build-features/color_3 \\
+RUN cd /opt/build-features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-RUN cd /tmp/build-features/hello_4 \\
+RUN cd /opt/build-features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
