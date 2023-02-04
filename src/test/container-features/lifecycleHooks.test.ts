@@ -70,11 +70,14 @@ describe('Feature lifecycle hooks', function () {
 
 		describe(`devcontainer up`, () => {
 			let containerId: string | null = null;
+			let containerUpStandardError: string;
 			const testFolder = `${__dirname}/configs/lifecycle-hooks-advanced`;
 
 			before(async () => {
 				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
-				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId;
+				const res = await devContainerUp(cli, testFolder, { 'logLevel': 'trace' });
+				containerId = res.containerId;
+				containerUpStandardError = res.stderr;
 			});
 
 			after(async () => {
@@ -93,10 +96,16 @@ describe('Feature lifecycle hooks', function () {
 				// Executes the command that was installed by each Feature's 'install.sh'.
 				// The command is installed to a directory on the $PATH so it can be executed from the lifecycle script.
 				assert.match(outputOfExecCommand, /i-am-a-rabbit.postStartCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postCreateCommand from devcontainer.json/);
+
 				assert.match(outputOfExecCommand, /i-am-an-otter.postAttachCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postAttachCommand from devcontainer.json/);
 
 				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_1.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel1 from devcontainer.json.../);
+
 				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_2.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel2 from devcontainer.json.../);
 
 				// Since lifecycle scripts are executed relative to the workspace folder,
 				// to run a script bundled with the Feature, the user needs to use the '${featureRoot}' variable.
@@ -105,21 +114,45 @@ describe('Feature lifecycle hooks', function () {
 
 				// -- 'Rabbit' Feature
 				assert.match(outputOfExecCommand, /helperScript.rabbit.onCreateCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the onCreateCommand from Feature '\.\/rabbit'/);
+
 				assert.match(outputOfExecCommand, /helperScript.rabbit.updateContentCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the updateContentCommand from Feature '\.\/rabbit'/);
+
 				assert.match(outputOfExecCommand, /helperScript.rabbit.postStartCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postStartCommand from Feature '\.\/rabbit'/);
+
 				assert.match(outputOfExecCommand, /helperScript.rabbit.postAttachCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postAttachCommand from Feature '\.\/rabbit'/);
 
 				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_1.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel1 from Feature '\.\/rabbit'/);
+
 				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_2.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel2 from Feature '\.\/rabbit'/);
+
 
 				// -- 'Otter' Feature
 				assert.match(outputOfExecCommand, /helperScript.otter.onCreateCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the onCreateCommand from Feature '\.\/otter'/);
+
 				assert.match(outputOfExecCommand, /helperScript.otter.updateContentCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the updateContentCommand from Feature '\.\/otter'/);
+
 				assert.match(outputOfExecCommand, /helperScript.otter.postStartCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postStartCommand from Feature '\.\/otter'/);
+
 				assert.match(outputOfExecCommand, /helperScript.otter.postAttachCommand.testMarker/);
+				assert.match(containerUpStandardError, /Running the postAttachCommand from Feature '\.\/otter'/);
 
 				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_1.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel1 from Feature '\.\/otter'/);
+
 				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_2.testMarker/);
+				assert.match(containerUpStandardError, /Running parallel2 from Feature '\.\/otter'/);
+
+				// -- Assert that at no point did logging the lifecycle hook fail.
+				assert.notMatch(containerUpStandardError, /Running the (.*) from \?\?\?/);
 			});
 		});
 	});

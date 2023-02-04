@@ -31,7 +31,7 @@ import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/pu
 import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
 import { featuresInfoManifestHandler, featuresInfoManifestOptions } from './featuresCLI/infoManifest';
@@ -423,7 +423,7 @@ async function doSetUp({
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, true, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
-		await setupInContainer(common, containerProperties, mergedConfig);
+		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -835,7 +835,7 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runLifecycleHooks(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
+		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,

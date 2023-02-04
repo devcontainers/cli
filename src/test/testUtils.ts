@@ -21,6 +21,7 @@ export interface UpResult {
     outcome: string;
     containerId: string;
     composeProjectName: string | undefined;
+    stderr: string;
 }
 
 export interface ExecResult {
@@ -52,7 +53,7 @@ export async function devContainerUp(cli: string, workspaceFolder: string, optio
     assert.equal(response.outcome, 'success');
     const { outcome, containerId, composeProjectName } = response as UpResult;
     assert.ok(containerId, 'Container id not found.');
-    return { outcome, containerId, composeProjectName };
+    return { outcome, containerId, composeProjectName, stderr: res.stderr };
 }
 export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null }) {
     if (options.containerId) {

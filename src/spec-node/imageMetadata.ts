@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
+import { LifecycleCommand, LifecycleCommandOriginMap } from '../spec-common/injectHeadless';
 import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
@@ -74,11 +75,11 @@ export interface ImageMetadataEntry {
 	entrypoint?: string;
 	mounts?: (Mount | string)[];
 	customizations?: Record<string, any>;
-	onCreateCommand?: string | string[];
-	updateContentCommand?: string | string[];
-	postCreateCommand?: string | string[];
-	postStartCommand?: string | string[];
-	postAttachCommand?: string | string[];
+	onCreateCommand?: LifecycleCommand;
+	updateContentCommand?: LifecycleCommand;
+	postCreateCommand?: LifecycleCommand;
+	postStartCommand?: LifecycleCommand;
+	postAttachCommand?: LifecycleCommand;
 	waitFor?: DevContainerConfigCommand;
 	remoteUser?: string;
 	containerUser?: string;
@@ -112,13 +113,36 @@ const replaceProperties = [
 interface UpdatedConfigProperties {
 	customizations?: Record<string, any[]>;
 	entrypoints?: string[];
-	onCreateCommands?: (string | string[])[];
-	updateContentCommands?: (string | string[])[];
-	postCreateCommands?: (string | string[])[];
-	postStartCommands?: (string | string[])[];
-	postAttachCommands?: (string | string[])[];
+	onCreateCommands?: LifecycleCommand[];
+	updateContentCommands?: LifecycleCommand[];
+	postCreateCommands?: LifecycleCommand[];
+	postStartCommands?: LifecycleCommand[];
+	postAttachCommands?: LifecycleCommand[];
 	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
 }
+
+export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEntry[]): LifecycleCommandOriginMap {
+	const map: LifecycleCommandOriginMap = {
+		onCreateCommand: [],
+		updateContentCommand: [],
+		postCreateCommand: [],
+		postStartCommand: [],
+		postAttachCommand: [],
+		initializeCommand: []
+	};
+	for (const entry of metadata) {
+		const id = entry.id; // Only Features have IDs encoded in the metadata.
+		const origin = id ?? 'devcontainer.json';
+		for (const hook of pickFeatureLifecycleHookProperties) {
+			const command = entry[hook];
+			if (command) {
+				map[hook].push({ origin, command });
+			}
+		}
+	}
+	return map;
+}
+
 
 export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[]): MergedDevContainerConfig {
 	const customizations = imageMetadata.reduce((obj, entry) => {
