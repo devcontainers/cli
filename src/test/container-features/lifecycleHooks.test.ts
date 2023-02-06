@@ -23,50 +23,63 @@ describe('Feature lifecycle hooks', function () {
 	});
 
 	describe('lifecycle-hooks-inline-commands', () => {
-
-		let containerId: string | null = null;
 		const testFolder = `${__dirname}/configs/lifecycle-hooks-inline-commands`;
 
-		before(async () => {
-			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
-			containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId;
+		describe('devcontainer up', () => {
+			let containerId: string | null = null;
+
+			before(async () => {
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId;
+			});
+
+			after(async () => {
+				await devContainerDown({ containerId });
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			});
+
+			it('marker files should exist and executed in stable order', async () => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+
+				const outputOfExecCommand = res.stderr;
+				console.log(outputOfExecCommand);
+
+				assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /3.panda.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /6.panda.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /9.panda.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /12.panda.postAttachCommand.testMarker/);
+
+				assert.match(outputOfExecCommand, /1.tiger.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /4.tiger.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /7.tiger.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /10.tiger.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /13.tiger.postAttachCommand.testMarker/);
+
+				assert.match(outputOfExecCommand, /2.devContainer.onCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /5.devContainer.updateContentCommand.testMarker/);
+				assert.match(outputOfExecCommand, /8.devContainer.postCreateCommand.testMarker/);
+				assert.match(outputOfExecCommand, /11.devContainer.postStartCommand.testMarker/);
+				assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
+			});
 		});
 
-		after(async () => {
-			await devContainerDown({ containerId });
-			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
-		});
+		describe('devcontainer build', () => {
+			before(async () => {
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} color`);
+			});
 
-		it('marker files should exist and executed in stable order', async () => {
-			const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
+			it('metadata label exists and in expeced order', async () => {
 
-			const outputOfExecCommand = res.stderr;
-			console.log(outputOfExecCommand);
-
-			assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /3.panda.updateContentCommand.testMarker/);
-			assert.match(outputOfExecCommand, /6.panda.postCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /9.panda.postStartCommand.testMarker/);
-			assert.match(outputOfExecCommand, /12.panda.postAttachCommand.testMarker/);
-
-			assert.match(outputOfExecCommand, /1.tiger.onCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /4.tiger.updateContentCommand.testMarker/);
-			assert.match(outputOfExecCommand, /7.tiger.postCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /10.tiger.postStartCommand.testMarker/);
-			assert.match(outputOfExecCommand, /13.tiger.postAttachCommand.testMarker/);
-
-			assert.match(outputOfExecCommand, /2.devContainer.onCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /5.devContainer.updateContentCommand.testMarker/);
-			assert.match(outputOfExecCommand, /8.devContainer.postCreateCommand.testMarker/);
-			assert.match(outputOfExecCommand, /11.devContainer.postStartCommand.testMarker/);
-			assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
+			});
 		});
 	});
 
 	describe('lifecycle-hooks-alternative-order', () => {
-		// This is the same test as 'lifecycle-hooks-inline-commands' but with the the 'installsAfter' order changed (tiger -> panda -> devContainer).
+		// This is the same test as 'lifecycle-hooks-inline-commands'
+		// but with the the 'installsAfter' order changed (tiger -> panda -> devContainer).
 
 		let containerId: string | null = null;
 		const testFolder = `${__dirname}/configs/temp_lifecycle-hooks-alternative-order`;
