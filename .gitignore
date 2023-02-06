@@ -12,3 +12,4 @@ build-tmp
 .env
 output
 *.testMarker
+src/test/container-features/configs/temp_lifecycle-hooks-alternative-order

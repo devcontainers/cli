@@ -14,8 +14,7 @@
     "postStartCommand": [
         "${featureRoot}/helper_script.sh",
         "postStartCommand"
-    ]
-    ,
+    ],
     "postAttachCommand": [
         "${featureRoot}/helper_script.sh",
         "postAttachCommand"
