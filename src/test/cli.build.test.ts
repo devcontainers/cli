@@ -222,5 +222,20 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`docker buildx rm ${builderName}`);
 			}
 		});
+
+		it('should follow the correct merge logic for containerEnv', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/image-metadata-containerEnv --image-name "test-metadata"`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			const resRun = await shellExec(`docker run -it -d "test-metadata"`);
+			const containerId: string = resRun.stdout.split('\n')[0];
+			assert.ok(containerId, 'Container id not found.');
+
+			const result = await shellExec(`docker exec ${containerId} bash -c 'echo $JAVA_HOME'`);
+			assert.equal('/usr/lib/jvm/msopenjdk-current\n', result.stdout);
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
 	});
 });

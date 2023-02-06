@@ -15,7 +15,7 @@ import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
+import { getContainerEnvMetadata, getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 
@@ -293,6 +293,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
 		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
+		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
 		;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?

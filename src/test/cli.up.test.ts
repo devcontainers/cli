@@ -165,5 +165,18 @@ describe('Dev Containers CLI', function () {
 				});
 			});
 		});
+
+		it('should follow the correct merge logic for containerEnv', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-metadata-containerEnv`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+
+			const result = await shellExec(`docker exec ${containerId} bash -c 'echo $JAVA_HOME'`);
+			assert.equal('/usr/lib/jvm/msopenjdk-current\n', result.stdout);
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
 	});
 });

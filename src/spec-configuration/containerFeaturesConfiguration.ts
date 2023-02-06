@@ -266,6 +266,8 @@ ARG _DEV_CONTAINERS_IMAGE_USER=root
 USER $_DEV_CONTAINERS_IMAGE_USER
 
 #{devcontainerMetadata}
+
+#{containerEnvMetadata}
 `;
 }
 

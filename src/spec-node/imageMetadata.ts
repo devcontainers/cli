@@ -490,3 +490,13 @@ function toLabelString(obj: object) {
 	return JSON.stringify(obj)
 		.replace(/(?=["\\$])/g, '\\');
 }
+
+export function getContainerEnvMetadata(containerEnv: Record<string, string> | undefined): string {
+	if (!containerEnv) {
+		return '';
+	}
+
+	const keys = Object.keys(containerEnv);
+	const concatenatedEnv = keys.map(k => `ENV ${k}=${containerEnv![k]}`).join('\n');
+	return concatenatedEnv;
+}
