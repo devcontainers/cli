@@ -93,7 +93,7 @@ describe('Feature lifecycle hooks', function () {
 
 		after(async () => {
 			await devContainerDown({ containerId });
-			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			await shellExec(`rm -rf ${testFolder}`, undefined, undefined, true);
 		});
 
 		it('marker files should exist and executed in stable order', async () => {
