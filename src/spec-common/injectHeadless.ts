@@ -76,11 +76,11 @@ export interface LifecycleHook {
 	done: () => void;
 }
 
-export type LifecycleCommandOriginMap = {
+export type LifecycleHooksInstallMap = {
 	[lifecycleHook in DevContainerLifecycleHook]: {
 		command: LifecycleCommand;
 		origin: string;
-	}[];
+	}[]; // In installation order.
 };
 
 export function createNullLifecycleHook(enabled: boolean, skipNonBlocking: boolean, output: Log): LifecycleHook {
@@ -314,7 +314,7 @@ export function getSystemVarFolder(params: ResolverParameters): string {
 	return params.containerSystemDataFolder || '/var/devcontainer';
 }
 
-export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, lifecycleCommandOriginMap: LifecycleCommandOriginMap) {
+export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, lifecycleCommandOriginMap: LifecycleHooksInstallMap) {
 	await patchEtcEnvironment(params, containerProperties);
 	await patchEtcProfile(params, containerProperties);
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
@@ -337,7 +337,7 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 		} as Record<string, string>));
 }
 
-export async function runLifecycleHooks(params: ResolverParameters, lifecycleHooksInstallMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
+export async function runLifecycleHooks(params: ResolverParameters, lifecycleHooksInstallMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, remoteEnv: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
 	const skipNonBlocking = params.lifecycleHook.skipNonBlocking;
 	const waitFor = config.waitFor || defaultWaitFor;
 	if (skipNonBlocking && waitFor === 'initializeCommand') {
@@ -400,13 +400,13 @@ export async function getOSRelease(shellServer: ShellServer) {
 	return { hardware, id, version };
 }
 
-async function runPostCreateCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand', remoteEnv: Promise<Record<string, string>>, rerun: boolean) {
+async function runPostCreateCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, postCommandName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand', remoteEnv: Promise<Record<string, string>>, rerun: boolean) {
 	const markerFile = path.posix.join(containerProperties.userDataFolder, `.${postCommandName}Marker`);
 	const doRun = !!containerProperties.createdAt && await updateMarkerFile(containerProperties.shellServer, markerFile, containerProperties.createdAt) || rerun;
 	await runLifecycleCommands(params, lifecycleCommandOriginMap, containerProperties, postCommandName, remoteEnv, doRun);
 }
 
-async function runPostStartCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, remoteEnv: Promise<Record<string, string>>) {
+async function runPostStartCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, remoteEnv: Promise<Record<string, string>>) {
 	const markerFile = path.posix.join(containerProperties.userDataFolder, '.postStartCommandMarker');
 	const doRun = !!containerProperties.startedAt && await updateMarkerFile(containerProperties.shellServer, markerFile, containerProperties.startedAt);
 	await runLifecycleCommands(params, lifecycleCommandOriginMap, containerProperties, 'postStartCommand', remoteEnv, doRun);
@@ -421,12 +421,12 @@ async function updateMarkerFile(shellServer: ShellServer, location: string, cont
 	}
 }
 
-async function runPostAttachCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, remoteEnv: Promise<Record<string, string>>) {
+async function runPostAttachCommand(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, remoteEnv: Promise<Record<string, string>>) {
 	await runLifecycleCommands(params, lifecycleCommandOriginMap, containerProperties, 'postAttachCommand', remoteEnv, true);
 }
 
 
-async function runLifecycleCommands(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
+async function runLifecycleCommands(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
 	const commandsForHook = lifecycleCommandOriginMap[lifecycleHookName];
 	if (commandsForHook.length === 0) {
 		return;

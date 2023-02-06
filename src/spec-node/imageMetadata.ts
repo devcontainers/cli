@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
-import { LifecycleCommand, LifecycleCommandOriginMap } from '../spec-common/injectHeadless';
+import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
@@ -121,8 +121,8 @@ interface UpdatedConfigProperties {
 	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
 }
 
-export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEntry[]): LifecycleCommandOriginMap {
-	const map: LifecycleCommandOriginMap = {
+export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEntry[]): LifecycleHooksInstallMap {
+	const map: LifecycleHooksInstallMap = {
 		onCreateCommand: [],
 		updateContentCommand: [],
 		postCreateCommand: [],
