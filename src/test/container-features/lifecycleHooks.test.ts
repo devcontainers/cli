@@ -65,16 +65,6 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
 			});
 		});
-
-		describe('devcontainer build', () => {
-			before(async () => {
-				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} color`);
-			});
-
-			it('metadata label exists and in expeced order', async () => {
-
-			});
-		});
 	});
 
 	describe('lifecycle-hooks-alternative-order', () => {
