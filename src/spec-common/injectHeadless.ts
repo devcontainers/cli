@@ -344,6 +344,8 @@ export async function runLifecycleHooks(params: ResolverParameters, lifecycleCom
 		return 'skipNonBlocking';
 	}
 
+	params.output.write('LifecycleCommandExecutionMap: ' + JSON.stringify(lifecycleCommandOriginMap, undefined, 4), LogLevel.Trace);
+
 	await runPostCreateCommand(params, lifecycleCommandOriginMap, containerProperties, config, 'onCreateCommand', remoteEnv, false);
 	if (skipNonBlocking && waitFor === 'onCreateCommand') {
 		return 'skipNonBlocking';
@@ -423,27 +425,17 @@ async function runPostAttachCommand(params: ResolverParameters, lifecycleCommand
 	await runLifecycleCommands(params, lifecycleCommandOriginMap, containerProperties, config, 'postAttachCommand', remoteEnv, true);
 }
 
-// Determines the origin (devcontainer.json, or a Feature) from a map for a given lifecycle hook + command
-// This is never expected to be undefined.
-function getLifecycleCommandOriginFromMap(map: LifecycleCommandOriginMap, cmd: LifecycleCommand, hook: DevContainerLifecycleHook): string | undefined {
-	return map[hook].find(target => {
-		const targetCmd = target.command;
-		if (typeof cmd === 'string' && typeof targetCmd === 'string') {
-			return targetCmd === cmd;
-		} else {
-			// Either 'array' or 'object' case. 
-			// This compare should be ok since the order will be preserved in the metadata.
-			return JSON.stringify(cmd) === JSON.stringify(targetCmd);
-		}
-	})?.origin;
-}
 
 async function runLifecycleCommands(params: ResolverParameters, lifecycleCommandOriginMap: LifecycleCommandOriginMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {
-	return Promise.all((config[`${lifecycleHookName}s`] || []).map(command => {
-		const origin = getLifecycleCommandOriginFromMap(lifecycleCommandOriginMap, command, lifecycleHookName);
+	const commandsForHook = lifecycleCommandOriginMap[lifecycleHookName];
+	if (commandsForHook.length === 0) {
+		return;
+	}
+
+	for (const { command, origin } of commandsForHook) {
 		const displayOrigin = origin ? (origin === 'devcontainer.json' ? origin : `Feature '${origin}'`) : '???'; /// '???' should never happen.
-		return runLifecycleCommand(params, containerProperties, command, displayOrigin, lifecycleHookName, remoteEnv, doRun);
-	}));
+		await runLifecycleCommand(params, containerProperties, command, displayOrigin, lifecycleHookName, remoteEnv, doRun);
+	}
 }
 
 async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParameters, containerProperties: ContainerProperties, userCommand: LifecycleCommand, userCommandOrigin: string, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, doRun: boolean) {

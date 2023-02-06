@@ -10,5 +10,8 @@
     "postAttachCommand": [
         ".devcontainer/createMarker.sh",
         "tiger.postAttachCommand.testMarker"
+    ],
+    "installsAfter": [
+        "./panda"
     ]
 }
