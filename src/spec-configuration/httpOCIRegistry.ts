@@ -7,7 +7,7 @@ import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
 
-export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'accept'?: string; 'content-length'?: string };
+export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'Accept'?: string; 'content-length'?: string };
 
 interface DockerConfigFile {
 	auths: {

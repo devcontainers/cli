@@ -20,6 +20,7 @@ export type CLIHostType = 'local' | 'wsl' | 'container' | 'ssh';
 export interface CLIHost {
 	type: CLIHostType;
 	platform: NodeJS.Platform;
+	arch: NodeJS.Architecture;
 	exec: ExecFunction;
 	ptyExec: PtyExecFunction;
 	cwd: string;
@@ -63,6 +64,7 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 	return {
 		type: 'local',
 		platform: process.platform,
+		arch: process.arch,
 		exec,
 		ptyExec,
 		cwd: localCwd,
