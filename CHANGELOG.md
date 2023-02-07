@@ -4,10 +4,11 @@ Notable changes.
 
 ## February 2023
 
-### [0.29.1]
+### [0.30.0]
 
 - Fix: Merge metadata logic for containerEnv for `devcontainer build`. (https://github.com/devcontainers/cli/pull/392)
 - Support querying registries that Accept application/vnd.oci.image.index.v1+json. (https://github.com/devcontainers/cli/pull/393)
+- Updates Features cache logic - Incrementally copy features near the layer they're installed. (https://github.com/devcontainers/cli/pull/382)
 
 ## January 2023
 
