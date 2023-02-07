@@ -124,10 +124,10 @@ function replaceContainerEnv(isWindows: boolean, configFile: URI | undefined, co
 	}
 }
 
-function replaceFeatureRoot(featureRoot: string | undefined, match: string, variable: string) {
+function replaceFeatureRoot(featureRootFolder: string | undefined, match: string, variable: string) {
 	switch (variable) {
-		case 'featureRoot':
-			return featureRoot || match;
+		case 'featureRootFolder':
+			return featureRootFolder || match;
 
 		default:
 			return match;

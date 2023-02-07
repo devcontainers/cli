@@ -2,21 +2,21 @@
     "id": "otter",
     "version": "1.2.3",
     "options": {},
-    "updateContentCommand": "${featureRoot}/helper_script.sh updateContentCommand",
-    "onCreateCommand": "${featureRoot}/helper_script.sh onCreateCommand",
+    "updateContentCommand": "${featureRootFolder}/helper_script.sh updateContentCommand",
+    "onCreateCommand": "${featureRootFolder}/helper_script.sh onCreateCommand",
     "postCreateCommand": {
-        "parallel1": "${featureRoot}/helper_script.sh parallel_postCreateCommand_1",
+        "parallel1": "${featureRootFolder}/helper_script.sh parallel_postCreateCommand_1",
         "parallel2": [
-            "${featureRoot}/helper_script.sh",
+            "${featureRootFolder}/helper_script.sh",
             "parallel_postCreateCommand_2"
         ]
     },
     "postStartCommand": [
-        "${featureRoot}/helper_script.sh",
+        "${featureRootFolder}/helper_script.sh",
         "postStartCommand"
     ],
     "postAttachCommand": [
-        "${featureRoot}/helper_script.sh",
+        "${featureRootFolder}/helper_script.sh",
         "postAttachCommand"
     ]
 }
