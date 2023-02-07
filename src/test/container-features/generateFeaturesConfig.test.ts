@@ -75,11 +75,15 @@ describe('validate generateFeaturesConfig()', function () {
 echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
 
-RUN cd /tmp/build-features/first_1 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/build-features/first_1
+RUN chmod -R 0700 /tmp/build-features/first_1 \\
+&& cd /tmp/build-features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-RUN cd /tmp/build-features/second_2 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/build-features/second_2
+RUN chmod -R 0700 /tmp/build-features/second_2 \\
+&& cd /tmp/build-features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -134,12 +138,16 @@ echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> 
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
 
 
-RUN cd /tmp/build-features/color_3 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/build-features/color_3
+RUN chmod -R 0700 /tmp/build-features/color_3 \\
+&& cd /tmp/build-features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-RUN cd /tmp/build-features/hello_4 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/build-features/hello_4
+RUN chmod -R 0700 /tmp/build-features/hello_4 \\
+&& cd /tmp/build-features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
