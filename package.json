@@ -51,8 +51,8 @@
 		"clean": "npm-run-all clean-dist clean-built",
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
-		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
-		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
+		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit --exclude '**/node_modules/**/*.ts' 'src/test/**/*.test.ts'",
+		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit --exclude '**/node_modules/**/*.ts'",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts",
 		"test-container-templates": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-templates/*.test.ts"
 	},
