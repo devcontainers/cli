@@ -239,26 +239,23 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 }
 
 // TODO: Move to node layer.
-export function getContainerFeaturesBaseDockerFile() {
+export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string) {
 	return `
-#{featureBuildStages}
 
 #{nonBuildKitFeatureContentFallback}
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
+COPY --from=dev_containers_feature_content_source ${contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
 RUN chmod -R 0777 /tmp/build-features
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
+COPY --from=dev_containers_feature_content_normalize ${contentSourceRootPath} /tmp/build-features
 
 #{featureLayer}
-
-#{copyFeatureBuildStages}
 
 #{containerEnv}
 
