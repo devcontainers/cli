@@ -65,13 +65,13 @@ export interface ProvisionOptions {
 	};
 }
 
-export async function launch(options: ProvisionOptions, idLabels: string[], disposables: (() => Promise<unknown> | undefined)[]) {
+export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
 	const params = await createDockerParams(options, disposables);
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
 
-	const result = await resolve(params, options.configFile, options.overrideConfigFile, idLabels, options.additionalFeatures ?? {});
+	const result = await resolve(params, options.configFile, options.overrideConfigFile, providedIdLabels, options.additionalFeatures ?? {});
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {

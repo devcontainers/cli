@@ -15,6 +15,7 @@ import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetad
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
+export const configFileLabel = 'devcontainer.config_file';
 
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common } = params;
