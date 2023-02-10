@@ -55,7 +55,7 @@ export async function devContainerUp(cli: string, workspaceFolder: string, optio
     assert.ok(containerId, 'Container id not found.');
     return { outcome, containerId, composeProjectName, stderr: res.stderr };
 }
-export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null, doNotThrow?: boolean }) {
+export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null; doNotThrow?: boolean }) {
     if (options.containerId) {
         await shellExec(`docker rm -f ${options.containerId}`, undefined, undefined, options.doNotThrow);
     }
