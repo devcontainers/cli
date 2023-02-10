@@ -959,6 +959,11 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			feature.cachePath = featCachePath;
 			feature.consecutiveId = consecutiveId;
 
+			if (!feature.consecutiveId || !feature.id || !featureSet?.sourceInformation || !featureSet.sourceInformation.userFeatureId) {
+				const err = "Internal Features error. Missing required attribute(s)."
+				throw new Error(err);
+			}
+
 			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
 			output.write(`* Fetching feature: ${featureDebugId}`);
 
