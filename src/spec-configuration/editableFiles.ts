@@ -5,7 +5,6 @@
 
 import * as crypto from 'crypto';
 import * as jsonc from 'jsonc-parser';
-import { promisify } from 'util';
 import { URI } from 'vscode-uri';
 import { uriToFsPath, FileHost } from './configurationCommonUtils';
 import { readLocalFile, writeLocalFile } from '../spec-utils/pfs';
@@ -108,8 +107,7 @@ export class RemoteDocuments implements Documents {
 			case RemoteDocuments.scheme:
 				try {
 					if (!RemoteDocuments.nonce) {
-						const buffer = await promisify(crypto.randomBytes)(20);
-						RemoteDocuments.nonce = buffer.toString('hex');
+						RemoteDocuments.nonce = crypto.randomUUID();
 					}
 					const result = jsonc.applyEdits(content, edits);
 					const eof = `EOF-${RemoteDocuments.nonce}`;

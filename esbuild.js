@@ -57,7 +57,7 @@ const watch = process.argv.indexOf('--watch') !== -1;
 		minify,
 		watch,
 		platform: 'node',
-		target: 'node14.14.0',
+		target: 'node14.17.0',
 		external: ['vscode-dev-containers'],
 		mainFields: ['module', 'main'],
 		outdir: 'dist',
