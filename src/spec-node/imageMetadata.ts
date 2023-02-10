@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import path from 'path';
 import { ContainerError } from '../spec-common/errors';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, FEATURES_CONTAINER_DEST_FOLDER, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -286,7 +287,7 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	featuresConfig?.featureSets.forEach(featureSet =>
 		featureSet.features.forEach(f => {
 			pickFeatureLifecycleHookProperties.forEach(hook => {
-				const buildPath = `/tmp/build-features/${f.consecutiveId}`;
+				const buildPath = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, f.consecutiveId!);
 				if (f[hook]) {
 					f[hook] = substituteFeatureRoot(f[hook], buildPath);
 				}

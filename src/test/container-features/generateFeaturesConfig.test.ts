@@ -72,18 +72,18 @@ describe('validate generateFeaturesConfig()', function () {
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /usr/share/devcontainer/features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /usr/share/devcontainer/features/devcontainer-features.builtin.env
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/build-features/first_1
-RUN chmod -R 0777 /tmp/build-features/first_1 \\
-&& cd /tmp/build-features/first_1 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /usr/share/devcontainer/features/first_1
+RUN chmod -R 0777 /usr/share/devcontainer/features/first_1 \\
+&& cd /usr/share/devcontainer/features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/build-features/second_2
-RUN chmod -R 0777 /tmp/build-features/second_2 \\
-&& cd /tmp/build-features/second_2 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /usr/share/devcontainer/features/second_2
+RUN chmod -R 0777 /usr/share/devcontainer/features/second_2 \\
+&& cd /usr/share/devcontainer/features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -134,20 +134,20 @@ RUN chmod -R 0777 /tmp/build-features/second_2 \\
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /usr/share/devcontainer/features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /usr/share/devcontainer/features/devcontainer-features.builtin.env
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/build-features/color_3
-RUN chmod -R 0777 /tmp/build-features/color_3 \\
-&& cd /tmp/build-features/color_3 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /usr/share/devcontainer/features/color_3
+RUN chmod -R 0777 /usr/share/devcontainer/features/color_3 \\
+&& cd /usr/share/devcontainer/features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/build-features/hello_4
-RUN chmod -R 0777 /tmp/build-features/hello_4 \\
-&& cd /tmp/build-features/hello_4 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /usr/share/devcontainer/features/hello_4
+RUN chmod -R 0777 /usr/share/devcontainer/features/hello_4 \\
+&& cd /usr/share/devcontainer/features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
