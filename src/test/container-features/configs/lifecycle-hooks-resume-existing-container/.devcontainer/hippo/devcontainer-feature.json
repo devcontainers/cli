@@ -1,0 +1,8 @@
+{
+    "id": "hippo",
+    "version": "1.0.1",
+    "name": "Hippo",
+    "options": {},
+    "postStartCommand": "${featureRootFolder}/createMarker.sh hippo.postStartCommand.testMarker",
+    "postAttachCommand": "${featureRootFolder}/createMarker.sh hippo.postAttachCommand.testMarker"
+}

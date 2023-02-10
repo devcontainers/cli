@@ -160,6 +160,44 @@ describe('Feature lifecycle hooks', function () {
 
 	});
 
+	describe('lifecycle-hooks-resume-existing-container', () => {
+		let containerId: string | null = null;
+		const testFolder = `${__dirname}/configs/lifecycle-hooks-resume-existing-container`;
+
+		// Clean up
+		before(async () => {
+			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId;
+		});
+
+		// Ensure clean after running.
+		after(async () => {
+			await devContainerDown({ containerId, doNotThrow: true });
+			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+		});
+
+		it('the appropriate lifecycle hooks are executed when resuming an existing container', async () => {
+
+			await devContainerStop({ containerId });
+			// Attempt to bring the same container up, which should just re-run the postStart and postAttach hooks
+			const resume = await devContainerUp(cli, testFolder, { logLevel: 'trace' });
+			assert.equal(resume.containerId, containerId); // Restarting the same container.
+			assert.equal(resume.outcome, 'success');
+
+			const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			const outputOfExecCommand = res.stderr;
+			console.log(outputOfExecCommand);
+
+			assert.match(outputOfExecCommand, /0.hippo.postStartCommand.testMarker/);
+			assert.match(outputOfExecCommand, /1.hippo.postAttachCommand.testMarker/);
+			assert.match(outputOfExecCommand, /2.hippo.postStartCommand.testMarker/);
+			assert.match(outputOfExecCommand, /3.hippo.postAttachCommand.testMarker/);
+		});
+	});
+
 	describe('lifecycle-hooks-advanced', () => {
 
 		describe(`devcontainer up`, () => {
