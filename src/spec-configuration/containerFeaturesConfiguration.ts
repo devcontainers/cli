@@ -332,7 +332,7 @@ RUN chmod -R 0700 /tmp/build-features/${folder} \\
 
 `;
 		} else {
-			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
+			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder},rw \\
     cp -ar /tmp/build-features-src/${folder} /tmp/build-features/ \\
  && chmod -R 0700 /tmp/build-features/${folder} \\
  && cd /tmp/build-features/${folder} \\
@@ -359,7 +359,7 @@ RUN chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
 `;
 			} else {
 				result += `
-RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
+RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId},rw \\
     cp -ar /tmp/build-features-src/${feature.consecutiveId} /tmp/build-features/ \\
  && chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
  && cd /tmp/build-features/${feature.consecutiveId} \\
