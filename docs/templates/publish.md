@@ -55,8 +55,11 @@ To later apply a published Template (in the example below, the `color` template)
 
 > NOTE: OS-specific docker credential helpers (Docker Desktop credential helper) are not currently recognized by the CLI.  
 
-- Adding a $HOME/.docker/config.json with your credentials following [this commonly defined format](https://www.systutorials.com/docs/linux/man/5-docker-config-json/)
-- (For ghcr only) Providing a GITHUB_TOKEN with permission to `write:packages`,
+- Adding a $HOME/.docker/config.json with your credentials following [this commonly defined format](https://www.systutorials.com/docs/linux/man/5-docker-config-json/).
+   - Your `docker login` command may write this file for you depending on your operating system.
 - Using our custom env variable DEVCONTAINERS_OCI_AUTH
     - eg: `DEVCONTAINERS_OCI_AUTH=service1|user1|token1,service2|user2|token2`
-- Using the `devcontainers/action` GitHub action to handle the `GITHUB_TOKEN` credential for you (this is the way we see most people publishing these days, although we certainly want to support the scenario you're in).
+    
+For publishing to `ghcr.io`
+- Using the `devcontainers/action` GitHub action to handle the `GITHUB_TOKEN` credential for you.
+- Providing a GITHUB_TOKEN with permission to `write:packages`,
