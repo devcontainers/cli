@@ -15,7 +15,7 @@
 	},
 	"license": "SEE LICENSE IN LICENSE.txt",
 	"engines": {
-		"node": ">=14.14.0"
+		"node": ">=14.17.0"
 	},
 	"scripts": {
 		"compile": "npm-run-all clean-dist definitions compile-dev",
