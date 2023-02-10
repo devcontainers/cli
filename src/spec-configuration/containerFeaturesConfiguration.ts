@@ -247,7 +247,7 @@ export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
 COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, 'devcontainer-features.builtin.env')} /tmp/build-features/
-RUN chmod -R 0777 /tmp/build-features/
+RUN chmod -R 0755 /tmp/build-features/
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
@@ -347,7 +347,7 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> ${built
 		const dest = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, folder!);
 		if (!useBuildKitBuildContexts) {
 			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
-RUN chmod -R 0777 ${dest} \\
+RUN chmod -R 0755 ${dest} \\
 && cd ${dest} \\
 && chmod +x ./install.sh \\
 && ./install.sh
@@ -356,7 +356,7 @@ RUN chmod -R 0777 ${dest} \\
 		} else {
 			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
     cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_DEST_FOLDER} \\
- && chmod -R 0777 ${dest} \\
+ && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./install.sh \\
  && ./install.sh
@@ -373,7 +373,7 @@ RUN chmod -R 0777 ${dest} \\
 			if (!useBuildKitBuildContexts) {
 				result += `
 COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
-RUN chmod -R 0777 ${dest} \\
+RUN chmod -R 0755 ${dest} \\
 && cd ${dest} \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
@@ -383,7 +383,7 @@ RUN chmod -R 0777 ${dest} \\
 				result += `
 RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
     cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_DEST_FOLDER} \\
- && chmod -R 0777 ${dest} \\
+ && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./devcontainer-features-install.sh \\
  && ./devcontainer-features-install.sh
@@ -960,7 +960,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			feature.consecutiveId = consecutiveId;
 
 			if (!feature.consecutiveId || !feature.id || !featureSet?.sourceInformation || !featureSet.sourceInformation.userFeatureId) {
-				const err = "Internal Features error. Missing required attribute(s)."
+				const err = 'Internal Features error. Missing required attribute(s).';
 				throw new Error(err);
 			}
 

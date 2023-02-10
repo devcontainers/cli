@@ -76,13 +76,13 @@ echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> 
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /usr/share/devcontainer/features/devcontainer-features.builtin.env
 
 COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /usr/share/devcontainer/features/first_1
-RUN chmod -R 0777 /usr/share/devcontainer/features/first_1 \\
+RUN chmod -R 0755 /usr/share/devcontainer/features/first_1 \\
 && cd /usr/share/devcontainer/features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
 COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /usr/share/devcontainer/features/second_2
-RUN chmod -R 0777 /usr/share/devcontainer/features/second_2 \\
+RUN chmod -R 0755 /usr/share/devcontainer/features/second_2 \\
 && cd /usr/share/devcontainer/features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
@@ -139,14 +139,14 @@ echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /usr/s
 
 
 COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /usr/share/devcontainer/features/color_3
-RUN chmod -R 0777 /usr/share/devcontainer/features/color_3 \\
+RUN chmod -R 0755 /usr/share/devcontainer/features/color_3 \\
 && cd /usr/share/devcontainer/features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
 COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /usr/share/devcontainer/features/hello_4
-RUN chmod -R 0777 /usr/share/devcontainer/features/hello_4 \\
+RUN chmod -R 0755 /usr/share/devcontainer/features/hello_4 \\
 && cd /usr/share/devcontainer/features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
