@@ -37,7 +37,7 @@ Given a directory that is organized according to the [Templates distribution spe
 ...
 ```
 
-The following command will publish each feature above (`color,hello`) to the registry `ghcr.io` with the following namespace (prefix) `devcontainers/templates`.
+The following command will publish each Template above (`color,hello`) to the registry `ghcr.io` with the following namespace (prefix) `devcontainers/templates`.
 
 ```
 [/tmp]$  GITHUB_TOKEN="$CR_PAT" devcontainer templates publish -r ghcr.io -n devcontainers/templates ./src
