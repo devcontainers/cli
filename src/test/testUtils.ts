@@ -55,12 +55,12 @@ export async function devContainerUp(cli: string, workspaceFolder: string, optio
     assert.ok(containerId, 'Container id not found.');
     return { outcome, containerId, composeProjectName, stderr: res.stderr };
 }
-export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null }) {
+export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null, doNotThrow?: boolean }) {
     if (options.containerId) {
-        await shellExec(`docker rm -f ${options.containerId}`);
+        await shellExec(`docker rm -f ${options.containerId}`, undefined, undefined, options.doNotThrow);
     }
     if (options.composeProjectName) {
-        await shellExec(`docker compose --project-name ${options.composeProjectName} down`);
+        await shellExec(`docker compose --project-name ${options.composeProjectName} down`, undefined, undefined, options.doNotThrow);
     }
 }
 export async function devContainerStop(options: { containerId?: string | null; composeProjectName?: string | null }) {

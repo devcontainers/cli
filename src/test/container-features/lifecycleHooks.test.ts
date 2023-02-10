@@ -6,7 +6,7 @@
 import { assert } from 'chai';
 import * as path from 'path';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
-import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
+import { devContainerDown, devContainerStop, devContainerUp, shellExec } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
@@ -38,31 +38,63 @@ describe('Feature lifecycle hooks', function () {
 				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
 			});
 
-			it('marker files should exist and executed in stable order', async () => {
-				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-				const response = JSON.parse(res.stdout);
-				assert.equal(response.outcome, 'success');
+			it('marker files should exist, be executed in stable order, and hooks should postStart/attach should trigger on a resume', async () => {
 
-				const outputOfExecCommand = res.stderr;
-				console.log(outputOfExecCommand);
+				{
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					const response = JSON.parse(res.stdout);
+					assert.equal(response.outcome, 'success');
 
-				assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /3.panda.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /6.panda.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /9.panda.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /12.panda.postAttachCommand.testMarker/);
+					const outputOfExecCommand = res.stderr;
+					console.log(outputOfExecCommand);
 
-				assert.match(outputOfExecCommand, /1.tiger.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /4.tiger.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /7.tiger.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /10.tiger.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /13.tiger.postAttachCommand.testMarker/);
+					assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /3.panda.updateContentCommand.testMarker/);
+					assert.match(outputOfExecCommand, /6.panda.postCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /9.panda.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /12.panda.postAttachCommand.testMarker/);
 
-				assert.match(outputOfExecCommand, /2.devContainer.onCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /5.devContainer.updateContentCommand.testMarker/);
-				assert.match(outputOfExecCommand, /8.devContainer.postCreateCommand.testMarker/);
-				assert.match(outputOfExecCommand, /11.devContainer.postStartCommand.testMarker/);
-				assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
+					assert.match(outputOfExecCommand, /1.tiger.onCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /4.tiger.updateContentCommand.testMarker/);
+					assert.match(outputOfExecCommand, /7.tiger.postCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /10.tiger.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /13.tiger.postAttachCommand.testMarker/);
+
+					assert.match(outputOfExecCommand, /2.devContainer.onCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /5.devContainer.updateContentCommand.testMarker/);
+					assert.match(outputOfExecCommand, /8.devContainer.postCreateCommand.testMarker/);
+					assert.match(outputOfExecCommand, /11.devContainer.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /14.devContainer.postAttachCommand.testMarker/);
+
+					// This shouldn't have happened _yet_.
+					assert.notMatch(outputOfExecCommand, /15.panda.postStartCommand.testMarker/);
+				}
+
+				// Stop the container.
+				await devContainerStop({ containerId });
+
+				{
+					// Attempt to bring the same container up, which should just re-run the postStart and postAttach hooks
+					const resume = await devContainerUp(cli, testFolder, { logLevel: 'trace' });
+					assert.equal(resume.containerId, containerId); // Restarting the same container.
+					assert.equal(resume.outcome, 'success');
+
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					const response = JSON.parse(res.stdout);
+					assert.equal(response.outcome, 'success');
+
+					const outputOfExecCommand = res.stderr;
+					console.log(outputOfExecCommand);
+
+					assert.match(outputOfExecCommand, /15.panda.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /16.tiger.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /17.devContainer.postStartCommand.testMarker/);
+					assert.match(outputOfExecCommand, /18.panda.postAttachCommand.testMarker/);
+					assert.match(outputOfExecCommand, /19.tiger.postAttachCommand.testMarker/);
+					assert.match(outputOfExecCommand, /20.devContainer.postAttachCommand.testMarker/);
+				}
+
+
 			});
 		});
 	});
