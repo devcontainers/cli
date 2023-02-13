@@ -69,6 +69,7 @@ const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, '
 
 export interface ImageMetadataEntry {
 	id?: string;
+	featureContainerDestFolder?: string;
 	init?: boolean;
 	privileged?: boolean;
 	capAdd?: string[];
@@ -136,8 +137,9 @@ export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEnt
 		const origin = id ?? 'devcontainer.json';
 		for (const hook of pickFeatureLifecycleHookProperties) {
 			const command = entry[hook];
-			if (command) {
-				map[hook].push({ origin, command });
+			const substitutedCommand = substituteFeatureRoot(command, entry.featureContainerDestFolder);
+			if (substitutedCommand) {
+				map[hook].push({ origin, command: substitutedCommand });
 			}
 		}
 	}
@@ -279,26 +281,42 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
+function cacheFeatureContainerDestFolder(imageMetadata: ImageMetadataEntry[], featuresConfig?: FeaturesConfig): ImageMetadataEntry[] {
+	if (!featuresConfig) {
+		return imageMetadata;
+	}
+
+	imageMetadata.map(entry => {
+		const id = entry.id;
+		if (!id) {
+			return;
+		}
+
+		const targetFeatureSet = featuresConfig?.featureSets.find(fs => fs.sourceInformation.userFeatureId === id);
+		if (!targetFeatureSet) {
+			return;
+		}
+
+		const buildPath = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, targetFeatureSet.features[0].consecutiveId!);
+		entry.featureContainerDestFolder = buildPath;
+	});
+	return imageMetadata;
+}
+
 export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 
-	// Variable substitution
-	// eslint-disable-next-line code-no-unused-expressions
-	featuresConfig?.featureSets.forEach(featureSet =>
-		featureSet.features.forEach(f => {
-			pickFeatureLifecycleHookProperties.forEach(hook => {
-				const buildPath = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, f.consecutiveId!);
-				if (f[hook]) {
-					f[hook] = substituteFeatureRoot(f[hook], buildPath);
-				}
-			});
-		}));
-
-	const raw = featuresConfig?.featureSets.map(featureSet =>
+	const pickedRaw = featuresConfig?.featureSets.map(featureSet =>
 		featureSet.features.map(feature => ({
 		id: featureSet.sourceInformation.userFeatureId,
 		...pick(feature, effectivePickFeatureProperties),
 	}))).flat() || [];
+
+	const raw = cacheFeatureContainerDestFolder([
+		...baseImageMetadata.raw,
+		...pickedRaw,
+		pick(devContainerConfig.raw, pickConfigProperties),
+	].filter(config => Object.keys(config).length), featuresConfig);
 
 	return {
 		config: [
@@ -306,11 +324,7 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 			...raw.map(devContainerConfig.substitute),
 			pick(devContainerConfig.config, pickConfigProperties),
 		].filter(config => Object.keys(config).length),
-		raw: [
-			...baseImageMetadata.raw,
-			...raw,
-			pick(devContainerConfig.raw, pickConfigProperties),
-		].filter(config => Object.keys(config).length),
+		raw,
 		substitute: devContainerConfig.substitute,
 	};
 }
