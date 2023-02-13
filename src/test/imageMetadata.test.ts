@@ -358,6 +358,7 @@ describe('Image Metadata', function () {
 				},
 				{
 					id: 'ghcr.io/my-org/my-repo/someFeature:1',
+					featureRootFolder: '/usr/share/devcontainer/features/someFeature_1'
 				},
 				{
 					remoteUser: 'testUser',

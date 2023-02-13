@@ -69,7 +69,7 @@ const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, '
 
 export interface ImageMetadataEntry {
 	id?: string;
-	featureContainerDestFolder?: string;
+	featureRootFolder?: string;
 	init?: boolean;
 	privileged?: boolean;
 	capAdd?: string[];
@@ -137,7 +137,7 @@ export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEnt
 		const origin = id ?? 'devcontainer.json';
 		for (const hook of pickFeatureLifecycleHookProperties) {
 			const command = entry[hook];
-			const substitutedCommand = substituteFeatureRoot(command, entry.featureContainerDestFolder);
+			const substitutedCommand = substituteFeatureRoot(command, entry.featureRootFolder);
 			if (substitutedCommand) {
 				map[hook].push({ origin, command: substitutedCommand });
 			}
@@ -281,47 +281,26 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-function cacheFeatureContainerDestFolder(imageMetadata: ImageMetadataEntry[], featuresConfig?: FeaturesConfig): ImageMetadataEntry[] {
-	if (!featuresConfig) {
-		return imageMetadata;
-	}
-
-	imageMetadata.map(entry => {
-		const id = entry.id;
-		if (!id) {
-			return;
-		}
-
-		const targetFeatureSet = featuresConfig?.featureSets.find(fs => fs.sourceInformation.userFeatureId === id);
-		if (!targetFeatureSet) {
-			return;
-		}
-
-		const buildPath = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, targetFeatureSet.features[0].consecutiveId!);
-		entry.featureContainerDestFolder = buildPath;
-	});
-	return imageMetadata;
-}
-
 export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 
-	const pickedRaw = featuresConfig?.featureSets.map(featureSet =>
+	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
 		featureSet.features.map(feature => ({
-		id: featureSet.sourceInformation.userFeatureId,
-		...pick(feature, effectivePickFeatureProperties),
-	}))).flat() || [];
+			id: featureSet.sourceInformation.userFeatureId,
+			featureRootFolder: featureSet ? path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, featureSet.features[0].consecutiveId!) : undefined,
+			...pick(feature, effectivePickFeatureProperties),
+		}))).flat() || [];
 
-	const raw = cacheFeatureContainerDestFolder([
+	const raw = [
 		...baseImageMetadata.raw,
-		...pickedRaw,
+		...featureRaw,
 		pick(devContainerConfig.raw, pickConfigProperties),
-	].filter(config => Object.keys(config).length), featuresConfig);
+	].filter(config => Object.keys(config).length);
 
 	return {
 		config: [
 			...baseImageMetadata.config,
-			...raw.map(devContainerConfig.substitute),
+			...featureRaw.map(devContainerConfig.substitute),
 			pick(devContainerConfig.config, pickConfigProperties),
 		].filter(config => Object.keys(config).length),
 		raw,
