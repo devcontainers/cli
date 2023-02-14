@@ -62,4 +62,4 @@ To later apply a published Template (in the example below, the `color` template)
     
 For publishing to `ghcr.io`
 - Using the `devcontainers/action` GitHub action to handle the `GITHUB_TOKEN` credential for you.
-- Providing a GITHUB_TOKEN with permission to `write:packages`,
+- Providing a GITHUB_TOKEN with permission to `write:packages`.
