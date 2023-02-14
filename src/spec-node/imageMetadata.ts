@@ -146,6 +146,17 @@ export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEnt
 	return map;
 }
 
+function mergeLifecycleHooks(metadata: ImageMetadataEntry[], hook: (keyof SchemaFeatureLifecycleHooks)): LifecycleCommand[] | undefined {
+	const collected: LifecycleCommand[] = [];
+	for (const entry of metadata) {
+		const command = entry[hook];
+		const substitutedCommand = substituteFeatureRoot(command, entry.featureRootFolder);
+		if (substitutedCommand) {
+			collected.push(substitutedCommand);
+		}
+	}
+	return collected;
+}
 
 export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[]): MergedDevContainerConfig {
 	const customizations = imageMetadata.reduce((obj, entry) => {
@@ -170,11 +181,11 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		entrypoints: collectOrUndefined(imageMetadata, 'entrypoint'),
 		mounts: mergeMounts(imageMetadata),
 		customizations: Object.keys(customizations).length ? customizations : undefined,
-		onCreateCommands: collectOrUndefined(imageMetadata, 'onCreateCommand'),
-		updateContentCommands: collectOrUndefined(imageMetadata, 'updateContentCommand'),
-		postCreateCommands: collectOrUndefined(imageMetadata, 'postCreateCommand'),
-		postStartCommands: collectOrUndefined(imageMetadata, 'postStartCommand'),
-		postAttachCommands: collectOrUndefined(imageMetadata, 'postAttachCommand'),
+		onCreateCommands: mergeLifecycleHooks(imageMetadata, 'onCreateCommand'),
+		updateContentCommands: mergeLifecycleHooks(imageMetadata, 'updateContentCommand'),
+		postCreateCommands: mergeLifecycleHooks(imageMetadata, 'postCreateCommand'),
+		postStartCommands: mergeLifecycleHooks(imageMetadata, 'postStartCommand'),
+		postAttachCommands: mergeLifecycleHooks(imageMetadata, 'postAttachCommand'),
 		waitFor: reversed.find(entry => entry.waitFor)?.waitFor,
 		remoteUser: reversed.find(entry => entry.remoteUser)?.remoteUser,
 		containerUser: reversed.find(entry => entry.containerUser)?.containerUser,

@@ -217,7 +217,7 @@ describe('Feature lifecycle hooks', function () {
 				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
 			});
 
-			it('Feature command added to path can be executed in a lifecycle scripts', async () => {
+			it('executes lifecycle hooks in advanced cases', async () => {
 				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
