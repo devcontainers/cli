@@ -131,7 +131,7 @@ function provisionOptions(y: Argv) {
 			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
 				const cwd_content = fs.readdirSync(path.resolve(process.cwd()));
 				if (cwd_content.includes('.devcontainer')) {
-					argv['workspace-folder'] = path.resolve(process.cwd());
+					argv['workspace-folder'] = '.';
 				} else {
 					throw new Error('Missing required argument: workspace-folder or id-label or override-config');
 				}
