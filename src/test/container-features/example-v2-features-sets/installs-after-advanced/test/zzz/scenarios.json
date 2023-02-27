@@ -1,0 +1,16 @@
+{
+    "with-node-un-versioned": {
+        "image": "debian:latest",
+        "features": {
+            "ghcr.io/devcontainers/features/node": {},
+            "zzz": {}
+        }
+    },
+    "with-node-is-versioned": {
+        "image": "debian:latest",
+        "features": {
+            "ghcr.io/devcontainers/features/node:1": {},
+            "zzz": {}
+        }
+    }
+}

@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import * as crypto from 'crypto';
-import { promisify } from 'util';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
@@ -759,8 +758,7 @@ async function runUserEnvProbe(userEnvProbe: UserEnvProbe, params: { allowSystem
 	try {
 		// From VS Code's shellEnv.ts
 
-		const buffer = await promisify(crypto.randomBytes)(16);
-		const mark = buffer.toString('hex');
+		const mark = crypto.randomUUID();
 		const regex = new RegExp(mark + '([^]*)' + mark);
 		const systemShellUnix = containerProperties.shell;
 		params.output.write(`userEnvProbe shell: ${systemShellUnix}`);

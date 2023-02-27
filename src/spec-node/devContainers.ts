@@ -12,7 +12,6 @@ import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, Use
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
-import { promisify } from 'util';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
@@ -103,7 +102,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const sessionId = (await promisify(crypto.randomBytes)(20)).toString('hex'); // TODO: Somehow enable correlation.
+	const sessionId = crypto.randomUUID();
 
 	const common: ResolverParameters = {
 		prebuild: options.prebuild,
