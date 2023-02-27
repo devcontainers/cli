@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'fs';
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -127,6 +128,14 @@ function provisionOptions(y: Argv) {
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				const cwd_content = fs.readdirSync(path.resolve(process.cwd()));
+				if (cwd_content.includes('.devcontainer')) {
+					argv['workspace-folder'] = path.resolve(process.cwd());
+				} else {
+					throw new Error('Missing required argument: workspace-folder or id-label or override-config');
+				}
+			}
 			if (!(argv['workspace-folder'] || argv['id-label'])) {
 				throw new Error('Missing required argument: workspace-folder or id-label');
 			}
@@ -188,7 +197,6 @@ async function provision({
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
 }: ProvisionArgs) {
-
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
