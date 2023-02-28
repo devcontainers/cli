@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path from 'path';
 import { ContainerError } from '../spec-common/errors';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
-import { substituteFeatureRoot } from '../spec-common/variableSubstitution';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, FEATURES_CONTAINER_DEST_FOLDER, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -69,7 +67,6 @@ const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, '
 
 export interface ImageMetadataEntry {
 	id?: string;
-	featureRootFolder?: string;
 	init?: boolean;
 	privileged?: boolean;
 	capAdd?: string[];
@@ -137,9 +134,8 @@ export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEnt
 		const origin = id ?? 'devcontainer.json';
 		for (const hook of pickFeatureLifecycleHookProperties) {
 			const command = entry[hook];
-			const substitutedCommand = substituteFeatureRoot(command, entry.featureRootFolder);
-			if (substitutedCommand) {
-				map[hook].push({ origin, command: substitutedCommand });
+			if (command) {
+				map[hook].push({ origin, command });
 			}
 		}
 	}
@@ -150,9 +146,8 @@ function mergeLifecycleHooks(metadata: ImageMetadataEntry[], hook: (keyof Schema
 	const collected: LifecycleCommand[] = [];
 	for (const entry of metadata) {
 		const command = entry[hook];
-		const substitutedCommand = substituteFeatureRoot(command, entry.featureRootFolder);
-		if (substitutedCommand) {
-			collected.push(substitutedCommand);
+		if (command) {
+			collected.push(command);
 		}
 	}
 	return collected;
@@ -298,7 +293,6 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
 		featureSet.features.map(feature => ({
 			id: featureSet.sourceInformation.userFeatureId,
-			featureRootFolder: featureSet ? path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, featureSet.features[0].consecutiveId!) : undefined,
 			...pick(feature, effectivePickFeatureProperties),
 		}))).flat() || [];
 

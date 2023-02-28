@@ -8,7 +8,6 @@ import * as crypto from 'crypto';
 
 import { ContainerError } from './errors';
 import { URI } from 'vscode-uri';
-import { LifecycleCommand } from './injectHeadless';
 
 export interface SubstitutionContext {
 	platform: NodeJS.Platform;
@@ -125,16 +124,6 @@ function replaceContainerEnv(isWindows: boolean, configFile: URI | undefined, co
 	}
 }
 
-function replaceFeatureRoot(featureRootFolder: string | undefined, match: string, variable: string) {
-	switch (variable) {
-		case 'featureRootFolder':
-			return featureRootFolder || match;
-
-		default:
-			return match;
-	}
-}
-
 function replaceDevContainerId(getDevContainerId: () => string | undefined, match: string, variable: string) {
 	switch (variable) {
 		case 'devcontainerId':
@@ -179,11 +168,4 @@ function devcontainerIdForLabels(idLabels: Record<string, string>): string {
 		.toString(32)
 		.padStart(52, '0');
 	return uniqueId;
-}
-
-export function substituteFeatureRoot(lifecycleHook: LifecycleCommand | undefined, cachePath: string | undefined): LifecycleCommand | undefined {
-	if (!lifecycleHook || !cachePath) {
-		return lifecycleHook;
-	}
-	return substitute0(replaceFeatureRoot.bind(undefined, cachePath), lifecycleHook);
 }
