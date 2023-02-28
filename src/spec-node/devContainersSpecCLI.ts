@@ -1076,6 +1076,7 @@ function execOptions(y: Argv) {
 		})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
@@ -1083,10 +1084,14 @@ function execOptions(y: Argv) {
 			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+			if (!(argv['container-id'] || idLabels?.length || isWorkspaceFound)) {
 				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
