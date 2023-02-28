@@ -240,9 +240,8 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(containerUpStandardError, /Running parallel2 from devcontainer.json.../);
 
 				// Since lifecycle scripts are executed relative to the workspace folder,
-				// to run a script bundled with the Feature, the user needs to use the '${featureRootFolder}' variable.
-				// This variable can only be used in a devcontainer-feature.json's lifecycle scripts.
-				// And will return the temporary directory where the Feature's files are copied to.
+				// to run a script bundled with the Feature, the Feature author needs to copy that script to a persistent directory.
+				// These Features' install scripts do that.
 
 				// -- 'Rabbit' Feature
 				assert.match(outputOfExecCommand, /helperScript.rabbit.onCreateCommand.testMarker/);
