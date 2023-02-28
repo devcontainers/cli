@@ -496,7 +496,7 @@ export function getContainerEnvMetadata(containerEnv: Record<string, string> | u
 		return '';
 	}
 
-	const keys = Object.keys(containerEnv);
-	const concatenatedEnv = keys.map(k => `ENV ${k}=${containerEnv![k]}`).join('\n');
-	return concatenatedEnv;
+	return Object.entries(containerEnv)
+		.map(([k, v]) => `ENV ${k}=${v.replace(/ /g, '\\ ')}`)
+		.join('\n');
 }
