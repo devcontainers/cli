@@ -6,6 +6,8 @@
         }
     },
     "containerEnv": {
-        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current"
+        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current",
+        "ENV_WITH_SPACES": "Environment variable with spaces",
+        "ENV_WITH_COMMAND": "bash -c 'echo -n \"Hello, World!\"'"
     }
 }
