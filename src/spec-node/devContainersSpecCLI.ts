@@ -83,6 +83,16 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 
 })().catch(console.error);
 
+function findWorkspaceFolder(): string | undefined {
+	const workspacePath = path.join(process.cwd(), '.devcontainer');
+	if (fs.existsSync(workspacePath)) {
+		if (fs.lstatSync(workspacePath).isDirectory()) {
+			return process.cwd();
+		}
+	}
+	return undefined;
+}
+
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 
 function provisionOptions(y: Argv) {
@@ -125,22 +135,13 @@ function provisionOptions(y: Argv) {
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
+			console.debug(isWorkspaceFound)
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
-			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
-				const cwd_content = fs.readdirSync(path.resolve(process.cwd()));
-				if (cwd_content.includes('.devcontainer')) {
-					argv['workspace-folder'] = '.';
-				} else {
-					throw new Error('Missing required argument: workspace-folder or id-label or override-config');
-				}
-			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
+			if (!(argv['id-label'] || argv['override-config'] || isWorkspaceFound)) {
+				throw new Error('Missing required argument: workspace-folder or id-label or override-config');
 			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
@@ -151,6 +152,10 @@ function provisionOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
