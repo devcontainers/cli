@@ -13,6 +13,7 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
+import { applyStaticPorts } from './containerNetwork';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -196,7 +197,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -348,9 +349,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
-	const appPort = config.appPort;
-	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
-	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
+	const exposed = applyStaticPorts(config);
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
