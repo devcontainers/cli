@@ -25,7 +25,7 @@ export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
 export type Feature = SchemaFeatureBaseProperties & SchemaFeatureLifecycleHooks & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
 
-export const FEATURES_CONTAINER_DEST_FOLDER = '/usr/share/devcontainer/features';
+export const FEATURES_CONTAINER_TEMP_DEST_FOLDER = '/tmp/dev-container-features';
 
 export interface SchemaFeatureLifecycleHooks {
 	onCreateCommand?: string | string[];
@@ -253,8 +253,8 @@ FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-RUN mkdir -p ${FEATURES_CONTAINER_DEST_FOLDER}
-COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ ${FEATURES_CONTAINER_DEST_FOLDER}
+RUN mkdir -p ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
+COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
 
 #{featureLayer}
 
@@ -333,7 +333,7 @@ function escapeQuotesForShell(input: string) {
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features') {
 
-	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
+	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
 echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
 echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> ${builtinsEnvFile}
@@ -344,7 +344,7 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> ${built
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
 		const source = path.posix.join(contentSourceRootPath, folder!);
-		const dest = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, folder!);
+		const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, folder!);
 		if (!useBuildKitBuildContexts) {
 			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
 RUN chmod -R 0755 ${dest} \\
@@ -355,11 +355,12 @@ RUN chmod -R 0755 ${dest} \\
 `;
 		} else {
 			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
-    cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_DEST_FOLDER} \\
+    cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./install.sh \\
- && ./install.sh
+ && ./install.sh \\
+ && rm -rf ${dest}
 
 `;
 		}
@@ -369,7 +370,7 @@ RUN chmod -R 0755 ${dest} \\
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
 			const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
-			const dest = path.posix.join(FEATURES_CONTAINER_DEST_FOLDER, feature.consecutiveId!);
+			const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, feature.consecutiveId!);
 			if (!useBuildKitBuildContexts) {
 				result += `
 COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
@@ -382,11 +383,12 @@ RUN chmod -R 0755 ${dest} \\
 			} else {
 				result += `
 RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
-    cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_DEST_FOLDER} \\
+    cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./devcontainer-features-install.sh \\
- && ./devcontainer-features-install.sh
+ && ./devcontainer-features-install.sh \\
+ && rm -rf ${dest}
 
 `;
 			}
