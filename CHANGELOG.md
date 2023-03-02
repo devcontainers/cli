@@ -2,6 +2,14 @@
 
 Notable changes.
 
+## March 2023
+
+### [0.32.0]
+
+- Initial support for Features contributing lifecycle hooks (https://github.com/devcontainers/cli/pull/390)
+- Retry docker pull on error (https://github.com/devcontainers/cli/pull/428)
+- Fix: `devcontainer feature test` cmd should fail if Feature's sub-folder does not exist (https://github.com/devcontainers/cli/pull/418)
+
 ## February 2023
 
 ### [0.31.0]
