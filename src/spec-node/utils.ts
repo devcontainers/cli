@@ -36,6 +36,22 @@ export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, Remo
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
 
+// Generic retry function
+export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
+	const { retryIntervalMilliseconds, maxRetries, output } = options;
+	let lastError: Error | undefined;
+	for (let i = 0; i < maxRetries; i++) {
+		try {
+			return await fn();
+		} catch (err) {
+			lastError = err;
+			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
+		}
+	}
+	throw lastError;
+}
+
 export async function uriToWSLFsPath(uri: URI, cliHost: CLIHost): Promise<string> {
 	if (uri.scheme === 'file' && cliHost.type === 'wsl') {
 		// convert local path (e.g. repository-container Dockerfile) to WSL path
