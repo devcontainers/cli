@@ -285,13 +285,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
-	const dockerfile = getContainerFeaturesBaseDockerFile()
+	const dockerfile = getContainerFeaturesBaseDockerFile(contentSourceRootPath)
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
-		.replace('{contentSourceRootPath}', contentSourceRootPath)
-		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
-		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
 		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
 		;
@@ -389,31 +386,6 @@ export function findContainerUsers(imageMetadata: SubstitutedConfig<ImageMetadat
 	return { containerUser, remoteUser };
 }
 
-function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath: string) {
-	return ([] as string[]).concat(...featuresConfig.featureSets
-		.map((featureSet, i) => featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
-RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
-			)
-		)
-	).join('\n\n');
-}
-
-function getCopyFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[]) {
-	return ([] as string[]).concat(...featuresConfig.featureSets
-		.map((featureSet, i) => featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => {
-				const featurePath = path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id);
-				return `COPY --from=${getSourceInfoString(featureSet.sourceInformation)}_${f.id} ${featurePath} ${featurePath}${buildStageScripts[i][f.id]?.hasConfigure ? `
-RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/configure` : ''}`;
-			})
-		)
-	).join('\n\n');
-}
 
 function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);

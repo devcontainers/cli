@@ -11,7 +11,7 @@ import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
 const pkg = require('../../../package.json');
 
 describe('Dev Container Features E2E (remote)', function () {
-    this.timeout('120s');
+    this.timeout('240s');
 
     const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
     const cli = `npx --prefix ${tmp} devcontainer`;

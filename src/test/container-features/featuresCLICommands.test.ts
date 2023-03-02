@@ -329,6 +329,33 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport);
 		});
 
+		it('lifecycle-hooks', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/lifecycle-hooks`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --log-level trace ${collectionFolder}`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const onCreateFiredFeatureA = result.stderr.includes('A-ON-CREATE-COMMAND');
+			assert.isTrue(onCreateFiredFeatureA);
+			const onCreateFiredFeatureB = result.stderr.includes('B-ON-CREATE-COMMAND');
+			assert.isTrue(onCreateFiredFeatureB);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'a'
+✅ Passed:      'b'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+		});
+
 		it('installsAfter fruit -> hello', async function () {
 			const collectionFolder = `${__dirname}/configs/example-installsAfter`;
 			let result: ExecResult | undefined = undefined;

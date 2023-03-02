@@ -1,0 +1,14 @@
+{
+    "id": "panda",
+    "version": "4.5.6",
+    "name": "Echos the panda emoji. That is it!",
+    "options": {},
+    "updateContentCommand": [
+        ".devcontainer/createMarker.sh",
+        "panda.updateContentCommand.testMarker"
+    ],
+    "onCreateCommand": "./.devcontainer/createMarker.sh panda.onCreateCommand.testMarker",
+    "postCreateCommand": "./.devcontainer/createMarker.sh panda.postCreateCommand.testMarker",
+    "postStartCommand": "./.devcontainer/createMarker.sh panda.postStartCommand.testMarker",
+    "postAttachCommand": "./.devcontainer/createMarker.sh panda.postAttachCommand.testMarker"
+}

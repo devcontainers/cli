@@ -17,7 +17,7 @@ import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/l
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
@@ -68,13 +68,13 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const configs = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
-		const mergedConfig = mergeConfiguration(configWithRaw.config, configs);
+		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
+		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
 		const {
 			remoteEnv: extensionHostEnv,
-		} = await setupInContainer(common, containerProperties, mergedConfig);
+		} = await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 
 		return {
 			params: common,

@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
-import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
+import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
@@ -122,7 +122,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output,
 		allowSystemConfigChange: true,
 		defaultUserEnvProbe: options.defaultUserEnvProbe,
-		postCreate: createNullPostCreate(options.postCreateEnabled, options.skipNonBlocking, output),
+		lifecycleHook: createNullLifecycleHook(options.postCreateEnabled, options.skipNonBlocking, output),
 		getLogLevel: () => options.logLevel,
 		onDidChangeLogLevel: () => ({ dispose() { } }),
 		loadNativeModule,

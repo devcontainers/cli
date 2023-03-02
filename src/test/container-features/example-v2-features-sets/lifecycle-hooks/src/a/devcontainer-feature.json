@@ -1,0 +1,8 @@
+{
+    "id": "a",
+    "version": "1.0.0",
+    "installsAfter": [
+        "./b"
+    ],
+    "onCreateCommand": "touch a.onCreateCommand.testMarker && echo 'A-ON-CREATE-COMMAND'"
+}
