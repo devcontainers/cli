@@ -17,6 +17,7 @@ import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
+import { Event } from '../spec-utils/event';
 
 export const experimentalImageMetadataDefault = true;
 
@@ -34,6 +35,7 @@ export interface ProvisionOptions {
 	logFormat: LogFormat;
 	log: (text: string) => void;
 	terminalDimensions: LogDimensions | undefined;
+	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 	defaultUserEnvProbe: UserEnvProbe;
 	removeExistingContainer: boolean;
 	buildNoCache: boolean;
@@ -177,7 +179,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
-		isTTY: process.stdin.isTTY || options.logFormat === 'json',
+		isTTY: process.stdout.isTTY || options.logFormat === 'json',
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
@@ -189,19 +191,21 @@ export interface LogOptions {
 	logFormat: LogFormat;
 	log: (text: string) => void;
 	terminalDimensions: LogDimensions | undefined;
+	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 }
 
 export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
 	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
+	output.onDidChangeDimensions = options.onDidChangeTerminalDimensions;
 	disposables.push(() => output.join());
 	return output;
 }
 
 function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
-		process.stdin.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
+		process.stdout.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
 		createPlainLog(write, () => logLevel);
 	const log = {
 		...makeLog(createCombinedLog([handler], header)),
