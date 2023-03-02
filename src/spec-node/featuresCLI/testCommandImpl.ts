@@ -457,7 +457,7 @@ async function exec(testCommandArgs: FeaturesTestCommandInput, cmd: string, args
 		]
 	};
 	const result = await doExec(execArgs);
-	return (result.outcome === 'success');
+	return (!result.code && !result.signal);
 }
 
 async function generateDockerParams(workspaceFolder: string, args: FeaturesTestCommandInput): Promise<DockerResolverParameters> {

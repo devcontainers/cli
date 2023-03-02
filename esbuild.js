@@ -47,6 +47,14 @@ const watch = process.argv.indexOf('--watch') !== -1;
 					loader: 'js',
 				};
 			});
+			// Work around https://github.com/TooTallNate/node-pac-proxy-agent/issues/21.
+			build.onLoad({ filter: /node_modules[\/\\]ftp[\/\\]lib[\/\\]connection.js$/ }, async (args) => {
+				const text = await fs.promises.readFile(args.path, 'utf8');
+				return {
+					contents: text.replace(/\bnew Buffer\(/g, 'Buffer.from('),
+					loader: 'js',
+				};
+			});
 		},
 	};
 

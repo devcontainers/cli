@@ -10,8 +10,8 @@ import * as crypto from 'crypto';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
-import { ExecFunction, CLIHost, PtyExecFunction, isFile } from './commonUtils';
-import { Event, NodeEventEmitter } from '../spec-utils/event';
+import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec } from './commonUtils';
+import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
 import { URI } from 'vscode-uri';
 import { containerSubstitute } from './variableSubstitution';
@@ -87,10 +87,14 @@ export function createNullLifecycleHook(enabled: boolean, skipNonBlocking: boole
 		emitter.fire(data.toString());
 	}
 	const emitter = new NodeEventEmitter<string>({
-		on: () => process.stdin.on('data', listener),
+		on: () => {
+			if (process.stdin.isTTY) {
+				process.stdin.setRawMode(true);
+			}
+			process.stdin.on('data', listener);
+		},
 		off: () => process.stdin.off('data', listener),
 	});
-	process.stdin.setEncoding('utf8');
 	return {
 		enabled,
 		skipNonBlocking,
@@ -488,7 +492,7 @@ async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParame
 				// we need to hold output until the command is done so that the output
 				// doesn't get interleaved with the output of other commands.
 				const printMode = name ? 'off' : 'continuous';
-				const { cmdOutput } = await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: await remoteEnv, print: printMode });
+				const { cmdOutput } = await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: await remoteEnv, pty: true, print: printMode });
 
 				// 'name' is set when parallel execution syntax is used.
 				if (name) {
@@ -548,38 +552,86 @@ export function createFileCommand(location: string) {
 	return `test ! -f '${location}' && set -o noclobber && mkdir -p '${path.posix.dirname(location)}' && { > '${location}' ; } 2> /dev/null`;
 }
 
-export async function runRemoteCommand(params: { output: Log; onDidInput?: Event<string> }, { remotePtyExec }: { remotePtyExec: PtyExecFunction }, cmd: string[], cwd?: string, options: { remoteEnv?: NodeJS.ProcessEnv; stdin?: Buffer | fs.ReadStream; silent?: boolean; print?: 'off' | 'continuous' | 'end'; resolveOn?: RegExp } = {}) {
-	const print = options.print || (options.silent ? 'off' : 'end');
-	const p = await remotePtyExec({
-		env: options.remoteEnv,
-		cwd,
-		cmd: cmd[0],
-		args: cmd.slice(1),
-		output: options.silent ? nullLog : params.output,
-	});
+export async function runRemoteCommand(params: { output: Log; onDidInput?: Event<string>; stdin?: NodeJS.ReadStream; stdout?: NodeJS.WriteStream; stderr?: NodeJS.WriteStream }, { remoteExec, remotePtyExec }: ContainerProperties, cmd: string[], cwd?: string, options: { remoteEnv?: NodeJS.ProcessEnv; pty?: boolean; print?: 'off' | 'continuous' | 'end' } = {}) {
+	const print = options.print || 'end';
+	let sub: Disposable | undefined;
+	let pp: Exec | PtyExec;
 	let cmdOutput = '';
-	let doResolveEarly: () => void;
-	const resolveEarly = new Promise<void>(resolve => {
-		doResolveEarly = resolve;
-	});
-	p.onData(chunk => {
-		cmdOutput += chunk;
-		if (print === 'continuous') {
-			params.output.raw(chunk);
+	if (options.pty) {
+		const p = pp = await remotePtyExec({
+			env: options.remoteEnv,
+			cwd,
+			cmd: cmd[0],
+			args: cmd.slice(1),
+			output: params.output,
+		});
+		p.onData(chunk => {
+			cmdOutput += chunk;
+			if (print === 'continuous') {
+				if (params.stdout) {
+					params.stdout.write(chunk);
+				} else {
+					params.output.raw(chunk);
+				}
+			}
+		});
+		if (params.onDidInput) {
+			params.onDidInput(data => p.write(data));
+		} else if (params.stdin) {
+			const listener = (data: Buffer): void => p.write(data.toString());
+			const stdin = params.stdin;
+			if (stdin.isTTY) {
+				stdin.setRawMode(true);
+			}
+			stdin.on('data', listener);
+			sub = { dispose: () => stdin.off('data', listener) };
 		}
-		if (options.resolveOn && options.resolveOn.exec(cmdOutput)) {
-			doResolveEarly();
+	} else {
+		const p = pp = await remoteExec({
+			env: options.remoteEnv,
+			cwd,
+			cmd: cmd[0],
+			args: cmd.slice(1),
+			output: params.output,
+		});
+		const stdout: Buffer[] = [];
+		if (print === 'continuous' && params.stdout) {
+			p.stdout.pipe(params.stdout);
+		} else {
+			p.stdout.on('data', chunk => {
+				stdout.push(chunk);
+				if (print === 'continuous') {
+					params.output.raw(chunk.toString());
+				}
+			});
 		}
-	});
-	const sub = params.onDidInput && params.onDidInput(data => p.write(data));
-	const exit = await Promise.race([p.exit, resolveEarly]);
+		const stderr: Buffer[] = [];
+		if (print === 'continuous' && params.stderr) {
+			p.stderr.pipe(params.stderr);
+		} else {
+			p.stderr.on('data', chunk => {
+				stderr.push(chunk);
+				if (print === 'continuous') {
+					params.output.raw(chunk.toString());
+				}
+			});
+		}
+		if (params.onDidInput) {
+			params.onDidInput(data => p.stdin.write(data));
+		} else if (params.stdin) {
+			params.stdin.pipe(p.stdin);
+		}
+		await pp.exit;
+		cmdOutput = `${Buffer.concat(stdout)}\n${Buffer.concat(stderr)}`;
+	}
+	const exit = await pp.exit;
 	if (sub) {
 		sub.dispose();
 	}
 	if (print === 'end') {
 		params.output.raw(cmdOutput);
 	}
-	if (exit && (exit.code || exit.signal)) {
+	if (exit.code || exit.signal) {
 		return Promise.reject({
 			message: `Command failed: ${cmd.join(' ')}`,
 			cmdOutput,

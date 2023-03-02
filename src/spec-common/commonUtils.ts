@@ -223,6 +223,48 @@ export async function runCommand(options: {
 	});
 }
 
+// From https://man7.org/linux/man-pages/man7/signal.7.html:
+export const processSignals: Record<string, number | undefined> = {
+	SIGHUP: 1,
+	SIGINT: 2,
+	SIGQUIT: 3,
+	SIGILL: 4,
+	SIGTRAP: 5,
+	SIGABRT: 6,
+	SIGIOT: 6,
+	SIGBUS: 7,
+	SIGEMT: undefined,
+	SIGFPE: 8,
+	SIGKILL: 9,
+	SIGUSR1: 10,
+	SIGSEGV: 11,
+	SIGUSR2: 12,
+	SIGPIPE: 13,
+	SIGALRM: 14,
+	SIGTERM: 15,
+	SIGSTKFLT: 16,
+	SIGCHLD: 17,
+	SIGCLD: undefined,
+	SIGCONT: 18,
+	SIGSTOP: 19,
+	SIGTSTP: 20,
+	SIGTTIN: 21,
+	SIGTTOU: 22,
+	SIGURG: 23,
+	SIGXCPU: 24,
+	SIGXFSZ: 25,
+	SIGVTALRM: 26,
+	SIGPROF: 27,
+	SIGWINCH: 28,
+	SIGIO: 29,
+	SIGPOLL: 29,
+	SIGPWR: 30,
+	SIGINFO: undefined,
+	SIGLOST: undefined,
+	SIGSYS: 31,
+	SIGUNUSED: 31,
+};
+
 export function plainExec(defaultCwd: string | undefined): ExecFunction {
 	return async function (params: ExecParameters): Promise<Exec> {
 		const { cmd, args, output } = params;
