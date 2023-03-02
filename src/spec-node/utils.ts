@@ -266,6 +266,8 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 	return {
 		Id: targetDigest,
 		Config: obj.config,
+		Os: obj.os,
+		Architecture: obj.architecture,
 	};
 }
 

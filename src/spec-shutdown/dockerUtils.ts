@@ -120,6 +120,8 @@ export interface ImageDetails {
 		Entrypoint: string[] | null;
 		Cmd: string[] | null;
 	};
+	Architecture: string;
+	Os: string;
 }
 
 export async function inspectImage(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, id: string): Promise<ImageDetails> {

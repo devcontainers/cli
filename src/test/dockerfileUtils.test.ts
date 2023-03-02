@@ -161,7 +161,9 @@ FROM ubuntu:latest as dev
                 },
                 Entrypoint: null,
                 Cmd: null
-            }
+            },
+            Architecture: 'amd64',
+            Os: 'linux',
         };
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
@@ -187,7 +189,9 @@ USER dockerfileUserB
                 Labels: null,
                 Entrypoint: null,
                 Cmd: null
-            }
+            },
+            Architecture: 'amd64',
+            Os: 'linux',
         };
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
