@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
+import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
-import { Feature, FeaturesConfig, Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
@@ -45,7 +46,16 @@ const pickUpdateableConfigProperties: (keyof DevContainerConfig & keyof ImageMet
 	'remoteEnv',
 ];
 
+const pickFeatureLifecycleHookProperties: Exclude<keyof SchemaFeatureLifecycleHooks, 'id'>[] = [
+	'onCreateCommand',
+	'updateContentCommand',
+	'postCreateCommand',
+	'postStartCommand',
+	'postAttachCommand',
+];
+
 const pickFeatureProperties: Exclude<keyof Feature & keyof ImageMetadataEntry, 'id'>[] = [
+	...pickFeatureLifecycleHookProperties,
 	'init',
 	'privileged',
 	'capAdd',
@@ -64,11 +74,11 @@ export interface ImageMetadataEntry {
 	entrypoint?: string;
 	mounts?: (Mount | string)[];
 	customizations?: Record<string, any>;
-	onCreateCommand?: string | string[];
-	updateContentCommand?: string | string[];
-	postCreateCommand?: string | string[];
-	postStartCommand?: string | string[];
-	postAttachCommand?: string | string[];
+	onCreateCommand?: LifecycleCommand;
+	updateContentCommand?: LifecycleCommand;
+	postCreateCommand?: LifecycleCommand;
+	postStartCommand?: LifecycleCommand;
+	postAttachCommand?: LifecycleCommand;
 	waitFor?: DevContainerConfigCommand;
 	remoteUser?: string;
 	containerUser?: string;
@@ -102,12 +112,45 @@ const replaceProperties = [
 interface UpdatedConfigProperties {
 	customizations?: Record<string, any[]>;
 	entrypoints?: string[];
-	onCreateCommands?: (string | string[])[];
-	updateContentCommands?: (string | string[])[];
-	postCreateCommands?: (string | string[])[];
-	postStartCommands?: (string | string[])[];
-	postAttachCommands?: (string | string[])[];
+	onCreateCommands?: LifecycleCommand[];
+	updateContentCommands?: LifecycleCommand[];
+	postCreateCommands?: LifecycleCommand[];
+	postStartCommands?: LifecycleCommand[];
+	postAttachCommands?: LifecycleCommand[];
 	shutdownAction?: 'none' | 'stopContainer' | 'stopCompose';
+}
+
+export function lifecycleCommandOriginMapFromMetadata(metadata: ImageMetadataEntry[]): LifecycleHooksInstallMap {
+	const map: LifecycleHooksInstallMap = {
+		onCreateCommand: [],
+		updateContentCommand: [],
+		postCreateCommand: [],
+		postStartCommand: [],
+		postAttachCommand: [],
+		initializeCommand: []
+	};
+	for (const entry of metadata) {
+		const id = entry.id; // Only Features have IDs encoded in the metadata.
+		const origin = id ?? 'devcontainer.json';
+		for (const hook of pickFeatureLifecycleHookProperties) {
+			const command = entry[hook];
+			if (command) {
+				map[hook].push({ origin, command });
+			}
+		}
+	}
+	return map;
+}
+
+function mergeLifecycleHooks(metadata: ImageMetadataEntry[], hook: (keyof SchemaFeatureLifecycleHooks)): LifecycleCommand[] | undefined {
+	const collected: LifecycleCommand[] = [];
+	for (const entry of metadata) {
+		const command = entry[hook];
+		if (command) {
+			collected.push(command);
+		}
+	}
+	return collected;
 }
 
 export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[]): MergedDevContainerConfig {
@@ -133,11 +176,11 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		entrypoints: collectOrUndefined(imageMetadata, 'entrypoint'),
 		mounts: mergeMounts(imageMetadata),
 		customizations: Object.keys(customizations).length ? customizations : undefined,
-		onCreateCommands: collectOrUndefined(imageMetadata, 'onCreateCommand'),
-		updateContentCommands: collectOrUndefined(imageMetadata, 'updateContentCommand'),
-		postCreateCommands: collectOrUndefined(imageMetadata, 'postCreateCommand'),
-		postStartCommands: collectOrUndefined(imageMetadata, 'postStartCommand'),
-		postAttachCommands: collectOrUndefined(imageMetadata, 'postAttachCommand'),
+		onCreateCommands: mergeLifecycleHooks(imageMetadata, 'onCreateCommand'),
+		updateContentCommands: mergeLifecycleHooks(imageMetadata, 'updateContentCommand'),
+		postCreateCommands: mergeLifecycleHooks(imageMetadata, 'postCreateCommand'),
+		postStartCommands: mergeLifecycleHooks(imageMetadata, 'postStartCommand'),
+		postAttachCommands: mergeLifecycleHooks(imageMetadata, 'postAttachCommand'),
 		waitFor: reversed.find(entry => entry.waitFor)?.waitFor,
 		remoteUser: reversed.find(entry => entry.remoteUser)?.remoteUser,
 		containerUser: reversed.find(entry => entry.containerUser)?.containerUser,
@@ -247,22 +290,25 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 
-	const raw = featuresConfig?.featureSets.map(featureSet => featureSet.features.map(feature => ({
-		id: featureSet.sourceInformation.userFeatureId,
-		...pick(feature, effectivePickFeatureProperties),
-	}))).flat() || [];
+	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
+		featureSet.features.map(feature => ({
+			id: featureSet.sourceInformation.userFeatureId,
+			...pick(feature, effectivePickFeatureProperties),
+		}))).flat() || [];
+
+	const raw = [
+		...baseImageMetadata.raw,
+		...featureRaw,
+		pick(devContainerConfig.raw, pickConfigProperties),
+	].filter(config => Object.keys(config).length);
 
 	return {
 		config: [
 			...baseImageMetadata.config,
-			...raw.map(devContainerConfig.substitute),
+			...featureRaw.map(devContainerConfig.substitute),
 			pick(devContainerConfig.config, pickConfigProperties),
 		].filter(config => Object.keys(config).length),
-		raw: [
-			...baseImageMetadata.raw,
-			...raw,
-			pick(devContainerConfig.raw, pickConfigProperties),
-		].filter(config => Object.keys(config).length),
+		raw,
 		substitute: devContainerConfig.substitute,
 	};
 }

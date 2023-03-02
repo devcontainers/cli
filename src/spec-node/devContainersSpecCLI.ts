@@ -13,8 +13,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
-import { bailOut, buildNamedImageAndExtend } from './singleContainer';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
@@ -31,10 +30,11 @@ import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/pu
 import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
 import { featuresInfoManifestHandler, featuresInfoManifestOptions } from './featuresCLI/infoManifest';
+import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -120,7 +120,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -305,7 +305,7 @@ function setUpOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 	})
 		.check(argv => {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
@@ -423,7 +423,7 @@ async function doSetUp({
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, true, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
-		await setupInContainer(common, containerProperties, mergedConfig);
+		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -692,7 +692,7 @@ function runUserCommandsOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -834,7 +834,7 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
+		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,

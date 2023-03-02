@@ -4,6 +4,11 @@ Notable changes.
 
 ## February 2023
 
+### [0.31.0]
+
+- Add label for config file. (https://github.com/microsoft/vscode-remote-release/issues/7548)
+- Add docs for `devcontainer templates publish`. (https://github.com/devcontainers/cli/pull/410)
+
 ### [0.30.0]
 
 - Fix: Merge metadata logic for containerEnv for `devcontainer build`. (https://github.com/devcontainers/cli/pull/392)

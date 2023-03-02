@@ -1,0 +1,22 @@
+{
+    "id": "otter",
+    "version": "1.2.3",
+    "options": {},
+    "updateContentCommand": "/usr/features/otter/helper_script.sh updateContentCommand",
+    "onCreateCommand": "/usr/features/otter/helper_script.sh onCreateCommand",
+    "postCreateCommand": {
+        "parallel1": "/usr/features/otter/helper_script.sh parallel_postCreateCommand_1",
+        "parallel2": [
+            "/usr/features/otter/helper_script.sh",
+            "parallel_postCreateCommand_2"
+        ]
+    },
+    "postStartCommand": [
+        "/usr/features/otter/helper_script.sh",
+        "postStartCommand"
+    ],
+    "postAttachCommand": [
+        "/usr/features/otter/helper_script.sh",
+        "postAttachCommand"
+    ]
+}

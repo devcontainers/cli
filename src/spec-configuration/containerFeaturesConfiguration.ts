@@ -23,18 +23,27 @@ export const V1_DEVCONTAINER_FEATURES_FILE_NAME = 'devcontainer-features.json';
 // v2
 export const DEVCONTAINER_FEATURE_FILE_NAME = 'devcontainer-feature.json';
 
-export interface Feature {
+export type Feature = SchemaFeatureBaseProperties & SchemaFeatureLifecycleHooks & DeprecatedSchemaFeatureProperties & InternalFeatureProperties;
+
+export const FEATURES_CONTAINER_TEMP_DEST_FOLDER = '/tmp/dev-container-features';
+
+export interface SchemaFeatureLifecycleHooks {
+	onCreateCommand?: string | string[];
+	updateContentCommand?: string | string[];
+	postCreateCommand?: string | string[];
+	postStartCommand?: string | string[];
+	postAttachCommand?: string | string[];
+}
+
+// Properties who are members of the schema
+export interface SchemaFeatureBaseProperties {
 	id: string;
 	version?: string;
 	name?: string;
 	description?: string;
-	cachePath?: string;
-	internalVersion?: string; // set programmatically
-	consecutiveId?: string;
 	documentationURL?: string;
 	licenseURL?: string;
 	options?: Record<string, FeatureOption>;
-	buildArg?: string; // old properties for temporary compatibility
 	containerEnv?: Record<string, string>;
 	mounts?: Mount[];
 	init?: boolean;
@@ -42,15 +51,27 @@ export interface Feature {
 	capAdd?: string[];
 	securityOpt?: string[];
 	entrypoint?: string;
-	include?: string[];
-	exclude?: string[];
-	value: boolean | string | Record<string, boolean | string | undefined>; // set programmatically
-	included: boolean; // set programmatically
 	customizations?: VSCodeCustomizations;
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
-	currentId?: string; // set programmatically
+}
+
+// Properties that are set programmatically for book-keeping purposes
+export interface InternalFeatureProperties {
+	cachePath?: string;
+	internalVersion?: string;
+	consecutiveId?: string;
+	value: boolean | string | Record<string, boolean | string | undefined>;
+	currentId?: string;
+	included: boolean;
+}
+
+// Old or deprecated properties maintained for backwards compatibility
+export interface DeprecatedSchemaFeatureProperties {
+	buildArg?: string;
+	include?: string[];
+	exclude?: string[];
 }
 
 export type FeatureOption = {
@@ -218,26 +239,24 @@ export function getSourceInfoString(srcInfo: SourceInformation): string {
 }
 
 // TODO: Move to node layer.
-export function getContainerFeaturesBaseDockerFile() {
+export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string) {
 	return `
-#{featureBuildStages}
 
 #{nonBuildKitFeatureContentFallback}
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
-COPY --from=dev_containers_feature_content_source {contentSourceRootPath}/devcontainer-features.builtin.env /tmp/build-features/
-RUN chmod -R 0700 /tmp/build-features
+COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, 'devcontainer-features.builtin.env')} /tmp/build-features/
+RUN chmod -R 0755 /tmp/build-features/
 
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
-COPY --from=dev_containers_feature_content_normalize /tmp/build-features /tmp/build-features
+RUN mkdir -p ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
+COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
 
 #{featureLayer}
-
-#{copyFeatureBuildStages}
 
 #{containerEnv}
 
@@ -312,10 +331,12 @@ function escapeQuotesForShell(input: string) {
 	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
 }
 
-export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features/') {
+export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features') {
+
+	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
+echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> ${builtinsEnvFile}
 
 `;
 
@@ -323,22 +344,23 @@ echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> /tmp/bu
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
 		const source = path.posix.join(contentSourceRootPath, folder!);
+		const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, folder!);
 		if (!useBuildKitBuildContexts) {
-			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} /tmp/build-features/${folder}
-RUN chmod -R 0700 /tmp/build-features/${folder} \\
-&& cd /tmp/build-features/${folder} \\
+			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
+RUN chmod -R 0755 ${dest} \\
+&& cd ${dest} \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
 `;
 		} else {
 			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder},rw \\
-    cp -ar /tmp/build-features-src/${folder} /tmp/build-features/ \\
- && chmod -R 0700 /tmp/build-features/${folder} \\
- && cd /tmp/build-features/${folder} \\
+    cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+ && chmod -R 0755 ${dest} \\
+ && cd ${dest} \\
  && chmod +x ./install.sh \\
  && ./install.sh \\
- && rm -rf /tmp/build-features/${folder}
+ && rm -rf ${dest}
 
 `;
 		}
@@ -348,11 +370,12 @@ RUN chmod -R 0700 /tmp/build-features/${folder} \\
 		featureSet.features.forEach(feature => {
 			result += generateContainerEnvs(feature);
 			const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
+			const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, feature.consecutiveId!);
 			if (!useBuildKitBuildContexts) {
 				result += `
-COPY --chown=root:root --from=dev_containers_feature_content_source ${source} /tmp/build-features/${feature.consecutiveId}
-RUN chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
-&& cd /tmp/build-features/${feature.consecutiveId} \\
+COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
+RUN chmod -R 0755 ${dest} \\
+&& cd ${dest} \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
@@ -360,12 +383,12 @@ RUN chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
 			} else {
 				result += `
 RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId},rw \\
-    cp -ar /tmp/build-features-src/${feature.consecutiveId} /tmp/build-features/ \\
- && chmod -R 0700 /tmp/build-features/${feature.consecutiveId} \\
- && cd /tmp/build-features/${feature.consecutiveId} \\
+    cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+ && chmod -R 0755 ${dest} \\
+ && cd ${dest} \\
  && chmod +x ./devcontainer-features-install.sh \\
  && ./devcontainer-features-install.sh \\
- && rm -rf /tmp/build-features/${feature.consecutiveId}
+ && rm -rf ${dest}
 
 `;
 			}
@@ -937,6 +960,11 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			feature.cachePath = featCachePath;
 			feature.consecutiveId = consecutiveId;
+
+			if (!feature.consecutiveId || !feature.id || !featureSet?.sourceInformation || !featureSet.sourceInformation.userFeatureId) {
+				const err = 'Internal Features error. Missing required attribute(s).';
+				throw new Error(err);
+			}
 
 			const featureDebugId = `${feature.consecutiveId}_${sourceInfoType}`;
 			output.write(`* Fetching feature: ${featureDebugId}`);

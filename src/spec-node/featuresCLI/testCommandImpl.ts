@@ -9,7 +9,7 @@ import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScrip
 import { DockerResolverParameters } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
-import { cpDirectoryLocal } from '../../spec-utils/pfs';
+import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
 import { nullLog } from '../../spec-utils/log';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
@@ -310,6 +310,12 @@ async function generateDefaultProjectFromFeatures(
 	for (const featureId of featuresToTest) {
 		// Copy the feature source code to the temp folder
 		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
+
+		if (! await cliHost.isFolder(pathToFeatureSource)) {
+			await rmLocal(tmpFolder, { recursive: true, force: true });
+			fail(`Folder '${pathToFeatureSource}' does not exist for the '${featureId}' Feature.`);
+		}
+
 		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
 	}
 

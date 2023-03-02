@@ -56,6 +56,20 @@ describe('Image Metadata', function () {
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
 				assert.strictEqual(metadata[1].init, true);
+
+				assert.deepStrictEqual(metadata[1].updateContentCommand, ['one', 'two']);
+				assert.deepStrictEqual(metadata[1].onCreateCommand, {
+					'command': 'three',
+					'commandWithArgs': [
+						'four',
+						'arg1',
+						'arg2'
+					]
+				});
+				assert.deepStrictEqual(metadata[1].postCreateCommand, 'five');
+				assert.deepStrictEqual(metadata[1].postStartCommand, 'six');
+				assert.deepStrictEqual(metadata[1].postAttachCommand, 'seven');
+
 				assert.strictEqual(metadata[2].id, './localFeatureB-substituted');
 				assert.strictEqual(metadata[2].privileged, true);
 				assert.strictEqual(raw.length, 3);
@@ -176,6 +190,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
+					consecutiveId: 'someFeature_1',
 				}
 			]));
 			assert.strictEqual(metadata.length, 2);
@@ -334,6 +349,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
+					consecutiveId: 'someFeature_1',
 				}
 			])), true);
 			const expected = [
