@@ -217,7 +217,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			output.write(`Error fetching image details: ${err2?.message}`);
 		}
 		try {
-			await dockerPtyCLI(params, 'pull', imageName);
+			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
 		} catch (_err) {
 			if (err.stdout) {
 				output.write(err.stdout.toString());
