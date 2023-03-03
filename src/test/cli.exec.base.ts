@@ -32,8 +32,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should execute successfully', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} echo hi`);
-					const response = JSON.parse(res.stdout);
-					assert.equal(response.outcome, 'success');
+					assert.strictEqual(res.error, null);
 				});
 			});
 			describe(`with valid (image) config containing features [${text}]`, () => {
@@ -43,17 +42,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have access to installed features (docker)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /Docker version/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 			});
 			describe(`with valid (Dockerfile) config containing features [${text}]`, () => {
@@ -64,17 +59,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				it('should have access to installed features (docker)', async () => {
 					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /CONTAINER ID/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 			});
 
@@ -85,17 +76,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should have build marker content', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /var/test-marker`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /||test-content||/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /||test-content||/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 			});
 
@@ -107,17 +94,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				it('should have access to installed features (docker)', async () => {
 					// NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /CONTAINER ID/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /CONTAINER ID/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 			});
 
@@ -128,17 +111,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				afterEach(async () => await devContainerDown({ composeProjectName }));
 				it('should have access to installed features (docker)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /Docker version/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 			});
 		});
@@ -168,24 +147,18 @@ export function describeTests2({ text, options }: BuildKitOption) {
 				afterEach(async () => await devContainerDown({ composeProjectName }));
 				it('should have access to installed features (docker)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /Docker version/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /Docker version/);
 				});
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /howdy, node/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
 				});
 				it('should have marker content', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /var/test-marker`);
-					const response = JSON.parse(res.stdout);
-					console.log(res.stderr);
-					assert.equal(response.outcome, 'success');
-					assert.match(res.stderr, /||test-content||/);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /||test-content||/);
 				});
 			});
 
@@ -234,8 +207,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 
 					// Should have Create + Start but not Attach
 					const res = await shellExec(`${cli} run-user-commands --skip-post-attach --workspace-folder ${testFolder}`);
-					const response = JSON.parse(res.stdout);
-					assert.equal(response.outcome, 'success');
+					assert.strictEqual(res.error, null);
 					await commandMarkerTests(cli, testFolder, { postCreate: true, postStart: true, postAttach: false }, 'Markers on run-user-commands');
 				});
 			});
@@ -333,17 +305,13 @@ export function describeTests2({ text, options }: BuildKitOption) {
 					afterEach(async () => await devContainerDown({ containerId }));
 					it('should have access to installed features (docker)', async () => {
 						const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker --version`);
-						const response = JSON.parse(res.stdout);
-						console.log(res.stderr);
-						assert.equal(response.outcome, 'success');
-						assert.match(res.stderr, /Docker version/);
+						assert.strictEqual(res.error, null);
+						assert.match(res.stdout, /Docker version/);
 					});
 					it('should have access to installed features (hello)', async () => {
 						const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-						const response = JSON.parse(res.stdout);
-						console.log(res.stderr);
-						assert.equal(response.outcome, 'success');
-						assert.match(res.stderr, /howdy, node/);
+						assert.strictEqual(res.error, null);
+						assert.match(res.stdout, /howdy, node/);
 					});
 				});
 		
@@ -354,9 +322,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 						success = true;
 					} catch (error) {
 						assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-						const res = JSON.parse(error.stdout);
-						assert.equal(res.outcome, 'error');
-						assert.match(res.message, /Dev container config \(.*\) not found./);
+						assert.match(error.stderr, /Dev container config \(.*\) not found./);
 					}
 					assert.equal(success, false, 'expect non-successful call');
 				});

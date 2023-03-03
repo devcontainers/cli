@@ -33,10 +33,8 @@ describe('Registry Compatibility', function () {
 
 			it('should exec the color command', async () => {
 				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
-				const response = JSON.parse(res.stdout);
-				console.log(res.stderr);
-				assert.equal(response.outcome, 'success');
-				assert.match(res.stderr, /my favorite color is pink/);
+				assert.strictEqual(res.error, null);
+				assert.match(res.stdout, /my favorite color is pink/);
 			});
 		});
 
