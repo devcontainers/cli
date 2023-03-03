@@ -42,10 +42,9 @@ describe('Feature lifecycle hooks', function () {
 
 				{
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-					const response = JSON.parse(res.stdout);
-					assert.equal(response.outcome, 'success');
+ 					assert.strictEqual(res.error, null);
 
-					const outputOfExecCommand = res.stderr;
+					const outputOfExecCommand = res.stdout;
 					console.log(outputOfExecCommand);
 
 					assert.match(outputOfExecCommand, /0.panda.onCreateCommand.testMarker/);
@@ -80,10 +79,9 @@ describe('Feature lifecycle hooks', function () {
 					assert.equal(resume.outcome, 'success');
 
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-					const response = JSON.parse(res.stdout);
-					assert.equal(response.outcome, 'success');
+					assert.strictEqual(res.error, null);
 
-					const outputOfExecCommand = res.stderr;
+					const outputOfExecCommand = res.stdout;
 					console.log(outputOfExecCommand);
 
 					assert.match(outputOfExecCommand, /15.panda.postStartCommand.testMarker/);
@@ -133,10 +131,9 @@ describe('Feature lifecycle hooks', function () {
 
 		it('marker files should exist and executed in stable order', async () => {
 			const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
+			assert.strictEqual(res.error, null);
 
-			const outputOfExecCommand = res.stderr;
+			const outputOfExecCommand = res.stdout;
 			console.log(outputOfExecCommand);
 
 			assert.match(outputOfExecCommand, /0.tiger.onCreateCommand.testMarker/);
@@ -185,10 +182,9 @@ describe('Feature lifecycle hooks', function () {
 			assert.equal(resume.outcome, 'success');
 
 			const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
+			assert.strictEqual(res.error, null);
 
-			const outputOfExecCommand = res.stderr;
+			const outputOfExecCommand = res.stdout;
 			console.log(outputOfExecCommand);
 
 			assert.match(outputOfExecCommand, /0.hippo.postStartCommand.testMarker/);
@@ -219,10 +215,9 @@ describe('Feature lifecycle hooks', function () {
 
 			it('executes lifecycle hooks in advanced cases', async () => {
 				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
-				const response = JSON.parse(res.stdout);
-				assert.equal(response.outcome, 'success');
+				assert.strictEqual(res.error, null);
 
-				const outputOfExecCommand = res.stderr;
+				const outputOfExecCommand = res.stdout;
 				console.log(outputOfExecCommand);
 
 				// Executes the command that was installed by each Feature's 'install.sh'.

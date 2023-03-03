@@ -107,10 +107,8 @@ describe('Dev Containers CLI', function () {
 			const containerId = (await shellExec(`docker run -d alpine:3.17 sleep inf`)).stdout.trim();
 
 			const res = await shellExec(`${cli} exec --container-id ${containerId} --config ${__dirname}/configs/set-up-with-config/devcontainer.json echo test-output`);
-			const response = JSON.parse(res.stdout);
-			console.log(res.stderr);
-			assert.equal(response.outcome, 'success');
-			assert.match(res.stderr, /test-output/);
+			assert.strictEqual(res.error, null);
+			assert.match(res.stdout, /test-output/);
 
 			await shellExec(`docker rm -f ${containerId}`);
 		});
@@ -121,10 +119,8 @@ describe('Dev Containers CLI', function () {
 			const containerId = (await shellExec(`docker run -d devcontainer-set-up-test sleep inf`)).stdout.trim();
 
 			const res = await shellExec(`${cli} exec --container-id ${containerId} echo test-output`);
-			const response = JSON.parse(res.stdout);
-			console.log(res.stderr);
-			assert.equal(response.outcome, 'success');
-			assert.match(res.stderr, /test-output/);
+			assert.strictEqual(res.error, null);
+			assert.match(res.stdout, /test-output/);
 
 			await shellExec(`docker rm -f ${containerId}`);
 		});
