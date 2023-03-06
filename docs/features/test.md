@@ -78,7 +78,7 @@ The following `scenarios.json` defines a single test scenario named `install_dot
 The test command will build a container with the config above, and then look for a `.sh` test file with the same name.  The test will pass if the container builds successfully and the `install_dotnet_and_oryx.sh` shell script exits will a successful exit code (0).
 
 ##### test/install_dotnet_and_oryx.sh
-```
+```shell
 #!/bin/bash
 
 set -e
