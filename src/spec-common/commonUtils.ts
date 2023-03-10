@@ -409,10 +409,6 @@ export function isEarlierVersion(left: number[], right: number[]) {
 	return false; // Equal.
 }
 
-export const fork = isTsnode ? (mod: string, args: readonly string[] | undefined, options: any) => {
-	return cp.spawn(tsnode, [mod, ...(args || [])], { ...options, windowsHide: true });
-} : cp.fork;
-
 export async function loadNativeModule<T>(moduleName: string): Promise<T | undefined> {
 	// Check NODE_PATH for Electron. Do this first to avoid loading a binary-incompatible version from the local node_modules during development.
 	if (process.env.NODE_PATH) {
