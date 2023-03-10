@@ -122,24 +122,29 @@ export async function runCommandNoPty(options: {
 			}
 		});
 		const subs: Disposable[] = [];
-		p.exit.then(({ code }) => {
+		p.exit.then(({ code, signal }) => {
 			try {
+				const failed = !!code || !!signal;
 				subs.forEach(sub => sub.dispose());
 				const stdoutBuf = Buffer.concat(stdout);
 				const stderrBuf = Buffer.concat(stderr);
-				if (print === true || (code && print === 'onerror')) {
+				if (print === true || (failed && print === 'onerror')) {
 					output.write(stdoutBuf.toString().replace(/\r?\n/g, '\r\n'));
 					output.write(toErrorText(stderrBuf.toString()));
 				}
 				if (print && code) {
 					output.write(`Exit code ${code}`);
 				}
-				if (code) {
+				if (print && signal) {
+					output.write(`Process signal ${signal}`);
+				}
+				if (failed) {
 					reject({
 						message: `Command failed: ${cmd} ${(args || []).join(' ')}`,
 						stdout: stdoutBuf,
 						stderr: stderrBuf,
-						code
+						code,
+						signal,
 					});
 				} else {
 					resolve({
@@ -175,8 +180,9 @@ export async function runCommand(options: {
 	output: Log;
 	resolveOn?: RegExp;
 	onDidInput?: Event<string>;
+	stdin?: string;
 }) {
-	const { ptyExec, cmd, args, cwd, env, output, resolveOn, onDidInput } = options;
+	const { ptyExec, cmd, args, cwd, env, output, resolveOn, onDidInput, stdin } = options;
 
 	const p = await ptyExec({
 		cmd,
@@ -188,6 +194,10 @@ export async function runCommand(options: {
 
 	return new Promise<{ cmdOutput: string }>((resolve, reject) => {
 		let cmdOutput = '';
+
+		if (stdin) {
+			p.write(stdin);
+		}
 
 		const subs = [
 			onDidInput && onDidInput(data => p.write(data)),
