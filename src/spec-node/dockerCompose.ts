@@ -14,6 +14,7 @@ import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-com
 import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
+import { isGitUrl, cloneGitRepo } from '../spec-utils/git';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
@@ -156,11 +157,16 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
+	let gitContext: string | undefined;
 	let dockerfile: string | undefined;
 	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
-		const { context, dockerfilePath, target } = serviceInfo.build;
+		let { context, dockerfilePath, target } = serviceInfo.build;
+		if (isGitUrl(context)) {
+			context = await cloneGitRepo(context);
+			gitContext = context;
+		}
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
 		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 		dockerfile = originalDockerfile;
@@ -213,7 +219,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 			buildOverrideContent += `      target: ${featureBuildInfo.overrideTarget}\n`;
 		}
 
-		if (!serviceInfo.build?.context) {
+		if (gitContext){
+			buildOverrideContent += `      context: ${gitContext}\n`;
+		}
+		else if (!serviceInfo.build?.context) {
 			// need to supply a context as we don't have one inherited
 			const emptyDir = getEmptyContextFolder(common);
 			await cliHost.mkdirp(emptyDir);

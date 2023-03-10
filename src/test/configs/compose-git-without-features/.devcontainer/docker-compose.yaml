@@ -1,0 +1,9 @@
+version: '3'
+services:
+  app:
+    build: 
+      context: https://github.com/devcontainers/devcontainers.github.io.git#gh-pages
+      dockerfile: .devcontainer/Dockerfile # dockerfile path present in the git repo
+    environment:
+      - VARIANT=bullseye
+      - NODE_VERSION=lts/*

@@ -60,6 +60,17 @@ describe('Dev Containers CLI', function () {
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
 			});
+			it(`should execute successfully with valid docker-compose (git context) config [${text}]`, async () => {
+				const testFolder = `${__dirname}/configs/compose-git-without-features`;
+				const buildKitOption =
+				options?.useBuildKit ?? false ? '' : ' --buildkit=never';
+				const res = await shellExec(
+				`${cli} build --workspace-folder ${testFolder} ${buildKitOption}`
+				);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {
