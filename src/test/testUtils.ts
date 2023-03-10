@@ -1,6 +1,8 @@
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { loadNativeModule, plainExec, plainPtyExec, runCommand, runCommandNoPty } from '../spec-common/commonUtils';
 import { SubstituteConfig } from '../spec-node/utils';
+import { nullLog } from '../spec-utils/log';
 
 export interface BuildKitOption {
     text: string;
@@ -40,6 +42,43 @@ export function shellExec(command: string, options: cp.ExecOptions = {}, suppres
             ((error && !doNotThrow) ? reject : resolve)({ error, stdout, stderr });
         });
     });
+}
+
+export interface BufferExecResult {
+    stdout: Buffer;
+    stderr: Buffer;
+    message? : string;
+    code?: number | null;
+    signal?: string | null;
+}
+
+export async function shellBufferExec(command: string, options: { stdin?: Buffer } = {}): Promise<BufferExecResult> {
+    const exec = await plainExec(undefined);
+    return runCommandNoPty({
+        exec,
+        cmd: '/bin/sh',
+        args: ['-c', command],
+        stdin: options.stdin,
+        output: nullLog,
+    }).then(res => ({ code: 0, ...res }), error => error);
+}
+
+export interface ExecPtyResult {
+    cmdOutput: string;
+    message? : string;
+    code?: number;
+    signal?: number;
+}
+
+export async function shellPtyExec(command: string, options: { stdin?: string } = {}): Promise<ExecPtyResult> {
+    const ptyExec = await plainPtyExec(undefined, loadNativeModule);
+    return runCommand({
+        ptyExec,
+        cmd: '/bin/sh',
+        args: ['-c', command],
+        stdin: options.stdin,
+        output: nullLog,
+    }).then(res => ({ code: 0, ...res }), error => error);
 }
 
 export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string; extraArgs?: string }): Promise<UpResult> {

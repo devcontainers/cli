@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellExec } from './testUtils';
+import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellBufferExec, shellExec, shellPtyExec } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -31,8 +31,44 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
 				it('should execute successfully', async () => {
-					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} echo hi`);
-					assert.strictEqual(res.error, null);
+					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} echo hi`);
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+					assert.strictEqual(res.stdout.toString(), 'hi\n');
+				});
+				it('should not run in a terminal', async () => {
+					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} [ ! -t 1 ]`);
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+				});
+				it('should return exit code without terminal', async () => {
+					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} sh -c 'exit 123'`);
+					assert.strictEqual(res.code, 123);
+					assert.equal(res.signal, undefined);
+				});
+				it('stream binary data', async () => {
+					const stdin = Buffer.alloc(256);
+					stdin.forEach((_, i) => stdin[i] = i);
+					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} cat`, { stdin });
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+					assert.ok(res.stdout.equals(stdin), 'stdout does not match stdin: ' + res.stdout.toString('hex'));
+				});
+				it('should run in a terminal', async () => {
+					const res = await shellPtyExec(`${cli} exec --workspace-folder ${testFolder} [ -t 1 ]`);
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+				});
+				it('should return exit code without terminal', async () => {
+					const res = await shellPtyExec(`${cli} exec --workspace-folder ${testFolder} sh -c 'exit 123'`);
+					assert.strictEqual(res.code, 123);
+					assert.equal(res.signal, 0);
+				});
+				it('should connect stdin', async () => {
+					const res = await shellPtyExec(`${cli} exec --workspace-folder ${testFolder} sh`, { stdin: 'FOO=BAR\necho ${FOO}hi${FOO}\nexit\n' });
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+					assert.match(res.cmdOutput, /BARhiBAR/);
 				});
 			});
 			describe(`with valid (image) config containing features [${text}]`, () => {
