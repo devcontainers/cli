@@ -454,7 +454,7 @@ export function getFolderImageName(params: ResolverParameters | DockerCLIParamet
 }
 
 export function getFolderHash(fsPath: string): string {
-	return crypto.createHash('md5').update(fsPath).digest('hex');
+	return crypto.createHash('sha256').update(fsPath).digest('hex');
 }
 
 export async function createFeaturesTempFolder(params: { cliHost: CLIHost; package: PackageConfiguration }): Promise<string> {
