@@ -226,23 +226,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 
 	// There are several different ways registries expect to handle the oauth token exchange. 
 	// Depending on the type of credential available, use the most reasonable method.
-	if (basicAuthCredential) {
-		headers['authorization'] = `Basic ${basicAuthCredential}`;
-
-		// realm="https://auth.docker.io/token"
-		// service="registry.docker.io"
-		// scope="repository:samalba/my-app:pull,push"
-		// Example:
-		// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
-		const url = `${realm}?service=${service}&scope=${scope}`;
-		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
-
-		httpOptions = {
-			type: 'GET',
-			url: url,
-			headers: headers,
-		};
-	} else if (refreshToken) {
+	if (refreshToken) {
 		const form_url_encoded = new URLSearchParams();
 		form_url_encoded.append('client_id', 'devcontainer');
 		form_url_encoded.append('grant_type', 'refresh_token');
@@ -262,8 +246,23 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 			data: Buffer.from(form_url_encoded.toString())
 		};
 	} else {
-		output.write(`[httpOci] No authentication credentials found for '${ociRef.registry}' that this CLI knows how to handle.`, LogLevel.Trace);
-		return;
+		if (basicAuthCredential) {
+			headers['authorization'] = `Basic ${basicAuthCredential}`;
+		}
+
+		// realm="https://auth.docker.io/token"
+		// service="registry.docker.io"
+		// scope="repository:samalba/my-app:pull,push"
+		// Example:
+		// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
+		const url = `${realm}?service=${service}&scope=${scope}`;
+		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
+
+		httpOptions = {
+			type: 'GET',
+			url: url,
+			headers: headers,
+		};
 	}
 
 	let authReq: Buffer;
