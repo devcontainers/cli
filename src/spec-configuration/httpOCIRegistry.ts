@@ -13,6 +13,7 @@ interface DockerConfigFile {
 	auths: {
 		[registry: string]: {
 			auth: string;
+			identitytoken?: string; // Used by Azure Container Registry
 		};
 	};
 }
@@ -65,9 +66,11 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 			output.write(`[httpOci] Attempting to authenticate via 'Basic' auth.`, LogLevel.Trace);
 
-			const basicAuthCredential = await getBasicAuthCredential(params, ociRef);
+			const credential = await getCredential(params, ociRef);
+			const basicAuthCredential = credential?.base64EncodedCredential;
 			if (!basicAuthCredential) {
 				output.write(`[httpOci] ERR: No basic auth credentials to send for registry service '${ociRef.registry}'`, LogLevel.Error);
+				return;
 			}
 
 			httpOptions.headers.authorization = `Basic ${basicAuthCredential}`;
@@ -120,9 +123,17 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 }
 
 // Attempts to get the Basic auth credentials for the provided registry.
-// These may be programatically crafted via environment variables (GITHUB_TOKEN),
-// parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable,
-async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCICollectionRef): Promise<string | undefined> {
+// This credential is used to offer the registry in exchange for a Bearer token.
+// These may be:
+//   - Crafted from the GITHUB_TOKEN environment variables
+//   - parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable
+//   - Read from a docker config file
+//  Returns:
+//   - undefined: No credential was found.
+//   - object:    A credential was found.
+// 					- based64EncodedCredential: The credential, base64 encoded.
+// 					- refreshToken: The refresh token, if any.
+async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectionRef): Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined> {
 	const { output, env } = params;
 	const { registry } = ociRef;
 
@@ -131,7 +142,10 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
-		return Buffer.from(userToken).toString('base64');
+		return {
+			base64EncodedCredential: Buffer.from(userToken).toString('base64'),
+			refreshToken: undefined,
+		};
 	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=service1|user1|token1,service2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
@@ -141,8 +155,10 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 			output.write(`[httpOci] Using match from DEVCONTAINERS_OCI_AUTH for registry '${registry}'`, LogLevel.Trace);
 			const split = authContext.split('|');
 			const userToken = `${split[1]}:${split[2]}`;
-			return Buffer.from(userToken)
-				.toString('base64');
+			return {
+				base64EncodedCredential: Buffer.from(userToken).toString('base64'),
+				refreshToken: undefined,
+			};
 		}
 	} else {
 		try {
@@ -152,9 +168,23 @@ async function getBasicAuthCredential(params: CommonParams, ociRef: OCIRef | OCI
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
-					if (dockerConfig.auths && dockerConfig.auths[registry] && dockerConfig.auths[registry].auth) {
-						output.write(`[httpOci] Found auth for registry '${registry}' in docker config.json`, LogLevel.Trace);
-						return dockerConfig.auths[registry].auth;
+					if (dockerConfig.auths && dockerConfig.auths[registry]) {
+						output.write(`[httpOci] Found entry in config.json for registry '${registry}'`, LogLevel.Trace);
+						const auth = dockerConfig.auths[registry].auth;
+						const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
+
+						if (identityToken) {
+							return {
+								refreshToken: identityToken,
+								base64EncodedCredential: undefined,
+							};
+						}
+
+						// Without the presence of an `identityToken`, assume auth is a base64-encoded 'user:token'.
+						return {
+							base64EncodedCredential: auth,
+							refreshToken: undefined,
+						};
 					}
 				}
 			}
@@ -188,28 +218,56 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	// If an attempt to authenticate to the token server fails, the token server should return a 401 Unauthorized response 
 	// indicating that the provided credentials are invalid.
 	// > https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-	const basicAuthTokenBase64 = await getBasicAuthCredential(params, ociRef);
-	if (basicAuthTokenBase64) {
-		headers['authorization'] = `Basic ${basicAuthTokenBase64}`;
+	const userCredential = await getCredential(params, ociRef);
+	const basicAuthCredential = userCredential?.base64EncodedCredential;
+	const refreshToken = userCredential?.refreshToken;
+
+	let httpOptions: { type: string; url: string; headers: Record<string, string>; data?: Buffer };
+
+	// There are several different ways registries expect to handle the oauth token exchange. 
+	// Depending on the type of credential available, use the most reasonable method.
+	if (refreshToken) {
+		const form_url_encoded = new URLSearchParams();
+		form_url_encoded.append('client_id', 'devcontainer');
+		form_url_encoded.append('grant_type', 'refresh_token');
+		form_url_encoded.append('service', service);
+		form_url_encoded.append('scope', scope);
+		form_url_encoded.append('refresh_token', refreshToken);
+
+		headers['content-type'] = 'application/x-www-form-urlencoded';
+
+		const url = realm;
+		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
+
+		httpOptions = {
+			type: 'POST',
+			url,
+			headers: headers,
+			data: Buffer.from(form_url_encoded.toString())
+		};
+	} else {
+		if (basicAuthCredential) {
+			headers['authorization'] = `Basic ${basicAuthCredential}`;
+		}
+
+		// realm="https://auth.docker.io/token"
+		// service="registry.docker.io"
+		// scope="repository:samalba/my-app:pull,push"
+		// Example:
+		// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
+		const url = `${realm}?service=${service}&scope=${scope}`;
+		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
+
+		httpOptions = {
+			type: 'GET',
+			url: url,
+			headers: headers,
+		};
 	}
-
-	// realm="https://auth.docker.io/token"
-	// service="registry.docker.io"
-	// scope="repository:samalba/my-app:pull,push"
-	// Example:
-	// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
-	const url = `${realm}?service=${service}&scope=${scope}`;
-	output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
-
-	const options = {
-		type: 'GET',
-		url: url,
-		headers: headers
-	};
 
 	let authReq: Buffer;
 	try {
-		authReq = await request(options, output);
+		authReq = await request(httpOptions, output);
 	} catch (e: any) {
 		// This is ok if the registry is trying to speak Basic Auth with us.
 		output.write(`[httpOci] Could not fetch bearer token for '${service}': ${e}`, LogLevel.Error);
