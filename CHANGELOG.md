@@ -7,6 +7,7 @@ Notable changes.
 ### [0.33.0]
 
 - Connect stdin to executed process. (https://github.com/devcontainers/cli/issues/59)
+- Better support for private Features published to Azure Container Registry (https://github.com/devcontainers/cli/pull/444)
 
 ### [0.32.0]
 
