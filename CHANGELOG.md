@@ -4,6 +4,10 @@ Notable changes.
 
 ## March 2023
 
+### [0.33.0]
+
+- Connect stdin to executed process. (https://github.com/devcontainers/cli/issues/59)
+
 ### [0.32.0]
 
 - Initial support for Features contributing lifecycle hooks (https://github.com/devcontainers/cli/pull/390)
