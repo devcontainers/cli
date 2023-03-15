@@ -11,6 +11,7 @@ import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
 import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
 import { nullLog } from '../../spec-utils/log';
+import { runCommand } from '../../spec-common/commonUtils';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -66,8 +67,25 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 		}
 	}
 
+	// Clean up test containers
+	if (!args.preserveTestContainers) {
+		await cleanup(cliHost);
+	}
+
 	// Pretty-print test results and exit with 0 or 1 exit code.
 	return analyzeTestResults(testResults);
+}
+
+async function cleanup(cliHost: CLIHost) {
+	// Delete any containers that have the 'devcontainer.is_test_run=true' label set.
+	const filterForContainerIdArgs = ['ps', '-a', '--filter', 'label=devcontainer.is_test_run=true', '--format', '{{.ID}}'];
+	const { cmdOutput } = (await runCommand({ cmd: 'docker', args: filterForContainerIdArgs, output: nullLog, ptyExec: cliHost.ptyExec }));
+	const containerIds = cmdOutput.split('\n').filter(id => id !== '').map(s => s.trim());
+	log(`Cleaning up ${containerIds.length} test containers...`, { prefix: '🧹', info: true });
+	for (const containerId of containerIds) {
+		log(`Removing container ${containerId}...`, { prefix: '🧹', info: true });
+		await cliHost.exec({ cmd: 'docker', args: ['rm', '-f', containerId], output: nullLog });
+	}
 }
 
 async function runGlobalFeatureTests(args: FeaturesTestCommandInput, testResults: TestResult[] = []): Promise<TestResult[]> {
@@ -389,7 +407,7 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 	const { common } = params;
 	let response = {} as LaunchResult;
 
-	const idLabels = [ `devcontainer.local_folder=${workspaceFolder}` ];
+	const idLabels = [`devcontainer.local_folder=${workspaceFolder}`, `devcontainer.is_test_run=true`];
 	const options: ProvisionOptions = {
 		...staticProvisionParams,
 		workspaceFolder,
