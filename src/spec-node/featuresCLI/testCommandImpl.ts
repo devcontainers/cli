@@ -6,7 +6,7 @@ import { CLIHost } from '../../spec-common/cliHost';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
 import { doExec } from '../devContainersSpecCLI';
 import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
-import { DockerResolverParameters } from '../utils';
+import { DockerResolverParameters, envListToObj } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
 import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
@@ -485,7 +485,7 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		persistedFolder: undefined,
 		additionalMounts: [],
 		updateRemoteUserUIDDefault: 'never',
-		remoteEnv: {},
+		remoteEnv: envListToObj(args.remoteEnv),
 		additionalCacheFroms: [],
 		omitLoggerHeader: true,
 		useBuildKit: 'auto',

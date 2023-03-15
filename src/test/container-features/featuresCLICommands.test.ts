@@ -443,6 +443,27 @@ describe('CLI features subcommands', async function () {
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
 		});
+
+		it('lifecycle-hooks-remote-env', async function () {
+			const collectionFolder = `${__dirname}/example-v2-features-sets/lifecycle-hooks-remote-env`;
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+			try {
+				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --remote-env MY_SECRET=you-found-my-secret-string --log-level trace `);
+				success = true;
+
+			} catch (error) {
+				assert.fail('features test sub-command should not throw');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+
+			const expectedTestReport = `  ================== TEST REPORT ==================
+✅ Passed:      'puppy'`;
+			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
+			assert.isTrue(hasExpectedTestReport);
+		});
 	});
 
 	describe('features package', function () {
