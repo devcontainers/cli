@@ -1,0 +1,5 @@
+{
+	"id": "puppy",
+	"version": "0.0.1",
+	"postStartCommand": "echo \"Feature Puppy: $MY_SECRET\" && echo \"$MY_SECRET\" > /tmp/secret-from-feature.txt"
+}
