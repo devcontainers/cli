@@ -125,6 +125,16 @@ Verify you can run the CLI and see its help text:
 node devcontainer.js --help
 ```
 
+
+To run the CLI tests:
+```sh
+# Package the CLI (required for some unit tests)
+yarn package
+
+# Run a test matching a regular expression
+yarn test -g 'should read metadata from existing container'
+```
+
 ## Specification
 
 The dev container CLI is part of the [Development Containers Specification](https://github.com/devcontainers/spec). This spec seeks to find ways to enrich existing formats with common development specific settings, tools, and configuration while still providing a simplified, un-orchestrated single container option – so that they can be used as coding environments or for continuous integration and testing.
