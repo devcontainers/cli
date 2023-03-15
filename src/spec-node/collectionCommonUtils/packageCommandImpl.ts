@@ -92,8 +92,8 @@ export async function packageSingleFeatureOrTemplate(args: PackageCommandInput, 
 	}
 
 	const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
-	if (!metadata.id || !metadata.version) {
-		output.write(`${collectionType} is missing an id or version in its devcontainer-${collectionType}.json`, LogLevel.Error);
+	if (!metadata.id || !metadata.version || !metadata.name) {
+		output.write(`${collectionType} is missing one of the following required properties in its devcontainer-${collectionType}.json: 'id', 'version', 'name'.`, LogLevel.Error);
 		return;
 	}
 
@@ -212,8 +212,8 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 			await tarDirectory(tmpSrcDir, archiveName, outputDir);
 
 			const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
-			if (!metadata.id || !metadata.version) {
-				output.write(`${collectionType} '${c}' is missing an id or version in its ${devcontainerJsonName}`, LogLevel.Error);
+			if (!metadata.id || !metadata.version || !metadata.name) {
+				output.write(`${collectionType} '${c}' is missing one of the following required properties in its ${devcontainerJsonName}: 'id', 'version', 'name'.`, LogLevel.Error);
 				return;
 			}
 			metadatas.push(metadata);
