@@ -5,13 +5,6 @@
 			"VARIANT": "16-bullseye"
 		}
 	},
-	// "postCreateCommand": [
-	// 	// "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt"
-	// 	"sudo",
-	// 	"sh",
-	// 	"-c",
-	// 	"echo \"Val: $TEST\" > /postCreateCommand.txt"
-	// ],
 	"postCreateCommand": "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt",
 	"remoteEnv": {
 		"TEST": "ENV",
