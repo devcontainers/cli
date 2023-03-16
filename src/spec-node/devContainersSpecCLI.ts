@@ -122,7 +122,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
-		'skip-persisting-remote-env-from-config': { type: 'boolean', default: false, description: 'Do not persist remoteEnv from devcontainer.json in container metatdata label' },
+		'skip-persisting-remote-env-from-config': { type: 'boolean', default: false, description: 'Do not persist remoteEnv from devcontainer.json in container metadata label' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
