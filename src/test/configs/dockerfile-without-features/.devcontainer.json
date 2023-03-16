@@ -1,16 +1,17 @@
 {
 	"build": {
 		"dockerfile": "Dockerfile",
-		"args": { 
+		"args": {
 			"VARIANT": "16-bullseye"
 		}
 	},
-	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/feature-starter/hello:1": {
-			"greeting": "howdy"
-		}
-	},
+	// "postCreateCommand": [
+	// 	// "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt"
+	// 	"sudo",
+	// 	"sh",
+	// 	"-c",
+	// 	"echo \"Val: $TEST\" > /postCreateCommand.txt"
+	// ],
 	"postCreateCommand": "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt",
 	"remoteEnv": {
 		"TEST": "ENV",

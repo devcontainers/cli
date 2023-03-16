@@ -175,6 +175,19 @@ describe('Image Metadata', function () {
 					await shellExec(`docker exec ${response.containerId} test -f /postCreateCommand.txt`);
 					await shellExec(`docker rm -f ${response.containerId}`);
 				});
+			});
+
+			[
+				'image-with-features',
+				'image',
+				'compose-image-with-features',
+				'compose-image-without-features-minimal',
+				'compose-Dockerfile-with-features',
+				'compose-Dockerfile-without-features',
+				'dockerfile-with-features',
+				'dockerfile-without-features',
+			].forEach(testFolderName => {
+				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
 				it(`up should should avoid storing remoteEnv in metadata label with --skip-persisting-remote-env-from-config [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
@@ -186,8 +199,7 @@ describe('Image Metadata', function () {
 					assert.strictEqual(response.outcome, 'success');
 					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
 					const metadata = internalGetImageMetadata0(details, true, nullLog);
-					assert.strictEqual(metadata.length, 1);
-					assert.ok(!metadata[0].remoteEnv); // remoteEnv is not stored on container metadata label
+					assert.ok(!metadata[metadata.length - 1].remoteEnv); // remoteEnv from devcontainer config is not stored on container metadata label
 					const result = await shellExec(`docker exec ${response.containerId} cat /postCreateCommand.txt`);
 					assert.strictEqual(result.stdout, 'Val: ENV\n'); // remoteEnv is available to lifecycle hooks
 
