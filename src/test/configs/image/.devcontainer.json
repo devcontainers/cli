@@ -1,6 +1,6 @@
 {
 	"image": "ubuntu:latest",
-	"postCreateCommand": "touch /postCreateCommand.txt",
+	"postCreateCommand": "echo \"Val: $TEST\" > /postCreateCommand.txt",
 	"remoteEnv": {
 		"TEST": "ENV",
 		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}",

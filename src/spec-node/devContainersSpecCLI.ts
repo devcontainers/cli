@@ -122,6 +122,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'skip-persisting-remote-env-from-config': { type: 'boolean', default: false, description: 'Do not persist remoteEnv from devcontainer.json in container metatdata label' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -188,6 +189,7 @@ async function provision({
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'skip-persisting-remote-env-from-config': skipPersistingRemoteEnvFromConfig,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -244,6 +246,7 @@ async function provision({
 		experimentalImageMetadata,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
+		skipPersistingRemoteEnvFromConfig,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -393,6 +396,7 @@ async function doSetUp({
 			skipPostAttach: false,
 			experimentalImageMetadata: true,
 			skipPersistingCustomizationsFromFeatures: false,
+			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {
 				repository: dotfilesRepository,
 				installCommand: dotfilesInstallCommand,
@@ -545,6 +549,7 @@ async function doBuild({
 			skipPostAttach: true,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
+			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {}
 		}, disposables);
 
@@ -796,6 +801,7 @@ async function doRunUserCommands({
 			skipPostAttach,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {
 				repository: dotfilesRepository,
 				installCommand: dotfilesInstallCommand,
@@ -1152,6 +1158,7 @@ export async function doExec({
 			skipPostAttach: false,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
+			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {}
 		}, disposables);
 

@@ -129,9 +129,10 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
+			const omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = params.common.skipPersistingRemoteEnvFromConfig ? ['remoteEnv'] : [];
 			return {
 				labels: {
-					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined).raw),
+					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined, [], omitDevcontainerPropertyOverride).raw),
 				}
 			};
 		}
