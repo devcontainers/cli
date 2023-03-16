@@ -307,7 +307,7 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 		config: [
 			...baseImageMetadata.config,
 			...featureRaw.map(devContainerConfig.substitute),
-			pick(devContainerConfig.config, pickConfigProperties),
+			pick(devContainerConfig.config, effectivePickDevcontainerProperties),
 		].filter(config => Object.keys(config).length),
 		raw,
 		substitute: devContainerConfig.substitute,

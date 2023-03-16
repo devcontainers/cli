@@ -65,7 +65,7 @@ export interface ResolverParameters {
 	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
-	skipPersistingRemoteEnvFromConfig?: boolean;
+	omitConfigRemotEnvFromMetadata?: boolean;
 }
 
 export interface LifecycleHook {

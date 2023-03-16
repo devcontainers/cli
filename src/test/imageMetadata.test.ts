@@ -189,12 +189,12 @@ describe('Image Metadata', function () {
 			].forEach(testFolderName => {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
-				it(`up should should avoid storing remoteEnv in metadata label with --skip-persisting-remote-env-from-config [${testFolderName}, ${text}]`, async () => {
+				it(`up should should avoid storing remoteEnv in metadata label with --omit-config-remote-env-from-metadata [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
 						return;
 					}
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
-					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --skip-persisting-remote-env-from-config --remove-existing-container${buildKitOption}`);
+					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --omit-config-remote-env-from-metadata --remove-existing-container${buildKitOption}`);
 					const response = JSON.parse(res.stdout);
 					assert.strictEqual(response.outcome, 'success');
 					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
@@ -243,7 +243,7 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[1].remoteUser, 'testUser');
 		});
 
-		it('should omit specified props from devcontainer.json for raw', () => {
+		it('should omit specified props from devcontainer.json', () => {
 			const omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = ['remoteEnv'];
 			const { config: metadata, raw } = getDevcontainerMetadata(configWithRaw([]), configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
@@ -258,7 +258,7 @@ describe('Image Metadata', function () {
 				omitDevcontainerPropertyOverride);
 			assert.strictEqual(metadata.length, 1);
 			assert.strictEqual(metadata[0].remoteUser, 'testUser');
-			assert.strictEqual(metadata[0].remoteEnv?.DEVCONTENV, 'value');
+			assert.ok(!metadata[0].remoteEnv);
 			assert.strictEqual(raw.length, 1);
 			assert.strictEqual(raw[0].remoteUser, 'testUser');
 			assert.ok(!raw[0].remoteEnv);

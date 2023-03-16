@@ -131,7 +131,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {
 				labels: {
-					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined, [], getOmitDevcontainerPropertyOverride(params.common.skipPersistingRemoteEnvFromConfig)).raw),
+					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined, [], getOmitDevcontainerPropertyOverride(params.common)).raw),
 				}
 			};
 		}
@@ -224,7 +224,7 @@ function getImageBuildOptions(params: DockerResolverParameters, config: Substitu
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common.skipPersistingRemoteEnvFromConfig)), params.common.experimentalImageMetadata)}
+${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)), params.common.experimentalImageMetadata)}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
@@ -237,8 +237,8 @@ ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, 
 	};
 }
 
-function getOmitDevcontainerPropertyOverride(shouldOmit: boolean | undefined): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
-	if (shouldOmit) {
+function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEnvFromMetadata?: boolean }): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
+	if (resolverParams.omitConfigRemotEnvFromMetadata) {
 		return ['remoteEnv'];
 	}
 
@@ -281,7 +281,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const buildContentImageName = 'dev_container_feature_content_temp';
 
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
-	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common.skipPersistingRemoteEnvFromConfig));
+	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
 	const builtinVariables = [
 		`_CONTAINER_USER=${containerUser}`,
