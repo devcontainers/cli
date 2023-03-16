@@ -6,6 +6,9 @@
         }
     },
     "containerEnv": {
-        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current"
+        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current",
+        "VAR_WITH_SPACES": "value with spaces",
+        "VAR_WITH_LOTS_OF_SPACES": "    value with lots of spaces.   ",
+        "VAR_WITH_QUOTES_WE_WANT_TO_KEEP": "value with \"quotes\" we want to keep"
     }
 }
