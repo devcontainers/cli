@@ -59,7 +59,7 @@ export interface ProvisionOptions {
 	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
-	skipPersistingRemoteEnvFromConfig: boolean;
+	skipPersistingRemoteEnvFromConfig?: boolean;
 	dotfiles: {
 		repository?: string;
 		installCommand?: string;

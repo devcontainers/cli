@@ -396,7 +396,6 @@ async function doSetUp({
 			skipPostAttach: false,
 			experimentalImageMetadata: true,
 			skipPersistingCustomizationsFromFeatures: false,
-			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {
 				repository: dotfilesRepository,
 				installCommand: dotfilesInstallCommand,
@@ -549,7 +548,6 @@ async function doBuild({
 			skipPostAttach: true,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
-			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {}
 		}, disposables);
 
@@ -801,7 +799,6 @@ async function doRunUserCommands({
 			skipPostAttach,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
-			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {
 				repository: dotfilesRepository,
 				installCommand: dotfilesInstallCommand,
@@ -1158,7 +1155,6 @@ export async function doExec({
 			skipPostAttach: false,
 			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
-			skipPersistingRemoteEnvFromConfig: false,
 			dotfiles: {}
 		}, disposables);
 

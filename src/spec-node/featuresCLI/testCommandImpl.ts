@@ -496,7 +496,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
-		skipPersistingRemoteEnvFromConfig: false,
 		experimentalImageMetadata: !args.skipImageMetadata,
 		dotfiles: {}
 	}, disposables);
