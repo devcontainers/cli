@@ -4,6 +4,12 @@ Notable changes.
 
 ## March 2023
 
+### [0.34.0]
+
+- Also require name property in `devcontainer-feature.json`. (https://github.com/devcontainers/cli/pull/447)
+- Add `--omit-config-remote-env-from-metadata` to omit remoteEnv from devcontainer config on container metadata label. (https://github.com/devcontainers/cli/pull/453)
+- Only include required legacy scripts. (https://github.com/microsoft/vscode-remote-release/issues/7532)
+
 ### [0.33.0]
 
 - Connect stdin to executed process. (https://github.com/devcontainers/cli/issues/59)
