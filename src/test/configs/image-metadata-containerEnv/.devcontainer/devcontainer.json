@@ -9,6 +9,9 @@
         "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current",
         "VAR_WITH_SPACES": "value with spaces",
         "VAR_WITH_LOTS_OF_SPACES": "    value with lots of spaces.   ",
-        "VAR_WITH_QUOTES_WE_WANT_TO_KEEP": "value with \"quotes\" we want to keep"
+        "VAR_WITH_QUOTES_WE_WANT_TO_KEEP": "value with \"quotes\" we want to keep",
+        "VAR_WITH_DOLLAR_SIGN": "value with $dollar sign",
+        "VAR_WITH_BACK_SLASH": "value with \\back slash",
+        "ENV_WITH_COMMAND": "bash -c 'echo -n \"Hello, World!\"'"
     }
 }
