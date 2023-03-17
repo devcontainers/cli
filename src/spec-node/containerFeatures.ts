@@ -268,7 +268,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 					hasConfigure: await hasConfigure,
 				};
 				return map;
-			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
+			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({} as Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>)));
 
 	// With Buildkit (0.8.0 or later), we can supply an additional build context to provide access to
 	// the container-features content.
