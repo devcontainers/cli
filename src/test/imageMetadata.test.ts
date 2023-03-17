@@ -8,7 +8,6 @@ import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { DevContainerConfig, HostGPURequirements } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { experimentalImageMetadataDefault } from '../spec-node/devContainers';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, ImageMetadataEntry, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
@@ -43,15 +42,12 @@ describe('Image Metadata', function () {
 
 		buildKitOptions.forEach(({ text, options }) => {
 			it(`should collect metadata on image label  [${text}]`, async () => {
-				if (!experimentalImageMetadataDefault) {
-					return;
-				}
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name image-metadata-test${buildKitOption}`);
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect image-metadata-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -85,15 +81,12 @@ describe('Image Metadata', function () {
 
 		buildKitOptions.forEach(({ text, options }) => {
 			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
-				if (!experimentalImageMetadataDefault) {
-					return;
-				}
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 				const res = await shellExec(`${cli} build --skip-persisting-customizations-from-features --workspace-folder ${testFolder} --image-name skip-persisting-test${buildKitOption}`);
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -110,15 +103,12 @@ describe('Image Metadata', function () {
 			});
 
 			it(`should omit appending Feature customizations with --skip-persisting-customizations-from-features [${text}]`, async () => {
-				if (!experimentalImageMetadataDefault) {
-					return;
-				}
 				const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 				const res = await shellExec(`${cli} build --skip-persisting-customizations-from-features --workspace-folder ${testFolder} --image-name skip-persisting-test${buildKitOption}`);
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, true, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -141,9 +131,7 @@ describe('Image Metadata', function () {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
 				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
-					if (!experimentalImageMetadataDefault) {
-						return;
-					}
+					
 					const imageName = `${testFolderName}${options.useBuildKit ? '' : '-buildkit'}-test`;
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 					const res = await shellExec(`${cli} build --workspace-folder ${imageTestFolder} --image-name ${imageName}${buildKitOption}`);
@@ -152,22 +140,20 @@ describe('Image Metadata', function () {
 					const details = JSON.parse((await shellExec(`docker inspect ${imageName}`)).stdout)[0] as ImageDetails;
 					const baseDetails = JSON.parse((await shellExec(`docker inspect ubuntu:latest`)).stdout)[0] as ImageDetails;
 					assert.notStrictEqual(details.Id, baseDetails.Id);
-					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					const metadata = internalGetImageMetadata0(details, nullLog);
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
 				});
 
 				it(`up should avoid new image when possible [${testFolderName}, ${text}]`, async () => {
-					if (!experimentalImageMetadataDefault) {
-						return;
-					}
+					
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --remove-existing-container${buildKitOption}`);
 					const response = JSON.parse(res.stdout);
 					assert.strictEqual(response.outcome, 'success');
 					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
 					assert.strictEqual(details.Config.Image, 'ubuntu:latest');
-					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					const metadata = internalGetImageMetadata0(details, nullLog);
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
 					assert.strictEqual(metadata[0].remoteEnv.TEST, 'ENV');
@@ -190,15 +176,13 @@ describe('Image Metadata', function () {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
 				it(`up should should avoid storing remoteEnv in metadata label with --omit-config-remote-env-from-metadata [${testFolderName}, ${text}]`, async () => {
-					if (!experimentalImageMetadataDefault) {
-						return;
-					}
+					
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --omit-config-remote-env-from-metadata --remove-existing-container${buildKitOption}`);
 					const response = JSON.parse(res.stdout);
 					assert.strictEqual(response.outcome, 'success');
 					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
-					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					const metadata = internalGetImageMetadata0(details, nullLog);
 					assert.ok(!metadata[metadata.length - 1].remoteEnv); // remoteEnv from devcontainer config is not stored on container metadata label
 					const result = await shellExec(`docker exec ${response.containerId} cat /postCreateCommand.txt`);
 					assert.strictEqual(result.stdout, 'Val: ENV\n'); // remoteEnv is available to lifecycle hooks
@@ -304,7 +288,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
 			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
@@ -332,7 +316,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
 			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
@@ -365,7 +349,7 @@ describe('Image Metadata', function () {
 					FOO: 'baz',
 					BAR: 'foo',
 				},
-			}), undefined, ['testIdLabel=testIdLabelValue'], true, nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
 			assert.strictEqual(metadata.length, 2);
 			assert.deepStrictEqual(metadata[0].remoteEnv, {
 				FOO: 'bar',
@@ -389,7 +373,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, [], true, nullLog);
+			}), undefined, [], nullLog);
 			assert.strictEqual(metadata.length, 1);
 			assert.strictEqual(metadata[0].id, undefined);
 			assert.strictEqual(metadata[0].remoteUser, 'testConfigUser');
@@ -414,7 +398,7 @@ describe('Image Metadata', function () {
 					included: true,
 					consecutiveId: 'someFeature_1',
 				}
-			])), true);
+			])));
 			const expected = [
 				{
 					id: 'baseFeature',

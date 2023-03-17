@@ -166,7 +166,7 @@ FROM ubuntu:latest as dev
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, true, nullLog);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog);
         assert.strictEqual(info.user, 'imageUser');
         assert.strictEqual(info.metadata.config.length, 1);
         assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
@@ -192,7 +192,7 @@ USER dockerfileUserB
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, true, nullLog);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog);
         assert.strictEqual(info.user, 'dockerfileUserB');
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);

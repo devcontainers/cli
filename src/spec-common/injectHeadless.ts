@@ -62,7 +62,6 @@ export interface ResolverParameters {
 	buildxOutput: string | undefined;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
-	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;

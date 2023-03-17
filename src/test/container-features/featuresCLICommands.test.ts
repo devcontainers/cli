@@ -206,38 +206,6 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(hasExpectedTestReport);
 		});
 
-		it('succeeds testing remoteUser applied with --skip-image-metadata false', async function () {
-			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
-			let result: ExecResult | undefined = undefined;
-			// This test run is supposed have a single failing test.
-			result = await shellExec(`${cli} features test --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
-
-			assert.isDefined(result);
-
-			const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'whoisremoteuser'
-✅ Passed:      'from_image_metadata_label_flag_enabled'
-❌ Failed:      'from_image_metadata_label_flag_disabled'`;
-			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
-			assert.isTrue(hasExpectedTestReport, `Full stdout: ${result.stdout}`);
-		});
-
-		it('succeeds testing remoteUser applied with --skip-image-metadata', async function () {
-			const collectionFolder = `${__dirname}/example-v2-features-sets/remote-user`;
-			let result: ExecResult | undefined = undefined;
-			// This test run is supposed have a single failing test.
-			result = await shellExec(`${cli} features test --skip-image-metadata --filter from_image_metadata_label_flag --projectFolder ${collectionFolder}`, {}, false, true);
-
-			assert.isDefined(result);
-
-			const expectedTestReport = `  ================== TEST REPORT ==================
-✅ Passed:      'whoisremoteuser'
-❌ Failed:      'from_image_metadata_label_flag_enabled'
-✅ Passed:      'from_image_metadata_label_flag_disabled'`;
-			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
-			assert.isTrue(hasExpectedTestReport);
-		});
-
 		it('succeeds with --global-scenarios-only', async function () {
 			const collectionFolder = `${__dirname}/example-v2-features-sets/simple`;
 			let success = false;

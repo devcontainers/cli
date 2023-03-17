@@ -39,7 +39,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
+			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
@@ -148,7 +148,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, buildParams.common.experimentalImageMetadata);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
 	let finalDockerfilePath = dockerfilePath;
