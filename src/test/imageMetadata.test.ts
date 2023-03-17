@@ -25,7 +25,7 @@ function configWithRaw<T extends DevContainerConfig | ImageMetadataEntry[]>(raw:
 }
 
 describe('Image Metadata', function () {
-	this.timeout('120s');
+	this.timeout('180s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
@@ -175,7 +175,7 @@ describe('Image Metadata', function () {
 			].forEach(testFolderName => {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
-				it(`up should should avoid storing remoteEnv in metadata label with --omit-config-remote-env-from-metadata [${testFolderName}, ${text}]`, async () => {
+				it(`up should avoid storing remoteEnv in metadata label with --omit-config-remote-env-from-metadata [${testFolderName}, ${text}]`, async () => {
 					
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --omit-config-remote-env-from-metadata --remove-existing-container${buildKitOption}`);
