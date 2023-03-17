@@ -34,7 +34,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	const { common } = params;
 	const { cliHost, output } = common;
 
-	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, common.experimentalImageMetadata);
+	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute);
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
 	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return
@@ -224,7 +224,7 @@ function getImageBuildOptions(params: DockerResolverParameters, config: Substitu
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)), params.common.experimentalImageMetadata)}
+${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
@@ -297,7 +297,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
 		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
-		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
+		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
 		;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
