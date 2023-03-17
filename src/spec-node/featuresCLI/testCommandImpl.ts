@@ -399,6 +399,7 @@ async function launchProject(params: DockerResolverParameters, args: FeaturesTes
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		experimentalImageMetadata: !args.skipImageMetadata,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
+		omitConfigRemotEnvFromMetadata: common.omitConfigRemotEnvFromMetadata,
 		log: text => quiet ? null : process.stderr.write(text),
 		dotfiles: {}
 	};

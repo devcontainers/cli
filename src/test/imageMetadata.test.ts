@@ -38,7 +38,7 @@ describe('Image Metadata', function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 		await shellExec(`docker build -t image-metadata-test-base ${testFolder}/base-image`);
 	});
-	
+
 	describe('CLI', () => {
 
 		buildKitOptions.forEach(({ text, options }) => {
@@ -139,7 +139,7 @@ describe('Image Metadata', function () {
 				'compose-image-without-features-minimal',
 			].forEach(testFolderName => {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
-			
+
 				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
 						return;
@@ -156,7 +156,7 @@ describe('Image Metadata', function () {
 					assert.strictEqual(metadata.length, 1);
 					assert.ok(metadata[0].remoteEnv);
 				});
-	
+
 				it(`up should avoid new image when possible [${testFolderName}, ${text}]`, async () => {
 					if (!experimentalImageMetadataDefault) {
 						return;
@@ -173,6 +173,48 @@ describe('Image Metadata', function () {
 					assert.strictEqual(metadata[0].remoteEnv.TEST, 'ENV');
 					assert.strictEqual(metadata[0].remoteEnv.TEST_ESCAPING, '{\n  "fo$o": "ba\'r"\n}');
 					await shellExec(`docker exec ${response.containerId} test -f /postCreateCommand.txt`);
+					await shellExec(`docker rm -f ${response.containerId}`);
+				});
+			});
+
+			[
+				'image-with-features',
+				'image',
+				'compose-image-with-features',
+				'compose-image-without-features-minimal',
+				'compose-Dockerfile-with-features',
+				'compose-Dockerfile-without-features',
+				'dockerfile-with-features',
+				'dockerfile-without-features',
+			].forEach(testFolderName => {
+				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
+
+				it(`up should should avoid storing remoteEnv in metadata label with --omit-config-remote-env-from-metadata [${testFolderName}, ${text}]`, async () => {
+					if (!experimentalImageMetadataDefault) {
+						return;
+					}
+					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+					const res = await shellExec(`${cli} up --workspace-folder ${imageTestFolder} --omit-config-remote-env-from-metadata --remove-existing-container${buildKitOption}`);
+					const response = JSON.parse(res.stdout);
+					assert.strictEqual(response.outcome, 'success');
+					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
+					const metadata = internalGetImageMetadata0(details, true, nullLog);
+					assert.ok(!metadata[metadata.length - 1].remoteEnv); // remoteEnv from devcontainer config is not stored on container metadata label
+					const result = await shellExec(`docker exec ${response.containerId} cat /postCreateCommand.txt`);
+					assert.strictEqual(result.stdout, 'Val: ENV\n'); // remoteEnv is available to lifecycle hooks
+
+					const readConfigRes = await shellExec(`${cli} read-configuration --container-id ${response.containerId} --workspace-folder ${imageTestFolder} --include-merged-configuration`);
+					const readConfig = JSON.parse(readConfigRes.stdout);
+					assert.strictEqual(readConfig.mergedConfiguration.postCreateCommands.length, 1);
+					const configRemoteEnv = readConfig.configuration.remoteEnv;
+					assert.ok(configRemoteEnv);
+					assert.strictEqual(configRemoteEnv.TEST, 'ENV');
+					assert.strictEqual(configRemoteEnv.TEST_ESCAPING, '{\n  "fo$o": "ba\'r"\n}');
+					const mergedConfigRemoteEnv = readConfig.mergedConfiguration.remoteEnv;
+					assert.ok(mergedConfigRemoteEnv);
+					assert.strictEqual(mergedConfigRemoteEnv.TEST, 'ENV');
+					assert.strictEqual(mergedConfigRemoteEnv.TEST_ESCAPING, '{\n  "fo$o": "ba\'r"\n}');
+
 					await shellExec(`docker rm -f ${response.containerId}`);
 				});
 			});
@@ -201,6 +243,27 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[1].remoteUser, 'testUser');
 		});
 
+		it('should omit specified props from devcontainer.json', () => {
+			const omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = ['remoteEnv'];
+			const { config: metadata, raw } = getDevcontainerMetadata(configWithRaw([]), configWithRaw({
+				configFilePath: URI.parse('file:///devcontainer.json'),
+				image: 'image',
+				remoteUser: 'testUser',
+				remoteEnv: {
+					DEVCONTENV: 'value',
+				}
+			}),
+				undefined,
+				[],
+				omitDevcontainerPropertyOverride);
+			assert.strictEqual(metadata.length, 1);
+			assert.strictEqual(metadata[0].remoteUser, 'testUser');
+			assert.ok(!metadata[0].remoteEnv);
+			assert.strictEqual(raw.length, 1);
+			assert.strictEqual(raw[0].remoteUser, 'testUser');
+			assert.ok(!raw[0].remoteEnv);
+		});
+
 		const testContainerDetails: ContainerDetails = {
 			Id: 'testId',
 			Created: '2022-10-11T08:31:30.10478055Z',
@@ -222,7 +285,7 @@ describe('Image Metadata', function () {
 			},
 			Ports: [],
 		};
-	
+
 		it('should read metadata from existing container', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,
@@ -251,7 +314,7 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
-	
+
 		it('should add config for existing container without id labels', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,
@@ -279,7 +342,7 @@ describe('Image Metadata', function () {
 			assert.strictEqual(raw[0].remoteUser, 'testMetadataUser');
 			assert.strictEqual(raw[1].remoteUser, 'testConfigUser');
 		});
-	
+
 		it('should update config for existing container', () => {
 			const { config: metadata, raw } = getImageMetadataFromContainer({
 				...testContainerDetails,

@@ -59,6 +59,7 @@ export interface ProvisionOptions {
 	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	omitConfigRemotEnvFromMetadata?: boolean;
 	dotfiles: {
 		repository?: string;
 		installCommand?: string;
@@ -140,6 +141,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		experimentalImageMetadata: options.experimentalImageMetadata,
 		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		omitConfigRemotEnvFromMetadata: options.omitConfigRemotEnvFromMetadata,
 		dotfilesConfiguration: {
 			repository: options.dotfiles.repository,
 			installCommand: options.dotfiles.installCommand,

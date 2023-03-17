@@ -287,8 +287,9 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = [], omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
+	const effectivePickDevcontainerProperties = pickConfigProperties.filter(property => !omitDevcontainerPropertyOverride.includes(property));
 
 	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
 		featureSet.features.map(feature => ({
@@ -299,14 +300,14 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	const raw = [
 		...baseImageMetadata.raw,
 		...featureRaw,
-		pick(devContainerConfig.raw, pickConfigProperties),
+		pick(devContainerConfig.raw, effectivePickDevcontainerProperties),
 	].filter(config => Object.keys(config).length);
 
 	return {
 		config: [
 			...baseImageMetadata.config,
 			...featureRaw.map(devContainerConfig.substitute),
-			pick(devContainerConfig.config, pickConfigProperties),
+			pick(devContainerConfig.config, effectivePickDevcontainerProperties),
 		].filter(config => Object.keys(config).length),
 		raw,
 		substitute: devContainerConfig.substitute,

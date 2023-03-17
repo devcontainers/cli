@@ -122,6 +122,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -188,6 +189,7 @@ async function provision({
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -244,6 +246,7 @@ async function provision({
 		experimentalImageMetadata,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
+		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
