@@ -68,7 +68,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
 		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
@@ -176,9 +176,9 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 				dockerfile = modifiedDockerfile;
 			}
 		}
-		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
+		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute);
 	} else {
-		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, common.experimentalImageMetadata);
+		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
 	}
 
 	// determine whether we need to extend with features

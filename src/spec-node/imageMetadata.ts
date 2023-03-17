@@ -287,8 +287,9 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 	return values.length ? values : undefined;
 }
 
-export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
+export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, omitPropertyOverride: string[] = [], omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
+	const effectivePickDevcontainerProperties = pickConfigProperties.filter(property => !omitDevcontainerPropertyOverride.includes(property));
 
 	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
 		featureSet.features.map(feature => ({
@@ -299,14 +300,14 @@ export function getDevcontainerMetadata(baseImageMetadata: SubstitutedConfig<Ima
 	const raw = [
 		...baseImageMetadata.raw,
 		...featureRaw,
-		pick(devContainerConfig.raw, pickConfigProperties),
+		pick(devContainerConfig.raw, effectivePickDevcontainerProperties),
 	].filter(config => Object.keys(config).length);
 
 	return {
 		config: [
 			...baseImageMetadata.config,
 			...featureRaw.map(devContainerConfig.substitute),
-			pick(devContainerConfig.config, pickConfigProperties),
+			pick(devContainerConfig.config, effectivePickDevcontainerProperties),
 		].filter(config => Object.keys(config).length),
 		raw,
 		substitute: devContainerConfig.substitute,
@@ -328,7 +329,7 @@ export interface ImageBuildInfo {
 	dockerfile?: Dockerfile;
 }
 
-export async function getImageBuildInfo(params: DockerResolverParameters | DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerConfig>, experimentalImageMetadata: boolean): Promise<ImageBuildInfo> {
+export async function getImageBuildInfo(params: DockerResolverParameters | DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerConfig>): Promise<ImageBuildInfo> {
 	const { dockerCLI, dockerComposeCLI } = params;
 	const { cliHost, output } = 'cliHost' in params ? params : params.common;
 
@@ -341,7 +342,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 		}
 		const dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
-		return getImageBuildInfoFromDockerfile(params, dockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, experimentalImageMetadata);
+		return getImageBuildInfoFromDockerfile(params, dockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 
 	} else if ('dockerComposeFile' in config) {
 
@@ -362,9 +363,9 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			const { context, dockerfilePath } = serviceInfo.build;
 			const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
 			const dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute, experimentalImageMetadata);
+			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute);
 		} else {
-			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, experimentalImageMetadata);
+			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
 		}
 
 	} else {
@@ -373,16 +374,16 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			throw new ContainerError({ description: 'No image information specified in devcontainer.json.' });
 		}
 
-		return getImageBuildInfoFromImage(params, config.image, configWithRaw.substitute, experimentalImageMetadata);
+		return getImageBuildInfoFromImage(params, config.image, configWithRaw.substitute);
 
 	}
 }
 
-export async function getImageBuildInfoFromImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, substitute: SubstituteConfig, experimentalImageMetadata: boolean): Promise<ImageBuildInfo & { imageDetails: ImageDetails }> {
+export async function getImageBuildInfoFromImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, substitute: SubstituteConfig): Promise<ImageBuildInfo & { imageDetails: ImageDetails }> {
 	const imageDetails = await inspectDockerImage(params, imageName, true);
 	const user = imageDetails.Config.User || 'root';
 	const { output } = 'output' in params ? params : params.common;
-	const metadata = getImageMetadata(imageDetails, substitute, experimentalImageMetadata, output);
+	const metadata = getImageMetadata(imageDetails, substitute, output);
 	return {
 		user,
 		metadata,
@@ -390,18 +391,18 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 	};
 }
 
-export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean) {
+export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
 	const { output } = 'output' in params ? params : params.common;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, experimentalImageMetadata, output);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
-	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, experimentalImageMetadata, output) : { config: [], raw: [], substitute };
+	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
 	return {
 		user,
 		metadata,
@@ -411,11 +412,11 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 
 export const imageMetadataLabel = 'devcontainer.metadata';
 
-export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, idLabels: string[] | undefined, experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
-	if (!(containerDetails.Config.Labels || {})[imageMetadataLabel] || !experimentalImageMetadata) {
+export function getImageMetadataFromContainer(containerDetails: ContainerDetails, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, idLabels: string[] | undefined, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
+	if (!(containerDetails.Config.Labels || {})[imageMetadataLabel]) {
 		return getDevcontainerMetadata({ config: [], raw: [], substitute: devContainerConfig.substitute }, devContainerConfig, featuresConfig);
 	}
-	const metadata = internalGetImageMetadata(containerDetails, devContainerConfig.substitute, experimentalImageMetadata, output);
+	const metadata = internalGetImageMetadata(containerDetails, devContainerConfig.substitute, output);
 	const hasIdLabels = !!idLabels && Object.keys(envListToObj(idLabels))
 		.every(label => (containerDetails.Config.Labels || {})[label]);
 	if (hasIdLabels) {
@@ -434,12 +435,12 @@ export function getImageMetadataFromContainer(containerDetails: ContainerDetails
 	return getDevcontainerMetadata(metadata, devContainerConfig, featuresConfig);
 }
 
-export function getImageMetadata(imageDetails: ImageDetails, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log) {
-	return internalGetImageMetadata(imageDetails, substitute, experimentalImageMetadata, output);
+export function getImageMetadata(imageDetails: ImageDetails, substitute: SubstituteConfig, output: Log) {
+	return internalGetImageMetadata(imageDetails, substitute, output);
 }
 
-function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails, substitute: SubstituteConfig, experimentalImageMetadata: boolean, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
-	const raw = internalGetImageMetadata0(imageDetails, experimentalImageMetadata, output);
+function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails, substitute: SubstituteConfig, output: Log): SubstitutedConfig<ImageMetadataEntry[]> {
+	const raw = internalGetImageMetadata0(imageDetails, output);
 	return {
 		config: raw.map(substitute),
 		raw,
@@ -447,10 +448,7 @@ function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails,
 	};
 }
 
-export function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, experimentalImageMetadata: boolean, output: Log) {
-	if (!experimentalImageMetadata) {
-		return [];
-	}
+export function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, output: Log) {
 	const str = (imageDetails.Config.Labels || {})[imageMetadataLabel];
 	if (str) {
 		try {
@@ -469,10 +467,7 @@ export function internalGetImageMetadata0(imageDetails: ImageDetails | Container
 	return [];
 }
 
-export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedConfig<ImageMetadataEntry[]>, experimentalImageMetadata: boolean) {
-	if (!experimentalImageMetadata) {
-		return '';
-	}
+export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedConfig<ImageMetadataEntry[]>) {
 	const metadata = devContainerMetadata.raw;
 	if (!metadata.length) {
 		return '';
