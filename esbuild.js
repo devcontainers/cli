@@ -63,7 +63,6 @@ const watch = process.argv.indexOf('--watch') !== -1;
 		bundle: true,
 		sourcemap: true,
 		minify,
-		watch,
 		platform: 'node',
 		target: 'node14.17.0',
 		external: ['vscode-dev-containers'],
@@ -78,15 +77,18 @@ const watch = process.argv.indexOf('--watch') !== -1;
  *--------------------------------------------------------------------------------------------*/
 `.trimStart()
 		},
-	};
-
-	await esbuild.build({
-		...options,
 		entryPoints: [
 			'./src/spec-node/devContainersSpecCLI.ts',
 		],
 		tsconfig: 'tsconfig.json',
 		outbase: 'src',
-	});
+	};
+
+	if (watch) {
+		(await esbuild.context(options))
+			.watch();
+	} else {
+		await esbuild.build(options);
+	}
 
 })().catch(() => process.exit(1));
