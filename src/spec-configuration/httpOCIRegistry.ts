@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
+import { runCommandNoPty, plainExec } from '../spec-common/commonUtils';
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
@@ -16,6 +17,15 @@ interface DockerConfigFile {
 			identitytoken?: string; // Used by Azure Container Registry
 		};
 	};
+	credHelpers: {
+		[registry: string]: string
+	};
+	credsStore: string;
+}
+
+interface CredentialHelperResult {
+	Username: string;
+	Secret: string;
 }
 
 // WWW-Authenticate Regex
@@ -137,8 +147,6 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 	const { output, env } = params;
 	const { registry } = ociRef;
 
-	// TODO: Ask docker credential helper for credentials.
-
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
@@ -169,7 +177,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
 					if (dockerConfig.auths && dockerConfig.auths[registry]) {
-						output.write(`[httpOci] Found entry in config.json for registry '${registry}'`, LogLevel.Trace);
+						output.write(`[httpOci] Found auths entry in config.json for registry '${registry}'`, LogLevel.Trace);
 						const auth = dockerConfig.auths[registry].auth;
 						const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
 
@@ -186,6 +194,20 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 							refreshToken: undefined,
 						};
 					}
+					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
+						const credHelper = dockerConfig.credHelpers[registry];
+						output.write(`[httpOci] Found credential helper '${credHelper}' in config.json for registry '${registry}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, credHelper);
+						if (auth) {
+							return auth;
+						}
+					} else if (dockerConfig.credsStore) {
+						output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
+						if (auth) {
+							return auth;
+						}
+					}
 				}
 			}
 		} catch (err) {
@@ -196,6 +218,34 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 	// Represents anonymous access.
 	output.write(`[httpOci] No authentication credentials found for registry '${registry}'. Accessing anonymously.`, LogLevel.Trace);
 	return;
+}
+
+async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string) : Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined>{
+	const { output } = params;
+
+	const { stdout } = await runCommandNoPty({
+		exec: plainExec(undefined),
+		cmd: 'docker-credential-'+credHelperName,
+		args: ['get'],
+		stdin: Buffer.from(registry, 'utf-8'),
+		output,
+	});
+	if (stdout.length === 0) {
+		return undefined;
+	}
+
+	const creds:CredentialHelperResult = jsonc.parse(stdout.toString());
+	if (creds.Username === '<token>') {
+		return {
+			refreshToken: creds.Secret,
+			base64EncodedCredential: undefined,
+		};
+	}
+	const userToken = creds.Username+':'+creds.Secret
+	return {
+		base64EncodedCredential: Buffer.from(userToken).toString('base64'),
+		refreshToken: undefined,
+	};
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
