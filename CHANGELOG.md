@@ -4,6 +4,12 @@ Notable changes.
 
 ## March 2023
 
+### [0.35.0]
+
+- Transform maven, gradle and jupyterlab usages to their features v2 counterparts. (https://github.com/devcontainers/cli/issues/461)
+- Escape and enclose containerEnv in quotes when writing to Dockerfile. (https://github.com/devcontainers/cli/issues/454)
+- Update package dependencies.
+
 ### [0.34.0]
 
 - Also require name property in `devcontainer-feature.json`. (https://github.com/devcontainers/cli/pull/447)
