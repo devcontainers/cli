@@ -489,8 +489,9 @@ export function getContainerEnvMetadata(containerEnv: Record<string, string> | u
 	if (!containerEnv) {
 		return '';
 	}
-
 	const keys = Object.keys(containerEnv);
-	const concatenatedEnv = keys.map(k => `ENV ${k}=${containerEnv![k]}`).join('\n');
-	return concatenatedEnv;
+	// https://docs.docker.com/engine/reference/builder/#envs
+	return keys.map(k => `ENV ${k}="${containerEnv[k]
+		.replace(/(?=["\\$])/g, '\\') // escape double quotes, back slash, and dollar sign
+		}"`).join('\n');
 }

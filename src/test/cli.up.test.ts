@@ -173,8 +173,14 @@ describe('Dev Containers CLI', function () {
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
 
-			const result = await shellExec(`docker exec ${containerId} bash -c 'echo $JAVA_HOME'`);
-			assert.equal('/usr/lib/jvm/msopenjdk-current\n', result.stdout);
+			const javaHome = await shellExec(`docker exec ${containerId} bash -c 'echo -n $JAVA_HOME'`);
+			assert.equal('/usr/lib/jvm/msopenjdk-current', javaHome.stdout);
+
+			const envWithSpaces = await shellExec(`docker exec ${containerId} bash -c 'echo -n $VAR_WITH_SPACES'`);
+			assert.equal('value with spaces', envWithSpaces.stdout);
+
+			const evalEnvWithCommand = await shellExec(`docker exec ${containerId} bash -c 'eval $ENV_WITH_COMMAND'`);
+			assert.equal('Hello, World!', evalEnvWithCommand.stdout);
 
 			await shellExec(`docker rm -f ${containerId}`);
 		});
