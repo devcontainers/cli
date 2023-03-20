@@ -634,7 +634,8 @@ async function processUserFeatures(params: ContainerFeatureInternalParams, confi
 	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, platform);
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
-	for (const userFeature of userFeatures) {
+	const updatedUserFeatures = updateDeprecatedFeaturesIntoOptions(userFeatures, output);
+	for (const userFeature of updatedUserFeatures) {
 		const newFeatureSet = await processFeatureIdentifier(params, configPath, workspaceRoot, userFeature);
 
 		if (!newFeatureSet) {
@@ -643,6 +644,56 @@ async function processUserFeatures(params: ContainerFeatureInternalParams, confi
 		featuresConfig.featureSets.push(newFeatureSet);
 	}
 	return featuresConfig;
+}
+
+const deprecatedFeaturesIntoOptions: Record<string, { mapTo: string; withOptions: any }> = {
+	gradle: {
+		mapTo: 'java',
+		withOptions: {
+			installGradle: true
+		}
+	},
+	maven: {
+		mapTo: 'java',
+		withOptions: {
+			installMaven: true
+		}
+	},
+	jupyterlab: {
+		mapTo: 'python',
+		withOptions: {
+			installJupyterlab: true
+		}
+	},
+};
+
+export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFeature[], output: Log) {
+	const newFeaturePath = 'ghcr.io/devcontainers/features';
+	const versionBackwardComp = '1';
+	for (const update of userFeatures.filter(feature => deprecatedFeaturesIntoOptions[feature.id])) {
+		const { mapTo, withOptions } = deprecatedFeaturesIntoOptions[update.id];
+		output.write(`(!) WARNING: Using the deprecated '${update.id}' Feature. It is now part of the '${mapTo}' Feature. See https://github.com/devcontainers/features/tree/main/src/${mapTo}#options for the updated Feature.`, LogLevel.Warning);
+		const qualifiedMapToId = `${newFeaturePath}/${mapTo}`;
+		let userFeature = userFeatures.find(feature => feature.id === mapTo || feature.id === qualifiedMapToId || feature.id.startsWith(`${qualifiedMapToId}:`));
+		if (userFeature) {
+			userFeature.options = {
+				...(
+					typeof userFeature.options === 'object' ? userFeature.options :
+						typeof userFeature.options === 'string' ? { version: userFeature.options } :
+							{}
+				),
+				...withOptions,
+			};
+		} else {
+			userFeature = {
+				id: `${qualifiedMapToId}:${versionBackwardComp}`,
+				options: withOptions
+			};
+			userFeatures.push(userFeature);
+		}
+	}
+	const updatedUserFeatures = userFeatures.filter(feature => !deprecatedFeaturesIntoOptions[feature.id]);
+	return updatedUserFeatures;
 }
 
 export async function getFeatureIdType(params: CommonParams, userFeatureId: string) {
