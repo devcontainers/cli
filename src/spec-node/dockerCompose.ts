@@ -18,7 +18,7 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, extractDockerfile, supportsBuildContexts } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -154,27 +154,55 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
 	const composeService = composeConfig.services[config.service];
 
+	// Create directory for additional compose override files
+	const composeOverrideFolder = cliHost.path.join(overrideFilePath, 'docker-compose');
+	await cliHost.mkdirp(composeOverrideFolder);
+
+	const additionalComposeOverrideFiles: string[] = [];
+	if (additionalCacheFroms && additionalCacheFroms.length > 0) {
+		const cacheFromComposeOverrideFile = cliHost.path.join(composeOverrideFolder, `${overrideFilePrefix}-override_cache_from-${Date.now()}.yml`);
+		const cacheFromOverrideContent = `${versionPrefix}services:
+  ${config.service}:
+    build:
+      cache_from:\n${additionalCacheFroms.map(cacheFrom => `        - ${cacheFrom}\n`).join('\n')}
+`;
+		output.write(`Docker Compose override file for cache from:\n${cacheFromOverrideContent}`);
+		await cliHost.writeFile(cacheFromComposeOverrideFile, Buffer.from(cacheFromOverrideContent));
+		additionalComposeOverrideFiles.push(cacheFromComposeOverrideFile)
+	}
+
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
 	let dockerfile: string | undefined;
 	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
-		if (config.prebuildDockerfile) {
+		const { context, dockerfilePath, target } = serviceInfo.build;
+		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
+		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		const extractedDockerfile = extractDockerfile(originalDockerfile);
+
+		if (supportsBuildContexts(extractedDockerfile) == 'unknown') {
 			if (!noBuild) {
-				const args = ['--project-name', projectName, ...composeGlobalArgs, 'build'];
-				if (noCache) {
-					args.push('--no-cache');
+				const prebuildArgs = ['--project-name', projectName, ...composeGlobalArgs];
+
+				for (const composeFileOverride of additionalComposeOverrideFiles) {
+					prebuildArgs.push('-f', composeFileOverride);
 				}
-				args.push(config.service);
+
+				prebuildArgs.push('build');
+				if (noCache) {
+					prebuildArgs.push('--no-cache', '--pull');
+				}
+				prebuildArgs.push(config.service);
 
 				try {
 					if (params.isTTY) {
 						const infoParams = { ...toPtyExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info) };
-						await dockerComposePtyCLI(infoParams, ...args);
+						await dockerComposePtyCLI(infoParams, ...prebuildArgs);
 					} else {
 						const infoParams = { ...toExecParameters(params, await dockerComposeCLIFunc()), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
-						await dockerComposeCLI(infoParams, ...args);
+						await dockerComposeCLI(infoParams, ...prebuildArgs);
 					}
 				} catch (err) {
 					throw err instanceof ContainerError ? err : new ContainerError({ description: 'An error occurred building the Docker Compose images.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
@@ -186,9 +214,6 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 			dockerfile = `FROM --platform=${Os}/${Architecture} ${intermediateImageName} AS ${baseName}\n`;
 			imageBuildInfo = await getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
 		} else {
-			const { context, dockerfilePath, target } = serviceInfo.build;
-			const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-			const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 			dockerfile = originalDockerfile;
 			if (target) {
 				// Explictly set build target for the dev container build features on that
@@ -260,21 +285,18 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// Generate the docker-compose override and build
 	const args = ['--project-name', projectName, ...composeGlobalArgs];
-	const additionalComposeOverrideFiles: string[] = [];
-	if (additionalCacheFroms && additionalCacheFroms.length > 0 || buildOverrideContent) {
-		const composeFolder = cliHost.path.join(overrideFilePath, 'docker-compose');
-		await cliHost.mkdirp(composeFolder);
-		const composeOverrideFile = cliHost.path.join(composeFolder, `${overrideFilePrefix}-${Date.now()}.yml`);
-		const cacheFromOverrideContent = (additionalCacheFroms && additionalCacheFroms.length > 0) ? `      cache_from:\n${additionalCacheFroms.map(cacheFrom => `        - ${cacheFrom}\n`).join('\n')}` : '';
-		const composeOverrideContent = `${versionPrefix}services:
+	if (buildOverrideContent) {
+		const buildOverrideComposeFile = cliHost.path.join(composeOverrideFolder, `${overrideFilePrefix}-override_build-${Date.now()}.yml`);
+		const buildOverrideComposeContent = `${versionPrefix}services:
   ${config.service}:
 ${buildOverrideContent?.trimEnd()}
-${cacheFromOverrideContent}
 `;
-		output.write(`Docker Compose override file for building image:\n${composeOverrideContent}`);
-		await cliHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));
-		additionalComposeOverrideFiles.push(composeOverrideFile);
-		args.push('-f', composeOverrideFile);
+		output.write(`Docker Compose override file for building image with features:\n${buildOverrideComposeContent}`);
+		await cliHost.writeFile(buildOverrideComposeFile, Buffer.from(buildOverrideComposeContent));
+		additionalComposeOverrideFiles.push(buildOverrideComposeFile);
+	}
+	for (const composeFileOverride of additionalComposeOverrideFiles) {
+		args.push('-f', composeFileOverride);
 	}
 
 	if (!noBuild) {

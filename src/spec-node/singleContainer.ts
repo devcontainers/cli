@@ -12,7 +12,7 @@ import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromI
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageBuildInfo, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, extractDockerfile, supportsBuildContexts } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 
@@ -132,22 +132,50 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+	const extractedDockerfile = extractDockerfile(dockerfile);
 	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
 	let imageBuildInfo: ImageBuildInfo;
 
-	if (config.prebuildDockerfile) {
-		const intermediateBuildAargs = ['build', '-f', dockerfilePath, '-t'];
+	if (supportsBuildContexts(extractedDockerfile) == 'unknown') {
+		// Prebuild the image if the syntax used is not a known docker/dockerfile one
+		const prebuildArgs = [];
+		if (!buildParams.buildKitVersion &&
+			(buildParams.buildxPlatform || buildParams.buildxPush)) {
+			throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
+		}
+		if (buildParams.buildKitVersion) {
+			prebuildArgs.push(...getBuildxParams(buildParams));
+		} else {
+			prebuildArgs.push('build');
+		}
+		prebuildArgs.push('-f', dockerfilePath);
+
 		let intermediateImageName = 'vsc_tmp_' + cliHost.path.basename(buildContextPath);
-		intermediateBuildAargs.push(intermediateImageName);
-		intermediateBuildAargs.push(buildContextPath);
+		prebuildArgs.push('-t', intermediateImageName);
+
+		if (config.build?.target) {
+			prebuildArgs.push('--target', config.build.target);
+		}
+		if (noCache) {
+			prebuildArgs.push('--no-cache');
+			// `docker build --pull` pulls local image: https://github.com/devcontainers/cli/issues/60
+			if (buildParams.buildKitVersion) {
+				prebuildArgs.push('--pull');
+			}
+		} else {
+			prebuildArgs.push(...await getCacheFromParams(buildParams, config));
+		}
+
+		prebuildArgs.push(...getBuildArgParams(config));
+		prebuildArgs.push(buildContextPath);
 		try {
 			if (buildParams.isTTY) {
 				const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
-				await dockerPtyCLI(infoParams, ...intermediateBuildAargs);
+				await dockerPtyCLI(infoParams, ...prebuildArgs);
 			} else {
 				const infoParams = { ...toExecParameters(buildParams), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
-				await dockerCLI(infoParams, ...intermediateBuildAargs);
+				await dockerCLI(infoParams, ...prebuildArgs);
 			}
 		} catch (err) {
 			throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
@@ -203,20 +231,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		throw new ContainerError({ description: '--platform or --push require BuildKit enabled.', data: { fileWithError: dockerfilePath } });
 	}
 	if (buildParams.buildKitVersion) {
-		args.push('buildx', 'build');
-		if (buildParams.buildxPlatform) {
-			args.push('--platform', buildParams.buildxPlatform);
-		}
-		if (buildParams.buildxPush) {
-			args.push('--push');
-		} else {
-			if (buildParams.buildxOutput) { 
-				args.push('--output', buildParams.buildxOutput);
-			} else {
-				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
-			}
-		}
-		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
+		args.push(...getBuildxParams(buildParams));
 	} else {
 		args.push('build');
 	}
@@ -235,28 +250,9 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			args.push('--pull');
 		}
 	} else {
-		const configCacheFrom = config.build?.cacheFrom;
-		if (buildParams.additionalCacheFroms.length || (configCacheFrom && (configCacheFrom === 'string' || configCacheFrom.length))) {
-			await logUMask(buildParams);
-		}
-		buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
-		if (config.build && config.build.cacheFrom) {
-			if (typeof config.build.cacheFrom === 'string') {
-				args.push('--cache-from', config.build.cacheFrom);
-			} else {
-				for (let index = 0; index < config.build.cacheFrom.length; index++) {
-					const cacheFrom = config.build.cacheFrom[index];
-					args.push('--cache-from', cacheFrom);
-				}
-			}
-		}
+		args.push(...await getCacheFromParams(buildParams, config));
 	}
-	const buildArgs = config.build?.args;
-	if (buildArgs) {
-		for (const key in buildArgs) {
-			args.push('--build-arg', `${key}=${buildArgs[key]}`);
-		}
-	}
+	args.push(...getBuildArgParams(config));
 	args.push(...additionalBuildArgs);
 	args.push(buildContextPath);
 	try {
@@ -278,6 +274,57 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
 		imageDetails
 	};
+}
+
+export function getBuildxParams(buildParams: DockerResolverParameters) {
+	const args: string[] = [];
+	args.push('buildx', 'build');
+	if (buildParams.buildxPlatform) {
+		args.push('--platform', buildParams.buildxPlatform);
+	}
+	if (buildParams.buildxPush) {
+		args.push('--push');
+	} else {
+		if (buildParams.buildxOutput) { 
+			args.push('--output', buildParams.buildxOutput);
+		} else {
+			args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
+		}
+	}
+	args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
+
+	return args;
+}
+
+export async function getCacheFromParams(buildParams: DockerResolverParameters, config: DevContainerFromDockerfileConfig) {
+	const args: string[] = [];
+	const configCacheFrom = config.build?.cacheFrom;
+	if (buildParams.additionalCacheFroms.length || (configCacheFrom && (configCacheFrom === 'string' || configCacheFrom.length))) {
+		await logUMask(buildParams);
+	}
+	buildParams.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+	if (config.build && config.build.cacheFrom) {
+		if (typeof config.build.cacheFrom === 'string') {
+			args.push('--cache-from', config.build.cacheFrom);
+		} else {
+			for (let index = 0; index < config.build.cacheFrom.length; index++) {
+				const cacheFrom = config.build.cacheFrom[index];
+				args.push('--cache-from', cacheFrom);
+			}
+		}
+	}
+	return args;
+}
+
+export function getBuildArgParams(config: DevContainerFromDockerfileConfig) {
+	const args: string[] = [];
+	const buildArgs = config.build?.args;
+	if (buildArgs) {
+		for (const key in buildArgs) {
+			args.push('--build-arg', `${key}=${buildArgs[key]}`);
+		}
+	}
+	return args;
 }
 
 export function findUserArg(runArgs: string[] = []) {

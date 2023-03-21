@@ -111,7 +111,6 @@ export type DevContainerFromDockerfileConfig = {
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 	customizations?: Record<string, any>;
-	prebuildDockerfile?: boolean;
 } & (
 		{
 			dockerFile: string;
@@ -168,7 +167,6 @@ export interface DevContainerFromDockerComposeConfig {
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 	customizations?: Record<string, any>;
-	prebuildDockerfile?: boolean;
 }
 
 interface DevContainerVSCodeConfig {
