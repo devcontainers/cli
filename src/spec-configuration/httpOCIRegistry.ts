@@ -18,7 +18,7 @@ interface DockerConfigFile {
 		};
 	};
 	credHelpers: {
-		[registry: string]: string
+		[registry: string]: string;
 	};
 	credsStore: string;
 }
@@ -177,7 +177,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
 					if (dockerConfig.auths && dockerConfig.auths[registry]) {
-						output.write(`[httpOci] Found auths entry in config.json for registry '${registry}'`, LogLevel.Trace);
+						output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
 						const auth = dockerConfig.auths[registry].auth;
 						const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
 
@@ -196,7 +196,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 					}
 					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
 						const credHelper = dockerConfig.credHelpers[registry];
-						output.write(`[httpOci] Found credential helper '${credHelper}' in config.json for registry '${registry}'`, LogLevel.Trace);
+						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
 						const auth = await getCredentialFromHelper(params, registry, credHelper);
 						if (auth) {
 							return auth;
@@ -241,7 +241,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 			base64EncodedCredential: undefined,
 		};
 	}
-	const userToken = creds.Username+':'+creds.Secret
+	const userToken = `${creds.Username}:${creds.Secret}`;
 	return {
 		base64EncodedCredential: Buffer.from(userToken).toString('base64'),
 		refreshToken: undefined,
