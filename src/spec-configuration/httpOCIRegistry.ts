@@ -176,6 +176,20 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
+					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
+						const credHelper = dockerConfig.credHelpers[registry];
+						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, credHelper);
+						if (auth) {
+							return auth;
+						}
+					} else if (dockerConfig.credsStore) {
+						output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
+						if (auth) {
+							return auth;
+						}
+					}
 					if (dockerConfig.auths && dockerConfig.auths[registry]) {
 						output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
 						const auth = dockerConfig.auths[registry].auth;
@@ -193,20 +207,6 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 							base64EncodedCredential: auth,
 							refreshToken: undefined,
 						};
-					}
-					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
-						const credHelper = dockerConfig.credHelpers[registry];
-						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
-						const auth = await getCredentialFromHelper(params, registry, credHelper);
-						if (auth) {
-							return auth;
-						}
-					} else if (dockerConfig.credsStore) {
-						output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
-						const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
-						if (auth) {
-							return auth;
-						}
 					}
 				}
 			}
