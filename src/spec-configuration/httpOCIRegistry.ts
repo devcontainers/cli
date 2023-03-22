@@ -223,21 +223,28 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string) : Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined>{
 	const { output } = params;
 
-	const { stdout } = await runCommandNoPty({
-		exec: plainExec(undefined),
-		cmd: 'docker-credential-'+credHelperName,
-		args: ['get'],
-		stdin: Buffer.from(registry, 'utf-8'),
-		output,
-	});
-	if (stdout.length === 0) {
+	let helperOutput: Buffer;
+	try {
+		const { stdout } = await runCommandNoPty({
+			exec: plainExec(undefined),
+			cmd: 'docker-credential-'+credHelperName,
+			args: ['get'],
+			stdin: Buffer.from(registry, 'utf-8'),
+			output,
+		});
+		helperOutput = stdout
+	} catch (err) {
+		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}"`, LogLevel.Error);
+		return undefined;
+	}
+	if (helperOutput.length === 0) {
 		return undefined;
 	}
 
 	let errors: jsonc.ParseError[] = [];
-	const creds:CredentialHelperResult = jsonc.parse(stdout.toString(), errors);
+	const creds:CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
 	if (errors.length !== 0) {
-		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${stdout.toString()}" for registry ${registry}`, LogLevel.Warning);
+		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry ${registry}`, LogLevel.Warning);
 		return undefined;
 	}
 
