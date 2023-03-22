@@ -234,7 +234,13 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 		return undefined;
 	}
 
-	const creds:CredentialHelperResult = jsonc.parse(stdout.toString());
+	let errors: jsonc.ParseError[] = [];
+	const creds:CredentialHelperResult = jsonc.parse(stdout.toString(), errors);
+	if (errors.length !== 0) {
+		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${stdout.toString()}" for registry ${registry}`, LogLevel.Warning);
+		return undefined;
+	}
+
 	if (creds.Username === '<token>') {
 		return {
 			refreshToken: creds.Secret,
