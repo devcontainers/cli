@@ -232,7 +232,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 			stdin: Buffer.from(registry, 'utf-8'),
 			output,
 		});
-		helperOutput = stdout
+		helperOutput = stdout;
 	} catch (err) {
 		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}"`, LogLevel.Error);
 		return undefined;
