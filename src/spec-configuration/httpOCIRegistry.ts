@@ -1,4 +1,5 @@
 import * as os from 'os';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
@@ -169,6 +170,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 			};
 		}
 	} else {
+		let configContainsAuth = false;
 		try {
 			const homeDir = os.homedir();
 			if (homeDir) {
@@ -176,6 +178,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
+					configContainsAuth = Object.keys(dockerConfig.credHelpers).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths).length > 0;
 					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
 						const credHelper = dockerConfig.credHelpers[registry];
 						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
@@ -213,11 +216,48 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 		} catch (err) {
 			output.write(`[httpOci] Failed to read docker config.json: ${err}`, LogLevel.Trace);
 		}
+
+		if (!configContainsAuth) {
+			let defaultCredHelper = '';
+			// Try platform-specific default credential helper
+			if (process.platform === 'linux') {
+				if (existsInPath('pass')) {
+					defaultCredHelper = 'pass';
+				} else {
+					defaultCredHelper = 'secret';
+				}
+			} else if (process.platform === 'win32') {
+				defaultCredHelper = 'wincred';
+			} else if (process.platform === 'darwin') {
+				defaultCredHelper = 'osxkeychain';
+			}
+			if (defaultCredHelper !== '') {
+				output.write(`[httpOci] Invoking platform default credential helper '${defaultCredHelper}'`, LogLevel.Trace);
+				const auth = await getCredentialFromHelper(params, registry, defaultCredHelper);
+				if (auth) {
+					return auth;
+				}
+			}
+		}
 	}
 
 	// Represents anonymous access.
 	output.write(`[httpOci] No authentication credentials found for registry '${registry}'. Accessing anonymously.`, LogLevel.Trace);
 	return;
+}
+
+function existsInPath(filename: string): boolean {
+	if (!process.env.PATH) {
+		return false
+	}
+	const paths = process.env.PATH.split(':');
+	for (const path of paths) {
+		const fullPath = `${path}/${filename}`;
+		if (fs.existsSync(fullPath)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string) : Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined>{
@@ -234,7 +274,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 		});
 		helperOutput = stdout;
 	} catch (err) {
-		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}"`, LogLevel.Error);
+		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}`, LogLevel.Error);
 		return undefined;
 	}
 	if (helperOutput.length === 0) {
