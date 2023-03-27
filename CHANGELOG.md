@@ -4,6 +4,10 @@ Notable changes.
 
 ## March 2023
 
+### [0.36.0]
+
+- Add `--metadata-file` argument to `devcontainer build` command, to enable exporting build info. (https://github.com/devcontainers/cli/issues/464)
+
 ### [0.35.0]
 
 - Transform maven, gradle and jupyterlab usages to their features v2 counterparts. (https://github.com/devcontainers/cli/issues/461)
