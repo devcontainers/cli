@@ -205,6 +205,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	if (target) {
 		args.push('--target', target);
 	}
+	if(buildParams.buildxMetadataFile) {
+		output.write('Setting Metadata file: ' + buildParams.buildxMetadataFile, LogLevel.Trace);
+		args.push('--metadata-file', buildParams.buildxMetadataFile);
+	}
 	if (noCache) {
 		args.push('--no-cache');
 		// `docker build --pull` pulls local image: https://github.com/devcontainers/cli/issues/60
