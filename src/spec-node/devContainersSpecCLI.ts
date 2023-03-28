@@ -452,6 +452,7 @@ function buildOptions(y: Argv) {
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
@@ -486,6 +487,7 @@ async function doBuild({
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
+	config: configParam,
 	'log-level': logLevel,
 	'log-format': logFormat,
 	'no-cache': buildNoCache,
@@ -505,7 +507,7 @@ async function doBuild({
 	};
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const configFile: URI | undefined = /* config ? URI.file(path.resolve(process.cwd(), config)) : */ undefined; // TODO
+		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
