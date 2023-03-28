@@ -1,5 +1,4 @@
 import * as os from 'os';
-import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
@@ -221,7 +220,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 			let defaultCredHelper = '';
 			// Try platform-specific default credential helper
 			if (process.platform === 'linux') {
-				if (existsInPath('pass')) {
+				if (await existsInPath('pass')) {
 					defaultCredHelper = 'pass';
 				} else {
 					defaultCredHelper = 'secret';
@@ -246,14 +245,14 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 	return;
 }
 
-function existsInPath(filename: string): boolean {
+async function existsInPath(filename: string): Promise<boolean> {
 	if (!process.env.PATH) {
 		return false;
 	}
 	const paths = process.env.PATH.split(':');
 	for (const path of paths) {
 		const fullPath = `${path}/${filename}`;
-		if (fs.existsSync(fullPath)) {
+		if (await isLocalFile(fullPath)) {
 			return true;
 		}
 	}
