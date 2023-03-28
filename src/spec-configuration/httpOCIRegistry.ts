@@ -248,7 +248,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 
 function existsInPath(filename: string): boolean {
 	if (!process.env.PATH) {
-		return false
+		return false;
 	}
 	const paths = process.env.PATH.split(':');
 	for (const path of paths) {
