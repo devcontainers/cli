@@ -4,6 +4,10 @@ Notable changes.
 
 ## March 2023
 
+### [0.36.0]
+
+-  Add initial support for docker credential helpers. (https://github.com/devcontainers/cli/pull/460, contributed by @aaronlehmann)
+
 ### [0.35.0]
 
 - Transform maven, gradle and jupyterlab usages to their features v2 counterparts. (https://github.com/devcontainers/cli/issues/461)
