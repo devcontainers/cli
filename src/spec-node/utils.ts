@@ -115,6 +115,7 @@ export interface DockerResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxMetadataFile: string | undefined;
 }
 
 export interface ResolverResult {
