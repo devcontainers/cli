@@ -184,5 +184,15 @@ describe('Dev Containers CLI', function () {
 
 			await shellExec(`docker rm -f ${containerId}`);
 		});
+
+		it('should run with config in subfolder', async () => {
+			const upRes = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
+			const response = JSON.parse(upRes.stdout);
+			assert.strictEqual(response.outcome, 'success');
+
+			await shellExec(`docker exec ${response.containerId} test -f /subfolderConfigPostCreateCommand.txt`);
+
+			await shellExec(`docker rm -f ${response.containerId}`);
+		});
 	});
 });
