@@ -8,6 +8,8 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
+import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { envListToObj } from '../spec-node/utils';
 
 const pkg = require('../../package.json');
 
@@ -248,6 +250,15 @@ describe('Dev Containers CLI', function () {
 			}
 
 			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should build with config in subfolder', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json --image-name test-subfolder-config`);
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.outcome, 'success');
+
+			const details = JSON.parse((await shellExec(`docker inspect test-subfolder-config`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
 	});
 });

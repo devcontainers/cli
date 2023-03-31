@@ -363,6 +363,17 @@ export function describeTests2({ text, options }: BuildKitOption) {
 					assert.equal(success, false, 'expect non-successful call');
 				});
 			}
+
+			it('should exec with config in subfolder', async () => {
+				const upRes = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
+				const response = JSON.parse(upRes.stdout);
+				assert.strictEqual(response.outcome, 'success');
+
+				const execRes = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json bash -c 'printenv SUBFOLDER_CONFIG_REMOTE_ENV'`);
+				assert.strictEqual(execRes.stdout.trim(), 'true');
+
+				await shellExec(`docker rm -f ${response.containerId}`);
+			});
 		});
 	});
 }

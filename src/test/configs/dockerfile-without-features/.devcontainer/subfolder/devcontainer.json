@@ -1,0 +1,9 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"remoteEnv": {
+		"SUBFOLDER_CONFIG_REMOTE_ENV": "true"
+	},
+	"postCreateCommand": "touch /subfolderConfigPostCreateCommand.txt"
+}
