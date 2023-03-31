@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'fs';
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -83,6 +84,16 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 
 })().catch(console.error);
 
+function findWorkspaceFolder(): string | undefined {
+	const workspacePath = path.join(process.cwd(), '.devcontainer');
+	if (fs.existsSync(workspacePath)) {
+		if (fs.lstatSync(workspacePath).isDirectory()) {
+			return process.cwd();
+		}
+	}
+	return undefined;
+}
+
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 
 function provisionOptions(y: Argv) {
@@ -125,14 +136,12 @@ function provisionOptions(y: Argv) {
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
+			if (!(argv['id-label'] || argv['override-config'] || isWorkspaceFound)) {
+				throw new Error('Missing required argument: workspace-folder or id-label or override-config');
 			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
@@ -143,6 +152,10 @@ function provisionOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
@@ -189,7 +202,6 @@ async function provision({
 	'container-session-data-folder': containerSessionDataFolder,
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 }: ProvisionArgs) {
-
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -451,7 +463,7 @@ function buildOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', default: '.', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
@@ -464,6 +476,14 @@ function buildOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
+	}).check(argv => {
+		if (argv['workspace-folder'] === '.') {
+			const workspaceFolder = findWorkspaceFolder();
+			if (!workspaceFolder) {
+				throw new Error('Unable to find Configuration File, provide workspace-folder argument');
+			}
+		}
+		return true;
 	});
 }
 
@@ -692,6 +712,8 @@ function runUserCommandsOptions(y: Argv) {
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
+			console.debug(isWorkspaceFound);
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
@@ -699,10 +721,14 @@ function runUserCommandsOptions(y: Argv) {
 			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+			if (!(argv['container-id'] || idLabels?.length || isWorkspaceFound)) {
 				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
@@ -875,13 +901,18 @@ function readConfigurationOptions(y: Argv) {
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+			if (!(argv['container-id'] || idLabels?.length || isWorkspaceFound)) {
 				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
@@ -1044,6 +1075,7 @@ function execOptions(y: Argv) {
 		})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			const isWorkspaceFound = argv['workspace-folder'] || findWorkspaceFolder();
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
@@ -1051,10 +1083,14 @@ function execOptions(y: Argv) {
 			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+			if (!(argv['container-id'] || idLabels?.length || isWorkspaceFound)) {
 				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
+		}).middleware((argv) => {
+			if (!(argv['id-label'] || argv['override-config'] || argv['workspace-folder'])) {
+				argv['workspace-folder'] = findWorkspaceFolder();
+			}
 		});
 }
 
