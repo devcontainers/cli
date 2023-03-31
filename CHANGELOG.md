@@ -6,7 +6,7 @@ Notable changes.
 
 ### [0.36.0]
 
--  Add initial support for docker credential helpers. (https://github.com/devcontainers/cli/pull/460, contributed by @aaronlehmann)
+-  Add initial support for docker credential helpers when fetching Features/Templates. (https://github.com/devcontainers/cli/pull/460, contributed by @aaronlehmann)
 
 ### [0.35.0]
 
