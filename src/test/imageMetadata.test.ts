@@ -539,7 +539,7 @@ function getFeaturesConfig(features: Feature[]): FeaturesConfig {
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
-					version: '1.2.3',
+					tag: '1.2.3',
 				},
 				manifest: {
 					schemaVersion: 1,

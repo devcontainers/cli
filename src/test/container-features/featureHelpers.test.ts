@@ -206,6 +206,7 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: 'latest',
 				version: 'latest',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
@@ -240,6 +241,7 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: '1.0.13',
 				version: '1.0.13',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
@@ -582,6 +584,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -664,6 +667,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -749,6 +753,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {

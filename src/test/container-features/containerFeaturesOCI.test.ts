@@ -18,6 +18,7 @@ describe('getCollectionRef()', async function () {
         assert.equal(collectionRef.path, 'devcontainers/templates');
         assert.equal(collectionRef.resource, 'ghcr.io/devcontainers/templates');
         assert.equal(collectionRef.version, 'latest');
+        assert.equal(collectionRef.tag, collectionRef.version);
     });
 
     it('valid getCollectionRef() that was originally uppercase', async () => {
@@ -30,6 +31,7 @@ describe('getCollectionRef()', async function () {
         assert.equal(collectionRef.path, 'devcontainers/templates');
         assert.equal(collectionRef.resource, 'ghcr.io/devcontainers/templates');
         assert.equal(collectionRef.version, 'latest');
+        assert.equal(collectionRef.tag, collectionRef.version);
     });
 
     it('valid getCollectionRef() with port in registry', async () => {
@@ -42,6 +44,7 @@ describe('getCollectionRef()', async function () {
         assert.equal(collectionRef.path, 'devcontainers/templates');
         assert.equal(collectionRef.resource, 'ghcr.io:8001/devcontainers/templates');
         assert.equal(collectionRef.version, 'latest');
+        assert.equal(collectionRef.tag, collectionRef.version);
     });
 
     it('invalid getCollectionRef() with an invalid character in path', async () => {
@@ -70,8 +73,26 @@ describe('getRef()', async function () {
         assert.equal(feat.owner, 'devcontainers');
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
-        assert.equal(feat.version, 'latest');
+        assert.equal(feat.tag, 'latest');
+        assert.equal(feat.tag, feat.version);
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+    });
+
+    it('valid getRef() with a digest', async () => {
+        const feat = getRef(output, 'ghcr.io/my-org/my-features/my-feat@sha256:1234567890123456789012345678901234567890123456789012345678901234');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'my-feat');
+        assert.equal(feat.namespace, 'my-org/my-features');
+        assert.equal(feat.owner, 'my-org');
+        assert.equal(feat.registry, 'ghcr.io');
+        assert.equal(feat.resource, 'ghcr.io/my-org/my-features/my-feat');
+        assert.equal(feat.path, 'my-org/my-features/my-feat');
+        assert.isUndefined(feat.tag);
+        assert.equal(feat.digest, 'sha256:1234567890123456789012345678901234567890123456789012345678901234');
+        assert.equal(feat.digest, feat.version);
     });
 
     it('valid getRef() without a version tag', async () => {
@@ -86,7 +107,9 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
-        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+        assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied.
+        assert.isUndefined(feat.digest);
+        assert.equal(feat.tag, feat.version);
     });
 
     it('valid getRef() automatically downcases', async () => {
@@ -101,7 +124,8 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
-        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+        assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied.
+        assert.equal(feat.tag, feat.version);
     });
 
     it('valid getRef() with a registry that contains a port.', async () => {
@@ -116,7 +140,8 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'docker.io:8001');
         assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
-        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+        assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied.
+        assert.equal(feat.tag, feat.version);
     });
 
     it('valid getRef() really short path and no version', async () => {
@@ -131,7 +156,8 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'docker.io:8001');
         assert.equal(feat.resource, 'docker.io:8001/a/b/c');
         assert.equal(feat.path, 'a/b/c');
-        assert.equal(feat.version, 'latest'); // Defaults to 'latest' if not version supplied. 
+        assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied. 
+        assert.equal(feat.tag, feat.version);
     });
 
     it('invalid getRef() with duplicate version tags', async () => {
@@ -164,6 +190,16 @@ describe('getRef()', async function () {
         assert.isUndefined(feat);
     });
 
+    it('invalid getRef() with unsupported digest hashing algorithm', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers//templates/docker-from-docker@sha100:1234567890123456789012345678901234567890123456789012345678901234');
+        assert.isUndefined(feat);
+    });
+
+    it('invalid getRef() with mis-shaped digest', async () => {
+        const feat = getRef(output, 'ghcr.io/devcontainers//templates/docker-from-docker@1234567890123456789012345678901234567890123456789012345678901234');
+        assert.isUndefined(feat);
+    });
+
 });
 
 describe('Test OCI Pull', () => {
@@ -179,7 +215,7 @@ describe('Test OCI Pull', () => {
         assert.equal(feat.owner, 'codspace');
         assert.equal(feat.registry, 'ghcr.io');
         assert.equal(feat.resource, 'ghcr.io/codspace/features/ruby');
-        assert.equal(feat.version, '1');
+        assert.equal(feat.tag, '1');
         assert.equal(feat.path, 'codspace/features/ruby');
     });
 
