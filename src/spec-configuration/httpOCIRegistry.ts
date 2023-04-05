@@ -177,7 +177,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
-					configContainsAuth = Object.keys(dockerConfig.credHelpers).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths).length > 0;
+					configContainsAuth = Object.keys(dockerConfig.credHelpers ?? {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths ?? {}).length > 0; 
 					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
 						const credHelper = dockerConfig.credHelpers[registry];
 						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
@@ -259,14 +259,14 @@ async function existsInPath(filename: string): Promise<boolean> {
 	return false;
 }
 
-async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string) : Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined>{
+async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string): Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined> {
 	const { output } = params;
 
 	let helperOutput: Buffer;
 	try {
 		const { stdout } = await runCommandNoPty({
 			exec: plainExec(undefined),
-			cmd: 'docker-credential-'+credHelperName,
+			cmd: 'docker-credential-' + credHelperName,
 			args: ['get'],
 			stdin: Buffer.from(registry, 'utf-8'),
 			output,
@@ -281,7 +281,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 	}
 
 	let errors: jsonc.ParseError[] = [];
-	const creds:CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
+	const creds: CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
 	if (errors.length !== 0) {
 		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry ${registry}`, LogLevel.Warning);
 		return undefined;
