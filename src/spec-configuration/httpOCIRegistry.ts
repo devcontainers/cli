@@ -173,7 +173,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 		return credentialFromDockerConfig;
 	}
 
-	if (registry === 'ghcr.io' && githubToken && (!githubHost || githubHost === 'ghcr.io')) {
+	if (registry === 'ghcr.io' && githubToken && (!githubHost || githubHost === 'github.com')) {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
 		return {
