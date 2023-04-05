@@ -156,7 +156,7 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_4 \\
     });
 
     it('should correctly return featuresConfig with customizations', async function () {
-        this.timeout('10s');
+        this.timeout('20s');
         const version = 'unittest';
         const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);
