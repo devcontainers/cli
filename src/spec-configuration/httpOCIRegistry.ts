@@ -177,7 +177,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
-					configContainsAuth = Object.keys(dockerConfig.credHelpers ?? {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths ?? {}).length > 0; 
+					configContainsAuth = Object.keys(dockerConfig.credHelpers ?? {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths ?? {}).length > 0;
 					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
 						const credHelper = dockerConfig.credHelpers[registry];
 						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
