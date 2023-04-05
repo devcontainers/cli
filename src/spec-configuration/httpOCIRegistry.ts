@@ -135,26 +135,23 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 // Attempts to get the Basic auth credentials for the provided registry.
 // This credential is used to offer the registry in exchange for a Bearer token.
 // These may be:
-//   - Crafted from the GITHUB_TOKEN environment variables
 //   - parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable
 //   - Read from a docker config file
+//   - Read from a docker credential helper (https://docs.docker.com/engine/reference/commandline/login/#credentials-store)
+//   - Crafted from the GITHUB_TOKEN environment variable
 //  Returns:
 //   - undefined: No credential was found.
 //   - object:    A credential was found.
-// 					- based64EncodedCredential: The credential, base64 encoded.
+// 					- based64EncodedCredential: The base64 encoded credential, if any.
 // 					- refreshToken: The refresh token, if any.
 async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectionRef): Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined> {
 	const { output, env } = params;
 	const { registry } = ociRef;
 
-	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
-		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
-		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
-		return {
-			base64EncodedCredential: Buffer.from(userToken).toString('base64'),
-			refreshToken: undefined,
-		};
-	} else if (!!env['DEVCONTAINERS_OCI_AUTH']) {
+	const githubToken = env['GITHUB_TOKEN'];
+	const githubHost = env['GITHUB_HOST'];
+
+	if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=service1|user1|token1,service2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
 		const authContext = authContexts.find(a => a.split('|')[0] === registry);
@@ -168,76 +165,21 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				refreshToken: undefined,
 			};
 		}
-	} else {
-		let configContainsAuth = false;
-		try {
-			const homeDir = os.homedir();
-			if (homeDir) {
-				const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
-				if (await isLocalFile(dockerConfigPath)) {
-					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
+	}
 
-					configContainsAuth = Object.keys(dockerConfig.credHelpers).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths).length > 0;
-					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
-						const credHelper = dockerConfig.credHelpers[registry];
-						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
-						const auth = await getCredentialFromHelper(params, registry, credHelper);
-						if (auth) {
-							return auth;
-						}
-					} else if (dockerConfig.credsStore) {
-						output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
-						const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
-						if (auth) {
-							return auth;
-						}
-					}
-					if (dockerConfig.auths && dockerConfig.auths[registry]) {
-						output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
-						const auth = dockerConfig.auths[registry].auth;
-						const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
+	// Attempt to use the docker config file or available credential helpers.
+	const credentialFromDockerConfig = await getCredentialFromDockerConfigOrCredentialHelper(params, registry);
+	if (credentialFromDockerConfig) {
+		return credentialFromDockerConfig;
+	}
 
-						if (identityToken) {
-							return {
-								refreshToken: identityToken,
-								base64EncodedCredential: undefined,
-							};
-						}
-
-						// Without the presence of an `identityToken`, assume auth is a base64-encoded 'user:token'.
-						return {
-							base64EncodedCredential: auth,
-							refreshToken: undefined,
-						};
-					}
-				}
-			}
-		} catch (err) {
-			output.write(`[httpOci] Failed to read docker config.json: ${err}`, LogLevel.Trace);
-		}
-
-		if (!configContainsAuth) {
-			let defaultCredHelper = '';
-			// Try platform-specific default credential helper
-			if (process.platform === 'linux') {
-				if (await existsInPath('pass')) {
-					defaultCredHelper = 'pass';
-				} else {
-					defaultCredHelper = 'secret';
-				}
-			} else if (process.platform === 'win32') {
-				defaultCredHelper = 'wincred';
-			} else if (process.platform === 'darwin') {
-				defaultCredHelper = 'osxkeychain';
-			}
-			if (defaultCredHelper !== '') {
-				output.write(`[httpOci] Invoking platform default credential helper '${defaultCredHelper}'`, LogLevel.Trace);
-				const auth = await getCredentialFromHelper(params, registry, defaultCredHelper);
-				if (auth) {
-					return auth;
-				}
-			}
-		}
+	if (registry === 'ghcr.io' && githubToken && (!githubHost || githubHost === 'ghcr.io')) {
+		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
+		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
+		return {
+			base64EncodedCredential: Buffer.from(userToken).toString('base64'),
+			refreshToken: undefined,
+		};
 	}
 
 	// Represents anonymous access.
@@ -249,17 +191,100 @@ async function existsInPath(filename: string): Promise<boolean> {
 	if (!process.env.PATH) {
 		return false;
 	}
-	const paths = process.env.PATH.split(':');
-	for (const path of paths) {
-		const fullPath = `${path}/${filename}`;
-		if (await isLocalFile(fullPath)) {
-			return true;
+	try {
+		const paths = process.env.PATH.split(':');
+		for (const path of paths) {
+			const fullPath = `${path}/${filename}`;
+			if (await isLocalFile(fullPath)) {
+				return true;
+			}
 		}
+	} catch (err) {
+		return false;
 	}
 	return false;
 }
 
-async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string) : Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined>{
+
+async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonParams, registry: string) {
+	const { output } = params;
+
+	let configContainsAuth = false;
+	try {
+		const homeDir = os.homedir();
+		if (homeDir) {
+			const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
+			if (await isLocalFile(dockerConfigPath)) {
+				const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
+
+				configContainsAuth = Object.keys(dockerConfig.credHelpers || {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths || {}).length > 0;
+				if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
+					const credHelper = dockerConfig.credHelpers[registry];
+					output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
+					const auth = await getCredentialFromHelper(params, registry, credHelper);
+					if (auth) {
+						return auth;
+					}
+				} else if (dockerConfig.credsStore) {
+					output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
+					const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
+					if (auth) {
+						return auth;
+					}
+				}
+				if (dockerConfig.auths && dockerConfig.auths[registry]) {
+					output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
+					const auth = dockerConfig.auths[registry].auth;
+					const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
+
+					if (identityToken) {
+						return {
+							refreshToken: identityToken,
+							base64EncodedCredential: undefined,
+						};
+					}
+
+					// Without the presence of an `identityToken`, assume auth is a base64-encoded 'user:token'.
+					return {
+						base64EncodedCredential: auth,
+						refreshToken: undefined,
+					};
+				}
+			}
+		}
+	} catch (err) {
+		output.write(`[httpOci] Failed to read docker config.json: ${err}`, LogLevel.Trace);
+		return;
+	}
+
+	if (!configContainsAuth) {
+		let defaultCredHelper = '';
+		// Try platform-specific default credential helper
+		if (process.platform === 'linux') {
+			if (await existsInPath('pass')) {
+				defaultCredHelper = 'pass';
+			} else {
+				defaultCredHelper = 'secret';
+			}
+		} else if (process.platform === 'win32') {
+			defaultCredHelper = 'wincred';
+		} else if (process.platform === 'darwin') {
+			defaultCredHelper = 'osxkeychain';
+		}
+		if (defaultCredHelper !== '') {
+			output.write(`[httpOci] Invoking platform default credential helper '${defaultCredHelper}'`, LogLevel.Trace);
+			const auth = await getCredentialFromHelper(params, registry, defaultCredHelper);
+			if (auth) {
+				return auth;
+			}
+		}
+	}
+
+	// No auth found.
+	return;
+}
+
+async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string): Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined> {
 	const { output } = params;
 
 	let helperOutput: Buffer;
