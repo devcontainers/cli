@@ -207,9 +207,46 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				tag: 'latest',
+				digest: undefined,
 				version: 'latest',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
+			};
+
+			if (featureSet.sourceInformation.type === 'oci') {
+				assert.ok(featureSet.sourceInformation.type === 'oci');
+				assert.deepEqual(featureSet.sourceInformation.featureRef, expectedFeatureRef);
+			} else {
+				assert.fail('sourceInformation.type is not oci');
+			}
+		});
+
+		it('should process oci registry (with a digest)', async function () {
+			const userFeature: DevContainerFeature = {
+				id: 'ghcr.io/devcontainers/features/ruby@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				options: {},
+			};
+
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
+			if (!featureSet) {
+				assert.fail('processFeatureIdentifier returned null');
+			}
+			const featureId = featureSet.features[0].id;
+			assertFeatureIdInvariant(featureId);
+			assert.strictEqual(featureSet?.features[0].id, 'ruby');
+
+			assert.exists(featureSet);
+
+			const expectedFeatureRef: OCIRef = {
+				id: 'ruby',
+				owner: 'devcontainers',
+				namespace: 'devcontainers/features',
+				registry: 'ghcr.io',
+				tag: undefined,
+				digest: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				version: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				resource: 'ghcr.io/devcontainers/features/ruby',
+				path: 'devcontainers/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -242,6 +279,7 @@ describe('validate processFeatureIdentifier', async function () {
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
 				tag: '1.0.13',
+				digest: undefined,
 				version: '1.0.13',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
