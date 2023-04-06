@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## April 2023
+
+### [0.37.0]
+
+- Add --config to build command (microsoft/vscode-remote-release#8068)
+- Features/Templates: Fix a bug in reading from docker credential helpers (https://github.com/devcontainers/cli/issues/477)
+
 ## March 2023
 
 ### [0.36.0]
