@@ -1,0 +1,6 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"privatedevcontainercli.azurecr.io/features/rabbit:1": {}
+	}
+}
