@@ -136,8 +136,8 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 // This credential is used to offer the registry in exchange for a Bearer token.
 // These may be:
 //   - parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable
-//   - Read from a docker config file
 //   - Read from a docker credential helper (https://docs.docker.com/engine/reference/commandline/login/#credentials-store)
+//   - Read from a docker config file
 //   - Crafted from the GITHUB_TOKEN environment variable
 //  Returns:
 //   - undefined: No credential was found.
@@ -219,6 +219,7 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 			const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigFilePath)).toString());
 
 			configContainsAuth = Object.keys(dockerConfig.credHelpers || {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths || {}).length > 0;
+			// https://docs.docker.com/engine/reference/commandline/login/#credential-helpers
 			if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
 				const credHelper = dockerConfig.credHelpers[registry];
 				output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigFilePath}' registry '${registry}'`, LogLevel.Trace);
@@ -226,6 +227,7 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 				if (auth) {
 					return auth;
 				}
+			// https://docs.docker.com/engine/reference/commandline/login/#credentials-store
 			} else if (dockerConfig.credsStore) {
 				output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
 				const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
@@ -280,7 +282,7 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 		}
 	}
 
-	// No auth found.
+	// No auth found from docker config or credential helper.
 	return;
 }
 
