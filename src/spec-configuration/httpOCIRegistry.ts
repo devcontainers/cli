@@ -205,7 +205,6 @@ async function existsInPath(filename: string): Promise<boolean> {
 	return false;
 }
 
-
 async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonParams, registry: string) {
 	const { output } = params;
 
@@ -291,7 +290,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 	try {
 		const { stdout } = await runCommandNoPty({
 			exec: plainExec(undefined),
-			cmd: 'docker-credential-'+credHelperName,
+			cmd: 'docker-credential-' + credHelperName,
 			args: ['get'],
 			stdin: Buffer.from(registry, 'utf-8'),
 			output,
@@ -306,7 +305,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 	}
 
 	let errors: jsonc.ParseError[] = [];
-	const creds:CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
+	const creds: CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
 	if (errors.length !== 0) {
 		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry ${registry}`, LogLevel.Warning);
 		return undefined;
