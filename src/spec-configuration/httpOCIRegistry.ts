@@ -212,45 +212,44 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 
 	let configContainsAuth = false;
 	try {
-		const homeDir = os.homedir();
-		if (homeDir) {
-			const dockerConfigPath = path.join(homeDir, '.docker', 'config.json');
-			if (await isLocalFile(dockerConfigPath)) {
-				const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
+		// https://docs.docker.com/engine/reference/commandline/cli/#change-the-docker-directory
+		const dockerConfigRootDir = process.env.DOCKER_CONFIG || path.join(os.homedir(), '.docker');
+		const dockerConfigFilePath = path.join(dockerConfigRootDir, 'config.json');
+		if (await isLocalFile(dockerConfigFilePath)) {
+			const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigFilePath)).toString());
 
-				configContainsAuth = Object.keys(dockerConfig.credHelpers || {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths || {}).length > 0;
-				if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
-					const credHelper = dockerConfig.credHelpers[registry];
-					output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
-					const auth = await getCredentialFromHelper(params, registry, credHelper);
-					if (auth) {
-						return auth;
-					}
-				} else if (dockerConfig.credsStore) {
-					output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
-					const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
-					if (auth) {
-						return auth;
-					}
+			configContainsAuth = Object.keys(dockerConfig.credHelpers || {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths || {}).length > 0;
+			if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
+				const credHelper = dockerConfig.credHelpers[registry];
+				output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigFilePath}' registry '${registry}'`, LogLevel.Trace);
+				const auth = await getCredentialFromHelper(params, registry, credHelper);
+				if (auth) {
+					return auth;
 				}
-				if (dockerConfig.auths && dockerConfig.auths[registry]) {
-					output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
-					const auth = dockerConfig.auths[registry].auth;
-					const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
+			} else if (dockerConfig.credsStore) {
+				output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
+				const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
+				if (auth) {
+					return auth;
+				}
+			}
+			if (dockerConfig.auths && dockerConfig.auths[registry]) {
+				output.write(`[httpOci] Found auths entry in '${dockerConfigFilePath}' for registry '${registry}'`, LogLevel.Trace);
+				const auth = dockerConfig.auths[registry].auth;
+				const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
 
-					if (identityToken) {
-						return {
-							refreshToken: identityToken,
-							base64EncodedCredential: undefined,
-						};
-					}
-
-					// Without the presence of an `identityToken`, assume auth is a base64-encoded 'user:token'.
+				if (identityToken) {
 					return {
-						base64EncodedCredential: auth,
-						refreshToken: undefined,
+						refreshToken: identityToken,
+						base64EncodedCredential: undefined,
 					};
 				}
+
+				// Without the presence of an `identityToken`, assume auth is a base64-encoded 'user:token'.
+				return {
+					base64EncodedCredential: auth,
+					refreshToken: undefined,
+				};
 			}
 		}
 	} catch (err) {
