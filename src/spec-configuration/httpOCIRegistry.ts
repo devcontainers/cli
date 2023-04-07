@@ -148,9 +148,6 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 	const { output, env } = params;
 	const { registry } = ociRef;
 
-	const githubToken = env['GITHUB_TOKEN'];
-	const githubHost = env['GITHUB_HOST'];
-
 	if (!!env['DEVCONTAINERS_OCI_AUTH']) {
 		// eg: DEVCONTAINERS_OCI_AUTH=service1|user1|token1,service2|user2|token2
 		const authContexts = env['DEVCONTAINERS_OCI_AUTH'].split(',');
@@ -167,12 +164,17 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 		}
 	}
 
-	// Attempt to use the docker config file or available credential helpers.
+	// Attempt to use the docker config file or available credential helper(s).
 	const credentialFromDockerConfig = await getCredentialFromDockerConfigOrCredentialHelper(params, registry);
 	if (credentialFromDockerConfig) {
 		return credentialFromDockerConfig;
 	}
 
+	const githubToken = env['GITHUB_TOKEN'];
+	const githubHost = env['GITHUB_HOST'];
+	if (githubHost) {
+		output.write(`[httpOci] Environment GITHUB_HOST is set to '${githubHost}'`, LogLevel.Trace);
+	}
 	if (registry === 'ghcr.io' && githubToken && (!githubHost || githubHost === 'github.com')) {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
