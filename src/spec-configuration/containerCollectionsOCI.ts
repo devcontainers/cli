@@ -145,12 +145,12 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 		const splitOnColon = digestWithHashingAlgorithm.split(':');
 		if (splitOnColon.length !== 2) {
 			output.write(`Failed to parse digest '${digestWithHashingAlgorithm}'.   Expected format: 'sha256:abcdefghijk'`, LogLevel.Error);
-			return undefined;
+			return;
 		}
 
 		if (splitOnColon[0] !== 'sha256') {
 			output.write(`Digest algorithm for input '${input}' failed validation.  Expected hashing algorithm to be 'sha256'.`, LogLevel.Error);
-			return undefined;
+			return;
 		}
 
 		if (!regexForVersionOrDigest.test(splitOnColon[1])) {
@@ -160,7 +160,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 		digest = digestWithHashingAlgorithm;
 	} else {
 		// In both cases, assume 'latest' tag.
-		if (indexOfLastColon === -1 || indexOfLastColon < input.indexOf('/')) {
+		if (indexOfLastColon === -1 || indexOfLastColon < input.lastIndexOf('/')) {
 			//  1. The final colon is before the first slash (a port)
 			//     eg:   ghcr.io:8081/codspace/features/ruby
 			//  2. There is no tag at all
@@ -176,6 +176,11 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 		}
 	}
 
+	if (tag && !regexForVersionOrDigest.test(tag)) {
+		output.write(`Tag '${tag}' for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
+		return;
+	}
+
 	const splitOnSlash = resource.split('/');
 
 	const id = splitOnSlash[splitOnSlash.length - 1]; // Aka 'featureName' - Eg: 'ruby'
@@ -184,6 +189,11 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	const namespace = splitOnSlash.slice(1, -1).join('/');
 
 	const path = `${namespace}/${id}`;
+
+	if (!regexForPath.exec(path)) {
+		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
+		return;
+	}
 
 	const version = digest || tag || 'latest'; // The most specific version.
 
@@ -199,23 +209,6 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	output.write(`> version: ${version}`, LogLevel.Trace);
 	output.write(`> tag?: ${tag}`, LogLevel.Trace);
 	output.write(`> digest?: ${digest}`, LogLevel.Trace);
-
-	// -- Validate results of parse.
-
-	if (!regexForPath.exec(path)) {
-		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
-		return undefined;
-	}
-
-	if (digest && tag) {
-		output.write(`Parsed both a digest ('${digest}') and a tag ('${tag}') for input '${input}'. Resource can only have one.`, LogLevel.Error);
-		return undefined;
-	}
-
-	if (tag && !regexForVersionOrDigest.test(tag)) {
-		output.write(`Tag '${tag}' for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
-		return undefined;
-	}
 
 	return {
 		id,
