@@ -11,6 +11,7 @@ const pkg = require('../../../package.json');
 
 enum AuthStrategy {
 	Anonymous,
+	GitHubToken,
 	DockerConfigAuthFile,
 	// PlatformCredentialHelper,
 	// RefreshToken,
@@ -24,11 +25,10 @@ interface TestPlan {
 	testCommandResult?: RegExp;
 	// Optionally tell the test to set up with a specfic auth strategy.
 	// If not set, the test will run with anonymous.
-	// NOTE:
-	// 	These will be skipped unless the environment has the relevant 'authCredentialEnvSecret' set in the environment.
+	// NOTE: These will be skipped unless the environment has the relevant 'authStrategyKey' set in the environment.
+	//       This data is specific to each strategy and parsed about below accordingly.
 	useAuthStrategy?: AuthStrategy;
-	// Format: registry|username|passwordOrToken
-	authCredentialEnvSecret?: string;
+	authStrategyKey?: string;
 }
 
 const defaultTestPlan = {
@@ -53,13 +53,21 @@ const registryCompatibilityTestPlan: TestPlan[] = [
 		configName: 'azure-registry-scoped',
 		testFeatureId: 'privatedevcontainercli.azurecr.io/features/rabbit',
 		useAuthStrategy: AuthStrategy.DockerConfigAuthFile,
-		authCredentialEnvSecret: 'FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL',
+		authStrategyKey: 'FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL',
 		testCommand: 'rabbit',
 		testCommandResult: /rabbit-is-the-best-animal/,
+	},
+	// Via GHCR visibility settings, this repo's GitHub Actions CI should be able to access this Feature via its GITHUB_TOKEN.
+	{
+		name: 'Private access of GHCR via an environment GITHUB_TOKEN',
+		configName: 'github-private',
+		testFeatureId: 'ghcr.io/devcontainers/private-feature-set-for-tests/color',
+		useAuthStrategy: AuthStrategy.GitHubToken,
+		authStrategyKey: 'RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI'
 	}
 ];
 
-function constructAuthFromStrategy(tmpFolder: string, authStrategy: AuthStrategy, authCredentialEnvSecret?: string): string | undefined {
+function constructAuthFromStrategy(tmpFolder: string, authStrategy: AuthStrategy, authStrategyKey?: string): string | undefined {
 	const generateAuthFolder = () => {
 		const randomChars = Math.random().toString(36).substring(2, 6);
 		const tmpAuthFolder = path.join(tmpFolder, randomChars, 'auth');
@@ -69,12 +77,14 @@ function constructAuthFromStrategy(tmpFolder: string, authStrategy: AuthStrategy
 
 	switch (authStrategy) {
 		case AuthStrategy.Anonymous:
+		case AuthStrategy.GitHubToken:
 			return;
 		case AuthStrategy.DockerConfigAuthFile:
-			if (!authCredentialEnvSecret) {
+			// Format: registry|username|passwordOrToken
+			if (!authStrategyKey) {
 				return;
 			}
-			const split = process.env[authCredentialEnvSecret]?.split('|');
+			const split = process.env[authStrategyKey]?.split('|');
 			if (!split || split.length !== 3) {
 				return;
 			}
@@ -103,18 +113,18 @@ describe('Registry Compatibility', function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
-	registryCompatibilityTestPlan.forEach(({ name, configName, testFeatureId, testCommand, testCommandResult, useAuthStrategy, authCredentialEnvSecret }) => {
+	registryCompatibilityTestPlan.forEach(({ name, configName, testFeatureId, testCommand, testCommandResult, useAuthStrategy, authStrategyKey }) => {
 		this.timeout('120s');
 		describe(name, async function () {
-			((authCredentialEnvSecret && !process.env[authCredentialEnvSecret]) ? describe.skip : describe)('devcontainer up', async function () {
+			((authStrategyKey && !process.env[authStrategyKey]) ? describe.skip : describe)('devcontainer up', async function () {
 
-				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authCredentialEnvSecret);
+				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
 
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/registry-compatibility/${configName}`;
 
 				before(async () => containerId = (await devContainerUp(cli, testFolder, {
-					'logLevel': 'trace', prefix: authFolder ? `DOCKER_CONFIG=${authFolder}` : undefined
+					'logLevel': 'trace', prefix: `DOCKER_CONFIG=${authFolder}`
 				})).containerId);
 				after(async () => await devContainerDown({ containerId }));
 
@@ -128,20 +138,15 @@ describe('Registry Compatibility', function () {
 				});
 			});
 
-			((authCredentialEnvSecret && !process.env[authCredentialEnvSecret]) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
+			((authStrategyKey && !process.env[authStrategyKey]) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
 
-				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authCredentialEnvSecret);
+				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
 
 				it('fetches manifest', async function () {
 					let infoManifestResult: { stdout: string; stderr: string } | null = null;
 					let success = false;
 					try {
-						if (authFolder) {
-							infoManifestResult = await shellExec(`DOCKER_CONFIG=${authFolder} ${cli} features info manifest ${testFeatureId} --log-level trace`);
-
-						} else {
-							infoManifestResult = await shellExec(`${cli} features info manifest ${testFeatureId} --log-level trace`);
-						}
+						infoManifestResult = await shellExec(`DOCKER_CONFIG=${authFolder} ${cli} features info manifest ${testFeatureId} --log-level trace`);
 						success = true;
 					} catch (error) {
 						assert.fail('features info tags sub-command should not throw');
