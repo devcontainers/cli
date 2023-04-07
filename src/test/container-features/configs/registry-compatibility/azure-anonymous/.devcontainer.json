@@ -1,0 +1,8 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"devcontainercli.azurecr.io/features/color:1": {
+			"favorite": "pink"
+		}
+	}
+}
