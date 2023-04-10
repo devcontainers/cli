@@ -67,6 +67,10 @@ const registryCompatibilityTestPlan: TestPlan[] = [
 	}
 ];
 
+function envVariableExists(key: string): boolean {
+	return !!process.env[key] && process.env[key] !== '';
+}
+
 function constructAuthFromStrategy(tmpFolder: string, authStrategy: AuthStrategy, authStrategyKey?: string): string | undefined {
 	const generateAuthFolder = () => {
 		const randomChars = Math.random().toString(36).substring(2, 6);
@@ -116,7 +120,7 @@ describe('Registry Compatibility', function () {
 	registryCompatibilityTestPlan.forEach(({ name, configName, testFeatureId, testCommand, testCommandResult, useAuthStrategy, authStrategyKey }) => {
 		this.timeout('120s');
 		describe(name, async function () {
-			((authStrategyKey && !process.env[authStrategyKey]) ? describe.skip : describe)('devcontainer up', async function () {
+			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)('devcontainer up', async function () {
 
 				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
 
@@ -138,7 +142,7 @@ describe('Registry Compatibility', function () {
 				});
 			});
 
-			((authStrategyKey && !process.env[authStrategyKey]) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
+			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
 
 				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
 
