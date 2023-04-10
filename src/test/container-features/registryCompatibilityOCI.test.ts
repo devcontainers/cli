@@ -123,12 +123,13 @@ describe('Registry Compatibility', function () {
 			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)('devcontainer up', async function () {
 
 				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
+				const gitHubToken = (useAuthStrategy === AuthStrategy.GitHubToken) ? (process.env.GITHUB_TOKEN ?? '') : '';
 
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/registry-compatibility/${configName}`;
 
 				before(async () => containerId = (await devContainerUp(cli, testFolder, {
-					'logLevel': 'trace', prefix: `DOCKER_CONFIG=${authFolder}`
+					'logLevel': 'trace', prefix: `DOCKER_CONFIG=${authFolder} GITHUB_TOKEN=${gitHubToken}`
 				})).containerId);
 				after(async () => await devContainerDown({ containerId }));
 
@@ -145,12 +146,14 @@ describe('Registry Compatibility', function () {
 			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
 
 				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
+				const gitHubToken = (useAuthStrategy === AuthStrategy.GitHubToken) ? (process.env.GITHUB_TOKEN ?? '') : '';
 
 				it('fetches manifest', async function () {
 					let infoManifestResult: { stdout: string; stderr: string } | null = null;
 					let success = false;
 					try {
-						infoManifestResult = await shellExec(`DOCKER_CONFIG=${authFolder} ${cli} features info manifest ${testFeatureId} --log-level trace`);
+						infoManifestResult =
+							await shellExec(`DOCKER_CONFIG=${authFolder} GITHUB_TOKEN=${gitHubToken} ${cli} features info manifest ${testFeatureId} --log-level trace`);
 						success = true;
 					} catch (error) {
 						assert.fail('features info tags sub-command should not throw');
