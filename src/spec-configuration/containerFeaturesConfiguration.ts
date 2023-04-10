@@ -58,6 +58,7 @@ export interface SchemaFeatureBaseProperties {
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
+	dependsOn?: Record<string, string | boolean | Record<string, string | boolean>>;
 }
 
 // Properties that are set programmatically for book-keeping purposes
