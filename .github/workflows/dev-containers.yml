@@ -56,7 +56,6 @@ jobs:
           "src/test/cli.up.test.ts",
           "src/test/imageMetadata.test.ts",
           "src/test/container-features/containerFeaturesOCIPush.test.ts",
-          "src/test/container-features/registryCompatibilityOCI.test.ts",
           # Run all except the above:
           "--exclude src/test/container-features/registryCompatibilityOCI.test.ts --exclude src/test/container-features/containerFeaturesOCIPush.test.ts --exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts --exclude src/test/imageMetadata.test.ts 'src/test/**/*.test.ts'",
         ]
@@ -79,10 +78,40 @@ jobs:
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
       env:
         CI: true
+
+  features-registry-compatibility:
+    name: OCI Implementation Registry Compatibility
+    # TODO: This should be expanded to run on different platforms
+    #       Most notably to test platform-specific credential helper behavior
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@microsoft'
+    - name: Install Dependencies
+      run: yarn install --frozen-lockfile
+    - name: Type-Check
+      run: yarn type-check
+    - name: Package
+      run: yarn package
+    - name: Run Tests
+      run: yarn test-matrix --forbid-only src/test/container-features/registryCompatibilityOCI.test.ts
+      env:
+        CI: true
+        # This variable should only be set in the parent `devcontainers/cli` repo.
         RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI: ${{ vars.RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI }}
+        # Scoped to read private packages in the `devcontainers` org (for testing purposes)
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   tests:
     name: Tests
-    needs: tests-matrix
+    needs: [tests-matrix, features-registry-compatibility]
     runs-on: ubuntu-latest
     steps:
     - name: Done
