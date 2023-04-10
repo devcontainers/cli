@@ -107,6 +107,8 @@ jobs:
         RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI: ${{ vars.RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI }}
         # Scoped to read private packages in the `devcontainers` org (for testing purposes)
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Pull-only credential for a test Azure CR instance
+        FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL: ${{ secrets.FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL }}
 
 
   tests:
