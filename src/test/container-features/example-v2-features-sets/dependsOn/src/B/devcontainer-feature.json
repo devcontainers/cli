@@ -1,0 +1,20 @@
+{
+	"name": "FeatureB",
+	"id": "B",
+	"version": "0.0.2",
+	"dependsOn": {
+		"ghcr.io/joshspicer/dependsOnExperiment/C": {
+			"magicNumber": "20"
+		},
+		"ghcr.io/joshspicer/dependsOnExperiment/D": {
+			"magicNumber": "30"
+		}
+	},
+	"options": {
+		"magicNumber": {
+			"type": "string",
+			"default": "0",
+			"description": "The magic number"
+		}
+	}
+}
