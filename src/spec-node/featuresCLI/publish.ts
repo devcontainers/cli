@@ -87,7 +87,11 @@ async function featuresPublish({
         }
 
         const archiveName = getArchiveName(f.id, collectionType);
-        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName);
+        const featureAnnotations = {
+            'dev.containers.experimental.dependsOn': f.dependsOn ? JSON.stringify(f.dependsOn) : '',
+        };
+        output.write(JSON.stringify(featureAnnotations), LogLevel.Debug);
+        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName, featureAnnotations);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
@@ -113,7 +117,7 @@ async function featuresPublish({
                     process.exit(1);
                 }
 
-                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName);
+                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName, featureAnnotations);
                 if (!publishResult) {
                     output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);

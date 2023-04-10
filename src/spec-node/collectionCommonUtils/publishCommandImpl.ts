@@ -39,7 +39,7 @@ export function getSemanticVersions(version: string, publishedVersions: string[]
 	return semanticVersions;
 }
 
-export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string, archiveName: string) {
+export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string, archiveName: string, featureAnnotations = {}) {
 	const { output } = params;
 
 	output.write(`Fetching published versions...`, LogLevel.Info);
@@ -54,7 +54,7 @@ export async function doPublishCommand(params: CommonParams, version: string, oc
 	if (!!semanticVersions) {
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
 		const pathToTgz = path.join(outputDir, archiveName);
-		const digest = await pushOCIFeatureOrTemplate(params, ociRef, pathToTgz, semanticVersions, collectionType);
+		const digest = await pushOCIFeatureOrTemplate(params, ociRef, pathToTgz, semanticVersions, collectionType, featureAnnotations);
 		if (!digest) {
 			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
 			return;
