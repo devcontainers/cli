@@ -79,7 +79,7 @@ jobs:
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
       env:
         CI: true
-        RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI: ${{ env.RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI }}
+        RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI: ${{ vars.RUNNING_IN_DEVCONTAINERS_CLI_REPO_CI }}
   tests:
     name: Tests
     needs: tests-matrix
