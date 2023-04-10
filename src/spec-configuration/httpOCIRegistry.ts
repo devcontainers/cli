@@ -213,7 +213,11 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 	let configContainsAuth = false;
 	try {
 		// https://docs.docker.com/engine/reference/commandline/cli/#change-the-docker-directory
-		const dockerConfigRootDir = process.env.DOCKER_CONFIG || path.join(os.homedir(), '.docker');
+		const customDockerConfigPath = process.env.DOCKER_CONFIG;
+		if (customDockerConfigPath) {
+			output.write(`[httpOci] Environment DOCKER_CONFIG is set to '${customDockerConfigPath}'`, LogLevel.Trace);
+		}
+		const dockerConfigRootDir = customDockerConfigPath || path.join(os.homedir(), '.docker');
 		const dockerConfigFilePath = path.join(dockerConfigRootDir, 'config.json');
 		if (await isLocalFile(dockerConfigFilePath)) {
 			const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigFilePath)).toString());
@@ -277,12 +281,14 @@ async function getCredentialFromDockerConfigOrCredentialHelper(params: CommonPar
 			output.write(`[httpOci] Invoking platform default credential helper '${defaultCredHelper}'`, LogLevel.Trace);
 			const auth = await getCredentialFromHelper(params, registry, defaultCredHelper);
 			if (auth) {
+				output.write('[httpOci] Found auth from platform default credential helper', LogLevel.Trace);
 				return auth;
 			}
 		}
 	}
 
 	// No auth found from docker config or credential helper.
+	output.write(`[httpOci] No authentication credentials found for registry '${registry}' via docker config or credential helper.`, LogLevel.Trace);
 	return;
 }
 
