@@ -5,12 +5,63 @@
 
 import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
+import { buildDependencyGraphFromConfig, computeDependsOnInstallationOrder, computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
 import { devContainerDown, shellExec } from '../testUtils';
 import path from 'path';
+import { DevContainerConfig } from '../../spec-configuration/configuration';
+import { CommonParams } from '../../spec-configuration/containerCollectionsOCI';
+import { LogLevel, createPlainLog, makeLog } from '../../spec-utils/log';
 
 const pkg = require('../../../package.json');
+export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Info));
+
+describe('dependsOn', function () {
+    this.timeout('10s');
+
+    const params: CommonParams = {
+        env: process.env,
+        output,
+        cachedAuthHeader: {}
+    };
+
+    const validConfig: DevContainerConfig = {
+        image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
+        features: {
+            'ghcr.io/joshspicer/dependsonexperiment/b:latest': {
+                'magicNumber': '10'
+            },
+            'ghcr.io/joshspicer/dependsonexperiment/a:latest': {
+                'magicNumber': '400'
+            }
+        }
+    };
+
+    const cyclicDepsConfig: DevContainerConfig = {
+        image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
+        features: {
+            'ghcr.io/joshspicer/dependsonexperiment/f:latest': {
+                'magicNumber': '1000'
+            }
+        }
+    };
+
+    it('should resolve a valid dependency tree', async function () {
+        const graph = await buildDependencyGraphFromConfig(params, validConfig);
+        console.log(graph);
+    });
+
+    it('dependsOn should provide a valid install order', async function () {
+        const order = await computeDependsOnInstallationOrder(params, validConfig);
+        console.log(order);
+    });
+
+    it('should detect a cyclic dependency tree', async function () {
+        const graph = await computeDependsOnInstallationOrder(params, cyclicDepsConfig);
+        console.log(graph);
+    });
+
+});
 
 describe('Container features install order', function () {
 

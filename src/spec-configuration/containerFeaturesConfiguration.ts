@@ -546,7 +546,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = featuresToArray(config, additionalFeatures);
+	const userFeatures = userFeaturesToArray(config, additionalFeatures);
 	if (!userFeatures) {
 		return undefined;
 	}
@@ -600,8 +600,8 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
-	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures).length) {
+export function userFeaturesToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures || {}).length) {
 		return undefined;
 	}
 

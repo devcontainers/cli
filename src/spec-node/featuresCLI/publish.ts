@@ -87,8 +87,14 @@ async function featuresPublish({
         }
 
         const archiveName = getArchiveName(f.id, collectionType);
-        const featureAnnotations = {}; // Properties here are available on the manifest without needing to download the full Feature archive.
+
+        // Properties here are available on the manifest without needing to download the full Feature archive.
+        const featureAnnotations = {
+            'dev.containers.experimental.dependsOn': f.dependsOn ? JSON.stringify(f.dependsOn) : '',
+        };
+
         output.write(`Feature Annotations: ${JSON.stringify(featureAnnotations)}`, LogLevel.Debug);
+
         const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName, featureAnnotations);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
