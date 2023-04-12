@@ -1,6 +1,6 @@
 #!/bin/sh
 
-NAME="E"
+NAME="I"
 
 echo "Installing ${NAME}"
 MAGIC_NUMBER=${MAGICNUMBER}

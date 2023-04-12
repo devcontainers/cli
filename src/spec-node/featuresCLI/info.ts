@@ -4,7 +4,7 @@ import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { FNode, buildDependencyGraphFromFeatureRef } from '../../spec-configuration/containerFeaturesOrder';
+import { FNode, buildDependencyGraphFromUserId } from '../../spec-configuration/containerFeaturesOrder';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -95,12 +95,11 @@ async function featuresInfo({
 
 	if (mode === 'dependsOn' || mode === 'verbose') {
 		output.write(`Building dependency graph for '${featureId}'...`, LogLevel.Info);
-		const featureRef = getRef(output, featureId);
 		if (!featureRef) {
 			output.write(`Provide Feature reference '${featureId}' is invalid.`, LogLevel.Error);
 			process.exit(1);
 		}
-		const graph = await buildDependencyGraphFromFeatureRef(params, featureRef);
+		const graph = await buildDependencyGraphFromUserId(params, featureId);
 		if (!graph) {
 			output.write(`Could not build dependency graph.`, LogLevel.Error);
 			process.exit(1);

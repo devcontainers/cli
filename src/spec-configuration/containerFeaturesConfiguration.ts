@@ -13,7 +13,7 @@ import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from '.
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
-import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
+import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
@@ -205,6 +205,7 @@ export interface ContainerFeatureInternalParams {
 	output: Log;
 	env: NodeJS.ProcessEnv;
 	skipFeatureAutoMapping: boolean;
+	// experimentalFeatureDependencies: boolean;
 	platform: NodeJS.Platform;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
@@ -540,15 +541,20 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, _additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = userFeaturesToArray(config, additionalFeatures);
-	if (!userFeatures) {
-		return undefined;
+	// const userFeatures = userFeaturesToArray(config, additionalFeatures);
+	// if (!userFeatures) {
+	// 	return undefined;
+	// }
+
+	const installationOrder = await computeDependsOnInstallationOrder(params, config); // TODO: We drop the version here.
+	if (!installationOrder) {
+		throw new Error('Failed to resolve Feature dependency tree!');
 	}
 
 	// Create the featuresConfig object.
@@ -570,7 +576,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	const lockfile = await readLockfile(params, config);
-	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig, lockfile);
+	featuresConfig = await processUserFeatures(params, config, workspaceRoot, installationOrder, featuresConfig, lockfile);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
@@ -581,14 +587,16 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	await writeLockfile(params, config, featuresConfig);
 
-	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
+	// TODO: Not correct to remove these. We still want to respect the older, soft-dependency properties.
+	//
+	// const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
 
-	output.write('--- Computed order ----', LogLevel.Trace);
-	for (const feature of orderedFeatures) {
-		output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
-	}
+	// output.write('--- Computed order ----', LogLevel.Trace);
+	// for (const feature of orderedFeatures) {
+	// 	output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
+	// }
 
-	featuresConfig.featureSets = orderedFeatures;
+	// featuresConfig.featureSets = orderedFeatures;
 
 	return featuresConfig;
 }

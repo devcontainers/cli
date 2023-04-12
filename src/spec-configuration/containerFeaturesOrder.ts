@@ -7,7 +7,7 @@
 import { FeatureSet, userFeaturesToArray } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerConfig } from './configuration';
-import { OCIRef, getRef, CommonParams } from './containerCollectionsOCI';
+import { CommonParams } from './containerCollectionsOCI';
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 
 interface FeatureNode {
@@ -48,18 +48,22 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
 
 
 interface RootFNode extends FNode {
-
 }
 
 export interface FNode {
-    id: string;
-    // version: string;
-    options?: string | boolean | Record<string, string | boolean | undefined>;
+    id: string; // TODO: RENAME TO 'userId' for clarity. This is named 'id' to be compatible with existing code.
+    canonicalId?: string; // TODO: When https://github.com/devcontainers/cli/pull/480 merges, this value can be used for the install instead of 'id'.
+    options: string | boolean | Record<string, string | boolean | undefined>;
     dependsOn: FNode[];
 }
 
 function fNodeEquality(a: FNode, b: FNode) {
-    if (a.id !== b.id) {
+    if (!a.canonicalId || !b.canonicalId) {
+        // TODO : remove after catching the bugs
+        throw new Error('fNodeEquality: canonicalId not set!');
+    }
+
+    if (a.canonicalId !== b.canonicalId) {
         return false;
     }
     // Compare options Record by stringifying them.  This isn't fully correct.
@@ -71,8 +75,14 @@ function fNodeEquality(a: FNode, b: FNode) {
 }
 
 function fNodeStableSort(a: FNode, b: FNode) {
-    if (a.id !== b.id) {
-        return a.id.localeCompare(b.id);
+
+    if (!a.canonicalId || !b.canonicalId) {
+        // TODO : remove after catching the bugs
+        throw new Error('fNodeStableSort: canonicalId not set!');
+    }
+
+    if (a.canonicalId !== b.canonicalId) {
+        return a.canonicalId.localeCompare(b.canonicalId);
     }
 
     if (JSON.stringify(a.options) !== JSON.stringify(b.options)) {
@@ -87,19 +97,25 @@ async function _buildDependencyGraph(params: CommonParams, worklist: FNode[], ac
     while (worklist.length > 0) {
         const current = worklist.shift()!;
 
+
+        params.output.write(`Resolving dependencies for '${current.id}'...`, LogLevel.Info);
+        // Fetch the manifest of the Feature and read its 'dev.containers.experimental.dependsOn' label
+        const resolvedManifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(params, current.id);
+        if (!resolvedManifest) {
+            throw new Error(`Manifest for '${current.id}' not found`);
+        }
+        const { manifestObj, canonicalId } = resolvedManifest;
+        // Set the canonicalId
+        current.canonicalId = canonicalId;
+
         // If the current feature is already in the accumulator (according to fNodeEquality), skip it.
+        // TODO: This should probably be higher up, but right now we're prioritizing getting the canonical ID.
         if (acc.some(f => fNodeEquality(f, current))) {
             continue;
         }
 
-        params.output.write(`Resolving dependencies for '${current.id}'...`, LogLevel.Info);
-        // Fetch the manifest of the Feature and read its 'dev.containers.experimental.dependsOn' label
-        const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(params, current.id);
-        if (!manifest) {
-            throw new Error(`Manifest for '${current.id}' not found`);
-        }
 
-        const dependsOnSerialized = manifest.manifestObj.annotations?.['dev.containers.experimental.dependsOn'];
+        const dependsOnSerialized = manifestObj.annotations?.['dev.containers.experimental.dependsOn'];
 
         if (!dependsOnSerialized) {
             acc.push(current);
@@ -109,13 +125,8 @@ async function _buildDependencyGraph(params: CommonParams, worklist: FNode[], ac
         const dependsOn = JSON.parse(dependsOnSerialized) as Record<string, string | boolean | Record<string, string | boolean>>;
 
         for (const [id, options] of Object.entries(dependsOn)) {
-            const ref = getRef(params.output, id);
-            if (!ref) {
-                throw new Error(`Invalid reference '${id}'`);
-            }
-            const dependency = {
-                id: ref.resource,
-                // version: 'latest',
+            const dependency: FNode = {
+                id,
                 options,
                 dependsOn: [],
             };
@@ -130,10 +141,11 @@ async function _buildDependencyGraph(params: CommonParams, worklist: FNode[], ac
     return acc;
 }
 
-export async function buildDependencyGraphFromFeatureRef(params: CommonParams, featureRef: OCIRef): Promise<FNode[]> {
+export async function buildDependencyGraphFromUserId(params: CommonParams, userFeatureId: string): Promise<FNode[]> {
 
-    const rootNodes = {
-        id: featureRef.resource,
+    const rootNodes: RootFNode = {
+        id: userFeatureId,
+        options: {},
         // version: feature.sourceInformation.userFeatureId.split(':')[1],
         dependsOn: [],
     };
@@ -152,13 +164,8 @@ export async function buildDependencyGraphFromConfig(params: CommonParams, confi
 
     const rootNodes =
         userFeatures.map<RootFNode>(f => {
-            const ref = getRef(params.output, f.id);
-            if (!ref) {
-                throw new Error(`Invalid reference '${f.id}'`);
-            }
             return {
-                id: ref.resource,
-                // version: feature.sourceInformation.userFeatureId.split(':')[1],
+                id: f.id,
                 options: f.options,
                 dependsOn: [],
             };
@@ -169,9 +176,12 @@ export async function buildDependencyGraphFromConfig(params: CommonParams, confi
 }
 
 export async function computeDependsOnInstallationOrder(params: CommonParams, config: DevContainerConfig) {
+    const { output } = params;
+
+    // Build dependency graph and resolves all userIds to canonicalIds.
     const worklist = await buildDependencyGraphFromConfig(params, config);
 
-    params.output.write(`Starting with: ${worklist.map(n => n.id).join(', ')}`, LogLevel.Info);
+    output.write(`Starting with: ${worklist.map(n => n.canonicalId!).join(', ')}`, LogLevel.Info);
 
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
@@ -180,11 +190,12 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, co
             || node.dependsOn.every(dep =>
                 installationOrder.some(installed => fNodeEquality(installed, dep))));
 
-        params.output.write(`Round: ${round.map(r => r.id).join(', ')}`, LogLevel.Info);
+        output.write(`Round: ${round.map(r => r.id).join(', ')}`, LogLevel.Info);
 
         if (round.length === 0) {
-            params.output.write(`Nodes remaining: ${worklist.map(n => n.id).join(', ')}`, LogLevel.Error);
-            throw new Error('Circular dependency detected');
+            output.write('Circular dependency detected!', LogLevel.Error);
+            output.write(`Nodes remaining: ${worklist.map(n => n.canonicalId!).join(', ')}`, LogLevel.Error);
+            return undefined;
         }
 
         // Delete all nodes present in this round from the worklist.
