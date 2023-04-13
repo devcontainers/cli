@@ -4,6 +4,10 @@ Notable changes.
 
 ## April 2023
 
+### [0.38.0]
+
+- Update vm2 (https://github.com/devcontainers/cli/pull/488)
+
 ### [0.37.0]
 
 - Add --config to build command (microsoft/vscode-remote-release#8068)
