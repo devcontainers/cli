@@ -8,6 +8,8 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
+import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { envListToObj } from '../spec-node/utils';
 
 const pkg = require('../../package.json');
 
@@ -232,10 +234,31 @@ describe('Dev Containers CLI', function () {
 			const containerId: string = resRun.stdout.split('\n')[0];
 			assert.ok(containerId, 'Container id not found.');
 
-			const result = await shellExec(`docker exec ${containerId} bash -c 'echo $JAVA_HOME'`);
-			assert.equal('/usr/lib/jvm/msopenjdk-current\n', result.stdout);
+			const expectedContainerEnv = {
+				'JAVA_HOME': '/usr/lib/jvm/msopenjdk-current',
+				'VAR_WITH_SPACES': 'value with spaces',
+				'VAR_WITH_LOTS_OF_SPACES': '    value with lots of spaces.   ',
+				'VAR_WITH_QUOTES_WE_WANT_TO_KEEP': 'value with "quotes" we want to keep',
+				'VAR_WITH_DOLLAR_SIGN': 'value with $dollar sign',
+				'VAR_WITH_BACK_SLASH': 'value with \\back slash',
+				'ENV_WITH_COMMAND': 'bash -c \'echo -n "Hello, World!"\''
+			};
+
+			for (const [key, value] of Object.entries(expectedContainerEnv)) {
+				const result = await shellExec(`docker exec ${containerId} bash -c 'echo $${key}'`);
+				assert.equal(result.stdout, `${value.trim()}\n`);
+			}
 
 			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should build with config in subfolder', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json --image-name test-subfolder-config`);
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.outcome, 'success');
+
+			const details = JSON.parse((await shellExec(`docker inspect test-subfolder-config`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
 	});
 });

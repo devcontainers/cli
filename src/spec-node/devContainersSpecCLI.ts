@@ -8,7 +8,7 @@ import yargs, { Argv } from 'yargs';
 
 import * as jsonc from 'jsonc-parser';
 
-import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
+import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
 import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
@@ -117,11 +117,11 @@ function provisionOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -183,11 +183,11 @@ async function provision({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -241,9 +241,9 @@ async function provision({
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
-		experimentalImageMetadata,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
+		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -391,7 +391,6 @@ async function doSetUp({
 			buildxOutput: undefined,
 			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
-			experimentalImageMetadata: true,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
 				repository: dotfilesRepository,
@@ -421,7 +420,7 @@ async function doSetUp({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, true, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
@@ -453,6 +452,7 @@ function buildOptions(y: Argv) {
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
@@ -464,7 +464,6 @@ function buildOptions(y: Argv) {
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 	});
 }
@@ -488,6 +487,7 @@ async function doBuild({
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
+	config: configParam,
 	'log-level': logLevel,
 	'log-format': logFormat,
 	'no-cache': buildNoCache,
@@ -499,7 +499,6 @@ async function doBuild({
 	'output': buildxOutput,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -508,7 +507,7 @@ async function doBuild({
 	};
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const configFile: URI | undefined = /* config ? URI.file(path.resolve(process.cwd(), config)) : */ undefined; // TODO
+		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
@@ -543,7 +542,6 @@ async function doBuild({
 			buildxOutput,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {}
 		}, disposables);
@@ -689,7 +687,6 @@ function runUserCommandsOptions(y: Argv) {
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
@@ -747,7 +744,6 @@ async function doRunUserCommands({
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
@@ -794,7 +790,6 @@ async function doRunUserCommands({
 			buildxOutput: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
 				repository: dotfilesRepository,
@@ -830,7 +825,7 @@ async function doRunUserCommands({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
@@ -879,7 +874,6 @@ function readConfigurationOptions(y: Argv) {
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -917,7 +911,6 @@ async function readConfiguration({
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -977,17 +970,17 @@ async function readConfiguration({
 		}
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
-		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && (!container || !experimentalImageMetadata));
+		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && !container);
 		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping, additionalFeatures) : undefined;
 		let mergedConfig: MergedDevContainerConfig | undefined;
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
 			if (container) {
-				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, experimentalImageMetadata, output).config;
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, output).config;
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
-				const imageBuildInfo = await getImageBuildInfo(params, configuration, experimentalImageMetadata);
+				const imageBuildInfo = await getImageBuildInfo(params, configuration);
 				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
@@ -1040,7 +1033,6 @@ function execOptions(y: Argv) {
 		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.positional('cmd', {
 			type: 'string',
@@ -1102,7 +1094,6 @@ export async function doExec({
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -1150,7 +1141,6 @@ export async function doExec({
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {}
 		}, disposables);
@@ -1178,7 +1168,7 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);

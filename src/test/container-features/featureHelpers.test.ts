@@ -2,11 +2,11 @@ import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier, updateDeprecatedFeaturesIntoOptions } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -445,6 +445,58 @@ describe('validate function getBackwardCompatibleFeatureId', () => {
 
         assert.strictEqual(mappedId, expectedId);
     });
+});
+
+describe('validate function updateDeprecatedFeaturesIntoOptions', () => {
+	it('should add feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+	
+	it('should update feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'ghcr.io/devcontainers/features/python:1',
+				options: {}
+			},
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+
+	it('should update legacy feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'python',
+				options: {}
+			},
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'python');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
 });
 
 describe('validate function getFeatureInstallWrapperScript', () => {

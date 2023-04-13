@@ -120,4 +120,3 @@ async function featuresTest({
 	await dispose();
 	process.exit(exitCode);
 }
-// -- End: 'features test' command

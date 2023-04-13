@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
+import { runCommandNoPty, plainExec } from '../spec-common/commonUtils';
 import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
@@ -16,6 +17,15 @@ interface DockerConfigFile {
 			identitytoken?: string; // Used by Azure Container Registry
 		};
 	};
+	credHelpers: {
+		[registry: string]: string;
+	};
+	credsStore: string;
+}
+
+interface CredentialHelperResult {
+	Username: string;
+	Secret: string;
 }
 
 // WWW-Authenticate Regex
@@ -137,8 +147,6 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 	const { output, env } = params;
 	const { registry } = ociRef;
 
-	// TODO: Ask docker credential helper for credentials.
-
 	if (!!env['GITHUB_TOKEN'] && registry === 'ghcr.io') {
 		output.write('[httpOci] Using environment GITHUB_TOKEN for auth', LogLevel.Trace);
 		const userToken = `USERNAME:${env['GITHUB_TOKEN']}`;
@@ -161,6 +169,7 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 			};
 		}
 	} else {
+		let configContainsAuth = false;
 		try {
 			const homeDir = os.homedir();
 			if (homeDir) {
@@ -168,8 +177,23 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 				if (await isLocalFile(dockerConfigPath)) {
 					const dockerConfig: DockerConfigFile = jsonc.parse((await readLocalFile(dockerConfigPath)).toString());
 
+					configContainsAuth = Object.keys(dockerConfig.credHelpers ?? {}).length > 0 || !!dockerConfig.credsStore || Object.keys(dockerConfig.auths ?? {}).length > 0;
+					if (dockerConfig.credHelpers && dockerConfig.credHelpers[registry]) {
+						const credHelper = dockerConfig.credHelpers[registry];
+						output.write(`[httpOci] Found credential helper '${credHelper}' in '${dockerConfigPath}' registry '${registry}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, credHelper);
+						if (auth) {
+							return auth;
+						}
+					} else if (dockerConfig.credsStore) {
+						output.write(`[httpOci] Invoking credsStore credential helper '${dockerConfig.credsStore}'`, LogLevel.Trace);
+						const auth = await getCredentialFromHelper(params, registry, dockerConfig.credsStore);
+						if (auth) {
+							return auth;
+						}
+					}
 					if (dockerConfig.auths && dockerConfig.auths[registry]) {
-						output.write(`[httpOci] Found entry in config.json for registry '${registry}'`, LogLevel.Trace);
+						output.write(`[httpOci] Found auths entry in '${dockerConfigPath}' for registry '${registry}'`, LogLevel.Trace);
 						const auth = dockerConfig.auths[registry].auth;
 						const identityToken = dockerConfig.auths[registry].identitytoken; // Refresh token, seen when running: 'az acr login -n <registry>'
 
@@ -191,11 +215,89 @@ async function getCredential(params: CommonParams, ociRef: OCIRef | OCICollectio
 		} catch (err) {
 			output.write(`[httpOci] Failed to read docker config.json: ${err}`, LogLevel.Trace);
 		}
+
+		if (!configContainsAuth) {
+			let defaultCredHelper = '';
+			// Try platform-specific default credential helper
+			if (process.platform === 'linux') {
+				if (await existsInPath('pass')) {
+					defaultCredHelper = 'pass';
+				} else {
+					defaultCredHelper = 'secret';
+				}
+			} else if (process.platform === 'win32') {
+				defaultCredHelper = 'wincred';
+			} else if (process.platform === 'darwin') {
+				defaultCredHelper = 'osxkeychain';
+			}
+			if (defaultCredHelper !== '') {
+				output.write(`[httpOci] Invoking platform default credential helper '${defaultCredHelper}'`, LogLevel.Trace);
+				const auth = await getCredentialFromHelper(params, registry, defaultCredHelper);
+				if (auth) {
+					return auth;
+				}
+			}
+		}
 	}
 
 	// Represents anonymous access.
 	output.write(`[httpOci] No authentication credentials found for registry '${registry}'. Accessing anonymously.`, LogLevel.Trace);
 	return;
+}
+
+async function existsInPath(filename: string): Promise<boolean> {
+	if (!process.env.PATH) {
+		return false;
+	}
+	const paths = process.env.PATH.split(':');
+	for (const path of paths) {
+		const fullPath = `${path}/${filename}`;
+		if (await isLocalFile(fullPath)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+async function getCredentialFromHelper(params: CommonParams, registry: string, credHelperName: string): Promise<{ base64EncodedCredential: string | undefined; refreshToken: string | undefined } | undefined> {
+	const { output } = params;
+
+	let helperOutput: Buffer;
+	try {
+		const { stdout } = await runCommandNoPty({
+			exec: plainExec(undefined),
+			cmd: 'docker-credential-' + credHelperName,
+			args: ['get'],
+			stdin: Buffer.from(registry, 'utf-8'),
+			output,
+		});
+		helperOutput = stdout;
+	} catch (err) {
+		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}`, LogLevel.Error);
+		return undefined;
+	}
+	if (helperOutput.length === 0) {
+		return undefined;
+	}
+
+	let errors: jsonc.ParseError[] = [];
+	const creds: CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
+	if (errors.length !== 0) {
+		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry ${registry}`, LogLevel.Warning);
+		return undefined;
+	}
+
+	if (creds.Username === '<token>') {
+		return {
+			refreshToken: creds.Secret,
+			base64EncodedCredential: undefined,
+		};
+	}
+	const userToken = `${creds.Username}:${creds.Secret}`;
+	return {
+		base64EncodedCredential: Buffer.from(userToken).toString('base64'),
+		refreshToken: undefined,
+	};
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token

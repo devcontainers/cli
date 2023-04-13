@@ -19,7 +19,6 @@ import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
-export const experimentalImageMetadataDefault = true;
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -56,9 +55,9 @@ export interface ProvisionOptions {
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
-	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	omitConfigRemotEnvFromMetadata?: boolean;
 	dotfiles: {
 		repository?: string;
 		installCommand?: string;
@@ -137,9 +136,9 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxOutput: options.buildxOutput,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
-		experimentalImageMetadata: options.experimentalImageMetadata,
 		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		omitConfigRemotEnvFromMetadata: options.omitConfigRemotEnvFromMetadata,
 		dotfilesConfiguration: {
 			repository: options.dotfiles.repository,
 			installCommand: options.dotfiles.installCommand,
