@@ -308,6 +308,11 @@ describe('Test OCI Push Helper Functions', () => {
 
 		const dataBytes = fs.readFileSync(`${testAssetsDir}/go.tgz`);
 
+		const featureRef = getRef(output, 'ghcr.io/devcontainers/features/go');
+		if (!featureRef) {
+			assert.fail();
+		}
+
 		// Calculate the tgz layer and digest
 		const res = await calculateDataLayer(output, dataBytes, 'go.tgz', DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 		const expected = {
@@ -325,9 +330,11 @@ describe('Test OCI Push Helper Functions', () => {
 		assert.deepEqual(res, expected);
 
 		// Generate entire manifest to be able to calculate content digest
-		const digestContainer = await calculateManifestAndContentDigest(output, res, undefined);
-		const contentDigest = digestContainer.contentDigest;
-		const manifestStr = digestContainer.manifestStr;
+		const manifestContainer = await calculateManifestAndContentDigest(output, featureRef, res, undefined);
+		if (!manifestContainer) {
+			assert.fail();
+		}
+		const { contentDigest, manifestStr } = manifestContainer;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
 		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
@@ -338,7 +345,7 @@ describe('Test OCI Push Helper Functions', () => {
 
 	it('Can fetch an artifact from a digest reference', async () => {
 		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
-		assert.strictEqual(manifest?.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
+		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
 	});
 
 	it('Can check whether a blob exists', async () => {

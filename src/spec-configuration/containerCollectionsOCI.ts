@@ -267,7 +267,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
 	let contentDigest = headers['docker-content-digest'] || headers['Docker-Content-Digest'];
 	if (!contentDigest) {
-		contentDigest = crypto.createHash('sha256').update(manifestStringified).digest('hex');
+		contentDigest = `sha256:${crypto.createHash('sha256').update(manifestStringified).digest('hex')}`;
 	}
 
 	return {
