@@ -24,7 +24,7 @@ export function featuresInfoHandler(args: FeaturesInfoArgs) {
 interface InfoJsonOutput {
 	manifest?: OCIManifest;
 	canonicalId?: string;
-	publishedTags?: string[];
+	publishedVersions?: string[];
 }
 
 async function featuresInfo({
@@ -82,13 +82,13 @@ async function featuresInfo({
 
 	// --- Get all published tags for resource
 	if (mode === 'tags' || mode === 'verbose') {
-		const publishedTags = await getTags(params, featureRef);
+		const publishedVersions = await getTags(params, featureRef);
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Published Version'));
-			console.log(`${publishedTags.join('\n   ')}`);
+			console.log(`${publishedVersions.join('\n   ')}`);
 
 		} else {
-			jsonOutput.publishedTags = publishedTags;
+			jsonOutput.publishedVersions = publishedVersions;
 		}
 	}
 
