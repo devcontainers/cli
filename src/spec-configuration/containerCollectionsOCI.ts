@@ -340,7 +340,7 @@ async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OC
 		return {
 			body: parsedBody,
 			headers: resHeaders,
-		}
+		};
 	} catch (e) {
 		output.write(`Failed to parse JSON with mimeType '${mimeType}': ${body}`, LogLevel.Error);
 		return;
