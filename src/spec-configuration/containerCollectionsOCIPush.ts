@@ -4,14 +4,8 @@ import * as crypto from 'crypto';
 import { delay } from '../spec-common/async';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile } from '../spec-utils/pfs';
-import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams } from './containerCollectionsOCI';
+import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams, ManifestContainer } from './containerCollectionsOCI';
 import { requestEnsureAuthenticated } from './httpOCIRegistry';
-
-interface ManifestContainer {
-	manifestObj: OCIManifest;
-	manifestStr: string;
-	contentDigest: string;
-}
 
 // (!) Entrypoint function to push a single feature/template to a registry.
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
@@ -291,7 +285,7 @@ async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Lo
 		};
 	}
 
-	return await calculateManifestAndContentDigest(output, tgzLayer, annotations);
+	return await calculateManifestAndContentDigest(output, ociRef, tgzLayer, annotations);
 }
 
 // Generate a layer that follows the `application/vnd.devcontainers.collection.layer.v1+json` mediaType as defined in
@@ -312,7 +306,7 @@ async function generateCompleteManifestForCollectionFile(output: Log, dataBytes:
 			'com.github.package.type': 'devcontainer_collection',
 		};
 	}
-	return await calculateManifestAndContentDigest(output, collectionMetadataLayer, annotations);
+	return await calculateManifestAndContentDigest(output, collectionRef, collectionMetadataLayer, annotations);
 }
 
 // Generic construction of a layer in the manifest and digest for the generated layer.
@@ -383,7 +377,7 @@ async function postUploadSessionId(params: CommonParams, ociRef: OCIRef | OCICol
 	}
 }
 
-export async function calculateManifestAndContentDigest(output: Log, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined): Promise<ManifestContainer> {
+export async function calculateManifestAndContentDigest(output: Log, ociRef: OCIRef | OCICollectionRef, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined): Promise<ManifestContainer> {
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
 	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'
@@ -414,5 +408,6 @@ export async function calculateManifestAndContentDigest(output: Log, dataLayer: 
 		manifestStr: manifestStringified,
 		manifestObj: manifest,
 		contentDigest: manifestHash,
+		canonicalId: `${ociRef.resource}@sha256:${manifestHash}`
 	};
 }
