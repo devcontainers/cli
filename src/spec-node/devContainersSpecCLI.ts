@@ -27,7 +27,6 @@ import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } fr
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
-import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
