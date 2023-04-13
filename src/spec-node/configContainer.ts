@@ -9,7 +9,7 @@ import * as jsonc from 'jsonc-parser';
 
 import { openDockerfileDevContainer } from './singleContainer';
 import { openDockerComposeDevContainer } from './dockerCompose';
-import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runUserCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig, addSubstitution, envListToObj, findContainerAndIdLabels } from './utils';
+import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runInitializeCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig, addSubstitution, envListToObj, findContainerAndIdLabels } from './utils';
 import { beforeContainerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace, workspaceFromPath, isWorkspacePath } from '../spec-utils/workspaces';
@@ -56,7 +56,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	const configWithRaw = addSubstitution(configs.config, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 	const { config } = configWithRaw;
 
-	await runUserCommand({ ...params, common: { ...common, output: common.lifecycleHook.output } }, config.initializeCommand, common.lifecycleHook.onDidInput);
+	await runInitializeCommand({ ...params, common: { ...common, output: common.lifecycleHook.output } }, config.initializeCommand, common.lifecycleHook.onDidInput);
 
 	let result: ResolverResult;
 	if (isDockerFileConfig(config) || 'image' in config) {
