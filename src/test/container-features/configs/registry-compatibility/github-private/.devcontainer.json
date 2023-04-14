@@ -1,0 +1,8 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/devcontainers/private-feature-set-for-tests/color:1": {
+			"favorite": "pink"
+		}
+	}
+}

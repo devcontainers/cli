@@ -7,7 +7,6 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 describe('getCollectionRef()', async function () {
     this.timeout('240s');
 
-
     it('valid getCollectionRef()', async () => {
         const collectionRef = getCollectionRef(output, 'ghcr.io', 'devcontainers/templates');
         if (!collectionRef) {
@@ -202,8 +201,10 @@ describe('getRef()', async function () {
 
 });
 
-describe('Test OCI Pull', () => {
-    it('Parse OCI identifier', async () => {
+describe('Test OCI Pull', async function () {
+    this.timeout('10s');
+
+    it('Parse OCI identifier', async function () {
         const feat = getRef(output, 'ghcr.io/codspace/features/ruby:1');
         if (!feat) {
             assert.fail('featureRef should not be undefined');

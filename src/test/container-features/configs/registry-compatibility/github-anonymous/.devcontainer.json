@@ -1,0 +1,8 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/devcontainers/feature-starter/color:1": {
+			"favorite": "pink"
+		}
+	}
+}
