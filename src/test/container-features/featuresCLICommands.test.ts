@@ -39,6 +39,10 @@ describe('CLI features subcommands', async function () {
 			assert.isTrue(success);
 			assert.isDefined(result);
 
+			// '--preserve-test-containers' is not set, so containers from this test run should be deleted.
+			const expectedCleanupString = /Cleaning up \d test containers/;
+			assert.match(result.stdout, expectedCleanupString);
+
 			const expectedTestReport = `  ================== TEST REPORT ==================
 ✅ Passed:      'color'
 ✅ Passed:      'specific_color_scenario'
@@ -54,12 +58,17 @@ describe('CLI features subcommands', async function () {
 			let success = false;
 			let result: ExecResult | undefined = undefined;
 			try {
-				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --remote-user root --log-level trace`);
+				result = await shellExec(`${cli} features test --project-folder ${collectionFolder} --base-image mcr.microsoft.com/devcontainers/base:ubuntu --remote-user root --log-level trace --preserve-test-containers`);
 				success = true;
 
 			} catch (error) {
 				assert.fail('features test sub-command should not throw');
 			}
+
+
+			// '--preserve-test-containers' IS set, so containers from this test run should NOT be deleted.
+			const expectedCleanupString = /Cleaning up \d test containers/;
+			assert.notMatch(result.stdout, expectedCleanupString);
 
 			assert.isTrue(success);
 			assert.isDefined(result);
