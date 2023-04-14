@@ -72,7 +72,7 @@ async function featuresInfo({
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Manifest'));
 			console.log(`${JSON.stringify(manifestObj, undefined, 2)}\n`);
-			console.log(encloseStringInBox('Canonical Digest'));
+			console.log(encloseStringInBox('Canonical Identifier'));
 			console.log(`${canonicalId}\n`);
 		} else {
 			jsonOutput.manifest = manifestObj;

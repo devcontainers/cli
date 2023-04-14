@@ -36,7 +36,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
 		return;
 	}
-	const blobDigest = ociManifest?.manifestObj?.layers[0].digest;
+	const blobDigest = ociManifest?.manifestObj?.layers[0]?.digest;
 	if (!blobDigest) {
 		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
 		return;

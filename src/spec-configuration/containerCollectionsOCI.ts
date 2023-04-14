@@ -295,6 +295,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 }
 
 export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<ManifestContainer | undefined> {
+	const { output } = params;
 	const res = await getJsonWithMimeType<OCIManifest>(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
 	if (!res) {
 		return undefined;
@@ -307,8 +308,10 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	// https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
 	// The registry server SHOULD return the canonical content digest in a header, but it's not required to.
 	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
-	let contentDigest = headers['docker-content-digest'] || headers['Docker-Content-Digest'];
+	// Headers are always automatically downcased by node.
+	let contentDigest = headers['docker-content-digest'];
 	if (!contentDigest) {
+		output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
 		contentDigest = `sha256:${crypto.createHash('sha256').update(manifestStringified).digest('hex')}`;
 	}
 

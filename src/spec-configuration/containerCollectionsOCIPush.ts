@@ -206,7 +206,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 			return;
 		}
 
-		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'] || resHeaders['Docker-Content-Digest'];
+		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'];
 		const locationResponseHeader = resHeaders['location'] || resHeaders['Location'];
 		output.write(`Tagged: ${tag} -> ${locationResponseHeader}`, LogLevel.Info);
 		output.write(`Returned Content-Digest: ${dockerContentDigestResponseHeader}`, LogLevel.Trace);
