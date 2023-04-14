@@ -539,6 +539,7 @@ function getFeaturesConfig(features: Feature[]): FeaturesConfig {
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
