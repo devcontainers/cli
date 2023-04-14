@@ -724,18 +724,14 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 		return { type: 'file-path', manifest: undefined };
 	}
 
-	// version identifier for a github release feature.
-	// DEPRECATED: This is a legacy feature-set ID
-	if (userFeatureId.includes('@')) {
-		return { type: 'github-repo', manifest: undefined };
-	}
-
 	const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(params, userFeatureId);
 	if (manifest) {
 		return { type: 'oci', manifest: manifest };
 	} else {
+		output.write(`Could not resolve Feature manifest for '${userFeatureId}'.  If necessary, provide registry credentials with 'docker login <registry>'.`, LogLevel.Warning);
+		output.write(`Falling back to legacy GitHub Releases mode to acquire Feature.`, LogLevel.Trace);
+
 		// DEPRECATED: This is a legacy feature-set ID
-		output.write('(!) WARNING: Falling back to deprecated GitHub Release syntax. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature for updated specification.', LogLevel.Warning);
 		return { type: 'github-repo', manifest: undefined };
 	}
 }

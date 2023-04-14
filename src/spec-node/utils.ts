@@ -406,7 +406,7 @@ export function envListToObj(list: string[] | null | undefined) {
 	}, {} as Record<string, string>);
 }
 
-export async function runUserCommand(params: DockerResolverParameters, command: string | string[] | undefined, onDidInput?: Event<string>) {
+export async function runInitializeCommand(params: DockerResolverParameters, command: string | string[] | undefined, onDidInput?: Event<string>) {
 	if (!command) {
 		return;
 	}
