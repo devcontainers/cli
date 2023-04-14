@@ -151,6 +151,7 @@ describe('Container features install order', function () {
                     owner: spiltOnSlash[1],
                     registry: spiltOnSlash[0],
                     resource: splitOnColon[0],
+                    tag: splitOnColon[1],
                     version: splitOnColon[1],
                     path: `${spiltOnSlash[1]}/${spiltOnSlash[2]}/spiltOnSlash[3]`
                 },

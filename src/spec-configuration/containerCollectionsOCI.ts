@@ -20,6 +20,7 @@ export interface CommonParams {
 
 // Represents the unique OCI identifier for a Feature or Template.
 // eg:  ghcr.io/devcontainers/features/go:1.0.0
+// eg:  ghcr.io/devcontainers/features/go@sha256:fe73f123927bd9ed1abda190d3009c4d51d0e17499154423c5913cf344af15a3
 // Constructed by 'getRef()'
 export interface OCIRef {
 	registry: string; 		// 'ghcr.io'
@@ -28,7 +29,10 @@ export interface OCIRef {
 	path: string;			// 'devcontainers/features/go'
 	resource: string;		// 'ghcr.io/devcontainers/features/go'
 	id: string;				// 'go'
-	version?: string;		// '1.0.0'
+
+	version: string;		// (Either the contents of 'tag' or 'digest')
+	tag?: string;			// '1.0.0'
+	digest?: string; 		// 'sha256:fe73f123927bd9ed1abda190d3009c4d51d0e17499154423c5913cf344af15a3'
 }
 
 // Represents the unique OCI identifier for a Collection's Metadata artifact.
@@ -38,6 +42,7 @@ export interface OCICollectionRef {
 	registry: string;		// 'ghcr.io'
 	path: string;			// 'devcontainers/features'
 	resource: string;		// 'ghcr.io/devcontainers/features'
+	tag: 'latest';			// 'latest' (always)
 	version: 'latest';		// 'latest' (always)
 }
 
@@ -88,12 +93,14 @@ interface OCIImageIndex {
 // Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
 //
-// Entire path ('namespace' in spec terminology) for the given repository 
+// The path:
+// 'namespace' in spec terminology for the given repository
 // (eg: devcontainers/features/go)
 const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
+// The reference:
 // MUST be either (a) the digest of the manifest or (b) a tag
 // MUST be at most 128 characters in length and MUST match the following regular expression:
-const regexForReference = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
+const regexForVersionOrDigest = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
@@ -124,20 +131,54 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	input = input.toLowerCase();
 
 	const indexOfLastColon = input.lastIndexOf(':');
+	const indexOfLastAtCharacter = input.lastIndexOf('@');
 
 	let resource = '';
-	let version = ''; // TODO: Support parsing out manifest digest (...@sha256:...)
+	let tag: string | undefined = undefined;
+	let digest: string | undefined = undefined;
 
-	// 'If' condition is true in the following cases:
-	//  1. The final colon is before the first slash (a port) :  eg:   ghcr.io:8081/codspace/features/ruby
-	//  2. There is no version :      				   			 eg:   ghcr.io/codspace/features/ruby
-	// In both cases, assume 'latest' tag.
-	if (indexOfLastColon === -1 || indexOfLastColon < input.indexOf('/')) {
-		resource = input;
-		version = 'latest';
+	if (indexOfLastAtCharacter !== -1) {
+		// The version is specified by digest
+		// eg: ghcr.io/codspace/features/ruby@sha256:abcdefgh
+		resource = input.substring(0, indexOfLastAtCharacter);
+		const digestWithHashingAlgorithm = input.substring(indexOfLastAtCharacter + 1);
+		const splitOnColon = digestWithHashingAlgorithm.split(':');
+		if (splitOnColon.length !== 2) {
+			output.write(`Failed to parse digest '${digestWithHashingAlgorithm}'.   Expected format: 'sha256:abcdefghijk'`, LogLevel.Error);
+			return;
+		}
+
+		if (splitOnColon[0] !== 'sha256') {
+			output.write(`Digest algorithm for input '${input}' failed validation.  Expected hashing algorithm to be 'sha256'.`, LogLevel.Error);
+			return;
+		}
+
+		if (!regexForVersionOrDigest.test(splitOnColon[1])) {
+			output.write(`Digest for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
+		}
+
+		digest = digestWithHashingAlgorithm;
 	} else {
-		resource = input.substring(0, indexOfLastColon);
-		version = input.substring(indexOfLastColon + 1);
+		// In both cases, assume 'latest' tag.
+		if (indexOfLastColon === -1 || indexOfLastColon < input.lastIndexOf('/')) {
+			//  1. The final colon is before the first slash (a port)
+			//     eg:   ghcr.io:8081/codspace/features/ruby
+			//  2. There is no tag at all
+			//     eg:   ghcr.io/codspace/features/ruby
+			// In both cases, assume the 'latest' tag
+			resource = input;
+			tag = 'latest';
+		} else {
+			// The version is specified by tag
+			// eg: ghcr.io/codspace/features/ruby:1.0.0
+			resource = input.substring(0, indexOfLastColon);
+			tag = input.substring(indexOfLastColon + 1);
+		}
+	}
+
+	if (tag && !regexForVersionOrDigest.test(tag)) {
+		output.write(`Tag '${tag}' for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
+		return;
 	}
 
 	const splitOnSlash = resource.split('/');
@@ -149,36 +190,36 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 
 	const path = `${namespace}/${id}`;
 
+	if (!regexForPath.exec(path)) {
+		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
+		return;
+	}
+
+	const version = digest || tag || 'latest'; // The most specific version.
+
 	output.write(`> input: ${input}`, LogLevel.Trace);
 	output.write(`>`, LogLevel.Trace);
 	output.write(`> resource: ${resource}`, LogLevel.Trace);
 	output.write(`> id: ${id}`, LogLevel.Trace);
-	output.write(`> version: ${version}`, LogLevel.Trace);
 	output.write(`> owner: ${owner}`, LogLevel.Trace);
 	output.write(`> namespace: ${namespace}`, LogLevel.Trace); // TODO: We assume 'namespace' includes at least one slash (eg: 'devcontainers/features')
 	output.write(`> registry: ${registry}`, LogLevel.Trace);
 	output.write(`> path: ${path}`, LogLevel.Trace);
-
-	// Validate results of parse.
-
-	if (!regexForPath.exec(path)) {
-		output.write(`Parsed path '${path}' for input '${input}' failed validation.`, LogLevel.Error);
-		return undefined;
-	}
-
-	if (!regexForReference.test(version)) {
-		output.write(`Parsed version '${version}' for input '${input}' failed validation.`, LogLevel.Error);
-		return undefined;
-	}
+	output.write(`>`, LogLevel.Trace);
+	output.write(`> version: ${version}`, LogLevel.Trace);
+	output.write(`> tag?: ${tag}`, LogLevel.Trace);
+	output.write(`> digest?: ${digest}`, LogLevel.Trace);
 
 	return {
 		id,
-		version,
 		owner,
 		namespace,
 		registry,
 		resource,
 		path,
+		version,
+		tag,
+		digest,
 	};
 }
 
@@ -203,7 +244,8 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 		registry,
 		path,
 		resource,
-		version: 'latest'
+		version: 'latest',
+		tag: 'latest',
 	};
 }
 
