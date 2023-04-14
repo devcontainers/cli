@@ -193,16 +193,12 @@ async function existsInPath(filename: string): Promise<boolean> {
 	if (!process.env.PATH) {
 		return false;
 	}
-	try {
-		const paths = process.env.PATH.split(':');
-		for (const path of paths) {
-			const fullPath = `${path}/${filename}`;
-			if (await isLocalFile(fullPath)) {
-				return true;
-			}
+	const paths = process.env.PATH.split(':');
+	for (const path of paths) {
+		const fullPath = `${path}/${filename}`;
+		if (await isLocalFile(fullPath)) {
+			return true;
 		}
-	} catch (err) {
-		return false;
 	}
 	return false;
 }
