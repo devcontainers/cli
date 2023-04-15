@@ -97,6 +97,176 @@ describe('Feature lifecycle hooks', function () {
 		});
 	});
 
+	describe('lifecycle-hooks-inline-commands with secrets', () => {
+		const testFolder = `${__dirname}/configs/lifecycle-hooks-inline-commands`;
+
+		describe('devcontainer up with secrets', () => {
+			let containerId: string | null = null;
+
+			before(async () => {
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				const secrets = {
+					'SECRET1': 'SecretValue1',
+				};
+				await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
+				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: `--secrets-file ${testFolder}/test-secrets-temp.json` })).containerId;
+			});
+
+			after(async () => {
+				await devContainerDown({ containerId });
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				await shellExec(`rm -f ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
+			});
+
+			it('secrets should be availale to the lifecycle hooks during up command', async () => {
+				{
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					assert.strictEqual(res.error, null);
+
+					const actualMarkerFiles = res.stdout;
+					console.log(actualMarkerFiles);
+
+					const expectedTestMarkerFiles = [
+						'0.panda.onCreateCommand.testMarker',
+						'3.panda.updateContentCommand.testMarker',
+						'6.panda.postCreateCommand.testMarker',
+						'9.panda.postStartCommand.testMarker',
+						'12.panda.postAttachCommand.testMarker',
+
+						'1.tiger.onCreateCommand.testMarker',
+						'4.tiger.updateContentCommand.testMarker',
+						'7.tiger.postCreateCommand.testMarker',
+						'10.tiger.postStartCommand.testMarker',
+						'13.tiger.postAttachCommand.testMarker',
+
+						'2.devContainer.onCreateCommand.testMarker',
+						'5.devContainer.updateContentCommand.testMarker',
+						'8.devContainer.postCreateCommand.testMarker',
+						'11.devContainer.postStartCommand.testMarker',
+						'14.devContainer.postAttachCommand.testMarker',
+					];
+
+					for (const file of expectedTestMarkerFiles) {
+						assert.match(actualMarkerFiles, new RegExp(file));
+
+						// assert file contents to ensure secrets were available to the command
+						const catResp = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat ${file}`);
+						assert.strictEqual(catResp.error, null);
+						assert.match(catResp.stdout, /SECRET1=SecretValue1/);
+					}
+
+					// This shouldn't have happened _yet_.
+					assert.notMatch(actualMarkerFiles, /15.panda.postStartCommand.testMarker/);
+				}
+
+				// Stop the container.
+				await devContainerStop({ containerId });
+
+				{
+					// Attempt to bring the same container up, which should just re-run the postStart and postAttach hooks
+					const resume = await devContainerUp(cli, testFolder, { logLevel: 'trace', extraArgs: `--secrets-file ${testFolder}/test-secrets-temp.json` });
+					assert.equal(resume.containerId, containerId); // Restarting the same container.
+					assert.equal(resume.outcome, 'success');
+
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					assert.strictEqual(res.error, null);
+
+					const actualMarkerFiles = res.stdout;
+					console.log(actualMarkerFiles);
+
+					const expectedTestMarkerFiles = [
+						'15.panda.postStartCommand.testMarker',
+						'16.tiger.postStartCommand.testMarker',
+						'17.devContainer.postStartCommand.testMarker',
+						'18.panda.postAttachCommand.testMarker',
+						'19.tiger.postAttachCommand.testMarker',
+						'20.devContainer.postAttachCommand.testMarker',
+					];
+
+					for (const file of expectedTestMarkerFiles) {
+						assert.match(actualMarkerFiles, new RegExp(file));
+
+						// assert file contents to ensure secrets were available to the command
+						const catResp = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat ${file}`);
+						assert.strictEqual(catResp.error, null);
+						assert.match(catResp.stdout, /SECRET1=SecretValue1/);
+					}
+				}
+			});
+		});
+
+		describe('devcontainer run-user-commands with secrets', () => {
+			let containerId: string | null = null;
+
+			before(async () => {
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				const secrets = {
+					'SECRET1': 'SecretValue1',
+				};
+				await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
+				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: '--skip-post-create' })).containerId;
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			});
+
+			after(async () => {
+				await devContainerDown({ containerId });
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				await shellExec(`rm -f ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
+			});
+
+			it('secrets should be availale to the lifecycle hooks during run-user-commands command', async () => {
+				{
+					const expectedTestMarkerFiles = [
+						'0.panda.onCreateCommand.testMarker',
+						'3.panda.updateContentCommand.testMarker',
+						'6.panda.postCreateCommand.testMarker',
+						'9.panda.postStartCommand.testMarker',
+						'12.panda.postAttachCommand.testMarker',
+
+						'1.tiger.onCreateCommand.testMarker',
+						'4.tiger.updateContentCommand.testMarker',
+						'7.tiger.postCreateCommand.testMarker',
+						'10.tiger.postStartCommand.testMarker',
+						'13.tiger.postAttachCommand.testMarker',
+
+						'2.devContainer.onCreateCommand.testMarker',
+						'5.devContainer.updateContentCommand.testMarker',
+						'8.devContainer.postCreateCommand.testMarker',
+						'11.devContainer.postStartCommand.testMarker',
+						'14.devContainer.postAttachCommand.testMarker',
+					];
+
+					// Marker files should not exist, as we are yet to run the `run-user-commands` command
+					const lsResBefore = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					assert.strictEqual(lsResBefore.error, null);
+					const actualMarkerFilesBefore = lsResBefore.stdout;
+					console.log(actualMarkerFilesBefore);
+					for (const file of expectedTestMarkerFiles) {
+						assert.notMatch(actualMarkerFilesBefore, new RegExp(file));
+					}
+
+					// Run `run-user-commands` command with secrets
+					const res = await shellExec(`${cli} run-user-commands --workspace-folder ${testFolder} --log-level trace --secrets-file ${testFolder}/test-secrets-temp.json`);
+					assert.strictEqual(res.error, null);
+
+					// Assert marker files
+					const lsResAfter = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
+					assert.strictEqual(lsResAfter.error, null);
+					const actualMarkerFilesAfter = lsResAfter.stdout;
+					console.log(actualMarkerFilesAfter);
+					for (const file of expectedTestMarkerFiles) {
+						assert.match(actualMarkerFilesAfter, new RegExp(file));
+
+						// assert file contents to ensure secrets were available to the command
+						const catResp = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat ${file}`);
+						assert.strictEqual(catResp.error, null);
+						assert.match(catResp.stdout, /SECRET1=SecretValue1/);
+					}
+				}
+			});
+		});
+	});
+
 	describe('lifecycle-hooks-alternative-order', () => {
 		// This is the same test as 'lifecycle-hooks-inline-commands'
 		// but with the the 'installsAfter' order changed (tiger -> panda -> devContainer).
