@@ -306,7 +306,8 @@ registry`;
 
 //  NOTE: 
 //  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-describe('Test OCI Push Helper Functions', () => {
+describe('Test OCI Push Helper Functions', function () {
+	this.timeout('10s');
 	it('Generates the correct tgz manifest layer', async () => {
 
 		const dataBytes = fs.readFileSync(`${testAssetsDir}/go.tgz`);
@@ -337,10 +338,10 @@ describe('Test OCI Push Helper Functions', () => {
 		if (!manifestContainer) {
 			assert.fail();
 		}
-		const { contentDigest, manifestStr } = manifestContainer;
+		const { contentDigest, manifestBuffer } = manifestContainer;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
-		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
+		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestBuffer.toString());
 
 		// This is the canonical digest of the manifest
 		assert.strictEqual('9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);

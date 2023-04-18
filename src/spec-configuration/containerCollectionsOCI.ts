@@ -71,7 +71,7 @@ export interface OCIManifest {
 
 export interface ManifestContainer {
 	manifestObj: OCIManifest;
-	manifestStr: string;
+	manifestBuffer: Buffer;
 	contentDigest: string;
 	canonicalId: string;
 }
@@ -296,13 +296,12 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 
 export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
-	const res = await getJsonWithMimeType<OCIManifest>(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+	const res = await getBufferWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
 	if (!res) {
 		return undefined;
 	}
 
 	const { body, headers } = res;
-	const manifestStringified = JSON.stringify(body);
 
 	// Per the specification:
 	// https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
@@ -312,13 +311,13 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	let contentDigest = headers['docker-content-digest'];
 	if (!contentDigest) {
 		output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
-		contentDigest = `sha256:${crypto.createHash('sha256').update(manifestStringified).digest('hex')}`;
+		contentDigest = `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
 	}
 
 	return {
 		contentDigest,
-		manifestObj: body,
-		manifestStr: manifestStringified,
+		manifestObj: JSON.parse(body.toString()),
+		manifestBuffer: body,
 		canonicalId: `${ref.resource}@${contentDigest}`,
 	};
 }
@@ -351,6 +350,39 @@ export async function getImageIndexEntryForPlatform(params: CommonParams, url: s
 	});
 }
 
+async function getBufferWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: Buffer; headers: Record<string, string> } | undefined> {
+	const { output } = params;
+	const headers = {
+		'user-agent': 'devcontainer',
+		'accept': mimeType,
+	};
+
+	const httpOptions = {
+		type: 'GET',
+		url: url,
+		headers: headers
+	};
+
+	const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+	if (!res) {
+		output.write(`Request '${url}' failed`, LogLevel.Error);
+		return;
+	}
+
+	// NOTE: A 404 is expected here if the manifest does not exist on the remote.
+	if (res.statusCode > 299) {
+		// Get the error out.
+		const errorMsg = res?.resBody?.toString();
+		output.write(`Did not fetch target with expected mimetype '${mimeType}': ${errorMsg}`, LogLevel.Trace);
+		return;
+	}
+
+	return {
+		body: res.resBody,
+		headers: res.resHeaders,
+	};
+}
+
 async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: T; headers: Record<string, string> } | undefined> {
 	const { output } = params;
 	let body: string = '';
@@ -368,7 +400,7 @@ async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OC
 
 		const res = await requestEnsureAuthenticated(params, httpOptions, ref);
 		if (!res) {
-			output.write('Request failed', LogLevel.Error);
+			output.write(`Request '${url}' failed`, LogLevel.Error);
 			return;
 		}
 

@@ -164,7 +164,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 
 	output.write(`Tagging manifest with tags: ${tags.join(', ')}`, LogLevel.Trace);
 
-	const { manifestStr, contentDigest } = manifest;
+	const { manifestBuffer, contentDigest } = manifest;
 
 	for await (const tag of tags) {
 		const url = `https://${ociRef.registry}/v2/${ociRef.path}/manifests/${tag}`;
@@ -176,7 +176,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 			headers: {
 				'content-type': 'application/vnd.oci.image.manifest.v1+json',
 			},
-			data: Buffer.from(manifestStr),
+			data: manifestBuffer,
 		};
 
 		let res = await requestEnsureAuthenticated(params, httpOptions, ociRef);
@@ -400,12 +400,12 @@ export async function calculateManifestAndContentDigest(output: Log, ociRef: OCI
 		manifest.annotations = annotations;
 	}
 
-	const manifestStringified = JSON.stringify(manifest);
-	const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
+	const manifestBuffer = Buffer.from(JSON.stringify(manifest));
+	const manifestHash = crypto.createHash('sha256').update(manifestBuffer).digest('hex');
 	output.write(`Computed Content-Digest ->  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
 
 	return {
-		manifestStr: manifestStringified,
+		manifestBuffer,
 		manifestObj: manifest,
 		contentDigest: manifestHash,
 		canonicalId: `${ociRef.resource}@sha256:${manifestHash}`
