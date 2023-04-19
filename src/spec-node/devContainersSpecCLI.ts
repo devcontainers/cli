@@ -118,6 +118,8 @@ function provisionOptions(y: Argv) {
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
+		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -184,6 +186,8 @@ async function provision({
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
+	'experimental-lockfile': experimentalLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -240,6 +244,8 @@ async function provision({
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
+		experimentalLockfile,
+		experimentalFrozenLockfile,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -461,6 +467,8 @@ function buildOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
+		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 	});
 }
 
@@ -496,6 +504,8 @@ async function doBuild({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
+	'experimental-lockfile': experimentalLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -539,7 +549,9 @@ async function doBuild({
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
-			dotfiles: {}
+			dotfiles: {},
+			experimentalLockfile,
+			experimentalFrozenLockfile,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;

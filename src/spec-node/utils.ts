@@ -112,6 +112,8 @@ export interface DockerResolverParameters {
 	additionalCacheFroms: string[];
 	buildKitVersion: string | null;
 	isTTY: boolean;
+	experimentalLockfile?: boolean;
+	experimentalFrozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;

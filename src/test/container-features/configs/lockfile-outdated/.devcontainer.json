@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/codspace/features/flower:1.0.0": {},
+		"ghcr.io/codspace/features/color:1.0.5": {}
+	}
+}

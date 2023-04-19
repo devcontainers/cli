@@ -11,7 +11,7 @@ import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
 const pkg = require('../../../package.json');
 
 describe('Dev Container Features E2E (remote)', function () {
-    this.timeout('240s');
+    this.timeout('300s');
 
     const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
     const cli = `npx --prefix ${tmp} devcontainer`;
@@ -106,7 +106,7 @@ describe('Dev Container Features E2E (remote)', function () {
 });
 
 describe('Dev Container Features E2E - local cache/short-hand notation', function () {
-    this.timeout('240s');
+    this.timeout('300s');
 
     const tmp = path.resolve(process.cwd(), path.join(__dirname, 'tmp3'));
     const cli = `npx --prefix ${tmp} devcontainer`;
