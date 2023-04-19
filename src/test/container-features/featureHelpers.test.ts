@@ -634,7 +634,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -717,7 +718,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -803,7 +805,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [

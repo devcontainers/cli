@@ -551,7 +551,8 @@ function getFeaturesConfig(features: Feature[]): FeaturesConfig {
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		}))
 	};

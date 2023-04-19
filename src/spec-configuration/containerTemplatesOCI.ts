@@ -46,7 +46,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
+	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, blobDigest, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);

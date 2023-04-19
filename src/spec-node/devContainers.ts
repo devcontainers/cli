@@ -63,6 +63,8 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
+	experimentalLockfile?: boolean;
+	experimentalFrozenLockfile?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -90,7 +92,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -179,6 +181,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
+		experimentalLockfile,
+		experimentalFrozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,

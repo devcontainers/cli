@@ -278,7 +278,8 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	}
 	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifestContainer = await getManifest(params, manifestUrl, ref);
+	const expectedDigest = manifestDigest || ('digest' in ref ? ref.digest : undefined);
+	const manifestContainer = await getManifest(params, manifestUrl, ref, undefined, expectedDigest);
 
 	if (!manifestContainer || !manifestContainer.manifestObj) {
 		return;
@@ -294,7 +295,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	return manifestContainer;
 }
 
-export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<ManifestContainer | undefined> {
+export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string, expectedDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 	const res = await getBufferWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
 	if (!res) {
@@ -309,9 +310,15 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
 	// Headers are always automatically downcased by node.
 	let contentDigest = headers['docker-content-digest'];
-	if (!contentDigest) {
-		output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
+	if (!contentDigest || expectedDigest) {
+		if (!contentDigest) {
+			output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
+		}
 		contentDigest = `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
+	}
+
+	if (expectedDigest && contentDigest !== expectedDigest) {
+		throw new Error(`Digest did not match for ${url}.`);
 	}
 
 	return {
@@ -479,7 +486,7 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -508,6 +515,11 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		if (statusCode > 299) {
 			output.write(`Failed to fetch blob (${url}): ${resBody}`, LogLevel.Error);
 			return;
+		}
+
+		const actualDigest = `sha256:${crypto.createHash('sha256').update(resBody).digest('hex')}`;
+		if (actualDigest !== expectedDigest) {
+			throw new Error(`Digest did not match for ${url}.`);
 		}
 
 		await mkdirpLocal(destCachePath);
