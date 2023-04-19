@@ -27,13 +27,12 @@ import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } fr
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
-import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
-import { featuresInfoManifestHandler, featuresInfoManifestOptions } from './featuresCLI/infoManifest';
+import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 
@@ -68,10 +67,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
-		y.command('info', 'Fetch metadata on published Features', (y: Argv) => {
-			y.command('tags <feature>', 'Fetch tags for a specific Feature', featuresInfoTagsOptions, featureInfoTagsHandler);
-			y.command('manifest <feature>', 'Fetch the manifest for a specific Feature', featuresInfoManifestOptions, featuresInfoManifestHandler);
-		});
+		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);

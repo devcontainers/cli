@@ -1,6 +1,6 @@
 import { Log, LogLevel } from '../spec-utils/log';
 import { Feature, FeatureSet } from './containerFeaturesConfiguration';
-import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
+import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, ManifestContainer, OCIManifest } from './containerCollectionsOCI';
 
 export function tryGetOCIFeatureSet(output: Log, identifier: string, options: boolean | string | Record<string, boolean | string | undefined>, manifest: OCIManifest, originalUserFeatureId: string): FeatureSet | undefined {
 	const featureRef = getRef(output, identifier);
@@ -31,7 +31,7 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 	return featureSet;
 }
 
-export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
 	const featureRef = getRef(output, identifier);

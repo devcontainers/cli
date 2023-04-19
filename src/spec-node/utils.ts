@@ -246,7 +246,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 	let targetDigest: string | undefined = undefined;
 	const manifest = await getManifest(params, manifestUrl, ref, 'application/vnd.docker.distribution.manifest.v2+json');
 	if (manifest) {
-		targetDigest = manifest.config.digest;
+		targetDigest = manifest.manifestObj.config.digest;
 	} else {
 		// If we couldn't fetch the manifest, perhaps the registry supports querying for the 'Image Index'
 		// Spec: https://github.com/opencontainers/image-spec/blob/main/image-index.md
@@ -255,7 +255,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 			const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
 			const a = await getManifest(params, manifestUrl, ref);
 			if (a) {
-				targetDigest = a.config.digest;
+				targetDigest = a.manifestObj.config.digest;
 			}
 		}
 	}

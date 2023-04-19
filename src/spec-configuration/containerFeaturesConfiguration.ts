@@ -910,7 +910,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		return tryGetOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
+		return tryGetOCIFeatureSet(output, userFeature.id, userFeature.options, manifest.manifestObj, originalUserFeatureId);
 	}
 
 	output.write(`Github feature.`);
