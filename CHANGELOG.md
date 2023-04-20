@@ -4,6 +4,21 @@ Notable changes.
 
 ## April 2023
 
+### [0.39.0]
+
+- Update auth precedence level for fetching Features/Templates. Notably preferring `docker login` credentials. (https://github.com/devcontainers/cli/pull/482)
+   - The precedence order (https://github.com/devcontainers/cli/blob/4fde394ac16df1061b731d2d2f226850277cbce2/src/spec-configuration/httpOCIRegistry.ts#L147) is now:
+		- parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable
+		- Read from a docker credential helper indicated in config
+		- Read from a docker cred store indicated in config (https://docs.docker.com/engine/reference/commandline/login/#credentials-store)
+		- Read from a docker config file (flat file with base64 encoded credentials)
+		- Read from the platform's default credential helper
+		- Crafted from the `GITHUB_TOKEN` environment variable
+- Features can now be pinned to a digest in `devcontainer.json` (https://github.com/devcontainers/cli/pull/480)
+- Automatically clean up test containers when using `devcontainers features test` (https://github.com/devcontainers/cli/pull/450)
+   - The `--preserve-test-containers` flag can be used to disable this behavior
+- Various internal changes to the Features/Templates OCI registry implementation (https://github.com/devcontainers/cli/pull/490)
+
 ### [0.38.0]
 
 - Update vm2 (https://github.com/devcontainers/cli/pull/488)
