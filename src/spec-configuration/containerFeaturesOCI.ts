@@ -54,11 +54,11 @@ export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureS
 
 	const { featureRef } = featureSet.sourceInformation;
 
-	const expectedDigest = featureSet.sourceInformation.manifest?.layers[0].digest;
-	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${expectedDigest}`;
+	const layerDigest = featureSet.sourceInformation.manifest?.layers[0].digest;
+	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${layerDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef, expectedDigest);
+	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef, layerDigest);
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${featureSet.sourceInformation.featureRef.resource}`);
