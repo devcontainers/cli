@@ -4,6 +4,11 @@ Notable changes.
 
 ## April 2023
 
+### [0.40.0]
+
+- Experimental lockfile support (https://github.com/devcontainers/cli/pull/495)
+- Update vm2 (https://github.com/devcontainers/cli/pull/500)
+
 ### [0.39.0]
 
 - Update auth precedence level for fetching Features/Templates. Notably preferring `docker login` credentials. (https://github.com/devcontainers/cli/pull/482)
