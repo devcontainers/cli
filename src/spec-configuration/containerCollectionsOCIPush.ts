@@ -313,12 +313,14 @@ async function generateCompleteManifestForCollectionFile(output: Log, dataBytes:
 export async function calculateDataLayer(output: Log, data: Buffer, basename: string, mediaType: string): Promise<OCILayer | undefined> {
 	output.write(`Creating manifest from data`, LogLevel.Trace);
 
-	const tarSha256 = crypto.createHash('sha256').update(data).digest('hex');
-	output.write(`sha256:${tarSha256} (size: ${data.byteLength})`, LogLevel.Info);
+	const algorithm = 'sha256';
+	const tarSha256 = crypto.createHash(algorithm).update(data).digest('hex');
+	const digest = `${algorithm}:${tarSha256}`;
+	output.write(`Data layer digest: ${digest} (archive size: ${data.byteLength})`, LogLevel.Info);
 
 	return {
 		mediaType,
-		digest: `sha256:${tarSha256}`,
+		digest,
 		size: data.byteLength,
 		annotations: {
 			'org.opencontainers.image.title': basename,
@@ -339,7 +341,7 @@ export async function checkIfBlobExists(params: CommonParams, ociRef: OCIRef | O
 	}
 
 	const statusCode = res.statusCode;
-	output.write(`${url}: ${statusCode}`, LogLevel.Trace);
+	output.write(`checkIfBlobExists: ${url}: ${statusCode}`, LogLevel.Trace);
 	return statusCode === 200;
 }
 
@@ -401,13 +403,15 @@ export async function calculateManifestAndContentDigest(output: Log, ociRef: OCI
 	}
 
 	const manifestBuffer = Buffer.from(JSON.stringify(manifest));
-	const manifestHash = crypto.createHash('sha256').update(manifestBuffer).digest('hex');
-	output.write(`Computed Content-Digest ->  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
+	const algorithm = 'sha256';
+	const manifestHash = crypto.createHash(algorithm).update(manifestBuffer).digest('hex');
+	const contentDigest = `${algorithm}:${manifestHash}`;
+	output.write(`Computed content digest from manifest: ${contentDigest}`, LogLevel.Info);
 
 	return {
 		manifestBuffer,
 		manifestObj: manifest,
-		contentDigest: manifestHash,
+		contentDigest,
 		canonicalId: `${ociRef.resource}@sha256:${manifestHash}`
 	};
 }
