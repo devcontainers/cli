@@ -318,7 +318,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	}
 
 	if (expectedDigest && contentDigest !== expectedDigest) {
-		throw new Error(`Digest did not match for ${url}.`);
+		throw new Error(`Digest did not match for ${ref.resource}.`);
 	}
 
 	return {
@@ -519,7 +519,7 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 
 		const actualDigest = `sha256:${crypto.createHash('sha256').update(resBody).digest('hex')}`;
 		if (actualDigest !== expectedDigest) {
-			throw new Error(`Digest did not match for ${url}.`);
+			throw new Error(`Digest did not match for ${ociRef.resource}.`);
 		}
 
 		await mkdirpLocal(destCachePath);
