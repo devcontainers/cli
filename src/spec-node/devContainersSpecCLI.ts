@@ -118,7 +118,7 @@ function provisionOptions(y: Argv) {
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
-		'secrets-file': { type: 'string', description: 'Path to the secrets json file containg secret environment variables and values as key value pairs' },
+		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 	})
@@ -702,7 +702,7 @@ function runUserCommandsOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
-		'secrets-file': { type: 'string', description: 'Path to the secrets json file containg secret environment variables and values as key value pairs' },
+		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -843,9 +843,9 @@ async function doRunUserCommands({
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const secrets = readSecretsFromFile(common);
-		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnv, secrets, stopForPersonalization);
+		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
+		const secretsP = readSecretsFromFile(common);
+		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnvP, secretsP, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
