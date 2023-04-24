@@ -4,6 +4,7 @@ import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
+import { FNode, buildDependencyGraphFromFeatureRef } from '../../spec-configuration/containerFeaturesOrder';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -11,7 +12,7 @@ export function featuresInfoOptions(y: Argv) {
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		})
-		.positional('mode', { choices: ['manifest' as 'manifest', 'tags' as 'tags', 'verbose' as 'verbose'], description: 'Data to query. Select \'verbose\' to return everything.' })
+		.positional('mode', { choices: ['manifest' as 'manifest', 'tags' as 'tags', 'dependsOn' as 'dependsOn', 'verbose' as 'verbose'], description: 'Data to query. Select \'verbose\' to return everything.' })
 		.positional('feature', { type: 'string', demandOption: true, description: 'Feature Identifier' });
 }
 
@@ -25,6 +26,7 @@ interface InfoJsonOutput {
 	manifest?: OCIManifest;
 	canonicalId?: string;
 	publishedVersions?: string[];
+	dependsOn?: FNode[];
 }
 
 async function featuresInfo({
@@ -86,11 +88,58 @@ async function featuresInfo({
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Published Version'));
 			console.log(`${publishedVersions.join('\n   ')}`);
-
 		} else {
 			jsonOutput.publishedVersions = publishedVersions;
 		}
 	}
+
+	if (mode === 'dependsOn' || mode === 'verbose') {
+		output.write(`Building dependency graph for '${featureId}'...`, LogLevel.Info);
+		const featureRef = getRef(output, featureId);
+		if (!featureRef) {
+			output.write(`Provide Feature reference '${featureId}' is invalid.`, LogLevel.Error);
+			process.exit(1);
+		}
+		const graph = await buildDependencyGraphFromFeatureRef(params, featureRef);
+		if (!graph) {
+			output.write(`Could not build dependency graph.`, LogLevel.Error);
+			process.exit(1);
+		}
+
+		if (outputFormat === 'text') {
+			console.log(encloseStringInBox('Dependency Tree'));
+			// -- Display the graph with my best ascii art skills
+			const rootNode = graph.find(n => n.id === featureRef.resource)!;
+			printGraph(output, rootNode);
+
+		} else {
+			jsonOutput.dependsOn = graph;
+		}
+	}
+
+		// // ---- Load dev container config
+		// const buffer = await readLocalFile(configPath);
+		// if (!buffer) {
+		// 	output.write(`Could not load devcontainer.json file from path ${configPath}`, LogLevel.Error);
+		// 	process.exit(1);
+		// }
+		// //  -- Parse dev container config
+		// const config: DevContainerConfig = jsonc.parse(buffer.toString());
+		// const installOrder = await computeDependsOnInstallationOrder(params, config);
+
+		// if (!installOrder) {
+		// 	output.write(`Could not calculate install order`, LogLevel.Error);
+		// 	process.exit(1);
+		// }
+
+		// output.raw('\n');
+		// for (const node of installOrder) {
+		// 	const { id, options, /*version*/ } = node;
+		// 	const str = `${id}\n${options ? JSON.stringify(options) : ''}`;
+		// 	const box = encloseStringInBox(str);
+		// 	output.raw(`${box}\n`, LogLevel.Info);
+		// }
+
 
 	// -- Output and clean up
 	if (outputFormat === 'json') {
@@ -142,4 +191,17 @@ function encloseStringInBox(str: string, indent: number = 0) {
 		'└' + '─'.repeat(maxWidth) + '┘',
 	];
 	return box.map(t => `${' '.repeat(indent)}${t}`).join('\n');
+}
+
+
+function printGraph(output: Log, node: FNode, indent = 0) {
+	const { id, dependsOn, options, /*version*/ } = node;
+
+	const str = `${id}\n${options ? JSON.stringify(options) : ''}`;
+	output.raw(`${encloseStringInBox(str, indent)}`, LogLevel.Info);
+	output.raw('\n', LogLevel.Info);
+
+	for (let i = 0; i < dependsOn.length; i++) {
+		printGraph(output, dependsOn[i], indent + 4);
+	}
 }
