@@ -32,9 +32,10 @@ import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
-import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
+import { featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
+import { featuresReadConfigurationHandler, featuresReadConfigurationOptions } from './featuresCLI/readConfiguration';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -68,6 +69,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
+		y.command('read-configuration', 'Read and resolve configuration related to Features', featuresReadConfigurationOptions, featuresReadConfigurationHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
