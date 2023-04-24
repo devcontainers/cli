@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import * as crypto from 'crypto';
+import * as jsonc from 'jsonc-parser';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
@@ -350,7 +351,7 @@ export async function readSecretsFromFile(params: { output: Log; secretsFile?: s
 
 	try {
 		const fileBuff = await cliHost.readFile(secretsFile);
-		return JSON.parse(fileBuff.toString()) as Record<string, string>;
+		return jsonc.parse(fileBuff.toString()) as Record<string, string>;
 	}
 	catch (e) {
 		params.output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
