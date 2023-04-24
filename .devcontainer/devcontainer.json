@@ -15,7 +15,7 @@
 		"source=dev-containers-cli-bashhistory,target=/home/node/commandhistory"
 	],
 
-	"postCreateCommand": "yarn install",
+	"postCreateCommand": "yarn install --frozen-lockfile",
 
 	"remoteUser": "node",
 	
