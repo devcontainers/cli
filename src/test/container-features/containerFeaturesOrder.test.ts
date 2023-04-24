@@ -165,6 +165,7 @@ describe('Container features install order', function () {
                     },
                     layers: []
                 },
+                manifestDigest: 'test',
                 userFeatureId: id,
                 userFeatureIdWithoutVersion: splitOnColon[0]
             },

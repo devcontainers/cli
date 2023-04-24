@@ -2,7 +2,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import * as os from 'os';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
-import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, OCIManifest } from './containerCollectionsOCI';
+import { CommonParams, fetchOCIManifestIfExists, getBlob, getRef, ManifestContainer } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { DevContainerConfig } from './configuration';
 import { Template } from './containerTemplatesConfiguration';
@@ -36,12 +36,17 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
 		return;
 	}
+	const blobDigest = ociManifest?.manifestObj?.layers[0]?.digest;
+	if (!blobDigest) {
+		output.write(`Failed to fetch template manifest for ${userSelectedId}`, LogLevel.Error);
+		return;
+	}
 
-	const blobUrl = `https://${templateRef.registry}/v2/${templateRef.path}/blobs/${ociManifest?.layers[0].digest}`;
+	const blobUrl = `https://${templateRef.registry}/v2/${templateRef.path}/blobs/${blobDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
+	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, blobDigest, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
@@ -121,7 +126,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 }
 
 
-async function fetchOCITemplateManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<OCIManifest | undefined> {
+async function fetchOCITemplateManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
 	const templateRef = getRef(output, identifier);

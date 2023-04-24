@@ -2,6 +2,7 @@ import path from 'path';
 import * as semver from 'semver';
 import * as tar from 'tar';
 import * as jsonc from 'jsonc-parser';
+import * as crypto from 'crypto';
 
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
@@ -67,6 +68,14 @@ export interface OCIManifest {
 	layers: OCILayer[];
 	annotations?: {};
 }
+
+export interface ManifestContainer {
+	manifestObj: OCIManifest;
+	manifestBuffer: Buffer;
+	contentDigest: string;
+	canonicalId: string;
+}
+
 
 interface OCITagList {
 	name: string;
@@ -251,7 +260,7 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 
 // Validate if a manifest exists and is reachable about the declared feature/template.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
 	// Simple mechanism to avoid making a DNS request for 
@@ -269,28 +278,68 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	}
 	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifest = await getManifest(params, manifestUrl, ref);
+	const expectedDigest = manifestDigest || ('digest' in ref ? ref.digest : undefined);
+	const manifestContainer = await getManifest(params, manifestUrl, ref, undefined, expectedDigest);
 
-	if (!manifest) {
+	if (!manifestContainer || !manifestContainer.manifestObj) {
 		return;
 	}
 
-	if (manifest?.config.mediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
-		output.write(`(!) Unexpected manifest media type: ${manifest?.config.mediaType}`, LogLevel.Error);
+	const { manifestObj } = manifestContainer;
+
+	if (manifestObj.config.mediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
+		output.write(`(!) Unexpected manifest media type: ${manifestObj.config.mediaType}`, LogLevel.Error);
 		return undefined;
 	}
 
-	return manifest;
+	return manifestContainer;
 }
 
-export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<OCIManifest | undefined> {
-	return await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string, expectedDigest?: string): Promise<ManifestContainer | undefined> {
+	const { output } = params;
+	const res = await getBufferWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+	if (!res) {
+		return undefined;
+	}
+
+	const { body, headers } = res;
+
+	// Per the specification:
+	// https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
+	// The registry server SHOULD return the canonical content digest in a header, but it's not required to.
+	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
+	// Headers are always automatically downcased by node.
+	let contentDigest = headers['docker-content-digest'];
+	if (!contentDigest || expectedDigest) {
+		if (!contentDigest) {
+			output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
+		}
+		contentDigest = `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
+	}
+
+	if (expectedDigest && contentDigest !== expectedDigest) {
+		throw new Error(`Digest did not match for ${ref.resource}.`);
+	}
+
+	return {
+		contentDigest,
+		manifestObj: JSON.parse(body.toString()),
+		manifestBuffer: body,
+		canonicalId: `${ref.resource}@${contentDigest}`,
+	};
 }
 
 // https://github.com/opencontainers/image-spec/blob/main/manifest.md
 export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
-	const imageIndex: OCIImageIndex = await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
-	if (!imageIndex || !imageIndex.manifests) {
+	const { output } = params;
+	const response = await getJsonWithMimeType<OCIImageIndex>(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
+	if (!response) {
+		return undefined;
+	}
+
+	const { body: imageIndex } = response;
+	if (!imageIndex) {
+		output.write(`Unwrapped response for image index is undefined.`, LogLevel.Error);
 		return undefined;
 	}
 
@@ -308,7 +357,40 @@ export async function getImageIndexEntryForPlatform(params: CommonParams, url: s
 	});
 }
 
-async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<any | undefined> {
+async function getBufferWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: Buffer; headers: Record<string, string> } | undefined> {
+	const { output } = params;
+	const headers = {
+		'user-agent': 'devcontainer',
+		'accept': mimeType,
+	};
+
+	const httpOptions = {
+		type: 'GET',
+		url: url,
+		headers: headers
+	};
+
+	const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+	if (!res) {
+		output.write(`Request '${url}' failed`, LogLevel.Error);
+		return;
+	}
+
+	// NOTE: A 404 is expected here if the manifest does not exist on the remote.
+	if (res.statusCode > 299) {
+		// Get the error out.
+		const errorMsg = res?.resBody?.toString();
+		output.write(`Did not fetch target with expected mimetype '${mimeType}': ${errorMsg}`, LogLevel.Trace);
+		return;
+	}
+
+	return {
+		body: res.resBody,
+		headers: res.resHeaders,
+	};
+}
+
+async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: T; headers: Record<string, string> } | undefined> {
 	const { output } = params;
 	let body: string = '';
 	try {
@@ -325,11 +407,11 @@ async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRe
 
 		const res = await requestEnsureAuthenticated(params, httpOptions, ref);
 		if (!res) {
-			output.write('Request failed', LogLevel.Error);
+			output.write(`Request '${url}' failed`, LogLevel.Error);
 			return;
 		}
 
-		const { resBody, statusCode } = res;
+		const { resBody, statusCode, resHeaders } = res;
 		body = resBody.toString();
 
 		// NOTE: A 404 is expected here if the manifest does not exist on the remote.
@@ -337,9 +419,12 @@ async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRe
 			output.write(`Did not fetch target with expected mimetype '${mimeType}': ${body}`, LogLevel.Trace);
 			return;
 		}
-		const parsed = JSON.parse(body);
-		output.write(`Fetched: ${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Trace);
-		return parsed;
+		const parsedBody: T = JSON.parse(body);
+		output.write(`Fetched: ${JSON.stringify(parsedBody, undefined, 4)}`, LogLevel.Trace);
+		return {
+			body: parsedBody,
+			headers: resHeaders,
+		};
 	} catch (e) {
 		output.write(`Failed to parse JSON with mimeType '${mimeType}': ${body}`, LogLevel.Error);
 		return;
@@ -401,7 +486,7 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -430,6 +515,11 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		if (statusCode > 299) {
 			output.write(`Failed to fetch blob (${url}): ${resBody}`, LogLevel.Error);
 			return;
+		}
+
+		const actualDigest = `sha256:${crypto.createHash('sha256').update(resBody).digest('hex')}`;
+		if (actualDigest !== expectedDigest) {
+			throw new Error(`Digest did not match for ${ociRef.resource}.`);
 		}
 
 		await mkdirpLocal(destCachePath);

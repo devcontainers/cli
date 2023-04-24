@@ -4,20 +4,14 @@ import * as crypto from 'crypto';
 import { delay } from '../spec-common/async';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile } from '../spec-utils/pfs';
-import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams } from './containerCollectionsOCI';
+import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams, ManifestContainer } from './containerCollectionsOCI';
 import { requestEnsureAuthenticated } from './httpOCIRegistry';
-
-interface ManifestContainer {
-	manifestObj: OCIManifest;
-	manifestStr: string;
-	contentDigest: string;
-}
 
 // (!) Entrypoint function to push a single feature/template to a registry.
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string): Promise<string | undefined> {
+export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string, featureAnnotations = {}): Promise<string | undefined> {
 	const { output } = params;
 
 	output.write(`-- Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
@@ -31,7 +25,7 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 	const dataBytes = fs.readFileSync(pathToTgz);
 
 	// Generate Manifest for given feature/template artifact.
-	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType);
+	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType, featureAnnotations);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${ociRef.id}`, LogLevel.Error);
 		return;
@@ -170,7 +164,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 
 	output.write(`Tagging manifest with tags: ${tags.join(', ')}`, LogLevel.Trace);
 
-	const { manifestStr, contentDigest } = manifest;
+	const { manifestBuffer, contentDigest } = manifest;
 
 	for await (const tag of tags) {
 		const url = `https://${ociRef.registry}/v2/${ociRef.path}/manifests/${tag}`;
@@ -182,7 +176,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 			headers: {
 				'content-type': 'application/vnd.oci.image.manifest.v1+json',
 			},
-			data: Buffer.from(manifestStr),
+			data: manifestBuffer,
 		};
 
 		let res = await requestEnsureAuthenticated(params, httpOptions, ociRef);
@@ -212,7 +206,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 			return;
 		}
 
-		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'] || resHeaders['Docker-Content-Digest'];
+		const dockerContentDigestResponseHeader = resHeaders['docker-content-digest'];
 		const locationResponseHeader = resHeaders['location'] || resHeaders['Location'];
 		output.write(`Tagged: ${tag} -> ${locationResponseHeader}`, LogLevel.Info);
 		output.write(`Returned Content-Digest: ${dockerContentDigestResponseHeader}`, LogLevel.Trace);
@@ -274,22 +268,24 @@ async function putBlob(params: CommonParams, blobPutLocationUriPath: string, oci
 // Generate a layer that follows the `application/vnd.devcontainers.layer.v1+tar` mediaType as defined in
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
-async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string): Promise<ManifestContainer | undefined> {
+async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string, featureAnnotations = {}): Promise<ManifestContainer | undefined> {
 	const tgzLayer = await calculateDataLayer(output, dataBytes, path.basename(pathToTgz), DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 	if (!tgzLayer) {
 		output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
 		return undefined;
 	}
 
-	let annotations: { [key: string]: string } | undefined = undefined;
+	let annotations: { [key: string]: string } = featureAnnotations;
 	// Specific registries look for certain optional metadata 
 	// in the manifest, in this case for UI presentation.
 	if (ociRef.registry === 'ghcr.io') {
 		annotations = {
+			...annotations,
 			'com.github.package.type': `devcontainer_${collectionType}`,
 		};
 	}
-	return await calculateManifestAndContentDigest(output, tgzLayer, annotations);
+
+	return await calculateManifestAndContentDigest(output, ociRef, tgzLayer, annotations);
 }
 
 // Generate a layer that follows the `application/vnd.devcontainers.collection.layer.v1+json` mediaType as defined in
@@ -310,7 +306,7 @@ async function generateCompleteManifestForCollectionFile(output: Log, dataBytes:
 			'com.github.package.type': 'devcontainer_collection',
 		};
 	}
-	return await calculateManifestAndContentDigest(output, collectionMetadataLayer, annotations);
+	return await calculateManifestAndContentDigest(output, collectionRef, collectionMetadataLayer, annotations);
 }
 
 // Generic construction of a layer in the manifest and digest for the generated layer.
@@ -381,7 +377,7 @@ async function postUploadSessionId(params: CommonParams, ociRef: OCIRef | OCICol
 	}
 }
 
-export async function calculateManifestAndContentDigest(output: Log, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined): Promise<ManifestContainer> {
+export async function calculateManifestAndContentDigest(output: Log, ociRef: OCIRef | OCICollectionRef, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined): Promise<ManifestContainer> {
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
 	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'
@@ -404,13 +400,14 @@ export async function calculateManifestAndContentDigest(output: Log, dataLayer: 
 		manifest.annotations = annotations;
 	}
 
-	const manifestStringified = JSON.stringify(manifest);
-	const manifestHash = crypto.createHash('sha256').update(manifestStringified).digest('hex');
+	const manifestBuffer = Buffer.from(JSON.stringify(manifest));
+	const manifestHash = crypto.createHash('sha256').update(manifestBuffer).digest('hex');
 	output.write(`Computed Content-Digest ->  sha256:${manifestHash} (size: ${manifestHash.length})`, LogLevel.Info);
 
 	return {
-		manifestStr: manifestStringified,
+		manifestBuffer,
 		manifestObj: manifest,
 		contentDigest: manifestHash,
+		canonicalId: `${ociRef.resource}@sha256:${manifestHash}`
 	};
 }
