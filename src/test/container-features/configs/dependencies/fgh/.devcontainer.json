@@ -1,0 +1,14 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/codspace/dependsonexperiment/f": {
+			"magicNumber": "10"
+		},
+		"ghcr.io/codspace/dependsonexperiment/g": {
+			"magicNumber": "20"
+		},
+		"ghcr.io/codspace/dependsonexperiment/h": {
+			"magicNumber": "30"
+		}
+	}
+}

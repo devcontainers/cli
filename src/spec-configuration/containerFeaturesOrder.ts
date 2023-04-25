@@ -7,7 +7,7 @@
 import { FeatureSet, userFeaturesToArray } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerConfig } from './configuration';
-import { CommonParams } from './containerCollectionsOCI';
+import { CommonParams, OCIRef, fetchOCIManifestIfExists, getRef } from './containerCollectionsOCI';
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 
 interface FeatureNode {
@@ -55,6 +55,7 @@ export interface FNode {
     canonicalId?: string; // TODO: When https://github.com/devcontainers/cli/pull/480 merges, this value can be used for the install instead of 'id'.
     options: string | boolean | Record<string, string | boolean | undefined>;
     dependsOn: FNode[];
+    ref?: OCIRef;
 }
 
 function fNodeEquality(a: FNode, b: FNode) {
@@ -76,19 +77,26 @@ function fNodeEquality(a: FNode, b: FNode) {
 
 function fNodeStableSort(a: FNode, b: FNode) {
 
-    if (!a.canonicalId || !b.canonicalId) {
+    if (!a.canonicalId || !b.canonicalId || !a.ref || !b.ref) {
         // TODO : remove after catching the bugs
-        throw new Error('fNodeStableSort: canonicalId not set!');
+        throw new Error('fNodeStableSort: canonicalId or ref not set!');
     }
 
-    if (a.canonicalId !== b.canonicalId) {
-        return a.canonicalId.localeCompare(b.canonicalId);
+    // Sort by tags
+    // Eg: 1.9.9, 2.0.0, 2.0.1, 3, latest
+    if ((a.ref.tag && b.ref.tag) && (a.ref.tag !== b.ref.tag)) {
+        return a.ref.tag.localeCompare(b.ref.tag);
     }
 
     if (JSON.stringify(a.options) !== JSON.stringify(b.options)) {
         // This isn't totally correct, but gives the right idea.
         return JSON.stringify(a.options).localeCompare(JSON.stringify(b.options));
     }
+
+    if (a.canonicalId !== b.canonicalId) {
+        return a.canonicalId.localeCompare(b.canonicalId);
+    }
+
     return 0;
 }
 
@@ -100,13 +108,19 @@ async function _buildDependencyGraph(params: CommonParams, worklist: FNode[], ac
 
         params.output.write(`Resolving dependencies for '${current.id}'...`, LogLevel.Info);
         // Fetch the manifest of the Feature and read its 'dev.containers.experimental.dependsOn' label
-        const resolvedManifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(params, current.id);
+        const ref = getRef(params.output, current.id);
+        if (!ref) {
+            throw new Error(`Could not parse ref for '${current.id}'`);
+        }
+        const resolvedManifest = await fetchOCIManifestIfExists(params, ref);
         if (!resolvedManifest) {
             throw new Error(`Manifest for '${current.id}' not found`);
         }
         const { manifestObj, canonicalId } = resolvedManifest;
         // Set the canonicalId
         current.canonicalId = canonicalId;
+        // Set the ref for future use (eg: for sorting)
+        current.ref = ref;
 
         // If the current feature is already in the accumulator (according to fNodeEquality), skip it.
         // TODO: This should probably be higher up, but right now we're prioritizing getting the canonical ID.

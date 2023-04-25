@@ -1,9 +1,9 @@
 {
 	"name": "FeatureA",
 	"id": "A",
-	"version": "0.0.11",
+	"version": "2.0.1",
 	"dependsOn": {
-		"ghcr.io/joshspicer/dependsOnExperiment/E": {
+		"ghcr.io/codspace/dependsOnExperiment/E": {
 			"magicNumber": "50"
 		}
 	},

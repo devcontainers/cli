@@ -2,12 +2,11 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
 import { Argv } from 'yargs';
-import { OCIManifest } from '../../spec-configuration/containerCollectionsOCI';
 import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { FNode, buildDependencyGraphFromConfig } from '../../spec-configuration/containerFeaturesOrder';
+import { computeDependsOnInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 
@@ -15,7 +14,7 @@ export function featuresReadConfigurationOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
+			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'json', description: 'Output format.' },
 			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration.', demandOption: true },
 		});
 }
@@ -26,11 +25,15 @@ export function featuresReadConfigurationHandler(args: featuresReadConfiguration
 	(async () => await featuresReadConfiguration(args))().catch(console.error);
 }
 
-interface InfoJsonOutput {
-	manifest?: OCIManifest;
-	canonicalId?: string;
-	publishedVersions?: string[];
-	dependsOn?: FNode[];
+
+interface InstallOrderItem {
+	canonicalId: string;
+	userId: string;
+	options: string | boolean | Record<string, string | boolean | undefined>;
+}
+
+interface JsonOutput {
+	installOrder?: InstallOrderItem[];
 }
 
 async function featuresReadConfiguration({
@@ -54,7 +57,7 @@ async function featuresReadConfiguration({
 
 	const params = { output, env: process.env, outputFormat };
 
-	const jsonOutput: InfoJsonOutput = {};
+	const jsonOutput: JsonOutput = {};
 
 	// Get dev container from workspace folder
 	// TODO, do better.
@@ -68,19 +71,33 @@ async function featuresReadConfiguration({
 	}
 	//  -- Parse dev container config
 	const config: DevContainerConfig = jsonc.parse(buffer.toString());
-	const installOrder = await buildDependencyGraphFromConfig(params, config);
+	const installOrder = await computeDependsOnInstallationOrder(params, config);
 
 	if (!installOrder) {
 		output.write(`Could not calculate install order`, LogLevel.Error);
 		process.exit(1);
 	}
 
-	output.raw('\n');
-	for (const node of installOrder) {
-		const { id, options, /*version*/ } = node;
-		const str = `${id}\n${options ? JSON.stringify(options) : ''}`;
-		const box = encloseStringInBox(str);
-		output.raw(`${box}\n`, LogLevel.Info);
+	if (outputFormat === 'text') {
+		output.raw('\n');
+		for (let i = 0; i < installOrder.length; i++) {
+			const { canonicalId, options, id: userId } = installOrder[i];
+			const split = canonicalId!.split('@');
+			const str = `${split[0]}\n${split[1]}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userId}')`;
+			const box = encloseStringInBox(str);
+			output.raw(`${box}\n`, LogLevel.Info);
+		}
+	} else {
+		// JSON
+		jsonOutput.installOrder = [];
+		for (let i = 0; i < installOrder.length; i++) {
+			const { canonicalId, options, id: userId } = installOrder[i];
+			if (!canonicalId) {
+				output.write(`Could not resolve canonical Id for ${installOrder[i].id}`, LogLevel.Error);
+				process.exit(1);
+			}
+			jsonOutput.installOrder.push({ canonicalId, options, userId });
+		}
 	}
 
 	// -- Output and clean up

@@ -64,12 +64,13 @@ async function featuresInfo({
 		process.exit(1);
 	}
 
-	// -- Get the manifest
+	const manifestContainer = await getManifest(params, featureRef);
+	if (!manifestContainer) {
+		process.exit(1);
+	}
+
+	// -- Display the manifest
 	if (mode === 'manifest' || mode === 'verbose') {
-		const manifestContainer = await getManifest(params, featureRef);
-		if (!manifestContainer) {
-			return;
-		}
 		const { manifestObj, canonicalId } = manifestContainer;
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Manifest'));
@@ -100,6 +101,7 @@ async function featuresInfo({
 			process.exit(1);
 		}
 		const graph = await buildDependencyGraphFromUserId(params, featureId);
+		output.write(JSON.stringify(graph, undefined, 4), LogLevel.Trace);
 		if (!graph) {
 			output.write(`Could not build dependency graph.`, LogLevel.Error);
 			process.exit(1);
@@ -108,37 +110,13 @@ async function featuresInfo({
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Dependency Tree'));
 			// -- Display the graph with my best ascii art skills
-			const rootNode = graph.find(n => n.id === featureRef.resource)!;
+			const rootNode = graph.find(n => n.canonicalId === manifestContainer.canonicalId)!;
 			printGraph(output, rootNode);
 
 		} else {
 			jsonOutput.dependsOn = graph;
 		}
 	}
-
-		// // ---- Load dev container config
-		// const buffer = await readLocalFile(configPath);
-		// if (!buffer) {
-		// 	output.write(`Could not load devcontainer.json file from path ${configPath}`, LogLevel.Error);
-		// 	process.exit(1);
-		// }
-		// //  -- Parse dev container config
-		// const config: DevContainerConfig = jsonc.parse(buffer.toString());
-		// const installOrder = await computeDependsOnInstallationOrder(params, config);
-
-		// if (!installOrder) {
-		// 	output.write(`Could not calculate install order`, LogLevel.Error);
-		// 	process.exit(1);
-		// }
-
-		// output.raw('\n');
-		// for (const node of installOrder) {
-		// 	const { id, options, /*version*/ } = node;
-		// 	const str = `${id}\n${options ? JSON.stringify(options) : ''}`;
-		// 	const box = encloseStringInBox(str);
-		// 	output.raw(`${box}\n`, LogLevel.Info);
-		// }
-
 
 	// -- Output and clean up
 	if (outputFormat === 'json') {
@@ -153,7 +131,6 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 	const { outputFormat } = params;
 
 	const manifestContainer = await fetchOCIManifestIfExists(params, featureRef, undefined);
-
 	if (!manifestContainer) {
 		if (outputFormat === 'json') {
 			console.log(JSON.stringify({}));
@@ -162,7 +139,6 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 		}
 		return process.exit(1);
 	}
-
 	return manifestContainer;
 }
 
@@ -194,9 +170,10 @@ function encloseStringInBox(str: string, indent: number = 0) {
 
 
 function printGraph(output: Log, node: FNode, indent = 0) {
-	const { id, dependsOn, options, /*version*/ } = node;
+	const { canonicalId, dependsOn, options, id: userId } = node;
 
-	const str = `${id}\n${options ? JSON.stringify(options) : ''}`;
+	const split = canonicalId!.split('@');
+	const str = `${split[0]}\n${split[1]}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userId}')`;
 	output.raw(`${encloseStringInBox(str, indent)}`, LogLevel.Info);
 	output.raw('\n', LogLevel.Info);
 

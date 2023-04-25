@@ -1,12 +1,12 @@
 {
 	"name": "FeatureB",
 	"id": "B",
-	"version": "0.0.11",
+	"version": "2.0.0",
 	"dependsOn": {
-		"ghcr.io/joshspicer/dependsOnExperiment/C": {
+		"ghcr.io/codspace/dependsOnExperiment/C": {
 			"magicNumber": "20"
 		},
-		"ghcr.io/joshspicer/dependsOnExperiment/D": {
+		"ghcr.io/codspace/dependsOnExperiment/D": {
 			"magicNumber": "30"
 		}
 	},

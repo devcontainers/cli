@@ -28,10 +28,10 @@ describe('dependsOn', function () {
     const validConfig: DevContainerConfig = {
         image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
         features: {
-            'ghcr.io/joshspicer/dependsonexperiment/b:latest': {
+            'ghcr.io/codspace/dependsOnExperiment/b:latest': {
                 'magicNumber': '10'
             },
-            'ghcr.io/joshspicer/dependsonexperiment/a:latest': {
+            'ghcr.io/codspace/dependsOnExperiment/a:latest': {
                 'magicNumber': '400'
             }
         }
@@ -40,7 +40,7 @@ describe('dependsOn', function () {
     const cyclicDepsConfig: DevContainerConfig = {
         image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
         features: {
-            'ghcr.io/joshspicer/dependsonexperiment/f:latest': {
+            'ghcr.io/codspace/dependsOnExperiment/f:latest': {
                 'magicNumber': '1000'
             }
         }
