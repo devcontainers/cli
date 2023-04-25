@@ -541,20 +541,16 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, _additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	// const userFeatures = userFeaturesToArray(config, additionalFeatures);
-	// if (!userFeatures) {
-	// 	return undefined;
-	// }
 
-	const installationOrder = await computeDependsOnInstallationOrder(params, config); // TODO: We drop the version here.
+	const installationOrder = await computeDependsOnInstallationOrder(params, config, additionalFeatures);
 	if (!installationOrder) {
-		throw new Error('Failed to resolve Feature dependency tree!');
+		return;
 	}
 
 	// Create the featuresConfig object.

@@ -5,13 +5,14 @@
 
 import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { buildDependencyGraphFromConfig, computeDependsOnInstallationOrder, computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
+import { computeDependsOnInstallationOrder, computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
 import { devContainerDown, shellExec } from '../testUtils';
 import path from 'path';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { CommonParams } from '../../spec-configuration/containerCollectionsOCI';
 import { LogLevel, createPlainLog, makeLog } from '../../spec-utils/log';
+import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 
 const pkg = require('../../../package.json');
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Info));
@@ -25,45 +26,61 @@ describe('dependsOn', function () {
         cachedAuthHeader: {}
     };
 
-    const validConfig: DevContainerConfig = {
-        image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
-        features: {
-            'ghcr.io/codspace/dependsOnExperiment/b:latest': {
-                'magicNumber': '10'
-            },
-            'ghcr.io/codspace/dependsOnExperiment/a:latest': {
-                'magicNumber': '400'
-            }
-        }
-    };
-
-    const cyclicDepsConfig: DevContainerConfig = {
-        image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
-        features: {
-            'ghcr.io/codspace/dependsOnExperiment/f:latest': {
-                'magicNumber': '1000'
-            }
-        }
-    };
-
     it('should resolve a valid dependency tree', async function () {
-        const graph = await buildDependencyGraphFromConfig(params, validConfig);
-        console.log(graph);
+        const configFolder = `${__dirname}/configs/dependsOn/ab`;
+        if (!(await isLocalFile(`${configFolder}/.devcontainer.json`))) {
+            assert.fail();
+        }
+        const buffer = await readLocalFile(`${configFolder}/.devcontainer.json`);
+        const config = JSON.parse(buffer.toString()) as DevContainerConfig;
+        const installOrderNodes = await computeDependsOnInstallationOrder(params, config);
+        if (!installOrderNodes) {
+            assert.fail();
+        }
+        assert.deepStrictEqual(installOrderNodes.map(n => {
+            return {
+                id: n.id,
+                canonicalId: n.canonicalId,
+                options: n.options,
+            };
+        }),
+            [
+                {
+                    id: 'ghcr.io/codspace/dependsOnExperiment/D',
+                    options: { magicNumber: '30' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/d@sha256:a564cac1b4bac326ec0d5f7efabf5e1ffd37e99633462eb9e1c7cad41193fcb0',
+                },
+                {
+                    id: 'ghcr.io/codspace/dependsOnExperiment/E',
+                    options: { magicNumber: '50' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/e@sha256:0b0a20e11d24233de703135f9d3f4bf5f577ff63bb3e5b74634ccb9bc53ad4f9',
+                },
+                {
+                    id: 'ghcr.io/codspace/dependsonexperiment/a',
+                    options: { magicNumber: '10' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
+                },
+                {
+                    id: 'ghcr.io/codspace/dependsOnExperiment/A',
+                    options: { magicNumber: '40' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
+                },
+                {
+                    id: 'ghcr.io/codspace/dependsOnExperiment/C',
+                    options: { magicNumber: '20' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/c@sha256:828bbebde73e6f16455cb5da01f3f72ad3fe1c4619af2ed8b68a8af8ef70dcc8',
+                },
+                {
+                    id: 'ghcr.io/codspace/dependsonexperiment/b',
+                    options: { magicNumber: '400' },
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/b@sha256:ff19723761146ed90980c70fbe8d1ad6b3efd3e27c55f8972f8fe54ca0979d5a',
+                }
+            ]
+        );
     });
-
-    it('dependsOn should provide a valid install order', async function () {
-        const order = await computeDependsOnInstallationOrder(params, validConfig);
-        console.log(order);
-    });
-
-    it('should detect a cyclic dependency tree', async function () {
-        const graph = await computeDependsOnInstallationOrder(params, cyclicDepsConfig);
-        console.log(graph);
-    });
-
 });
 
-describe('Container features install order', function () {
+describe('Container features install order [before dependsOn]', function () {
 
     it('has stable order among independent features', () => {
         assert.deepEqual(

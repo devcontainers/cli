@@ -8,7 +8,6 @@ import { FeatureSet, userFeaturesToArray } from '../spec-configuration/container
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerConfig } from './configuration';
 import { CommonParams, OCIRef, fetchOCIManifestIfExists, getRef } from './containerCollectionsOCI';
-import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 
 interface FeatureNode {
     feature: FeatureSet;
@@ -169,11 +168,11 @@ export async function buildDependencyGraphFromUserId(params: CommonParams, userF
 }
 
 // Creates the directed asyclic graph (DAG) of Features and their dependencies (dependsOn).
-export async function buildDependencyGraphFromConfig(params: CommonParams, config: DevContainerConfig): Promise<FNode[]> {
+export async function buildDependencyGraphFromConfig(params: CommonParams, config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>> | undefined): Promise<FNode[] | undefined> {
 
-    const userFeatures = userFeaturesToArray(config);
+    const userFeatures = userFeaturesToArray(config, additionalFeatures);
     if (!userFeatures) {
-        throw new Error('No features found. Nothing to do.');
+        return undefined;
     }
 
     const rootNodes =
@@ -189,11 +188,14 @@ export async function buildDependencyGraphFromConfig(params: CommonParams, confi
     return await _buildDependencyGraph(params, rootNodes, nodes);
 }
 
-export async function computeDependsOnInstallationOrder(params: CommonParams, config: DevContainerConfig) {
+export async function computeDependsOnInstallationOrder(params: CommonParams, config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>> | undefined) {
     const { output } = params;
 
     // Build dependency graph and resolves all userIds to canonicalIds.
-    const worklist = await buildDependencyGraphFromConfig(params, config);
+    const worklist = await buildDependencyGraphFromConfig(params, config, additionalFeatures);
+    if (!worklist) {
+        return;
+    }
 
     output.write(`Starting with: ${worklist.map(n => n.canonicalId!).join(', ')}`, LogLevel.Info);
 
