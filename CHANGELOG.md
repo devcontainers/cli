@@ -4,6 +4,10 @@ Notable changes.
 
 ## April 2023
 
+### [0.41.0]
+
+- Secret support for up and run-user-commands (https://github.com/devcontainers/cli/pull/493)
+
 ### [0.40.0]
 
 - Experimental lockfile support (https://github.com/devcontainers/cli/pull/495)

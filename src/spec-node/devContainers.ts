@@ -63,6 +63,7 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
+	secretsFile?: string;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
 }
@@ -92,7 +93,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, secretsFile, experimentalLockfile, experimentalFrozenLockfile } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -133,6 +134,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
+		secretsFile,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
