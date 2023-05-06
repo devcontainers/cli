@@ -6,9 +6,10 @@ import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { computeDependsOnInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { readLocalFile } from '../../spec-utils/pfs';
-import { DevContainerConfig } from '../../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
+import { computeDependsOnInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
+import { SourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export function featuresReadConfigurationOptions(y: Argv) {
 	return y
@@ -27,9 +28,8 @@ export function featuresReadConfigurationHandler(args: featuresReadConfiguration
 
 
 interface InstallOrderItem {
-	canonicalId: string;
-	userId: string;
-	options: string | boolean | Record<string, string | boolean | undefined>;
+	// TODO
+	sourceInformation: SourceInformation;
 }
 
 interface JsonOutput {
@@ -55,7 +55,7 @@ async function featuresReadConfiguration({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const params = { output, env: process.env, outputFormat };
+	// const params = { output, env: process.env, outputFormat };
 
 	const jsonOutput: JsonOutput = {};
 
@@ -71,7 +71,25 @@ async function featuresReadConfiguration({
 	}
 	//  -- Parse dev container config
 	const config: DevContainerConfig = jsonc.parse(buffer.toString());
-	const installOrder = await computeDependsOnInstallationOrder(params, config);
+	if (!config || !config.features) {
+		output.write(`No Features object in configuration '${configPath}'`, LogLevel.Error);
+		process.exit(1);
+	}
+	const userFeaturesConfig = userFeaturesToArray(config);
+	if (!userFeaturesConfig) {
+		output.write(`Could not parse features object in configuration '${configPath}'`, LogLevel.Error);
+		process.exit(1);
+	}
+	const params = {
+		output,
+		env: process.env,
+	};
+
+	const processFeature = async (_userFeature: DevContainerFeature) => {
+		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature);
+	};
+
+	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig);
 
 	if (!installOrder) {
 		output.write(`Could not calculate install order`, LogLevel.Error);
@@ -81,22 +99,28 @@ async function featuresReadConfiguration({
 	if (outputFormat === 'text') {
 		output.raw('\n');
 		for (let i = 0; i < installOrder.length; i++) {
-			const { canonicalId, options, id: userId } = installOrder[i];
-			const split = canonicalId!.split('@');
-			const str = `${split[0]}\n${split[1]}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userId}')`;
-			const box = encloseStringInBox(str);
-			output.raw(`${box}\n`, LogLevel.Info);
+			const featureSet = installOrder[i];
+			const sourceInfo = featureSet.sourceInformation;
+			const userFeatureId = sourceInfo.userFeatureId;
+			const options = featureSet.features[0].options;
+			// TODO: Temp for debugging
+			if (sourceInfo.type === 'oci') {
+				const str = `${sourceInfo.featureRef.resource}\n${sourceInfo.manifestDigest}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;
+				const box = encloseStringInBox(str);
+				output.raw(`${box}\n`, LogLevel.Info);
+			} else {
+				const str = `${sourceInfo.userFeatureId}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;
+				const box = encloseStringInBox(str);
+				output.raw(`${box}\n`, LogLevel.Info);
+			}
+
 		}
 	} else {
 		// JSON
 		jsonOutput.installOrder = [];
 		for (let i = 0; i < installOrder.length; i++) {
-			const { canonicalId, options, id: userId } = installOrder[i];
-			if (!canonicalId) {
-				output.write(`Could not resolve canonical Id for ${installOrder[i].id}`, LogLevel.Error);
-				process.exit(1);
-			}
-			jsonOutput.installOrder.push({ canonicalId, options, userId });
+			const { sourceInformation } = installOrder[i];
+			jsonOutput.installOrder.push({ sourceInformation });
 		}
 	}
 

@@ -90,7 +90,7 @@ async function featuresPublish({
 
         // Properties here are available on the manifest without needing to download the full Feature archive.
         const featureAnnotations = {
-            'dev.containers.experimental.dependsOn': f.dependsOn ? JSON.stringify(f.dependsOn) : '',
+            'dev.containers.experimental.metadata': JSON.stringify(f),
         };
 
         output.write(`Feature Annotations: ${JSON.stringify(featureAnnotations)}`, LogLevel.Debug);

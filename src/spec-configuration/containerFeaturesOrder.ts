@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-import { FeatureSet, userFeaturesToArray } from '../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
-import { DevContainerConfig } from './configuration';
-import { CommonParams, OCIRef, fetchOCIManifestIfExists, getRef } from './containerCollectionsOCI';
+import { DevContainerConfig, DevContainerFeature } from './configuration';
+import { CommonParams } from './containerCollectionsOCI';
 
 interface FeatureNode {
     feature: FeatureSet;
@@ -45,185 +44,240 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     return orderedFeatures.concat(features);
 }
 
-
-interface RootFNode extends FNode {
-}
+// The set of input Features provided by the user in their devcontainer.json.
+interface UserProvidedFNode extends FNode { }
 
 export interface FNode {
-    id: string; // TODO: RENAME TO 'userId' for clarity. This is named 'id' to be compatible with existing code.
-    canonicalId?: string; // TODO: When https://github.com/devcontainers/cli/pull/480 merges, this value can be used for the install instead of 'id'.
+    userFeatureId: string;
     options: string | boolean | Record<string, string | boolean | undefined>;
+
+    // FeatureSet contains 'sourceInformation', useful for:
+    //      Providing information on if Feature is an OCI Feature, Direct HTTPS Feature, or Local Feature.
+    //      Additionally, contains 'ref' and 'manifestDigest' for OCI Features - useful for sorting.
+    // Property set programatically when discovering all the nodes in the graph.
+    featureSet?: FeatureSet;
+
+    // Graph directed adjacency lists.
     dependsOn: FNode[];
-    ref?: OCIRef;
+    installsAfter: FNode[];
 }
 
-function fNodeEquality(a: FNode, b: FNode) {
-    if (!a.canonicalId || !b.canonicalId) {
-        // TODO : remove after catching the bugs
-        throw new Error('fNodeEquality: canonicalId not set!');
+function equals(a: FNode, b: FNode) {
+    const aSourceInfo = a.featureSet?.sourceInformation;
+    let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
+
+    if (!aSourceInfo || !bSourceInfo) {
+        // TODO: This indicates a bug - remove once confident this is not happening!
+        throw new Error('ERR: Missing source information!');
     }
 
-    if (a.canonicalId !== b.canonicalId) {
+    if (aSourceInfo.type !== bSourceInfo.type) {
+        // Not equal, cannot compare.
+        // TODO: But should we?
         return false;
     }
-    // Compare options Record by stringifying them.  This isn't fully correct.
-    if (JSON.stringify(a.options) !== JSON.stringify(b.options)) {
-        return false;
-    }
 
-    return true;
+    return comparesTo(a, b) === 0;
 }
 
-function fNodeStableSort(a: FNode, b: FNode) {
+// This function is used both for equality, and for sorting.
+// If the two features are equal, return 0.
+// If the two Features are not equal and cannot be compared (i.e one is a local Feature, one is an OCI Feature), return undefined.
+// If the sorting algorithm should place A _before_ B, return negative number.
+// If the sorting algorithm should place A _after_  B, return positive number. 
+function comparesTo(a: FNode, b: FNode): number {
+    const aSourceInfo = a.featureSet?.sourceInformation;
+    let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
-    if (!a.canonicalId || !b.canonicalId || !a.ref || !b.ref) {
-        // TODO : remove after catching the bugs
-        throw new Error('fNodeStableSort: canonicalId or ref not set!');
+    if (!aSourceInfo || !bSourceInfo) {
+        // TODO: This indicates a bug - remove once confident this is not happening!
+        throw new Error('ERR: Missing source information!');
     }
 
-    // Sort by tags
-    // Eg: 1.9.9, 2.0.0, 2.0.1, 3, latest
-    if ((a.ref.tag && b.ref.tag) && (a.ref.tag !== b.ref.tag)) {
-        return a.ref.tag.localeCompare(b.ref.tag);
-    }
+    switch (aSourceInfo.type) {
+        case 'oci':
+            bSourceInfo = bSourceInfo as OCISourceInformation;
 
-    if (JSON.stringify(a.options) !== JSON.stringify(b.options)) {
-        // This isn't totally correct, but gives the right idea.
-        return JSON.stringify(a.options).localeCompare(JSON.stringify(b.options));
-    }
+            // Sort by resource name
+            const aResource = aSourceInfo.featureRef.resource;
+            const bResource = bSourceInfo.featureRef.resource;
+            if (aResource !== bResource) {
+                return aResource.localeCompare(bResource);
+            }
 
-    if (a.canonicalId !== b.canonicalId) {
-        return a.canonicalId.localeCompare(b.canonicalId);
-    }
+            const aTag = aSourceInfo.featureRef.tag;
+            const bTag = bSourceInfo.featureRef.tag;
 
-    return 0;
+            // Sort by tags (if both have tags)
+            // Eg: 1.9.9, 2.0.0, 2.0.1, 3, latest
+            if ((aTag && bTag) && (aTag !== bTag)) {
+                return aTag.localeCompare(bTag);
+            }
+
+            // Sort by options
+            // TODO: Compares options Record by stringifying them.  This isn't fully correct.
+            const aOptions = JSON.stringify(a.options);
+            const bOptions = JSON.stringify(b.options);
+            if (aOptions !== bOptions) {
+                return aOptions.localeCompare(bOptions);
+            }
+
+            // Sort by manifest digest hash
+            const aDigest = aSourceInfo.manifestDigest;
+            const bDigest = bSourceInfo.manifestDigest;
+            if (aDigest !== bDigest) {
+                return aDigest.localeCompare(bDigest);
+            }
+
+            // Consider these two OCI Features equal.
+            return 0;
+
+        case 'direct-tarball':
+            throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
+
+        case 'file-path':
+            throw new Error(`'Feature type file-path' will be supported but is unimplemented.`);
+
+        default:
+            throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
+    }
 }
 
-async function _buildDependencyGraph(params: CommonParams, worklist: FNode[], acc: FNode[]): Promise<FNode[]> {
+function featureSupportsDependencies(feature: FeatureSet): boolean {
+    const publishType = feature.sourceInformation.type;
+    return publishType === 'oci' || publishType === 'direct-tarball' || publishType === 'file-path';
+}
+
+async function _buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, worklist: FNode[], acc: FNode[]): Promise<FNode[]> {
+    const { output } = params;
 
     while (worklist.length > 0) {
         const current = worklist.shift()!;
 
+        output.write(`Resolving dependencies for '${current.userFeatureId}'...`, LogLevel.Info);
 
-        params.output.write(`Resolving dependencies for '${current.id}'...`, LogLevel.Info);
-        // Fetch the manifest of the Feature and read its 'dev.containers.experimental.dependsOn' label
-        const ref = getRef(params.output, current.id);
-        if (!ref) {
-            throw new Error(`Could not parse ref for '${current.id}'`);
+        const processedFeature = await processFeature(current);
+        if (!processedFeature) {
+            throw new Error(`ERR: Feature '${current.userFeatureId}' in dependency graph could not be processed.  You may not have permission to access this Feature.  Please report this to the Feature author.`);
         }
-        const resolvedManifest = await fetchOCIManifestIfExists(params, ref);
-        if (!resolvedManifest) {
-            throw new Error(`Manifest for '${current.id}' not found`);
-        }
-        const { manifestObj, canonicalId } = resolvedManifest;
-        // Set the canonicalId
-        current.canonicalId = canonicalId;
-        // Set the ref for future use (eg: for sorting)
-        current.ref = ref;
 
-        // If the current feature is already in the accumulator (according to fNodeEquality), skip it.
-        // TODO: This should probably be higher up, but right now we're prioritizing getting the canonical ID.
-        if (acc.some(f => fNodeEquality(f, current))) {
+        // Set the processed FeatureSet object onto Node.
+        current.featureSet = processedFeature;
+
+        if (!featureSupportsDependencies(processedFeature)) {
+            throw new Error(`ERR: Feature '${current.userFeatureId}' in dependency graph does not support dependencies.  Please report this to the Feature author.`);
+        }
+
+        // If the current Feature is already in the accumulator, skip it.
+        // This stops cycles but doesn't report them.  
+        // Cycles/inconsistencies are thrown as errors in the next stage (rounds).
+        if (acc.some(f => equals(f, current))) {
             continue;
         }
 
+        const type = processedFeature.sourceInformation.type;
+        switch (type) {
+            case 'oci':
+                const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest
+                const metadataSerialized = manifest.annotations?.['dev.containers.experimental.metadata'];
+                if (!metadataSerialized) {
+                    acc.push(current);
+                    continue;
+                }
 
-        const dependsOnSerialized = manifestObj.annotations?.['dev.containers.experimental.dependsOn'];
+                const featureMetadata = JSON.parse(metadataSerialized) as Feature;
+                const dependsOn = featureMetadata.dependsOn || {};
+                // const installsAfter = featureMetadata.installsAfter || [];
 
-        if (!dependsOnSerialized) {
-            acc.push(current);
-            continue;
+                // Push all newly discovered dependencies onto the worklist.
+                for (const [userFeatureId, options] of Object.entries(dependsOn)) {
+                    const dependency: FNode = {
+                        userFeatureId,
+                        options,
+                        featureSet: undefined,
+                        dependsOn: [],
+                        installsAfter: [],
+                    };
+                    current.dependsOn.push(dependency);
+                    worklist.push(dependency);
+                }
+
+                // TODO: Process installsAfter
+
+                acc.push(current);
+                await _buildDependencyGraph(params, processFeature, worklist, acc);
+                break;
+
+            case 'direct-tarball':
+                throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
+
+            case 'file-path':
+                throw new Error(`'Feature type file-path' will be supported but is unimplemented.`);
+
+            default:
+                throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${processedFeature.sourceInformation.type}'.`);
         }
-
-        const dependsOn = JSON.parse(dependsOnSerialized) as Record<string, string | boolean | Record<string, string | boolean>>;
-
-        for (const [id, options] of Object.entries(dependsOn)) {
-            const dependency: FNode = {
-                id,
-                options,
-                dependsOn: [],
-            };
-            current.dependsOn.push(dependency);
-            worklist.push(dependency);
-        }
-
-        acc.push(current);
-        await _buildDependencyGraph(params, worklist, acc);
     }
-
     return acc;
 }
 
-export async function buildDependencyGraphFromUserId(params: CommonParams, userFeatureId: string): Promise<FNode[]> {
-
-    const rootNodes: RootFNode = {
-        id: userFeatureId,
-        options: {},
-        // version: feature.sourceInformation.userFeatureId.split(':')[1],
-        dependsOn: [],
-    };
-
-    const nodes: FNode[] = [];
-    return await _buildDependencyGraph(params, [rootNodes], nodes);
-}
-
 // Creates the directed asyclic graph (DAG) of Features and their dependencies (dependsOn).
-export async function buildDependencyGraphFromConfig(params: CommonParams, config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>> | undefined): Promise<FNode[] | undefined> {
-
-    const userFeatures = userFeaturesToArray(config, additionalFeatures);
-    if (!userFeatures) {
-        return undefined;
-    }
-
+export async function buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, userFeatures: DevContainerFeature[]): Promise<FNode[] | undefined> {
     const rootNodes =
-        userFeatures.map<RootFNode>(f => {
+        userFeatures.map<UserProvidedFNode>(f => {
             return {
-                id: f.id,
+                userFeatureId: f.userFeatureId,
                 options: f.options,
                 dependsOn: [],
+                installsAfter: [],
             };
         });
 
     const nodes: FNode[] = [];
-    return await _buildDependencyGraph(params, rootNodes, nodes);
+    return await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
 }
 
-export async function computeDependsOnInstallationOrder(params: CommonParams, config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>> | undefined) {
+export async function computeDependsOnInstallationOrder(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, userFeatures: DevContainerFeature[]): Promise<FeatureSet[] | undefined> {
     const { output } = params;
 
-    // Build dependency graph and resolves all userIds to canonicalIds.
-    const worklist = await buildDependencyGraphFromConfig(params, config, additionalFeatures);
-    if (!worklist) {
+    // Build dependency graph and resolves all to featureSets.
+    const worklist = await buildDependencyGraph(params, processFeature, userFeatures);
+    if (!worklist || worklist.length === 0) {
         return;
     }
 
-    output.write(`Starting with: ${worklist.map(n => n.canonicalId!).join(', ')}`, LogLevel.Info);
+    // Sanity check
+    if (worklist.some(node => !node.featureSet)) {
+        throw new Error(`ERR: Some nodes in the dependency graph are malformed.`);
+    }
+
+    output.write(`Starting with: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
         const round = worklist.filter(node =>
             node.dependsOn.length === 0
             || node.dependsOn.every(dep =>
-                installationOrder.some(installed => fNodeEquality(installed, dep))));
+                installationOrder.some(installed => equals(installed, dep))));
 
-        output.write(`Round: ${round.map(r => r.id).join(', ')}`, LogLevel.Info);
+        output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
 
         if (round.length === 0) {
             output.write('Circular dependency detected!', LogLevel.Error);
-            output.write(`Nodes remaining: ${worklist.map(n => n.canonicalId!).join(', ')}`, LogLevel.Error);
+            output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
             return undefined;
         }
 
         // Delete all nodes present in this round from the worklist.
-        worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => fNodeEquality(r, node))));
+        worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(r, node))));
 
         // Sort rounds lexicographically by id.
-        round.sort((a, b) => fNodeStableSort(a, b));
+        round.sort((a, b) => comparesTo(a, b));
 
         installationOrder.push(...round);
     }
 
-    return installationOrder;
+    return installationOrder.map(node => node.featureSet!);
 }
 
 // Exported for unit tests.

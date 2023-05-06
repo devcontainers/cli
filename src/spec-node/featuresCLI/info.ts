@@ -4,7 +4,9 @@ import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { FNode, buildDependencyGraphFromUserId } from '../../spec-configuration/containerFeaturesOrder';
+import { FNode, buildDependencyGraph } from '../../spec-configuration/containerFeaturesOrder';
+import { DevContainerFeature } from '../../spec-configuration/configuration';
+import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -100,7 +102,11 @@ async function featuresInfo({
 			output.write(`Provide Feature reference '${featureId}' is invalid.`, LogLevel.Error);
 			process.exit(1);
 		}
-		const graph = await buildDependencyGraphFromUserId(params, featureId);
+
+		const processFeature = async (_userFeature: DevContainerFeature) => {
+			return await processFeatureIdentifier(params, undefined, 'TODO', _userFeature);
+		};
+		const graph = await buildDependencyGraph(params, processFeature, [{ userFeatureId: featureId, options: {} }]);
 		output.write(JSON.stringify(graph, undefined, 4), LogLevel.Trace);
 		if (!graph) {
 			output.write(`Could not build dependency graph.`, LogLevel.Error);
@@ -110,7 +116,9 @@ async function featuresInfo({
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Dependency Tree'));
 			// -- Display the graph with my best ascii art skills
-			const rootNode = graph.find(n => n.canonicalId === manifestContainer.canonicalId)!;
+
+			// TODO: This is expecting the root node to be the first in graph. Make sure that's still the case after hacking more on it.
+			const rootNode = graph[0];
 			printGraph(output, rootNode);
 
 		} else {
@@ -170,10 +178,11 @@ function encloseStringInBox(str: string, indent: number = 0) {
 
 
 function printGraph(output: Log, node: FNode, indent = 0) {
-	const { canonicalId, dependsOn, options, id: userId } = node;
+	const { dependsOn, options, userFeatureId } = node;
 
-	const split = canonicalId!.split('@');
-	const str = `${split[0]}\n${split[1]}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userId}')`;
+	// const split = canonicalId!.split('@');
+	const split = [userFeatureId, '']; // TODO!
+	const str = `${split[0]}\n${split[1]}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;
 	output.raw(`${encloseStringInBox(str, indent)}`, LogLevel.Info);
 	output.raw('\n', LogLevel.Info);
 

@@ -67,7 +67,7 @@ export interface OCIManifest {
 	};
 	layers: OCILayer[];
 	annotations?: {
-		'dev.containers.experimental.dependsOn'?: string;
+		'dev.containers.experimental.metadata'?: string;
 		'com.github.package.type'?: string;
 	};
 }
