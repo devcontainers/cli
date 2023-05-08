@@ -102,7 +102,7 @@ async function featuresReadConfiguration({
 			const featureSet = installOrder[i];
 			const sourceInfo = featureSet.sourceInformation;
 			const userFeatureId = sourceInfo.userFeatureId;
-			const options = featureSet.features[0].options;
+			const options = featureSet.features[0].value;
 			// TODO: Temp for debugging
 			if (sourceInfo.type === 'oci') {
 				const str = `${sourceInfo.featureRef.resource}\n${sourceInfo.manifestDigest}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;

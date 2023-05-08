@@ -1,7 +1,7 @@
 {
 	"name": "FeatureA",
 	"id": "A",
-	"version": "2.0.1",
+	"version": "4.0.1",
 	"dependsOn": {
 		"ghcr.io/codspace/dependsOnExperiment/E": {
 			"magicNumber": "50"

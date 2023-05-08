@@ -98,16 +98,30 @@ function comparesTo(a: FNode, b: FNode): number {
         case 'oci':
             bSourceInfo = bSourceInfo as OCISourceInformation;
 
-            // Sort by resource name
             const aResource = aSourceInfo.featureRef.resource;
             const bResource = bSourceInfo.featureRef.resource;
+
+            const aDigest = aSourceInfo.manifestDigest;
+            const bDigest = bSourceInfo.manifestDigest;
+
+            const aOptions = JSON.stringify(a.options);
+            const bOptions = JSON.stringify(b.options);
+
+            const aCanonicalId = `${aResource}@${aDigest}`;
+            const bCanonicalId = `${bResource}@${bDigest}`;
+
+            if (aCanonicalId === bCanonicalId && aOptions === bOptions) {
+                // Equal!
+                return 0;
+            }
+
+            // Sort by resource name
             if (aResource !== bResource) {
                 return aResource.localeCompare(bResource);
             }
 
             const aTag = aSourceInfo.featureRef.tag;
             const bTag = bSourceInfo.featureRef.tag;
-
             // Sort by tags (if both have tags)
             // Eg: 1.9.9, 2.0.0, 2.0.1, 3, latest
             if ((aTag && bTag) && (aTag !== bTag)) {
@@ -116,15 +130,11 @@ function comparesTo(a: FNode, b: FNode): number {
 
             // Sort by options
             // TODO: Compares options Record by stringifying them.  This isn't fully correct.
-            const aOptions = JSON.stringify(a.options);
-            const bOptions = JSON.stringify(b.options);
             if (aOptions !== bOptions) {
                 return aOptions.localeCompare(bOptions);
             }
 
             // Sort by manifest digest hash
-            const aDigest = aSourceInfo.manifestDigest;
-            const bDigest = bSourceInfo.manifestDigest;
             if (aDigest !== bDigest) {
                 return aDigest.localeCompare(bDigest);
             }

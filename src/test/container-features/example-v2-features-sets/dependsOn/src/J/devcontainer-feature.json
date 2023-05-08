@@ -1,12 +1,12 @@
 {
 	"name": "FeatureJ",
 	"id": "J",
-	"version": "2.0.0",
+	"version": "4.0.0",
 	"dependsOn": {
-		"ghcr.io/codspace/dependsOnExperiment/A:2.0.0": {
+		"ghcr.io/codspace/dependsOnExperiment/A:4.0.0": {
 			"magicNumber": "60"
 		},
-		"ghcr.io/codspace/dependsOnExperiment/A:2.0.1": {
+		"ghcr.io/codspace/dependsOnExperiment/A:4.0.1": {
 			"magicNumber": "60"
 		},
 		"ghcr.io/codspace/dependsOnExperiment/C": {
