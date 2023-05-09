@@ -1,0 +1,6 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/codspace/dependsOnAndInstallsAfter/a": {}
+	}
+}

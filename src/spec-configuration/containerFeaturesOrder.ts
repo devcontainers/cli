@@ -80,11 +80,40 @@ function equals(a: FNode, b: FNode) {
     return comparesTo(a, b) === 0;
 }
 
+function satisfiesSoftDependency(a: FNode, b: FNode) {
+    const aSourceInfo = a.featureSet?.sourceInformation;
+    let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
+
+    if (!aSourceInfo || !bSourceInfo) {
+        // TODO: This indicates a bug - remove once confident this is not happening!
+        throw new Error('ERR: Missing source information!');
+    }
+
+    if (aSourceInfo.type !== bSourceInfo.type) {
+        // TODO
+        return false;
+    }
+
+    switch (aSourceInfo.type) {
+        case 'oci':
+            bSourceInfo = bSourceInfo as OCISourceInformation;
+            if (aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource) {
+                return true;
+            }
+        case 'direct-tarball':
+        case 'file-path':
+            return false; // TODO
+        default:
+            return false;
+    }
+}
+
+
 // This function is used both for equality, and for sorting.
 // If the two features are equal, return 0.
 // If the two Features are not equal and cannot be compared (i.e one is a local Feature, one is an OCI Feature), return undefined.
 // If the sorting algorithm should place A _before_ B, return negative number.
-// If the sorting algorithm should place A _after_  B, return positive number. 
+// If the sorting algorithm should place A _after_  B, return positive number.
 function comparesTo(a: FNode, b: FNode): number {
     const aSourceInfo = a.featureSet?.sourceInformation;
     let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
@@ -188,7 +217,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         const type = processedFeature.sourceInformation.type;
         switch (type) {
             case 'oci':
-                const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest
+                const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest;
                 const metadataSerialized = manifest.annotations?.['dev.containers.experimental.metadata'];
                 if (!metadataSerialized) {
                     acc.push(current);
@@ -196,10 +225,12 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 }
 
                 const featureMetadata = JSON.parse(metadataSerialized) as Feature;
-                const dependsOn = featureMetadata.dependsOn || {};
-                // const installsAfter = featureMetadata.installsAfter || [];
 
-                // Push all newly discovered dependencies onto the worklist.
+                const dependsOn = featureMetadata.dependsOn || {};
+                const installsAfter = featureMetadata.installsAfter || [];
+
+                // Add a new node for each 'dependsOn' dependency onto the 'current' node.
+                // Add this new node to the worklist to further process.
                 for (const [userFeatureId, options] of Object.entries(dependsOn)) {
                     const dependency: FNode = {
                         userFeatureId,
@@ -212,7 +243,19 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                     worklist.push(dependency);
                 }
 
-                // TODO: Process installsAfter
+                // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
+                // Add this new node to the worklist to further process.
+                for (const userFeatureId of installsAfter) {
+                    const dependency: FNode = {
+                        userFeatureId,
+                        options: {},
+                        featureSet: undefined,
+                        dependsOn: [],
+                        installsAfter: [],
+                    };
+                    current.installsAfter.push(dependency);
+                    worklist.push(dependency);
+                }
 
                 acc.push(current);
                 await _buildDependencyGraph(params, processFeature, worklist, acc);
@@ -231,7 +274,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
     return acc;
 }
 
-// Creates the directed asyclic graph (DAG) of Features and their dependencies (dependsOn).
+// Creates the directed asyclic graph (DAG) of Features and their dependencies.
 export async function buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, userFeatures: DevContainerFeature[]): Promise<FNode[] | undefined> {
     const rootNodes =
         userFeatures.map<UserProvidedFNode>(f => {
@@ -261,13 +304,43 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
         throw new Error(`ERR: Some nodes in the dependency graph are malformed.`);
     }
 
+    output.write(JSON.stringify(worklist.map(n => {
+        return {
+            userFeatureId: n.userFeatureId,
+            dependsOn: n.dependsOn.map(d => d.userFeatureId),
+            installsAfter: n.installsAfter.map(d => d.userFeatureId),
+        };
+    }), undefined, 4), LogLevel.Info);
+
     output.write(`Starting with: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+
+    // Remove all 'soft-dependency' graph edges that are irrelevant (i.e. the node is not in the worklist)
+    for (const node of worklist) {
+        node.installsAfter =
+            node.installsAfter
+                .filter(dep => {
+                    const found = worklist.some(n => {
+                        output.write(`!! n=${n.userFeatureId}, dep=${dep.userFeatureId}`, LogLevel.Info);
+                        return satisfiesSoftDependency(n, dep);
+                    });
+                    if (!found) {
+                        output.write(`'${dep.userFeatureId}', listed as a soft-dependency of '${node.userFeatureId}', is not in queued for installation.  Removing...`, LogLevel.Info);
+                    }
+                    return found;
+                });
+    }
+
+    output.write(`After removing all irrelevant soft-dependencies: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
         const round = worklist.filter(node =>
-            node.dependsOn.length === 0
+            // If the node has no hard/soft dependencies, the node can always be installed.
+            (node.dependsOn.length === 0 && node.installsAfter.length === 0)
+            // Or, every hard-dependency (dependsOn) and soft-dependency (installsAfter) has been satified in prior rounds
             || node.dependsOn.every(dep =>
+                installationOrder.some(installed => equals(installed, dep)))
+            && node.installsAfter.every(dep =>
                 installationOrder.some(installed => equals(installed, dep))));
 
         output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
@@ -275,7 +348,7 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
         if (round.length === 0) {
             output.write('Circular dependency detected!', LogLevel.Error);
             output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
-            return undefined;
+            return;
         }
 
         // Delete all nodes present in this round from the worklist.
