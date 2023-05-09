@@ -397,8 +397,8 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	}
 
 	let res = await requestResolveHeaders(httpOptions, output);
-	if (res.statusCode === 401 || res.statusCode === 403) {
-		output.write(`[httpOci] Credentials for '${service}' may be expired: ${res.resBody.toString()?.trimEnd()}`, LogLevel.Warning);
+	if (res && res.statusCode === 401 || res.statusCode === 403) {
+		output.write(`[httpOci] Credentials for '${service}' may be expired: ${res.resBody?.toString()?.trimEnd()}`, LogLevel.Info);
 
 		// Try again without user credentials. If we're here, their creds are likely expired.
 		output.write(`[httpOci] Removing user credentials for '${service}' and attempting to fetch credentials anonymously.`, LogLevel.Trace);
@@ -419,8 +419,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		// not JSON
 	}
 	if (!scopeToken) {
-		output.write(`[httpOci] Unexpected bearer token response format for '${service}'`, LogLevel.Error);
-		output.write(`httpOci] Response: ${res.resBody.toString()}`, LogLevel.Trace);
+		output.write(`[httpOci] Unexpected bearer token response format for '${service}: ${res.resBody.toString()}'`, LogLevel.Error);
 		return;
 	}
 
