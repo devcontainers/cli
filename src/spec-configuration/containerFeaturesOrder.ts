@@ -49,7 +49,9 @@ export function computeInstallationOrder(features: FeatureSet[]) {
         feature,
         before: new Set(),
         after: new Set(),
-    })).reduce((map, feature) => map.set(feature.feature.sourceInformation.userFeatureId.split(':')[0], feature), new Map<string, FeatureNode>());
+    })).reduce((map, feature) => {
+        return map.set(getUniqueFeatureId(feature.feature), feature);
+    }, new Map<string, FeatureNode>());
 
     let nodes = [...nodesById.values()];
 
@@ -124,7 +126,7 @@ export function computeInstallationOrder(features: FeatureSet[]) {
 
     const missing = new Set(nodesById.keys());
     for (const feature of orderedFeatures) {
-        missing.delete(feature.sourceInformation.userFeatureId.split(':')[0]);
+        missing.delete(getUniqueFeatureId(feature));
     }
 
     if (missing.size !== 0) {
@@ -132,4 +134,17 @@ export function computeInstallationOrder(features: FeatureSet[]) {
     }
 
     return orderedFeatures;
+}
+
+/**
+ * Returns the unique identifier for the feature. This is either the feature ID without version or the tarball url when feature is 
+ * direct-tarball
+ * @param feature the feature to extract the feature id
+ */
+function getUniqueFeatureId(feature: FeatureSet): string {
+    if (feature.sourceInformation.type === 'direct-tarball') {
+        return feature.sourceInformation.userFeatureId;
+    } else {
+        return feature.sourceInformation.userFeatureId.split(':')[0];
+    }
 }

@@ -122,6 +122,37 @@ describe('Container features install order', function () {
         }, { message: 'Feature node not found' });
     });
 
+    it('multiple tarballs are correctly ordered', () => {
+        assert.deepEqual(
+            computeInstallationOrder(
+                [
+                    tarball('https://example.com/devcontainer-feature-a.tgz'),
+                    tarball('https://example.com/devcontainer-feature-b.tgz'),
+                    tarball('https://example.com/devcontainer-feature-c.tgz'),
+                ]).map(f => f.features[0].id),
+            [
+                'https://example.com/devcontainer-feature-a.tgz',
+                'https://example.com/devcontainer-feature-b.tgz',
+                'https://example.com/devcontainer-feature-c.tgz',
+            ]
+        );
+    })
+
+    it('duplicate tarballs are reduced', () => {
+        assert.deepEqual(
+            computeInstallationOrder(
+                [
+                    tarball('https://example.com/devcontainer-feature-a.tgz'),
+                    tarball('https://example.com/devcontainer-feature-a.tgz'),
+                    tarball('https://example.com/devcontainer-feature-c.tgz'),
+                ]).map(f => f.features[0].id),
+            [
+                'https://example.com/devcontainer-feature-a.tgz',
+                'https://example.com/devcontainer-feature-c.tgz',
+            ]
+        );
+    })
+
     function installAfter(id: string, ...installsAfter: string[]): FeatureSet {
         return {
             sourceInformation: {
@@ -132,6 +163,22 @@ describe('Container features install order', function () {
                 id,
                 name: id,
                 installsAfter,
+                value: true,
+                included: true,
+            }],
+        };
+    }
+
+    function tarball(source: string): FeatureSet {
+        return {
+            sourceInformation: {
+                type: 'direct-tarball',
+                userFeatureId: source,
+                tarballUri: source
+            },
+            features: [{
+                id: source,
+                name: source,
                 value: true,
                 included: true,
             }],
