@@ -181,8 +181,10 @@ export async function runCommand(options: {
 	resolveOn?: RegExp;
 	onDidInput?: Event<string>;
 	stdin?: string;
+	print?: 'off' | 'continuous' | 'end';
 }) {
 	const { ptyExec, cmd, args, cwd, env, output, resolveOn, onDidInput, stdin } = options;
+	const print = options.print || 'continuous';
 
 	const p = await ptyExec({
 		cmd,
@@ -205,18 +207,23 @@ export async function runCommand(options: {
 
 		p.onData(chunk => {
 			cmdOutput += chunk;
-			output.raw(chunk);
+			if (print === 'continuous') {
+				output.raw(chunk);
+			}
 			if (resolveOn && resolveOn.exec(cmdOutput)) {
 				resolve({ cmdOutput });
 			}
 		});
 		p.exit.then(({ code, signal }) => {
 			try {
+				if (print === 'end') {
+					output.raw(cmdOutput);
+				}
 				subs.forEach(sub => sub?.dispose());
 				if (code || signal) {
 					reject({
 						message: `Command failed: ${cmd} ${(args || []).join(' ')}`,
-						cmdOutput: cmdOutput,
+						cmdOutput,
 						code,
 						signal,
 					});
