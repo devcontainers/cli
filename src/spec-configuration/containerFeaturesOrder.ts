@@ -84,6 +84,8 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
     const aSourceInfo = a.featureSet?.sourceInformation;
     let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
+    // console.log('STARTING COMPARE!');
+
     if (!aSourceInfo || !bSourceInfo) {
         // TODO: This indicates a bug - remove once confident this is not happening!
         throw new Error('ERR: Missing source information!');
@@ -97,7 +99,9 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
     switch (aSourceInfo.type) {
         case 'oci':
             bSourceInfo = bSourceInfo as OCISourceInformation;
+            console.log(`OCI: ${aSourceInfo.featureRef.resource} ?=== ${bSourceInfo.featureRef.resource}`);
             if (aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource) {
+                console.log('TRUE!!!');
                 return true;
             }
         case 'direct-tarball':
@@ -244,7 +248,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 }
 
                 // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
-                // Add this new node to the worklist to further process.
+                // Soft-dependencies are NOT recursively processed - do not add to worklist.
                 for (const userFeatureId of installsAfter) {
                     const dependency: FNode = {
                         userFeatureId,
@@ -253,8 +257,12 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                         dependsOn: [],
                         installsAfter: [],
                     };
+                    const processedFeature = await processFeature(dependency);
+                    if (!processedFeature) {
+                        throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
+                    }
+                    dependency.featureSet = processedFeature;
                     current.installsAfter.push(dependency);
-                    worklist.push(dependency);
                 }
 
                 acc.push(current);
@@ -310,27 +318,31 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
             dependsOn: n.dependsOn.map(d => d.userFeatureId),
             installsAfter: n.installsAfter.map(d => d.userFeatureId),
         };
-    }), undefined, 4), LogLevel.Info);
+    }), undefined, 4), LogLevel.Info);  // TODO
 
-    output.write(`Starting with: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+    output.write(`[1]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     // Remove all 'soft-dependency' graph edges that are irrelevant (i.e. the node is not in the worklist)
-    for (const node of worklist) {
-        node.installsAfter =
-            node.installsAfter
-                .filter(dep => {
-                    const found = worklist.some(n => {
-                        output.write(`!! n=${n.userFeatureId}, dep=${dep.userFeatureId}`, LogLevel.Info);
-                        return satisfiesSoftDependency(n, dep);
-                    });
-                    if (!found) {
-                        output.write(`'${dep.userFeatureId}', listed as a soft-dependency of '${node.userFeatureId}', is not in queued for installation.  Removing...`, LogLevel.Info);
-                    }
-                    return found;
-                });
+    for (let i = 0; i < worklist.length; i++) {
+        const node = worklist[i];
+
+        // output.write(`Resolving soft - dependencies for '${node.userFeatureId}'...`, LogLevel.Info);
+
+        // reverse iterate
+        for (let j = node.installsAfter.length - 1; j >= 0; j--) {
+            const softDep = node.installsAfter[j];
+            output.write(` 👀 Checking if soft - dependency '${softDep.userFeatureId}' should be removed...`, LogLevel.Info);
+
+            if (!worklist.some(n => satisfiesSoftDependency(n, softDep))) {
+                output.write(`❌ There is no Feature in the worklist that is trying to use '${softDep.userFeatureId}.'`, LogLevel.Info);
+                // Delete that soft-dependency
+                node.installsAfter.splice(j, 1);
+            }
+        }
     }
 
-    output.write(`After removing all irrelevant soft-dependencies: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+
+    output.write(`[2]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
