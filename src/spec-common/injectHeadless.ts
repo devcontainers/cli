@@ -463,7 +463,7 @@ async function runLifecycleCommands(params: ResolverParameters, lifecycleCommand
 	}
 }
 
-async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParameters, containerProperties: ContainerProperties, userCommand: LifecycleCommand, userCommandOrigin: string, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, secrets: Promise<Record<string, string>>, doRun: boolean) {
+async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, containerProperties: ContainerProperties, userCommand: LifecycleCommand, userCommandOrigin: string, lifecycleHookName: 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand', remoteEnv: Promise<Record<string, string>>, secrets: Promise<Record<string, string>>, doRun: boolean) {
 	let hasCommand = false;
 	if (typeof userCommand === 'string') {
 		hasCommand = userCommand.trim().length > 0;
@@ -476,9 +476,9 @@ async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParame
 		const progressName = `Running ${lifecycleHookName}...`;
 		const infoOutput = makeLog({
 			event(e: LogEvent) {
-				postCreate.output.event(e);
+				lifecycleHook.output.event(e);
 				if (e.type === 'raw' && e.text.includes('::endstep::')) {
-					postCreate.output.event({
+					lifecycleHook.output.event({
 						type: 'progress',
 						name: progressName,
 						status: 'running',
@@ -486,7 +486,7 @@ async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParame
 					});
 				}
 				if (e.type === 'raw' && e.text.includes('::step::')) {
-					postCreate.output.event({
+					lifecycleHook.output.event({
 						type: 'progress',
 						name: progressName,
 						status: 'running',
@@ -495,9 +495,9 @@ async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParame
 				}
 			},
 			get dimensions() {
-				return postCreate.output.dimensions;
+				return lifecycleHook.output.dimensions;
 			},
-			onDidChangeDimensions: postCreate.output.onDidChangeDimensions,
+			onDidChangeDimensions: lifecycleHook.output.onDidChangeDimensions,
 		}, LogLevel.Info);
 		try {
 			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
@@ -515,7 +515,7 @@ async function runLifecycleCommand({ lifecycleHook: postCreate }: ResolverParame
 				// doesn't get interleaved with the output of other commands.
 				const printMode = name ? 'off' : 'continuous';
 				const env = { ...(await remoteEnv), ...(await secrets) };
-				const { cmdOutput } = await runRemoteCommand({ ...postCreate, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: env, pty: true, print: printMode });
+				const { cmdOutput } = await runRemoteCommand({ ...lifecycleHook, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: env, pty: true, print: printMode });
 
 				// 'name' is set when parallel execution syntax is used.
 				if (name) {
