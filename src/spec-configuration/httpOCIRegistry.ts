@@ -396,30 +396,31 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		};
 	}
 
-	let authReq: Buffer;
-	try {
-		authReq = await request(httpOptions, output);
-	} catch (e: any) {
-		// This is ok if the registry is trying to speak Basic Auth with us.
-		output.write(`[httpOci] Could not fetch bearer token for '${service}': ${e}`, LogLevel.Error);
-		return;
+	let res = await requestResolveHeaders(httpOptions, output);
+	if (res.statusCode === 401 || res.statusCode === 403) {
+		output.write(`[httpOci] Credentials for '${service}' may be expired: ${res.resBody.toString()?.trimEnd()}`, LogLevel.Warning);
+
+		// Try again without user credentials. If we're here, their creds are likely expired.
+		output.write(`[httpOci] Removing user credentials for '${service}' and attempting to fetch credentials anonymously.`, LogLevel.Trace);
+		delete headers['authorization'];
+		res = await requestResolveHeaders(httpOptions, output);
 	}
 
-	if (!authReq) {
-		output.write(`[httpOci] Did not receive bearer token for '${service}'`, LogLevel.Error);
+	if (!res || res.statusCode > 299 || !res.resBody) {
+		output.write(`[httpOci] Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
 		return;
 	}
 
 	let scopeToken: string | undefined;
 	try {
-		const json = JSON.parse(authReq.toString());
+		const json = JSON.parse(res.resBody.toString());
 		scopeToken = json.token || json.access_token; // ghcr uses 'token', acr uses 'access_token'
 	} catch {
 		// not JSON
 	}
 	if (!scopeToken) {
 		output.write(`[httpOci] Unexpected bearer token response format for '${service}'`, LogLevel.Error);
-		output.write(`httpOci] Response: ${authReq.toString()}`, LogLevel.Trace);
+		output.write(`httpOci] Response: ${res.resBody.toString()}`, LogLevel.Trace);
 		return;
 	}
 
