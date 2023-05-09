@@ -302,7 +302,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 		});
 		helperOutput = stdout;
 	} catch (err) {
-		output.write(`[httpOci] Failed to execute credential helper ${credHelperName}`, LogLevel.Error);
+		output.write(`[httpOci] Failed to query for '${registry}' credential from 'docker-credential-${credHelperName}': ${err}`, LogLevel.Trace);
 		return undefined;
 	}
 	if (helperOutput.length === 0) {
@@ -312,7 +312,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 	let errors: jsonc.ParseError[] = [];
 	const creds: CredentialHelperResult = jsonc.parse(helperOutput.toString(), errors);
 	if (errors.length !== 0) {
-		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry ${registry}`, LogLevel.Warning);
+		output.write(`[httpOci] Credential helper ${credHelperName} returned non-JSON response "${helperOutput.toString()}" for registry '${registry}'`, LogLevel.Warning);
 		return undefined;
 	}
 
