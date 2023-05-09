@@ -84,8 +84,6 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
     const aSourceInfo = a.featureSet?.sourceInformation;
     let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
-    // console.log('STARTING COMPARE!');
-
     if (!aSourceInfo || !bSourceInfo) {
         // TODO: This indicates a bug - remove once confident this is not happening!
         throw new Error('ERR: Missing source information!');
@@ -99,16 +97,12 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
     switch (aSourceInfo.type) {
         case 'oci':
             bSourceInfo = bSourceInfo as OCISourceInformation;
-            console.log(`OCI: ${aSourceInfo.featureRef.resource} ?=== ${bSourceInfo.featureRef.resource}`);
-            if (aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource) {
-                console.log('TRUE!!!');
-                return true;
-            }
+            return aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource;
         case 'direct-tarball':
         case 'file-path':
-            return false; // TODO
+            throw new Error(`TODO: Should be supported but is unimplemented!`);
         default:
-            return false;
+            throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
     }
 }
 
@@ -353,7 +347,7 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
             || node.dependsOn.every(dep =>
                 installationOrder.some(installed => equals(installed, dep)))
             && node.installsAfter.every(dep =>
-                installationOrder.some(installed => equals(installed, dep))));
+                installationOrder.some(installed => equals(installed, dep)))); // TODO: This means that we MUST satisfy the soft-dependency.
 
         output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
 
