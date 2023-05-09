@@ -2,16 +2,6 @@
 	"image": "mcr.microsoft.com/devcontainers/base:alpine",
 	"initializeCommand": {
 		"touch-test1": "touch ${localWorkspaceFolder}/initializeCommand.1.testMarker",
-		"touch-test2": "touch ${localWorkspaceFolder}/initializeCommand.2.testMarker",
-		"count-to-5-slowly": [
-			"bash",
-			"-c",
-			"for i in {1..5}; do echo a-$i; sleep 1; done"
-		],
-		"count-to-5-even-slower": [
-			"bash",
-			"-c",
-			"for i in {1..5}; do echo b-$i; sleep 2; done"
-		]
+		"touch-test2": "touch ${localWorkspaceFolder}/initializeCommand.2.testMarker"
 	}
 }
