@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
 import { runCommandNoPty, plainExec } from '../spec-common/commonUtils';
-import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
+import { requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
