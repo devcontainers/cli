@@ -9,7 +9,7 @@ import { UnpackArgv } from '../devContainersSpecCLI';
 import { readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { computeDependsOnInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
-import { SourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
+import { OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export function featuresReadConfigurationOptions(y: Argv) {
 	return y
@@ -27,13 +27,11 @@ export function featuresReadConfigurationHandler(args: featuresReadConfiguration
 }
 
 
-interface InstallOrderItem {
-	// TODO
-	sourceInformation: SourceInformation;
-}
-
 interface JsonOutput {
-	installOrder?: InstallOrderItem[];
+	installOrder?: {
+		userFeatureId: string;
+		options: string | boolean | Record<string, string | boolean | undefined>;
+	}[];
 }
 
 async function featuresReadConfiguration({
@@ -57,7 +55,7 @@ async function featuresReadConfiguration({
 
 	// const params = { output, env: process.env, outputFormat };
 
-	const jsonOutput: JsonOutput = {};
+	let jsonOutput: JsonOutput = {};
 
 	// Get dev container from workspace folder
 	// TODO, do better.
@@ -91,6 +89,7 @@ async function featuresReadConfiguration({
 
 	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig);
 
+
 	if (!installOrder) {
 		output.write(`Could not calculate install order`, LogLevel.Error);
 		process.exit(1);
@@ -99,13 +98,22 @@ async function featuresReadConfiguration({
 	if (outputFormat === 'text') {
 		output.raw('\n');
 		for (let i = 0; i < installOrder.length; i++) {
-			const featureSet = installOrder[i];
-			const sourceInfo = featureSet.sourceInformation;
-			const userFeatureId = sourceInfo.userFeatureId;
-			const options = featureSet.features[0].value;
 			// TODO: Temp for debugging
+			const feature = installOrder[i];
+			const featureSet = feature.featureSet;
+			const sourceInfo = featureSet?.sourceInformation;
+
+			if (!featureSet || !sourceInfo) {
+
+				throw new Error('ERR: Failed to calculate Feature source information');
+			}
+
+			const userFeatureId = feature.userFeatureId;
+			const options = feature?.featureSet?.features[0].value;
+
 			if (sourceInfo.type === 'oci') {
-				const str = `${sourceInfo.featureRef.resource}\n${sourceInfo.manifestDigest}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;
+				const featureRef = (sourceInfo as OCISourceInformation).featureRef;
+				const str = `${featureRef.resource}@\n${sourceInfo.manifestDigest}\n${options ? JSON.stringify(options) : ''}\n(Resolved from: '${userFeatureId}')`;
 				const box = encloseStringInBox(str);
 				output.raw(`${box}\n`, LogLevel.Info);
 			} else {
@@ -113,14 +121,17 @@ async function featuresReadConfiguration({
 				const box = encloseStringInBox(str);
 				output.raw(`${box}\n`, LogLevel.Info);
 			}
-
 		}
 	} else {
 		// JSON
-		jsonOutput.installOrder = [];
-		for (let i = 0; i < installOrder.length; i++) {
-			const { sourceInformation } = installOrder[i];
-			jsonOutput.installOrder.push({ sourceInformation });
+		jsonOutput = {
+			...jsonOutput,
+			installOrder: installOrder.map(f => {
+				return {
+					userFeatureId: f.userFeatureId,
+					options: f.options
+				};
+			})
 		}
 	}
 

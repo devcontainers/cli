@@ -44,10 +44,18 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
     return orderedFeatures.concat(features);
 }
 
-// The set of input Features provided by the user in their devcontainer.json.
-interface UserProvidedFNode extends FNode { }
+// Represents a Feature provided by the user in their devcontainer.json.
+interface UserProvidedFNode extends FNode {
+    type: 'user-provided';
+}
+
+// Represents a 'no-op' Feature injected into the dependency graph to influence installation order.
+interface ArtificialFNode extends FNode {
+    type: 'artificial';
+}
 
 export interface FNode {
+    type: 'user-provided' | 'artificial' | '';
     userFeatureId: string;
     options: string | boolean | Record<string, string | boolean | undefined>;
 
@@ -102,14 +110,11 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
         case 'file-path':
             throw new Error(`TODO: Should be supported but is unimplemented!`);
         default:
-            throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
+            throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
     }
 }
 
-
-// This function is used both for equality, and for sorting.
 // If the two features are equal, return 0.
-// If the two Features are not equal and cannot be compared (i.e one is a local Feature, one is an OCI Feature), return undefined.
 // If the sorting algorithm should place A _before_ B, return negative number.
 // If the sorting algorithm should place A _after_  B, return positive number.
 function comparesTo(a: FNode, b: FNode): number {
@@ -173,7 +178,7 @@ function comparesTo(a: FNode, b: FNode): number {
             throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
 
         case 'file-path':
-            throw new Error(`'Feature type file-path' will be supported but is unimplemented.`);
+            throw new Error(`'Feature type 'file-path' will be supported but is unimplemented.`);
 
         default:
             throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
@@ -231,6 +236,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 // Add this new node to the worklist to further process.
                 for (const [userFeatureId, options] of Object.entries(dependsOn)) {
                     const dependency: FNode = {
+                        type: '',
                         userFeatureId,
                         options,
                         featureSet: undefined,
@@ -245,6 +251,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 // Soft-dependencies are NOT recursively processed - do not add to worklist.
                 for (const userFeatureId of installsAfter) {
                     const dependency: FNode = {
+                        type: '',
                         userFeatureId,
                         options: {},
                         featureSet: undefined,
@@ -267,7 +274,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
 
             case 'file-path':
-                throw new Error(`'Feature type file-path' will be supported but is unimplemented.`);
+                throw new Error(`'Feature type 'file-path' will be supported but is unimplemented.`);
 
             default:
                 throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${processedFeature.sourceInformation.type}'.`);
@@ -277,14 +284,30 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 }
 
 // Creates the directed asyclic graph (DAG) of Features and their dependencies.
-export async function buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, userFeatures: DevContainerFeature[]): Promise<FNode[] | undefined> {
+export async function buildDependencyGraph(
+    params: CommonParams,
+    processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+    userFeatures: DevContainerFeature[],
+    config?: { overrideFeatureInstallOrder?: string[] }): Promise<FNode[] | undefined> {
+
+    const artificialOverrideFeatures = config?.overrideFeatureInstallOrder?.map<ArtificialFNode>(f => {
+        return {
+            type: 'artificial',
+            userFeatureId: f,
+            options: {},
+            dependsOn: [],
+            installsAfter: [],
+        };
+    }) || [];
+
     const rootNodes =
         userFeatures.map<UserProvidedFNode>(f => {
             return {
+                type: 'user-provided', // This Feature was provided by the user in the 'features' object of devcontainer.json.
                 userFeatureId: f.userFeatureId,
                 options: f.options,
                 dependsOn: [],
-                installsAfter: [],
+                installsAfter: artificialOverrideFeatures, // Soft dependency on the config's override property, if any.
             };
         });
 
@@ -292,11 +315,16 @@ export async function buildDependencyGraph(params: CommonParams, processFeature:
     return await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
 }
 
-export async function computeDependsOnInstallationOrder(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, userFeatures: DevContainerFeature[]): Promise<FeatureSet[] | undefined> {
+export async function computeDependsOnInstallationOrder(
+    params: CommonParams,
+    processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+    userFeatures: DevContainerFeature[],
+    config?: { overrideFeatureInstallOrder?: string[] }): Promise<FNode[] | undefined> {
+
     const { output } = params;
 
     // Build dependency graph and resolves all to featureSets.
-    const worklist = await buildDependencyGraph(params, processFeature, userFeatures);
+    const worklist = await buildDependencyGraph(params, processFeature, userFeatures, config);
     if (!worklist || worklist.length === 0) {
         return;
     }
@@ -305,14 +333,6 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
     if (worklist.some(node => !node.featureSet)) {
         throw new Error(`ERR: Some nodes in the dependency graph are malformed.`);
     }
-
-    output.write(JSON.stringify(worklist.map(n => {
-        return {
-            userFeatureId: n.userFeatureId,
-            dependsOn: n.dependsOn.map(d => d.userFeatureId),
-            installsAfter: n.installsAfter.map(d => d.userFeatureId),
-        };
-    }), undefined, 4), LogLevel.Info);  // TODO
 
     output.write(`[1]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
@@ -325,10 +345,8 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
         // reverse iterate
         for (let j = node.installsAfter.length - 1; j >= 0; j--) {
             const softDep = node.installsAfter[j];
-            output.write(` 👀 Checking if soft - dependency '${softDep.userFeatureId}' should be removed...`, LogLevel.Info);
-
             if (!worklist.some(n => satisfiesSoftDependency(n, softDep))) {
-                output.write(`❌ There is no Feature in the worklist that is trying to use '${softDep.userFeatureId}.'`, LogLevel.Info);
+                output.write(`Soft-dependency '${softDep.userFeatureId}' is unnecessary.  Removing from installation order...`, LogLevel.Info);
                 // Delete that soft-dependency
                 node.installsAfter.splice(j, 1);
             }
@@ -366,7 +384,7 @@ export async function computeDependsOnInstallationOrder(params: CommonParams, pr
         installationOrder.push(...round);
     }
 
-    return installationOrder.map(node => node.featureSet!);
+    return installationOrder;
 }
 
 // Exported for unit tests.

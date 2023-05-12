@@ -554,13 +554,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 		return undefined;
 	}
 
-	// Create the featuresConfig object.
-	// Initialize the featureSets object, and stash the dstFolder on the object for use later.
-	let featuresConfig: FeaturesConfig = {
-		featureSets: [],
-		dstFolder
-	};
-
 	// load local cache of features;
 	// TODO: Update so that cached features are always version 2
 	const localFeaturesFolder = getLocalFeaturesFolder(params.extensionPath);
@@ -573,7 +566,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, params.platform);
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
-	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	const lockfile = await readLockfile(params, config);
 
@@ -581,12 +573,16 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
 	};
 
-	const installationOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeatures);
+	const installationOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
 	if (!installationOrder) {
 		throw new Error('Failed to compute Feature installation order!');
 	}
 
-	featuresConfig.featureSets = installationOrder;
+	// Create the featuresConfig object.
+	let featuresConfig: FeaturesConfig = {
+		featureSets: installationOrder.map(f => f.featureSet!),
+		dstFolder
+	};
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
@@ -595,17 +591,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
 	await writeLockfile(params, config, featuresConfig);
-
-	// TODO: Not correct to remove these. We still want to respect the older, soft-dependency properties.
-	//
-	// const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
-
-	// output.write('--- Computed order ----', LogLevel.Trace);
-	// for (const feature of orderedFeatures) {
-	// 	output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
-	// }
-
-	// featuresConfig.featureSets = orderedFeatures;
 
 	return featuresConfig;
 }

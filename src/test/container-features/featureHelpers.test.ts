@@ -505,16 +505,20 @@ describe('validate function updateDeprecatedFeaturesIntoOptions', () => {
 	it('should update feature with option', () => {
 		const updated = updateDeprecatedFeaturesIntoOptions([
 			{
-				id: 'ghcr.io/devcontainers/features/python:1',
+				userFeatureId: 'ghcr.io/devcontainers/features/python:1',
 				options: {}
 			},
 			{
-				id: 'jupyterlab',
+				userFeatureId: 'jupyterlab',
 				options: {}
 			}
 		], nullLog);
+		if (!updated) {
+			assert.fail('updated is null');
+		}
+
 		assert.strictEqual(updated.length, 1);
-		assert.strictEqual(updated[0].id, 'ghcr.io/devcontainers/features/python:1');
+		assert.strictEqual(updated[0].userFeatureId, 'ghcr.io/devcontainers/features/python:1');
 		assert.ok(updated[0].options);
 		assert.strictEqual(typeof updated[0].options, 'object');
 		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
@@ -523,7 +527,7 @@ describe('validate function updateDeprecatedFeaturesIntoOptions', () => {
 	it('should update legacy feature with option', () => {
 		const updated = updateDeprecatedFeaturesIntoOptions([
 			{
-				id: 'python',
+				userFeatureId: 'python',
 				options: {}
 			},
 			{
