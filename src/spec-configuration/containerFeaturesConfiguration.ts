@@ -568,7 +568,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	// Read features and get the type.
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	const lockfile = await readLockfile(params, config);
+	const lockfile = await readLockfile(config);
 	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig, lockfile);
 	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
 
