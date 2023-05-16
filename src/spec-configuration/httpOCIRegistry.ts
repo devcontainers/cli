@@ -410,7 +410,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	}
 
 	if (!res || res.statusCode > 299 || !res.resBody) {
-		output.write(`[httpOci] Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
+		output.write(`[httpOci] ${res.statusCode}: Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
 		return;
 	}
 
