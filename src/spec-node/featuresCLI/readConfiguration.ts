@@ -132,7 +132,7 @@ async function featuresReadConfiguration({
 					options: f.options
 				};
 			})
-		}
+		};
 	}
 
 	// -- Output and clean up
