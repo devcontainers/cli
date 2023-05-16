@@ -398,8 +398,11 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 
 	let res = await requestResolveHeaders(httpOptions, output);
 	if (res && res.statusCode === 401 || res.statusCode === 403) {
-		output.write(`[httpOci] Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
-		output.write(`[httpOci] ${res.resBody.toString()}.`, LogLevel.Trace);
+		output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
+		const body = res.resBody?.toString();
+		if (body) {
+			output.write(`${res.resBody.toString()}.`, LogLevel.Info);
+		}
 
 		// Try again without user credentials. If we're here, their creds are likely expired.
 		delete headers['authorization'];
