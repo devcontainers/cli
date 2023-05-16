@@ -251,49 +251,47 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${processedFeature.sourceInformation.type}'.`);
         }
 
-        if (!metadataSerialized) {
-            // Nothing to look at.  We can assume no dependencies.
-            continue;
-        }
+        // Resolve dependencies given the current Feature's metadata.
+        if (metadataSerialized) {
+            const featureMetadata = jsonc.parse(metadataSerialized) as Feature;
 
-        const featureMetadata = jsonc.parse(metadataSerialized) as Feature;
+            // Dependency-related properties
+            const dependsOn = featureMetadata.dependsOn || {};
+            const installsAfter = featureMetadata.installsAfter || [];
 
-        // Dependency-related properties
-        const dependsOn = featureMetadata.dependsOn || {};
-        const installsAfter = featureMetadata.installsAfter || [];
-
-        // Add a new node for each 'dependsOn' dependency onto the 'current' node.
-        // **Add this new node to the worklist to process recursively**
-        for (const [userFeatureId, options] of Object.entries(dependsOn)) {
-            const dependency: FNode = {
-                type: '',
-                userFeatureId,
-                options,
-                featureSet: undefined,
-                dependsOn: [],
-                installsAfter: [],
-            };
-            current.dependsOn.push(dependency);
-            worklist.push(dependency);
-        }
-
-        // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
-        // Soft-dependencies are NOT recursively processed - do *not* add to worklist.
-        for (const userFeatureId of installsAfter) {
-            const dependency: FNode = {
-                type: '',
-                userFeatureId,
-                options: {},
-                featureSet: undefined,
-                dependsOn: [],
-                installsAfter: [],
-            };
-            const processedFeature = await processFeature(dependency);
-            if (!processedFeature) {
-                throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
+            // Add a new node for each 'dependsOn' dependency onto the 'current' node.
+            // **Add this new node to the worklist to process recursively**
+            for (const [userFeatureId, options] of Object.entries(dependsOn)) {
+                const dependency: FNode = {
+                    type: '',
+                    userFeatureId,
+                    options,
+                    featureSet: undefined,
+                    dependsOn: [],
+                    installsAfter: [],
+                };
+                current.dependsOn.push(dependency);
+                worklist.push(dependency);
             }
-            dependency.featureSet = processedFeature;
-            current.installsAfter.push(dependency);
+
+            // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
+            // Soft-dependencies are NOT recursively processed - do *not* add to worklist.
+            for (const userFeatureId of installsAfter) {
+                const dependency: FNode = {
+                    type: '',
+                    userFeatureId,
+                    options: {},
+                    featureSet: undefined,
+                    dependsOn: [],
+                    installsAfter: [],
+                };
+                const processedFeature = await processFeature(dependency);
+                if (!processedFeature) {
+                    throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
+                }
+                dependency.featureSet = processedFeature;
+                current.installsAfter.push(dependency);
+            }
         }
 
         acc.push(current);
@@ -310,6 +308,8 @@ export async function buildDependencyGraph(
     processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
     userFeatures: DevContainerFeature[],
     config?: { overrideFeatureInstallOrder?: string[] }): Promise<FNode[] | undefined> {
+
+    const { output } = params;
 
     const artificialOverrideFeatures = config?.overrideFeatureInstallOrder?.map<ArtificialFNode>(f => {
         return {
@@ -331,6 +331,9 @@ export async function buildDependencyGraph(
                 installsAfter: artificialOverrideFeatures, // Soft dependency on the config's override property, if any.
             };
         });
+
+    output.write(`User provided FNodes: ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+
 
     const nodes: FNode[] = [];
     return await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
@@ -373,7 +376,6 @@ export async function computeDependsOnInstallationOrder(
             }
         }
     }
-
 
     output.write(`[2]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
