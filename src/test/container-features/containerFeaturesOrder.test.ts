@@ -57,32 +57,32 @@ describe('dependsOn', function () {
         }),
             [
                 {
-                    id: 'ghcr.io/codspace/dependsOnExperiment/D',
+                    userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/D',
                     options: { magicNumber: '30' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/d@sha256:a564cac1b4bac326ec0d5f7efabf5e1ffd37e99633462eb9e1c7cad41193fcb0',
                 },
                 {
-                    id: 'ghcr.io/codspace/dependsOnExperiment/E',
+                    userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/E',
                     options: { magicNumber: '50' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/e@sha256:0b0a20e11d24233de703135f9d3f4bf5f577ff63bb3e5b74634ccb9bc53ad4f9',
                 },
                 {
-                    id: 'ghcr.io/codspace/dependsonexperiment/a',
+                    userFeatureId: 'ghcr.io/codspace/dependsonexperiment/a',
                     options: { magicNumber: '10' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
                 },
                 {
-                    id: 'ghcr.io/codspace/dependsOnExperiment/A',
+                    userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/A',
                     options: { magicNumber: '40' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
                 },
                 {
-                    id: 'ghcr.io/codspace/dependsOnExperiment/C',
+                    userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/C',
                     options: { magicNumber: '20' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/c@sha256:828bbebde73e6f16455cb5da01f3f72ad3fe1c4619af2ed8b68a8af8ef70dcc8',
                 },
                 {
-                    id: 'ghcr.io/codspace/dependsonexperiment/b',
+                    userFeatureId: 'ghcr.io/codspace/dependsonexperiment/b',
                     options: { magicNumber: '400' },
                     // canonicalId: 'ghcr.io/codspace/dependsonexperiment/b@sha256:ff19723761146ed90980c70fbe8d1ad6b3efd3e27c55f8972f8fe54ca0979d5a',
                 }
