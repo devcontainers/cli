@@ -15,7 +15,7 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 		value: options
 	};
 
-	const userFeatureIdWithoutVersion = originalUserFeatureId.split(':')[0];
+	const userFeatureIdWithoutVersion = originalUserFeatureId.split(':').slice(0, -1).join(':');
 	let featureSet: FeatureSet = {
 		sourceInformation: {
 			type: 'oci',
