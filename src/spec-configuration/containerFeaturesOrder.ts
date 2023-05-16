@@ -252,7 +252,8 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         }
 
         if (!metadataSerialized) {
-            throw new Error(`ERR: Metadata for Feature '${current.userFeatureId}' cannot be processed.  Please contact the Feature author.`);
+            // Nothing to look at.  We can assume no dependencies.
+            continue;
         }
 
         const featureMetadata = jsonc.parse(metadataSerialized) as Feature;
