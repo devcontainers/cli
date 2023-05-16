@@ -6,7 +6,7 @@ import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { readLocalFile } from '../../spec-utils/pfs';
+import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { computeDependsOnInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
@@ -59,7 +59,10 @@ async function featuresReadConfiguration({
 
 	// Get dev container from workspace folder
 	// TODO, do better.
-	const configPath = path.join(workspaceFolder, '.devcontainer.json');
+	let configPath = path.join(workspaceFolder, '.devcontainer.json');
+	if (!(await isLocalFile(configPath))) {
+		configPath = path.join(workspaceFolder, '.devcontainer', 'devcontainer.json');
+	}
 
 	// ---- Load dev container config
 	const buffer = await readLocalFile(configPath);

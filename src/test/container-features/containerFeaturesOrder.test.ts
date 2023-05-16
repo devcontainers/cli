@@ -26,8 +26,8 @@ describe('dependsOn', function () {
         cachedAuthHeader: {}
     };
 
-    it('valid installation order with all OCI Features', async function () {
-        const testFolder = `${__dirname}/configs/dependsOn/ab`;
+    it('valid installation order with all OCI Features and the dependsOn property', async function () {
+        const testFolder = `${__dirname}/configs/dependsOn/oci-ab`;
         if (!(await isLocalFile(`${testFolder}/.devcontainer.json`))) {
             assert.fail();
         }

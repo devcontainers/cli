@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Feature, FeatureSet, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
+import * as path from 'path';
+import * as jsonc from 'jsonc-parser';
+
+import { DEVCONTAINER_FEATURE_FILE_NAME, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerConfig, DevContainerFeature } from './configuration';
 import { CommonParams } from './containerCollectionsOCI';
+import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 
 interface FeatureNode {
     feature: FeatureSet;
@@ -107,8 +111,10 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
             bSourceInfo = bSourceInfo as OCISourceInformation;
             return aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource;
         case 'direct-tarball':
-        case 'file-path':
             throw new Error(`TODO: Should be supported but is unimplemented!`);
+        case 'file-path':
+            bSourceInfo = bSourceInfo as FilePathSourceInformation;
+            return aSourceInfo.resolvedFilePath === bSourceInfo.resolvedFilePath;
         default:
             throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
     }
@@ -178,7 +184,8 @@ function comparesTo(a: FNode, b: FNode): number {
             throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
 
         case 'file-path':
-            throw new Error(`'Feature type 'file-path' will be supported but is unimplemented.`);
+            bSourceInfo = bSourceInfo as FilePathSourceInformation;
+            return aSourceInfo.resolvedFilePath.localeCompare(bSourceInfo.resolvedFilePath);
 
         default:
             throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
@@ -187,7 +194,8 @@ function comparesTo(a: FNode, b: FNode): number {
 
 function featureSupportsDependencies(feature: FeatureSet): boolean {
     const publishType = feature.sourceInformation.type;
-    return publishType === 'oci' || publishType === 'direct-tarball' || publishType === 'file-path';
+    // TODO: Implement 'direct-tarball'.
+    return publishType === 'oci' /*|| publishType === 'direct-tarball'*/ || publishType === 'file-path';
 }
 
 async function _buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, worklist: FNode[], acc: FNode[]): Promise<FNode[]> {
@@ -218,68 +226,80 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         }
 
         const type = processedFeature.sourceInformation.type;
+        let metadataSerialized: string | undefined;
+        // Switch on the source type of the provided Feature,
+        // retrieving the metadata for the Feature (the contents of 'devcontainer-feature.json')
         switch (type) {
             case 'oci':
                 const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest;
-                const metadataSerialized = manifest.annotations?.['dev.containers.experimental.metadata'];
-                if (!metadataSerialized) {
-                    acc.push(current);
-                    continue;
-                }
-
-                const featureMetadata = JSON.parse(metadataSerialized) as Feature;
-
-                const dependsOn = featureMetadata.dependsOn || {};
-                const installsAfter = featureMetadata.installsAfter || [];
-
-                // Add a new node for each 'dependsOn' dependency onto the 'current' node.
-                // Add this new node to the worklist to further process.
-                for (const [userFeatureId, options] of Object.entries(dependsOn)) {
-                    const dependency: FNode = {
-                        type: '',
-                        userFeatureId,
-                        options,
-                        featureSet: undefined,
-                        dependsOn: [],
-                        installsAfter: [],
-                    };
-                    current.dependsOn.push(dependency);
-                    worklist.push(dependency);
-                }
-
-                // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
-                // Soft-dependencies are NOT recursively processed - do not add to worklist.
-                for (const userFeatureId of installsAfter) {
-                    const dependency: FNode = {
-                        type: '',
-                        userFeatureId,
-                        options: {},
-                        featureSet: undefined,
-                        dependsOn: [],
-                        installsAfter: [],
-                    };
-                    const processedFeature = await processFeature(dependency);
-                    if (!processedFeature) {
-                        throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
-                    }
-                    dependency.featureSet = processedFeature;
-                    current.installsAfter.push(dependency);
-                }
-
-                acc.push(current);
-                await _buildDependencyGraph(params, processFeature, worklist, acc);
+                metadataSerialized = manifest.annotations?.['dev.containers.experimental.metadata'];
                 break;
 
             case 'direct-tarball':
                 throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
 
             case 'file-path':
-                throw new Error(`'Feature type 'file-path' will be supported but is unimplemented.`);
+                const filePath = (current.featureSet.sourceInformation as FilePathSourceInformation).resolvedFilePath;
+                const metadataFilePath = path.join(filePath, DEVCONTAINER_FEATURE_FILE_NAME);
+                if (!isLocalFile(filePath)) {
+                    throw new Error(`Metadata file '${metadataFilePath}' cannot be read for Feature '${current.userFeatureId}'.`);
+                }
+                metadataSerialized = (await readLocalFile(metadataFilePath)).toString();
+                break;
 
             default:
                 throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${processedFeature.sourceInformation.type}'.`);
         }
+
+        if (!metadataSerialized) {
+            throw new Error(`ERR: Metadata for Feature '${current.userFeatureId}' cannot be processed.  Please contact the Feature author.`);
+        }
+
+        const featureMetadata = jsonc.parse(metadataSerialized) as Feature;
+
+        // Dependency-related properties
+        const dependsOn = featureMetadata.dependsOn || {};
+        const installsAfter = featureMetadata.installsAfter || [];
+
+        // Add a new node for each 'dependsOn' dependency onto the 'current' node.
+        // **Add this new node to the worklist to process recursively**
+        for (const [userFeatureId, options] of Object.entries(dependsOn)) {
+            const dependency: FNode = {
+                type: '',
+                userFeatureId,
+                options,
+                featureSet: undefined,
+                dependsOn: [],
+                installsAfter: [],
+            };
+            current.dependsOn.push(dependency);
+            worklist.push(dependency);
+        }
+
+        // Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
+        // Soft-dependencies are NOT recursively processed - do *not* add to worklist.
+        for (const userFeatureId of installsAfter) {
+            const dependency: FNode = {
+                type: '',
+                userFeatureId,
+                options: {},
+                featureSet: undefined,
+                dependsOn: [],
+                installsAfter: [],
+            };
+            const processedFeature = await processFeature(dependency);
+            if (!processedFeature) {
+                throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
+            }
+            dependency.featureSet = processedFeature;
+            current.installsAfter.push(dependency);
+        }
+
+        acc.push(current);
+        await _buildDependencyGraph(params, processFeature, worklist, acc);
     }
+
+    // Return the accumulated collection of dependencies.
     return acc;
 }
 

@@ -166,7 +166,6 @@ export interface GithubSourceInformationInput {
 	tag?: string;
 }
 
-
 export interface FeatureSet {
 	features: Feature[];
 	internalVersion?: string;
