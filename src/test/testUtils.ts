@@ -1,8 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import * as cp from 'child_process';
-import { loadNativeModule, plainExec, plainPtyExec, runCommand, runCommandNoPty } from '../spec-common/commonUtils';
+import { getCLIHost, loadNativeModule, plainExec, plainPtyExec, runCommand, runCommandNoPty } from '../spec-common/commonUtils';
 import { SubstituteConfig } from '../spec-node/utils';
-import { nullLog } from '../spec-utils/log';
+import { LogLevel, createPlainLog, makeLog, nullLog } from '../spec-utils/log';
+import { dockerComposeCLIConfig } from '../spec-node/dockerCompose';
+import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 
 export interface BuildKitOption {
     text: string;
@@ -137,3 +143,22 @@ export const testSubstitute: SubstituteConfig = value => {
 	}
 	return value;
 };
+
+export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+export async function createCLIParams(hostPath: string) {
+	const cliHost = await getCLIHost(hostPath, loadNativeModule);
+	const dockerComposeCLI = dockerComposeCLIConfig({
+		exec: cliHost.exec,
+		env: cliHost.env,
+		output,
+	}, 'docker', 'docker-compose');
+	const cliParams: DockerCLIParameters = {
+		cliHost,
+		dockerCLI: 'docker',
+		dockerComposeCLI,
+		env: {},
+		output,
+	};
+	return cliParams;
+}
