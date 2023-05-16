@@ -207,7 +207,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         current.featureSet = processedFeature;
 
         if (!featureSupportsDependencies(processedFeature)) {
-            throw new Error(`ERR: Feature '${current.userFeatureId}' in dependency graph does not support dependencies.  Please report this to the Feature author.`);
+            continue;
         }
 
         // If the current Feature is already in the accumulator, skip it.
