@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FeatureSet, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
+import { FeatureSet, OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
 import { computeDependsOnInstallationOrder, computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
 import { URI } from 'vscode-uri';
 import { devContainerDown, shellExec } from '../testUtils';
@@ -26,7 +26,7 @@ describe('dependsOn', function () {
         cachedAuthHeader: {}
     };
 
-    it('should resolve a valid dependency tree', async function () {
+    it('valid installation order with all OCI Features', async function () {
         const testFolder = `${__dirname}/configs/dependsOn/ab`;
         if (!(await isLocalFile(`${testFolder}/.devcontainer.json`))) {
             assert.fail();
@@ -47,44 +47,56 @@ describe('dependsOn', function () {
         if (!installOrderNodes) {
             assert.fail();
         }
-        assert.deepStrictEqual(installOrderNodes.map(n => {
+
+        // Assert all sourceInformation is of type 'oci'
+        assert.ok(installOrderNodes.every(n => n.featureSet!.sourceInformation.type === 'oci'));
+
+
+        const actual = installOrderNodes.map(n => {
+            const srcInfo = n.featureSet!.sourceInformation as OCISourceInformation;
             return {
                 userFeatureId: n.userFeatureId,
                 options: n.options,
-                // TODO put more.
-
+                canonicalId: `${srcInfo.featureRef.resource}@${srcInfo.manifestDigest}`
             };
-        }),
+        });
+
+        // Despite having different options, these two Features should have the same canconical ID (same exact contents, just run with a different set of options)
+        const firstA = actual[2];
+        const secondA = actual[3];
+        assert.strictEqual(firstA.canonicalId, secondA.canonicalId);
+
+        assert.deepStrictEqual(actual,
             [
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/D',
                     options: { magicNumber: '30' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/d@sha256:a564cac1b4bac326ec0d5f7efabf5e1ffd37e99633462eb9e1c7cad41193fcb0',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/d@sha256:7f7e5a6d0acc9d28ce9b9a2080a677b24dc8c16146aa21283a33b6b0da3a933a',
                 },
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/E',
                     options: { magicNumber: '50' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/e@sha256:0b0a20e11d24233de703135f9d3f4bf5f577ff63bb3e5b74634ccb9bc53ad4f9',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/e@sha256:3e8900ecf32ab5e6ec53d57af27aac30ae88f9587f67669c7dfad151a7aa0841',
                 },
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsonexperiment/a',
                     options: { magicNumber: '10' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:fcf65d5e171f1d339b50f5bc5a35159af11366eefd6f6b433f8bf9765863a699',
                 },
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/A',
                     options: { magicNumber: '40' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:651dbae53a21fe5bd790c8d1a54af414553408295d5639f9f4fc19359775f641',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:fcf65d5e171f1d339b50f5bc5a35159af11366eefd6f6b433f8bf9765863a699',
                 },
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/C',
                     options: { magicNumber: '20' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/c@sha256:828bbebde73e6f16455cb5da01f3f72ad3fe1c4619af2ed8b68a8af8ef70dcc8',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/c@sha256:11186388aa7c428f4c73456c3d012947d3c45c7f2f0638b892fb7cdb49e8a1d9',
                 },
                 {
                     userFeatureId: 'ghcr.io/codspace/dependsonexperiment/b',
                     options: { magicNumber: '400' },
-                    // canonicalId: 'ghcr.io/codspace/dependsonexperiment/b@sha256:ff19723761146ed90980c70fbe8d1ad6b3efd3e27c55f8972f8fe54ca0979d5a',
+                    canonicalId: 'ghcr.io/codspace/dependsonexperiment/b@sha256:ec7e5ac599c1d6feaaa9e7dfe1564e5484b6fea9359e7a7ab8f16ae12c21a2fc',
                 }
             ]
         );
