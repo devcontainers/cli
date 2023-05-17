@@ -11,7 +11,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
-import { ContainerProperties, getContainerProperties, ResolverParameters } from '../spec-common/injectHeadless';
+import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
@@ -408,25 +408,56 @@ export function envListToObj(list: string[] | null | undefined) {
 	}, {} as Record<string, string>);
 }
 
-export async function runInitializeCommand(params: DockerResolverParameters, command: string | string[] | undefined, onDidInput?: Event<string>) {
-	if (!command) {
+export async function runInitializeCommand(params: DockerResolverParameters, userCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
+	if (!userCommand) {
 		return;
 	}
+
+	let hasCommand = false;
+	if (typeof userCommand === 'string') {
+		hasCommand = userCommand.trim().length > 0;
+	} else if (Array.isArray(userCommand)) {
+		hasCommand = userCommand.length > 0;
+	} else if (typeof userCommand === 'object') {
+		hasCommand = Object.keys(userCommand).length > 0;
+	}
+
+	if (!hasCommand) {
+		return;
+	}
+
 	const { common, dockerEnv } = params;
 	const { cliHost, output } = common;
+	const hookName = 'initializeCommand';
 	const isWindows = cliHost.platform === 'win32';
 	const shell = isWindows ? [cliHost.env.ComSpec || 'cmd.exe', '/c'] : ['/bin/sh', '-c'];
-	const updatedCommand = isWindows && Array.isArray(command) && command.length ?
-		[(command[0] || '').replace(/\//g, '\\'), ...command.slice(1)] :
-		command;
-	const args = typeof updatedCommand === 'string' ? [...shell, updatedCommand] : updatedCommand;
-	if (!args.length) {
-		return;
-	}
-	const postCommandName = 'initializeCommand';
+
 	const infoOutput = makeLog(output, LogLevel.Info);
+
 	try {
-		infoOutput.raw(`\x1b[1mRunning the ${postCommandName} from devcontainer.json...\x1b[0m\r\n\r\n`);
+		// Runs a command.
+		// Useful for the object syntax, where >1 command can be specified to run in parallel.
+		async function runSingleCommand(command: string | string[], name?: string) {
+			const updatedCommand = isWindows && Array.isArray(command) && command.length ?
+				[(command[0] || '').replace(/\//g, '\\'), ...command.slice(1)] :
+				command;
+			const args = typeof updatedCommand === 'string' ? [...shell, updatedCommand] : updatedCommand;
+			if (!args.length) {
+				return;
+			}
+
+			// 'name' is set when parallel execution syntax is used.
+			if (name) {
+				infoOutput.raw(`\x1b[1mRunning '${name}' from ${hookName}...\x1b[0m\r\n\r\n`);
+			} else {
+				infoOutput.raw(`\x1b[1mRunning the ${hookName} from devcontainer.json...\x1b[0m\r\n\r\n`);
+			}
+
+			// If we have a command name then the command is running in parallel and 
+			// we need to hold output until the command is done so that the output
+			// doesn't get interleaved with the output of other commands.
+			const print = name ? 'end' : 'continuous';
+
 		await runCommand({
 			ptyExec: cliHost.ptyExec,
 			cmd: args[0],
@@ -434,18 +465,33 @@ export async function runInitializeCommand(params: DockerResolverParameters, com
 			env: dockerEnv,
 			output: infoOutput,
 			onDidInput,
+			print,
 		});
 		infoOutput.raw('\r\n');
+		}
+
+		let commands;
+		if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
+			commands = [runSingleCommand(userCommand)];
+		} else {
+			commands = Object.keys(userCommand).map(name => {
+				const command = userCommand[name];
+				return runSingleCommand(command, name);
+			});
+		}
+		await Promise.all(commands);
+
 	} catch (err) {
 		if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
-			infoOutput.raw(`\r\n\x1b[1m${postCommandName} interrupted.\x1b[0m\r\n\r\n`);
+			infoOutput.raw(`\r\n\x1b[1m${hookName} interrupted.\x1b[0m\r\n\r\n`);
 		} else {
 			throw new ContainerError({
-				description: `The ${postCommandName} in the devcontainer.json failed.`,
+				description: `The ${hookName} in the devcontainer.json failed.`,
 				originalError: err,
 			});
 		}
 	}
+
 }
 
 export function getFolderImageName(params: ResolverParameters | DockerCLIParameters) {

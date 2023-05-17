@@ -104,7 +104,27 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					assert.match(res.stdout, /howdy, node/);
 				});
 			});
-
+			describe(`with valid (image) config and parallel initializeCommand [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/image-with-parallel-initialize-command`;
+				beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, options)).containerId);
+				afterEach(async () => {
+					await devContainerDown({ containerId });
+					await shellExec(`rm -f ${testFolder}/*.testMarker`);
+				});
+				it('should create testMarker files', async () => {
+					{
+						const res = await shellExec(`cat ${testFolder}/initializeCommand.1.testMarker`);
+						assert.strictEqual(res.error, null);
+						assert.strictEqual(res.stderr, '');
+					}
+					{
+						const res = await shellExec(`cat ${testFolder}/initializeCommand.2.testMarker`);
+						assert.strictEqual(res.error, null);
+						assert.strictEqual(res.stderr, '');
+					}
+				});
+			});
 			describe(`with valid (Dockerfile) config with target [${text}]`, () => {
 				let containerId: string | null = null;
 				const testFolder = `${__dirname}/configs/dockerfile-with-target`;

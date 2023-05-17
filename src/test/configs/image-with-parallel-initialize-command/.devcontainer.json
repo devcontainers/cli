@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:alpine",
+	"initializeCommand": {
+		"touch-test1": "touch ${localWorkspaceFolder}/initializeCommand.1.testMarker",
+		"touch-test2": "touch ${localWorkspaceFolder}/initializeCommand.2.testMarker"
+	}
+}

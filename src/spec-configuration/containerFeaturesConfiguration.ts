@@ -566,7 +566,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	const lockfile = await readLockfile(params, config);
+	const lockfile = await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
@@ -582,7 +582,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 		featureSets: installationOrder.map(f => f.featureSet!),
 		dstFolder
 	};
-
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json

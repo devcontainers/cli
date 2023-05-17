@@ -19,18 +19,19 @@ const installCommands = [
 	'script/setup',
 ];
 
-export async function installDotfiles(params: ResolverParameters, properties: ContainerProperties, dockerEnvP: Promise<Record<string, string>>) {
+export async function installDotfiles(params: ResolverParameters, properties: ContainerProperties, dockerEnvP: Promise<Record<string, string>>, secretsP: Promise<Record<string, string>>) {
 	let { repository, installCommand, targetPath } = params.dotfilesConfiguration;
 	if (!repository) {
 		return;
 	}
 	const dockerEnv = await dockerEnvP;
+	const secrets = await secretsP;
 	if (repository.indexOf(':') === -1 && !/^\.{0,2}\//.test(repository)) {
 		repository = `https://github.com/${repository}.git`;
 	}
 	const shellServer = properties.shellServer;
 	const markerFile = getDotfilesMarkerFile(properties);
-	const env = Object.keys(dockerEnv)
+	const env = Object.keys({ ...dockerEnv, ...secrets })
 		.filter(key => !(key.startsWith('BASH_FUNC_') && key.endsWith('%%')))
 		.reduce((env, key) => `${env}${key}=${quoteValue(dockerEnv[key])} `, '');
 	try {
