@@ -9,7 +9,7 @@ import * as jsonc from 'jsonc-parser';
 
 import { request } from '../spec-utils/httpRequest';
 import * as crypto from 'crypto';
-import { Log } from '../spec-utils/log';
+import { Log, LogLevel } from '../spec-utils/log';
 
 export interface DisallowedFeature {
 	featureIdPrefix: string;
