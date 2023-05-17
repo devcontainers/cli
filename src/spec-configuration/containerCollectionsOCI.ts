@@ -269,8 +269,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
 	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
-		output.write(`ERR: Registry '${ref.registry}' is not a valid domain name or IP address.`, LogLevel.Error);
-		return undefined;
+		return;
 	}
 
 	// TODO: Always use the manifest digest (the canonical digest) 

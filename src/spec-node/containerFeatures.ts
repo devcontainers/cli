@@ -10,7 +10,7 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, V1_DEVCONTAINER_FEATURES_FILE_NAME, getSourceInfoString } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
@@ -294,7 +294,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
-	let i = 1;
+	let i = 0;
 	for await (const fSet of featuresConfig.featureSets) {
 		if (fSet.internalVersion === '2')
 		{
@@ -323,12 +323,13 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 				...fSet.features
 					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 				.map(f => {
-						const featuresEnv = [
-							...getFeatureEnvVariables(f),
-							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation, i.toString()), f.id)}`
-						]
-							.join('\n');
-					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation, i.toString()), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
+					const consecutiveId = `${f.id}_${i}`;
+					const featuresEnv = [
+						...getFeatureEnvVariables(f),
+						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', consecutiveId)}`
+					]
+						.join('\n');
+					const envPath = cliHost.path.join(dstFolder, consecutiveId, 'devcontainer-features.env'); // next to bin/acquire
 						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
 					})
 			]);

@@ -224,25 +224,6 @@ export function getContainerFeaturesFolder(_extensionPath: string | { distFolder
 	return path.join(distFolder, 'node_modules', 'vscode-dev-containers', 'container-features');
 }
 
-// Take a SourceInformation and condense it down into a single string
-// Useful for calculating a unique build folder name for a given featureSet.
-// NOTE: Only used for backwards compatible 'v1' Features.
-export function getSourceInfoString(srcInfo: SourceInformation, counter: string): string {
-	const { type } = srcInfo;
-	switch (type) {
-		case 'local-cache':
-			return 'local-cache-' + counter;
-		case 'direct-tarball':
-			return srcInfo.tarballUri + counter;
-		case 'github-repo':
-			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${counter}`;
-		case 'file-path':
-			return srcInfo.resolvedFilePath + '-' + counter;
-		case 'oci':
-			return `oci-${srcInfo.featureRef.resource}-${counter}`;
-	}
-}
-
 // TODO: Move to node layer.
 export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string) {
 	return `
@@ -979,7 +960,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
 	const featureSets = featuresConfig.featureSets;
-	for (let idx = 0; idx < featureSets.length; idx++) {
+	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
 		const featureSet = featureSets[idx];
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
@@ -993,7 +974,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const { output } = params;
 
 			const feature = featureSet.features[0];
-			const consecutiveId = feature.id + '_' + idx;
+			const consecutiveId = `${feature.id}_${idx}`;
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
 			const sourceInfoType = featureSet.sourceInformation?.type;
