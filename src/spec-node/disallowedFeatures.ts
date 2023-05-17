@@ -7,10 +7,11 @@ import { ContainerError } from '../spec-common/errors';
 import { DockerCLIParameters, dockerCLI } from '../spec-shutdown/dockerUtils';
 import { findDevContainer } from './singleContainer';
 import { DevContainerControlManifest, DisallowedFeature, getControlManifest } from '../spec-configuration/controlManifest';
+import { getCacheFolder } from './utils';
 
 
 export async function ensureNoDisallowedFeatures(params: DockerCLIParameters, config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, idLabels: string[] | undefined) {
-	const controlManifest = await getControlManifest(params.output);
+	const controlManifest = await getControlManifest(await getCacheFolder(params.cliHost), params.output);
 	const disallowed = Object.keys({
 		...config.features,
 		...additionalFeatures,

@@ -4,7 +4,6 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import * as jsonc from 'jsonc-parser';
 
 import { request } from '../spec-utils/httpRequest';
@@ -20,7 +19,7 @@ export interface DevContainerControlManifest {
 	disallowedFeatures: DisallowedFeature[];
 }
 
-const controlManifestPath = path.join(os.homedir(), '.devcontainer', 'cache', 'control-manifest.json');
+const controlManifestFilename = 'control-manifest.json';
 
 const emptyControlManifest: DevContainerControlManifest = {
 	disallowedFeatures: [],
@@ -28,7 +27,8 @@ const emptyControlManifest: DevContainerControlManifest = {
 
 const cacheTimeoutMillis = 5 * 60 * 1000; // 5 minutes
 
-export async function getControlManifest(output: Log): Promise<DevContainerControlManifest> {
+export async function getControlManifest(cacheFolder: string, output: Log): Promise<DevContainerControlManifest> {
+	const controlManifestPath = path.join(cacheFolder, controlManifestFilename);
 	const cacheStat = await fs.stat(controlManifestPath)
 		.catch(err => {
 			if (err?.code !== 'ENOENT') {
@@ -45,10 +45,10 @@ export async function getControlManifest(output: Log): Promise<DevContainerContr
 	if (cacheStat && cachedManifest && cacheStat.mtimeMs + cacheTimeoutMillis > Date.now()) {
 		return cachedManifest;
 	}
-	return updateControlManifest(cachedManifest, output);
+	return updateControlManifest(controlManifestPath, cachedManifest, output);
 }
 
-async function updateControlManifest(oldManifest: DevContainerControlManifest | undefined, output: Log): Promise<DevContainerControlManifest> {
+async function updateControlManifest(controlManifestPath: string, oldManifest: DevContainerControlManifest | undefined, output: Log): Promise<DevContainerControlManifest> {
 	let manifestBuffer: Buffer;
 	try {
 		manifestBuffer = await fetchControlManifest();
