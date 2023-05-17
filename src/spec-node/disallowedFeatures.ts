@@ -46,6 +46,7 @@ export function findDisallowedFeatureEntry(controlManifest: DevContainerControlM
 	return controlManifest.disallowedFeatures.find(
 		disallowedFeature =>
 			featureId.startsWith(disallowedFeature.featureIdPrefix) &&
-			(featureId.length === disallowedFeature.featureIdPrefix.length || '/:@'.indexOf(featureId[disallowedFeature.featureIdPrefix.length]) !== -1)
+			(featureId.length === disallowedFeature.featureIdPrefix.length || // Feature id equal to prefix.
+				'/:@'.indexOf(featureId[disallowedFeature.featureIdPrefix.length]) !== -1) // Feature id with prefix and continued by separator.
 	);
 }
