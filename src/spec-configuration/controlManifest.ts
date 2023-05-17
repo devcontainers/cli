@@ -53,7 +53,7 @@ async function updateControlManifest(oldManifest: DevContainerControlManifest | 
 	try {
 		manifestBuffer = await fetchControlManifest();
 	} catch (error) {
-		output.write(`Failed to fetch control manifest: ${error.message}`);
+		output.write(`Failed to fetch control manifest: ${error.message}`, LogLevel.Error);
 		if (oldManifest) {
 			// Keep old manifest to not loose existing information and update timestamp to avoid flooding the server.
 			const now = new Date();
