@@ -214,12 +214,6 @@ export interface ContainerFeatureInternalParams {
 
 export const multiStageBuildExploration = false;
 
-// Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
-let counter = 1;
-function getCounter() {
-	return counter++;
-}
-
 const isTsnode = path.basename(process.argv[0]) === 'ts-node' || process.argv.indexOf('ts-node/register') !== -1;
 
 export function getContainerFeaturesFolder(_extensionPath: string | { distFolder: string }) {
@@ -232,19 +226,20 @@ export function getContainerFeaturesFolder(_extensionPath: string | { distFolder
 
 // Take a SourceInformation and condense it down into a single string
 // Useful for calculating a unique build folder name for a given featureSet.
-export function getSourceInfoString(srcInfo: SourceInformation): string {
+// NOTE: Only used for backwards compatible 'v1' Features.
+export function getSourceInfoString(srcInfo: SourceInformation, counter: string): string {
 	const { type } = srcInfo;
 	switch (type) {
 		case 'local-cache':
-			return 'local-cache-' + getCounter();
+			return 'local-cache-' + counter;
 		case 'direct-tarball':
-			return srcInfo.tarballUri + getCounter();
+			return srcInfo.tarballUri + counter;
 		case 'github-repo':
-			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
+			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${counter}`;
 		case 'file-path':
-			return srcInfo.resolvedFilePath + '-' + getCounter();
+			return srcInfo.resolvedFilePath + '-' + counter;
 		case 'oci':
-			return `oci-${srcInfo.featureRef.resource}-${getCounter()}`;
+			return `oci-${srcInfo.featureRef.resource}-${counter}`;
 	}
 }
 
@@ -983,7 +978,9 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
-	for (const featureSet of featuresConfig.featureSets) {
+	const featureSets = featuresConfig.featureSets;
+	for (let idx = 0; idx < featureSets.length; idx++) {
+		const featureSet = featureSets[idx];
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
 				continue;
@@ -996,7 +993,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const { output } = params;
 
 			const feature = featureSet.features[0];
-			const consecutiveId = feature.id + '_' + getCounter();
+			const consecutiveId = feature.id + '_' + idx;
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
 			const sourceInfoType = featureSet.sourceInformation?.type;
@@ -1217,8 +1214,6 @@ async function parseDevContainerFeature_v1Impl(output: Log, featureSet: FeatureS
 	};
 
 	featureSet.features[0] = updateFromOldProperties({ features: [feature] }).features[0];
-
-
 	return true;
 }
 

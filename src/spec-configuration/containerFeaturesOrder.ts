@@ -106,6 +106,10 @@ function satisfiesSoftDependency(a: FNode, b: FNode) {
         return false;
     }
 
+    if (!featureSupportsDependencies(a.featureSet) || !featureSupportsDependencies(b.featureSet)) {
+        return false;
+    }
+
     switch (aSourceInfo.type) {
         case 'oci':
             bSourceInfo = bSourceInfo as OCISourceInformation;
@@ -192,11 +196,16 @@ function comparesTo(a: FNode, b: FNode): number {
     }
 }
 
-function featureSupportsDependencies(feature: FeatureSet): boolean {
-    const publishType = feature.sourceInformation.type;
+function featureSupportsDependencies(featureSet?: FeatureSet): boolean {
+    if (!featureSet) {
+        return false;
+    }
+
+    const publishType = featureSet.sourceInformation.type;
     // TODO: Implement 'direct-tarball'.
     return publishType === 'oci' /*|| publishType === 'direct-tarball'*/ || publishType === 'file-path';
 }
+
 
 async function _buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, worklist: FNode[], acc: FNode[]): Promise<FNode[]> {
     const { output } = params;
@@ -214,7 +223,11 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         // Set the processed FeatureSet object onto Node.
         current.featureSet = processedFeature;
 
+        // If the Feature doesn't support dependencies, still add it to the
+        // accumulator (we'll still install it later), but do not attempt
+        // to process its dependencies (since it cannot have any!)
         if (!featureSupportsDependencies(processedFeature)) {
+            acc.push(current);
             continue;
         }
 
@@ -350,6 +363,7 @@ export async function computeDependsOnInstallationOrder(
     // Build dependency graph and resolves all to featureSets.
     const worklist = await buildDependencyGraph(params, processFeature, userFeatures, config);
     if (!worklist || worklist.length === 0) {
+        output.write('Zero length or undefined worklist.', LogLevel.Error);
         return;
     }
 
@@ -364,13 +378,11 @@ export async function computeDependsOnInstallationOrder(
     for (let i = 0; i < worklist.length; i++) {
         const node = worklist[i];
 
-        // output.write(`Resolving soft - dependencies for '${node.userFeatureId}'...`, LogLevel.Info);
-
         // reverse iterate
         for (let j = node.installsAfter.length - 1; j >= 0; j--) {
             const softDep = node.installsAfter[j];
             if (!worklist.some(n => satisfiesSoftDependency(n, softDep))) {
-                output.write(`Soft-dependency '${softDep.userFeatureId}' is unnecessary.  Removing from installation order...`, LogLevel.Info);
+                output.write(`Soft-dependency '${softDep.userFeatureId}' is not required.  Removing from installation order...`, LogLevel.Info);
                 // Delete that soft-dependency
                 node.installsAfter.splice(j, 1);
             }
@@ -379,19 +391,35 @@ export async function computeDependsOnInstallationOrder(
 
     output.write(`[2]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
+    // Filter and then splice out out legacy (v1) Features, or Features that do not support dependencies.
+    let legacyFeatures: FNode[] = [];
+    // reverse iterate
+    for (let j = worklist.length - 1; j >= 0; j--) {
+        const node = worklist[j];
+        if (node.featureSet?.internalVersion === '1' || !featureSupportsDependencies(node.featureSet)) {
+            output.write(`Feature '${node.userFeatureId}' does not support dependencies. Excluding from dependency resolution...`, LogLevel.Info);
+            // remove from worklist
+            worklist.splice(j, 1);
+            // add to legacyFeatures (to be re-appended at the end)
+            legacyFeatures.push(node);
+        }
+    }
+
+    output.write(`[3]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+    output.write(`[legacy]: ${legacyFeatures.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
         const round = worklist.filter(node =>
             // If the node has no hard/soft dependencies, the node can always be installed.
             (node.dependsOn.length === 0 && node.installsAfter.length === 0)
-            // Or, every hard-dependency (dependsOn) and soft-dependency (installsAfter) has been satified in prior rounds
+            // Or, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satified in prior rounds
             || node.dependsOn.every(dep =>
                 installationOrder.some(installed => equals(installed, dep)))
             && node.installsAfter.every(dep =>
-                installationOrder.some(installed => equals(installed, dep)))); // TODO: This means that we MUST satisfy the soft-dependency.
+                installationOrder.some(installed => equals(installed, dep))));
 
         output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
-
         if (round.length === 0) {
             output.write('Circular dependency detected!', LogLevel.Error);
             output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
@@ -407,7 +435,7 @@ export async function computeDependsOnInstallationOrder(
         installationOrder.push(...round);
     }
 
-    return installationOrder;
+    return installationOrder.concat(legacyFeatures.reverse());
 }
 
 // Exported for unit tests.

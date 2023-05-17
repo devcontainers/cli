@@ -10,7 +10,7 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, V1_DEVCONTAINER_FEATURES_FILE_NAME, getSourceInfoString } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
@@ -256,21 +256,6 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		return undefined;
 	}
 
-	const buildStageScripts = await Promise.all(featuresConfig.featureSets
-		.map(featureSet => multiStageBuildExploration ? featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-			.reduce(async (binScripts, feature) => {
-				const binPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', feature.id, 'bin');
-				const hasAcquire = cliHost.isFile(cliHost.path.join(binPath, 'acquire'));
-				const hasConfigure = cliHost.isFile(cliHost.path.join(binPath, 'configure'));
-				const map = await binScripts;
-				map[feature.id] = {
-					hasAcquire: await hasAcquire,
-					hasConfigure: await hasConfigure,
-				};
-				return map;
-			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({} as Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>)));
-
 	// With Buildkit (0.8.0 or later), we can supply an additional build context to provide access to
 	// the container-features content.
 	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
@@ -309,9 +294,9 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
+	let i = 1;
 	for await (const fSet of featuresConfig.featureSets) {
-		let i = 0;
-		if(fSet.internalVersion === '2')
+		if (fSet.internalVersion === '2')
 		{
 			for await (const fe of fSet.features) {
 				if (fe.cachePath)
@@ -329,21 +314,21 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 		} else {
 			const featuresEnv = ([] as string[]).concat(
 				...fSet.features
-					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
+					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 					.map(getFeatureEnvVariables)
 			).join('\n');
 			const envPath = cliHost.path.join(fSet.features[0].cachePath!, 'devcontainer-features.env');
 			await Promise.all([
 				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 				...fSet.features
-				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
+					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 				.map(f => {
 						const featuresEnv = [
 							...getFeatureEnvVariables(f),
-							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation), f.id)}`
+							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation, i.toString()), f.id)}`
 						]
 							.join('\n');
-						const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
+					const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation, i.toString()), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
 						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
 					})
 			]);
