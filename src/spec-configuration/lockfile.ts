@@ -14,7 +14,15 @@ export interface Lockfile {
 }
 
 export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig) {
-	if (!params.experimentalLockfile && !params.experimentalFrozenLockfile) {
+	const lockfilePath = getLockfilePath(config);
+	const oldLockfileContent = await readLocalFile(lockfilePath)
+		.catch(err => {
+			if (err?.code !== 'ENOENT') {
+				throw err;
+			}
+		});
+
+	if (!oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
 		return;
 	}
 
@@ -37,14 +45,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			features: {} as Record<string, { version: string; resolved: string; integrity: string }>,
 		});
 
-	const lockfilePath = getLockfilePath(config);
 	const newLockfileContent = Buffer.from(JSON.stringify(lockfile, null, 2));
-	const oldLockfileContent = await readLocalFile(lockfilePath)
-		.catch(err => {
-			if (err?.code !== 'ENOENT') {
-				throw err;
-			}
-		});
 	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
@@ -56,11 +57,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	}
 }
 
-export async function readLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig): Promise<Lockfile | undefined> {
-	if (!params.experimentalLockfile && !params.experimentalFrozenLockfile) {
-		return undefined;
-	}
-
+export async function readLockfile(config: DevContainerConfig): Promise<Lockfile | undefined> {
 	try {
 		const content = await readLocalFile(getLockfilePath(config));
 		return JSON.parse(content.toString()) as Lockfile;
