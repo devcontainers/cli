@@ -55,7 +55,7 @@ async function updateControlManifest(oldManifest: DevContainerControlManifest | 
 	} catch (error) {
 		output.write(`Failed to fetch control manifest: ${error.message}`, LogLevel.Error);
 		if (oldManifest) {
-			// Keep old manifest to not loose existing information and update timestamp to avoid flooding the server.
+			// Keep old manifest to not lose existing information and update timestamp to avoid flooding the server.
 			const now = new Date();
 			await fs.utimes(controlManifestPath, now, now);
 			return oldManifest;
