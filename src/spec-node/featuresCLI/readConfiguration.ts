@@ -90,8 +90,7 @@ async function featuresReadConfiguration({
 		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature);
 	};
 
-	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig);
-
+	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig, config);
 
 	if (!installOrder) {
 		output.write(`Could not calculate install order`, LogLevel.Error);

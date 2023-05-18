@@ -54,12 +54,12 @@ interface UserProvidedFNode extends FNode {
 }
 
 // Represents a 'no-op' Feature injected into the dependency graph to influence installation order.
-interface ArtificialFNode extends FNode {
-    type: 'artificial';
-}
+// interface ArtificialFNode extends FNode {
+//     type: 'artificial';
+// }
 
 export interface FNode {
-    type: 'user-provided' | 'artificial' | '';
+    type: 'user-provided' | 'artificial' | 'resolved';
     userFeatureId: string;
     options: string | boolean | Record<string, string | boolean | undefined>;
 
@@ -80,7 +80,7 @@ function equals(a: FNode, b: FNode) {
 
     if (!aSourceInfo || !bSourceInfo) {
         // TODO: This indicates a bug - remove once confident this is not happening!
-        throw new Error('ERR: Missing source information!');
+        throw new Error(`ERR: Missing source information! (${a.userFeatureId} ?= ${b.userFeatureId})`);
     }
 
     if (aSourceInfo.type !== bSourceInfo.type) {
@@ -92,35 +92,35 @@ function equals(a: FNode, b: FNode) {
     return comparesTo(a, b) === 0;
 }
 
-function satisfiesSoftDependency(a: FNode, b: FNode) {
-    const aSourceInfo = a.featureSet?.sourceInformation;
-    let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
+function satisfiesSoftDependency(node: FNode, softDep: FNode) {
+    const nodeSourceInfo = node.featureSet?.sourceInformation;
+    let softDepSourceInfo = softDep.featureSet?.sourceInformation; // Mutable only for type-casting.
 
-    if (!aSourceInfo || !bSourceInfo) {
+    if (!nodeSourceInfo || !softDepSourceInfo) {
         // TODO: This indicates a bug - remove once confident this is not happening!
-        throw new Error('ERR: Missing source information!');
+        throw new Error(`ERR: Missing source information! (${node.userFeatureId} ?~> ${softDep.userFeatureId})`);
     }
 
-    if (aSourceInfo.type !== bSourceInfo.type) {
+    if (nodeSourceInfo.type !== softDepSourceInfo.type) {
         // TODO
         return false;
     }
 
-    if (!featureSupportsDependencies(a.featureSet) || !featureSupportsDependencies(b.featureSet)) {
+    if (!featureSupportsDependencies(node.featureSet) || !featureSupportsDependencies(softDep.featureSet)) {
         return false;
     }
 
-    switch (aSourceInfo.type) {
+    switch (nodeSourceInfo.type) {
         case 'oci':
-            bSourceInfo = bSourceInfo as OCISourceInformation;
-            return aSourceInfo.featureRef.resource === bSourceInfo.featureRef.resource;
+            softDepSourceInfo = softDepSourceInfo as OCISourceInformation;
+            return nodeSourceInfo.featureRef.resource === softDepSourceInfo.featureRef.resource;
         case 'direct-tarball':
             throw new Error(`TODO: Should be supported but is unimplemented!`);
         case 'file-path':
-            bSourceInfo = bSourceInfo as FilePathSourceInformation;
-            return aSourceInfo.resolvedFilePath === bSourceInfo.resolvedFilePath;
+            softDepSourceInfo = softDepSourceInfo as FilePathSourceInformation;
+            return nodeSourceInfo.resolvedFilePath === softDepSourceInfo.resolvedFilePath;
         default:
-            throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
+            throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${nodeSourceInfo.type}'.`);
     }
 }
 
@@ -133,7 +133,7 @@ function comparesTo(a: FNode, b: FNode): number {
 
     if (!aSourceInfo || !bSourceInfo) {
         // TODO: This indicates a bug - remove once confident this is not happening!
-        throw new Error('ERR: Missing source information!');
+        throw new Error(`ERR: Missing source information! (${a.userFeatureId} ?~ ${b.userFeatureId})`);
     }
 
     switch (aSourceInfo.type) {
@@ -206,7 +206,6 @@ function featureSupportsDependencies(featureSet?: FeatureSet): boolean {
     return publishType === 'oci' /*|| publishType === 'direct-tarball'*/ || publishType === 'file-path';
 }
 
-
 async function _buildDependencyGraph(params: CommonParams, processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>, worklist: FNode[], acc: FNode[]): Promise<FNode[]> {
     const { output } = params;
 
@@ -224,7 +223,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         current.featureSet = processedFeature;
 
         // If the Feature doesn't support dependencies, still add it to the
-        // accumulator (we'll still install it later), but do not attempt
+        // accumulator (to list of Features to install later), but do not attempt
         // to process its dependencies (since it cannot have any!)
         if (!featureSupportsDependencies(processedFeature)) {
             acc.push(current);
@@ -240,8 +239,8 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 
         const type = processedFeature.sourceInformation.type;
         let metadataSerialized: string | undefined;
-        // Switch on the source type of the provided Feature,
-        // retrieving the metadata for the Feature (the contents of 'devcontainer-feature.json')
+        // Switch on the source type of the provided Feature.
+        // Retrieving the metadata for the Feature (the contents of 'devcontainer-feature.json')
         switch (type) {
             case 'oci':
                 const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest;
@@ -276,7 +275,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
             // **Add this new node to the worklist to process recursively**
             for (const [userFeatureId, options] of Object.entries(dependsOn)) {
                 const dependency: FNode = {
-                    type: '',
+                    type: 'resolved',
                     userFeatureId,
                     options,
                     featureSet: undefined,
@@ -291,18 +290,18 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
             // Soft-dependencies are NOT recursively processed - do *not* add to worklist.
             for (const userFeatureId of installsAfter) {
                 const dependency: FNode = {
-                    type: '',
+                    type: 'resolved',
                     userFeatureId,
                     options: {},
                     featureSet: undefined,
                     dependsOn: [],
                     installsAfter: [],
                 };
-                const processedFeature = await processFeature(dependency);
-                if (!processedFeature) {
+                const processedFeatureSet = await processFeature(dependency);
+                if (!processedFeatureSet) {
                     throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
                 }
-                dependency.featureSet = processedFeature;
+                dependency.featureSet = processedFeatureSet;
                 current.installsAfter.push(dependency);
             }
         }
@@ -319,20 +318,9 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 export async function buildDependencyGraph(
     params: CommonParams,
     processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
-    userFeatures: DevContainerFeature[],
-    config?: { overrideFeatureInstallOrder?: string[] }): Promise<FNode[] | undefined> {
+    userFeatures: DevContainerFeature[]): Promise<FNode[] | undefined> {
 
     const { output } = params;
-
-    const artificialOverrideFeatures = config?.overrideFeatureInstallOrder?.map<ArtificialFNode>(f => {
-        return {
-            type: 'artificial',
-            userFeatureId: f,
-            options: {},
-            dependsOn: [],
-            installsAfter: [],
-        };
-    }) || [];
 
     const rootNodes =
         userFeatures.map<UserProvidedFNode>(f => {
@@ -341,7 +329,7 @@ export async function buildDependencyGraph(
                 userFeatureId: f.userFeatureId,
                 options: f.options,
                 dependsOn: [],
-                installsAfter: artificialOverrideFeatures, // Soft dependency on the config's override property, if any.
+                installsAfter: []
             };
         });
 
@@ -361,18 +349,44 @@ export async function computeDependsOnInstallationOrder(
     const { output } = params;
 
     // Build dependency graph and resolves all to featureSets.
-    const worklist = await buildDependencyGraph(params, processFeature, userFeatures, config);
+    const worklist = await buildDependencyGraph(params, processFeature, userFeatures);
     if (!worklist || worklist.length === 0) {
         output.write('Zero length or undefined worklist.', LogLevel.Error);
         return;
     }
+
+    output.write(`${JSON.stringify(worklist, null, 4)}`, LogLevel.Trace);
 
     // Sanity check
     if (worklist.some(node => !node.featureSet)) {
         throw new Error(`ERR: Some nodes in the dependency graph are malformed.`);
     }
 
-    output.write(`[1]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+    output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+
+    // TODO
+    // Handle 'overrideFeatureInstallOrder' config option.
+    // let overrideFeatureTailNode: ArtificialFNode | undefined = undefined;
+    if (config?.overrideFeatureInstallOrder) {
+        output.write('TODO: OVERRIDE FEATURE INSTALL ORDER', LogLevel.Warning);
+    }
+
+    // Filter and then splice out out legacy (v1) Features, or Features that do not support dependencies.
+    let legacyFeatures: FNode[] = [];
+    // reverse iterate
+    for (let j = worklist.length - 1; j >= 0; j--) {
+        const node = worklist[j];
+        if (node.featureSet?.internalVersion === '1' || !featureSupportsDependencies(node.featureSet)) {
+            output.write(`Feature '${node.userFeatureId}' does not support dependencies. Excluding from dependency resolution...`, LogLevel.Info);
+            // remove from worklist
+            worklist.splice(j, 1);
+            // add to legacyFeatures (to be re-appended at the end)
+            legacyFeatures.push(node);
+        }
+    }
+
+    output.write(`[worklist-without-legacy]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+    output.write(`[legacy]: ${legacyFeatures.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     // Remove all 'soft-dependency' graph edges that are irrelevant (i.e. the node is not in the worklist)
     for (let i = 0; i < worklist.length; i++) {
@@ -389,24 +403,7 @@ export async function computeDependsOnInstallationOrder(
         }
     }
 
-    output.write(`[2]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
-
-    // Filter and then splice out out legacy (v1) Features, or Features that do not support dependencies.
-    let legacyFeatures: FNode[] = [];
-    // reverse iterate
-    for (let j = worklist.length - 1; j >= 0; j--) {
-        const node = worklist[j];
-        if (node.featureSet?.internalVersion === '1' || !featureSupportsDependencies(node.featureSet)) {
-            output.write(`Feature '${node.userFeatureId}' does not support dependencies. Excluding from dependency resolution...`, LogLevel.Info);
-            // remove from worklist
-            worklist.splice(j, 1);
-            // add to legacyFeatures (to be re-appended at the end)
-            legacyFeatures.push(node);
-        }
-    }
-
-    output.write(`[3]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
-    output.write(`[legacy]: ${legacyFeatures.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+    output.write(`[worklist-without-legacy-and-dangling-soft-deps]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
     const installationOrder: FNode[] = [];
     while (worklist.length > 0) {
