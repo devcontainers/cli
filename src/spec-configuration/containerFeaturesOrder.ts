@@ -74,6 +74,8 @@ export interface FNode {
     // Graph directed adjacency lists.
     dependsOn: FNode[];
     installsAfter: FNode[];
+
+    legacyIdAliases?: string[];
 }
 
 function equals(a: FNode, b: FNode) {
@@ -115,7 +117,13 @@ function satisfiesSoftDependency(node: FNode, softDep: FNode) {
     switch (nodeSourceInfo.type) {
         case 'oci':
             softDepSourceInfo = softDepSourceInfo as OCISourceInformation;
-            return nodeSourceInfo.featureRef.resource === softDepSourceInfo.featureRef.resource;
+            const nodeFeatureRef = nodeSourceInfo.featureRef;
+            const softDepFeatureRef = softDepSourceInfo.featureRef;
+            const softDepFeatureRefResource = `${softDepFeatureRef.registry}/${softDepFeatureRef.namespace}`;
+
+            return nodeFeatureRef.resource === softDepFeatureRef.resource || // Same resource
+                softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefResource}/${legacyId}` === nodeFeatureRef.resource); // Handle 'legacyIds'
+
         case 'direct-tarball':
             throw new Error(`TODO: Should be supported but is unimplemented!`);
         case 'file-path':
@@ -249,24 +257,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         // Retrieving the metadata for the Feature (the contents of 'devcontainer-feature.json')
         switch (type) {
             case 'oci':
-                const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest;
-                const annotation = manifest.annotations?.['dev.containers.experimental.metadata'];
-                if (annotation) {
-                    metadata = jsonc.parse(annotation) as Feature;
-                } else {
-                    // For backwards compatibility,
-                    // If the metadata is not present on the manifest, we have to fetch the entire blob
-                    // to extract the 'installsAfter' property.
-                    const tmp = path.join(os.tmpdir(), Math.random().toString(36).substring(2, 15));
-                    // TODO: This can be cached!!
-                    const f = await fetchOCIFeature(params, current.featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
-
-                    output.write(JSON.stringify(f, null, 2), LogLevel.Trace);
-
-                    if (f && f.metadata) {
-                        metadata = f.metadata as Feature;
-                    }
-                }
+                metadata = await getOCIFeatureMetadata(params, current);
                 break;
 
             case 'direct-tarball':
@@ -290,7 +281,10 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 
         // Resolve dependencies given the current Feature's metadata.
         if (metadata) {
-            // current.featureSet.features[0] = metadata;
+            current.featureSet.features[0] = {
+                ...current.featureSet.features[0],
+                ...metadata,
+            };
 
             // Dependency-related properties
             const dependsOn = metadata.dependsOn || {};
@@ -326,7 +320,16 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 if (!processedFeatureSet) {
                     throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
                 }
+
                 dependency.featureSet = processedFeatureSet;
+
+                // Resolve and add all 'legacyIds' as aliases for the soft dependency relationship.
+                // https://containers.dev/implementors/features/#steps-to-rename-a-feature
+                const softDepMetadata = await getOCIFeatureMetadata(params, dependency);
+                if (softDepMetadata) {
+                    const legacyIds = (softDepMetadata.legacyIds || []).concat(softDepMetadata.id);
+                    dependency.legacyIdAliases = legacyIds;
+                }
                 current.installsAfter.push(dependency);
             }
         }
@@ -339,7 +342,38 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
     return acc;
 }
 
-// Creates the directed asyclic graph (DAG) of Features and their dependencies.
+async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise<Feature | undefined> {
+    const { output } = params;
+
+    // TODO: -- Implement a caching layer here!!
+
+    if (!node || !node.featureSet || !node.featureSet.sourceInformation) {
+        output.write(`ERR: Feature '${node.userFeatureId}' in dependency graph has no source information.`, LogLevel.Error);
+        return;
+    }
+
+    const manifest = (node.featureSet.sourceInformation as OCISourceInformation).manifest;
+    const annotation = manifest.annotations?.['dev.containers.experimental.metadata'];
+
+    if (annotation) {
+        return jsonc.parse(annotation) as Feature;
+    } else {
+        // For backwards compatibility,
+        // If the metadata is not present on the manifest, we have to fetch the entire blob
+        // to extract the 'installsAfter' property.
+        const tmp = path.join(os.tmpdir(), Math.random().toString(36).substring(2, 15));
+        const f = await fetchOCIFeature(params, node.featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+        output.write('>>>>> INSIDE getOCIFeatureMetadata: ' + JSON.stringify(f, null, 2), LogLevel.Trace);
+
+        if (f && f.metadata) {
+            return f.metadata as Feature;
+        }
+    }
+    output.write('No metadata found for Feature', LogLevel.Trace);
+    return;
+}
+
+// Creates the directed acyclic graph (DAG) of Features and their dependencies.
 export async function buildDependencyGraph(
     params: CommonParams,
     processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
