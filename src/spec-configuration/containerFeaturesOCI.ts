@@ -44,7 +44,7 @@ export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: 
 
 // Download a feature from which a manifest was previously downloaded.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-blobs
-export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string) {
+export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureSet, ociCacheDir: string, featCachePath: string, metadataFile?: string) {
 	const { output } = params;
 
 	if (featureSet.sourceInformation.type !== 'oci') {
@@ -58,7 +58,7 @@ export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureS
 	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${layerDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
-	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef, layerDigest);
+	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef, layerDigest, undefined, metadataFile);
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${featureSet.sourceInformation.featureRef.resource}`);

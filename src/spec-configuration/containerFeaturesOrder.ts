@@ -5,12 +5,14 @@
 
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
+import * as os from 'os';
 
 import { DEVCONTAINER_FEATURE_FILE_NAME, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerConfig, DevContainerFeature } from './configuration';
 import { CommonParams } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
+import { fetchOCIFeature } from './containerFeaturesOCI';
 
 interface FeatureNode {
     feature: FeatureSet;
@@ -238,13 +240,29 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         }
 
         const type = processedFeature.sourceInformation.type;
-        let metadataSerialized: string | undefined;
+        let metadata: Feature | undefined;
         // Switch on the source type of the provided Feature.
         // Retrieving the metadata for the Feature (the contents of 'devcontainer-feature.json')
         switch (type) {
             case 'oci':
                 const manifest = (current.featureSet.sourceInformation as OCISourceInformation).manifest;
-                metadataSerialized = manifest.annotations?.['dev.containers.experimental.metadata'];
+                const annotation = manifest.annotations?.['dev.containers.experimental.metadata'];
+                if (annotation) {
+                    metadata = jsonc.parse(annotation) as Feature;
+                } else {
+                    // For backwards compatibility,
+                    // If the metadata is not present on the manifest, we have to fetch the entire blob
+                    // to extract the 'installsAfter' property.
+                    const tmp = path.join(os.tmpdir(), Math.random().toString(36).substring(2, 15));
+                    // TODO: This can be cached!!
+                    const f = await fetchOCIFeature(params, current.featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+
+                    output.write(JSON.stringify(f, null, 2), LogLevel.Trace);
+
+                    if (f && f.metadata) {
+                        metadata = f.metadata as Feature;
+                    }
+                }
                 break;
 
             case 'direct-tarball':
@@ -256,7 +274,10 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                 if (!isLocalFile(filePath)) {
                     throw new Error(`Metadata file '${metadataFilePath}' cannot be read for Feature '${current.userFeatureId}'.`);
                 }
-                metadataSerialized = (await readLocalFile(metadataFilePath)).toString();
+                const serialized = (await readLocalFile(metadataFilePath)).toString();
+                if (serialized) {
+                    metadata = jsonc.parse(serialized) as Feature;
+                }
                 break;
 
             default:
@@ -264,12 +285,13 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
         }
 
         // Resolve dependencies given the current Feature's metadata.
-        if (metadataSerialized) {
-            const featureMetadata = jsonc.parse(metadataSerialized) as Feature;
+        if (metadata) {
+            output.write(`METADATA: ${JSON.stringify(metadata, null, 2)}`, LogLevel.Trace);
+
 
             // Dependency-related properties
-            const dependsOn = featureMetadata.dependsOn || {};
-            const installsAfter = featureMetadata.installsAfter || [];
+            const dependsOn = metadata.dependsOn || {};
+            const installsAfter = metadata.installsAfter || [];
 
             // Add a new node for each 'dependsOn' dependency onto the 'current' node.
             // **Add this new node to the worklist to process recursively**
@@ -371,7 +393,9 @@ export async function computeDependsOnInstallationOrder(
         output.write('TODO: OVERRIDE FEATURE INSTALL ORDER', LogLevel.Warning);
     }
 
-    // Filter and then splice out out legacy (v1) Features, or Features that do not support dependencies.
+    // Filter and then splice out
+    //  - Legacy (v1) Features
+    //  - Features that do not support dependencies.
     let legacyFeatures: FNode[] = [];
     // reverse iterate
     for (let j = worklist.length - 1; j >= 0; j--) {
@@ -388,10 +412,10 @@ export async function computeDependsOnInstallationOrder(
     output.write(`[worklist-without-legacy]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
     output.write(`[legacy]: ${legacyFeatures.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
-    // Remove all 'soft-dependency' graph edges that are irrelevant (i.e. the node is not in the worklist)
+    // For each node in the worklist, remove all 'soft-dependency' graph edges that are irrelevant
+    // i.e. the node is not a 'soft match' for any node in the worklist itself
     for (let i = 0; i < worklist.length; i++) {
         const node = worklist[i];
-
         // reverse iterate
         for (let j = node.installsAfter.length - 1; j >= 0; j--) {
             const softDep = node.installsAfter[j];
@@ -410,11 +434,11 @@ export async function computeDependsOnInstallationOrder(
         const round = worklist.filter(node =>
             // If the node has no hard/soft dependencies, the node can always be installed.
             (node.dependsOn.length === 0 && node.installsAfter.length === 0)
-            // Or, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satified in prior rounds
+            // OR, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satified in prior rounds
             || node.dependsOn.every(dep =>
                 installationOrder.some(installed => equals(installed, dep)))
             && node.installsAfter.every(dep =>
-                installationOrder.some(installed => equals(installed, dep))));
+                installationOrder.some(installed => satisfiesSoftDependency(installed, dep))));
 
         output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
         if (round.length === 0) {
