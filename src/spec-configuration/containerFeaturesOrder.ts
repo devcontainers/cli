@@ -345,15 +345,15 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise<Feature | undefined> {
     const { output } = params;
 
-    // TODO: -- Implement a caching layer here!!
+    // TODO: -- Implement a caching layer here!
 
-    if (!node || !node.featureSet || !node.featureSet.sourceInformation) {
-        output.write(`ERR: Feature '${node.userFeatureId}' in dependency graph has no source information.`, LogLevel.Error);
+    const srcInfo = node?.featureSet?.sourceInformation;
+    if (!node.featureSet || !srcInfo || srcInfo.type !== 'oci') {
         return;
     }
 
-    const manifest = (node.featureSet.sourceInformation as OCISourceInformation).manifest;
-    const annotation = manifest.annotations?.['dev.containers.experimental.metadata'];
+    const manifest = srcInfo.manifest;
+    const annotation = manifest?.annotations?.['dev.containers.experimental.metadata'];
 
     if (annotation) {
         return jsonc.parse(annotation) as Feature;
@@ -363,7 +363,6 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
         // to extract the 'installsAfter' property.
         const tmp = path.join(os.tmpdir(), Math.random().toString(36).substring(2, 15));
         const f = await fetchOCIFeature(params, node.featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
-        output.write('>>>>> INSIDE getOCIFeatureMetadata: ' + JSON.stringify(f, null, 2), LogLevel.Trace);
 
         if (f && f.metadata) {
             return f.metadata as Feature;
