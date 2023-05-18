@@ -50,50 +50,14 @@ describe('Feature Dependencies', function () {
     this.timeout('10s');
     const baseTestConfigPath = `${__dirname}/configs/feature-dependencies`;
 
-    describe('dependsOnAndInstallsAfter', function () {
-
-        it('valid dependsOn/installsAfter with file-path Features', async function () {
-            const testFolder = `${baseTestConfigPath}/dependsOn-and-installsAfter/local-simple`;
-            const { params, userFeatures, processFeature } = await setupInstallOrderTest(testFolder);
-
-            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures);
-            if (!installOrderNodes) {
-                assert.fail();
-            }
-
-            // Assert all sourceInformation is of type 'local'
-            assert.ok(installOrderNodes.every(n => n.featureSet!.sourceInformation.type === 'file-path'));
-
-            const actual = installOrderNodes.map(n => {
-                return {
-                    userFeatureId: n.userFeatureId,
-                    options: n.options
-                };
-            });
-
-            assert.deepStrictEqual(actual.length, 2);
-            assert.deepStrictEqual(actual,
-                [
-                    {
-                        userFeatureId: './c',
-                        options: { magicNumber: '321' }
-                    },
-                    {
-                        userFeatureId: './a',
-                        options: {}
-                    }
-                ]);
-        });
-    });
-
     describe('installsAfter', function () {
 
         // 'local Features', Features that are checked into the repo alongside the devcontainer.json
         it('valid installsAfter with file-path Features', async function () {
             const testFolder = `${baseTestConfigPath}/installsAfter/local-simple`;
-            const { params, userFeatures, processFeature } = await setupInstallOrderTest(testFolder);
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
 
-            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures);
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
             if (!installOrderNodes) {
                 assert.fail();
             }
@@ -128,9 +92,9 @@ describe('Feature Dependencies', function () {
         // 'local Features', Features that are checked into the repo alongside the devcontainer.json
         it('valid dependsOn with file-path Features', async function () {
             const testFolder = `${baseTestConfigPath}/dependsOn/local-simple`;
-            const { params, userFeatures, processFeature } = await setupInstallOrderTest(testFolder);
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
 
-            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures);
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
             if (!installOrderNodes) {
                 assert.fail();
             }
@@ -161,9 +125,9 @@ describe('Feature Dependencies', function () {
 
         it('valid dependsOn with published oci Features', async function () {
             const testFolder = `${baseTestConfigPath}/dependsOn/oci-ab`;
-            const { params, userFeatures, processFeature } = await setupInstallOrderTest(testFolder);
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
 
-            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures);
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
             if (!installOrderNodes) {
                 assert.fail();
             }
@@ -221,6 +185,128 @@ describe('Feature Dependencies', function () {
                 ]);
         });
     });
+
+    describe('dependsOnAndInstallsAfter', function () {
+
+        it('valid dependsOn/installsAfter with file-path Features', async function () {
+            const testFolder = `${baseTestConfigPath}/dependsOn-and-installsAfter/local-simple`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'local'
+            assert.ok(installOrderNodes.every(n => n.featureSet!.sourceInformation.type === 'file-path'));
+
+            const actual = installOrderNodes.map(n => {
+                return {
+                    userFeatureId: n.userFeatureId,
+                    options: n.options
+                };
+            });
+
+            assert.deepStrictEqual(actual.length, 2);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: './c',
+                        options: { magicNumber: '321' }
+                    },
+                    {
+                        userFeatureId: './a',
+                        options: {}
+                    }
+                ]);
+        });
+    });
+
+    describe('overrideFeatureInstallOrder', function () {
+
+        it('valid 1 override with file-path Features', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/local-simple`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'local'
+            assert.ok(installOrderNodes.every(n => n.featureSet!.sourceInformation.type === 'file-path'));
+
+            const actual = installOrderNodes.map(n => {
+                return {
+                    userFeatureId: n.userFeatureId,
+                    options: n.options
+                };
+            });
+
+            assert.deepStrictEqual(actual.length, 4);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: './c',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './d',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './a',
+                        options: {}
+                    }
+                ]);
+        });
+
+        it('valid 2 overrides with file-path Features', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/local-intermediate`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'local'
+            assert.ok(installOrderNodes.every(n => n.featureSet!.sourceInformation.type === 'file-path'));
+
+            const actual = installOrderNodes.map(n => {
+                return {
+                    userFeatureId: n.userFeatureId,
+                    options: n.options
+                };
+            });
+
+            assert.deepStrictEqual(actual.length, 4);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: './c',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './d',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './a',
+                        options: {}
+                    }
+                ]);
+        });
+    });
+
 });
 
 // describe('Container features install order', function () {

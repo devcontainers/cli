@@ -20,9 +20,9 @@ interface UserProvidedFNode extends FNode {
 }
 
 // Represents a 'no-op' Feature injected into the dependency graph to influence installation order.
-// interface ArtificialFNode extends FNode {
-//     type: 'artificial';
-// }
+interface ArtificialFNode extends FNode {
+    type: 'artificial';
+}
 
 export interface FNode {
     type: 'user-provided' | 'artificial' | 'resolved';
@@ -60,7 +60,7 @@ function equals(a: FNode, b: FNode) {
     return comparesTo(a, b) === 0;
 }
 
-function satisfiesSoftDependency(node: FNode, softDep: FNode) {
+function satisfiesSoftDependency(node: FNode, softDep: FNode): boolean {
     const nodeSourceInfo = node.featureSet?.sourceInformation;
     let softDepSourceInfo = softDep.featureSet?.sourceInformation; // Mutable only for type-casting.
 
@@ -86,7 +86,8 @@ function satisfiesSoftDependency(node: FNode, softDep: FNode) {
             const softDepFeatureRefResource = `${softDepFeatureRef.registry}/${softDepFeatureRef.namespace}`;
 
             return nodeFeatureRef.resource === softDepFeatureRef.resource || // Same resource
-                softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefResource}/${legacyId}` === nodeFeatureRef.resource); // Handle 'legacyIds'
+                softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefResource}/${legacyId}` === nodeFeatureRef.resource) || // Handle 'legacyIds'
+                false; 
 
         case 'direct-tarball':
             throw new Error(`TODO: Should be supported but is unimplemented!`);
@@ -341,7 +342,8 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
 export async function buildDependencyGraph(
     params: CommonParams,
     processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
-    userFeatures: DevContainerFeature[]): Promise<FNode[] | undefined> {
+    userFeatures: DevContainerFeature[],
+    config?: { overrideFeatureInstallOrder?: string[] }): Promise<FNode[] | undefined> {
 
     const { output } = params;
 
@@ -359,7 +361,75 @@ export async function buildDependencyGraph(
     output.write(`User provided FNodes: ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
     const nodes: FNode[] = [];
-    return await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
+    const resolvedGraph = await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
+
+    // Handle the 'overrideFeatureInstallOrder' config option.
+    let overrideFeatureNodes: ArtificialFNode[] = [];
+    if (config?.overrideFeatureInstallOrder) {
+        output.write(`Resolving 'overrideFeatureInstallOrder' property`, LogLevel.Info);
+
+        // Create an artificial node for each Feature in the override property.
+        for (const userFeatureId of config.overrideFeatureInstallOrder) {
+            const overrideNode: ArtificialFNode = {
+                type: 'artificial',
+                userFeatureId,
+                options: {},
+                dependsOn: [],
+                installsAfter: [],
+            };
+            const processed = await processFeature(overrideNode);
+            if (!processed) {
+                throw new Error(`Feature '${userFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
+            }
+            overrideNode.featureSet = processed;
+            overrideFeatureNodes.push(overrideNode);
+        }
+
+        // // Let each such artificial node have a soft-dependency on the artifical node of the
+        // // Feature preceeding it in the overrideFeatureInstallOrder list. (Enforcing the user-provided order.)
+        // for (let i = overrideFeatureNodes.length - 1; i > 0; i--) {
+        //     const current = overrideFeatureNodes[i];
+        //     const prev = overrideFeatureNodes[i - 1];
+        //     current.installsAfter.push(prev);
+        // }
+
+        output.write(`[override-feature-nodes]: ${overrideFeatureNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+
+        for (let i = 0; i < overrideFeatureNodes.length - 1; i++) {
+            // Scan the resolvedGraph for a node that matches the next override node.
+            const currentOverrideNode = overrideFeatureNodes[i];
+            const nextOverrideNode = overrideFeatureNodes[i + 1];
+            let countMatches = 0;
+            for (const node of resolvedGraph) {
+                if (satisfiesSoftDependency(node, nextOverrideNode)) {
+                    countMatches++;
+                    // Add a soft dependency on the next override node.
+                    output.write(`[override-feature-add-relationship]: ${node.userFeatureId} installsAfter ${currentOverrideNode.userFeatureId}`, LogLevel.Info);
+                    node.installsAfter.push(currentOverrideNode);
+                }
+            }
+
+            // Invariant: Every Feature indicated in the 'overrideFeatureInstallOrder' property should have at least one corresponding Feature in the resolved graph.
+            if (!countMatches) {
+                throw new Error(`The 'overrideFeatureInstallOrder' property includes references to Feature(s) that are not queued for installation.`);
+            }
+        }
+
+        // Add the final node to each leaf node's soft-dependency adjacency list (Enforcing override Features are installed first),
+        // Ensuring that such an act does not introduce a cycle.
+        const lastOverrideNode = overrideFeatureNodes[overrideFeatureNodes.length - 1];
+        for (const node of resolvedGraph) {
+            if (node.installsAfter.length === 0 //  TODO: necessary?
+                && node.dependsOn.length === 0 // Leaf node
+                && !satisfiesSoftDependency(node, lastOverrideNode) // Prevent cycles with itself
+                && overrideFeatureNodes.every(override => !satisfiesSoftDependency(node, override))) // Prevent cycles with other override nodes 
+            {
+                output.write(`[override-feature-nodes-tail]: ${node.userFeatureId} installsAfter ${lastOverrideNode.userFeatureId}`, LogLevel.Info);
+                node.installsAfter.push(lastOverrideNode);
+            }
+        }
+    }
+    return resolvedGraph;
 }
 
 export async function computeDependsOnInstallationOrder(
@@ -371,7 +441,7 @@ export async function computeDependsOnInstallationOrder(
     const { output } = params;
 
     // Build dependency graph and resolves all to featureSets.
-    const worklist = await buildDependencyGraph(params, processFeature, userFeatures);
+    const worklist = await buildDependencyGraph(params, processFeature, userFeatures, config);
     if (!worklist || worklist.length === 0) {
         output.write('Zero length or undefined worklist.', LogLevel.Error);
         return;
@@ -386,16 +456,10 @@ export async function computeDependsOnInstallationOrder(
 
     output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
 
-    // TODO
-    // Handle 'overrideFeatureInstallOrder' config option.
-    // let overrideFeatureTailNode: ArtificialFNode | undefined = undefined;
-    if (config?.overrideFeatureInstallOrder) {
-        output.write('TODO: OVERRIDE FEATURE INSTALL ORDER', LogLevel.Warning);
-    }
-
     // Filter and then splice out
     //  - Legacy (v1) Features
     //  - Features that do not support dependencies.
+    // This will be appended to the end of the installation.
     let legacyFeatures: FNode[] = [];
     // reverse iterate
     for (let j = worklist.length - 1; j >= 0; j--) {
