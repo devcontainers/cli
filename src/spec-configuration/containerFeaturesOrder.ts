@@ -294,6 +294,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
                     const legacyIds = (softDepMetadata.legacyIds || []).concat(softDepMetadata.id);
                     dependency.legacyIdAliases = legacyIds;
                 }
+
                 current.installsAfter.push(dependency);
             }
         }
