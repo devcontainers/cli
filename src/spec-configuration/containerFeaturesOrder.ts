@@ -138,6 +138,10 @@ function comparesTo(a: FNode, b: FNode): number {
         throw new Error(`ERR: Missing source information! (${a.userFeatureId} ?~ ${b.userFeatureId})`);
     }
 
+    if (aSourceInfo.type !== bSourceInfo.type) {
+        return aSourceInfo.userFeatureId.localeCompare(bSourceInfo.userFeatureId);
+    }
+
     switch (aSourceInfo.type) {
         case 'oci':
             bSourceInfo = bSourceInfo as OCISourceInformation;
@@ -286,8 +290,7 @@ async function _buildDependencyGraph(params: CommonParams, processFeature: (user
 
         // Resolve dependencies given the current Feature's metadata.
         if (metadata) {
-            output.write(`METADATA: ${JSON.stringify(metadata, null, 2)}`, LogLevel.Trace);
-
+            // current.featureSet.features[0] = metadata;
 
             // Dependency-related properties
             const dependsOn = metadata.dependsOn || {};
@@ -356,7 +359,6 @@ export async function buildDependencyGraph(
         });
 
     output.write(`User provided FNodes: ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
-
 
     const nodes: FNode[] = [];
     return await _buildDependencyGraph(params, processFeature, rootNodes, nodes);
