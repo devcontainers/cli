@@ -207,6 +207,7 @@ export interface ContainerFeatureInternalParams {
 	platform: NodeJS.Platform;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
+	experimentalFeatureDependencies?: boolean;
 }
 
 export const multiStageBuildExploration = false;
@@ -538,6 +539,8 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, params.platform);
 	output.write(`configPath: ${configPath}`, LogLevel.Trace);
 
+	const ociCacheDir = await prepareOCICache(dstFolder);
+
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	const lockfile = await readLockfile(config);
 
@@ -545,31 +548,38 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
 	};
 
-	const featureSets: FeatureSet[] = [];
-	for (const userFeature of userFeatures) {
-		const processed = await processFeature(userFeature);
-		if (!processed) {
-			throw Error(`Could not resolve Feature ${userFeature.userFeatureId}`);
+	// Feature Flag to enable experimental Feature dependencies
+	// https://github.com/devcontainers/spec/issues/109
+	let featureSets: FeatureSet[] = [];
+	if (params.experimentalFeatureDependencies) {
+		// TODO
+	} else {
+		// Fallback to current/old implementation
+		for (const userFeature of userFeatures) {
+			const processed = await processFeature(userFeature);
+			if (!processed) {
+				throw Error(`Could not resolve Feature ${userFeature.userFeatureId}`);
+			}
+			featureSets.push(processed);
 		}
-		featureSets.push(processed);
 	}
 
 	// Create the featuresConfig object.
-	let featuresConfig: FeaturesConfig = {
+	const featuresConfig: FeaturesConfig = {
 		featureSets: featureSets,
 		dstFolder
 	};
 
-	const ociCacheDir = await prepareOCICache(dstFolder);
-
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
-
 	await writeLockfile(params, config, featuresConfig);
 
-	const orderedFeatures = computeFeatureInstallationOrder_deprecated(config, featuresConfig.featureSets);
-	featuresConfig.featureSets = orderedFeatures;
+	if (!params.experimentalFeatureDependencies) {
+		// Fallback to current/old implementation
+		const orderedFeatures = computeFeatureInstallationOrder_deprecated(config, featureSets);
+		featuresConfig.featureSets = orderedFeatures;
+	}
 
 	return featuresConfig;
 }
