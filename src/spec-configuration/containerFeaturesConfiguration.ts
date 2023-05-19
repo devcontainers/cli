@@ -519,6 +519,10 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
+	// Use experimental feature dependencies if explicitly enabled via flag, or if running in CI
+	const useExperimentalFeatureDependencies = params.experimentalFeatureDependencies || process.env['CI'];
+	output.write(`useExperimentalFeatureDependencies: ${useExperimentalFeatureDependencies}`, LogLevel.Trace);
+
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
@@ -551,7 +555,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	// Feature Flag to enable experimental Feature dependencies
 	// https://github.com/devcontainers/spec/issues/109
 	let featureSets: FeatureSet[] = [];
-	if (params.experimentalFeatureDependencies) {
+	if (useExperimentalFeatureDependencies) {
 		// TODO
 	} else {
 		// Fallback to current/old implementation
@@ -575,7 +579,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 	await writeLockfile(params, config, featuresConfig);
 
-	if (!params.experimentalFeatureDependencies) {
+	if (!useExperimentalFeatureDependencies) {
 		// Fallback to current/old implementation
 		const orderedFeatures = computeFeatureInstallationOrder_deprecated(config, featureSets);
 		featuresConfig.featureSets = orderedFeatures;
