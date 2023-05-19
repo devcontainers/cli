@@ -146,6 +146,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	let tag: string | undefined = undefined;
 	let digest: string | undefined = undefined;
 
+	// -- Resolve version
 	if (indexOfLastAtCharacter !== -1) {
 		// The version is specified by digest
 		// eg: ghcr.io/codspace/features/ruby@sha256:abcdefgh
@@ -167,23 +168,22 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 		}
 
 		digest = digestWithHashingAlgorithm;
+	} else if (indexOfLastColon !== -1 && indexOfLastColon > input.lastIndexOf('/')) {
+		// The version is specified by tag
+		// eg: ghcr.io/codspace/features/ruby:1.0.0
+
+		//  1. The last colon is before the first slash (a port)
+		//     eg:   ghcr.io:8081/codspace/features/ruby
+		//  2. There is no tag at all
+		//     eg:   ghcr.io/codspace/features/ruby
+		resource = input.substring(0, indexOfLastColon);
+		tag = input.substring(indexOfLastColon + 1);
 	} else {
-		// In both cases, assume 'latest' tag.
-		if (indexOfLastColon === -1 || indexOfLastColon < input.lastIndexOf('/')) {
-			//  1. The final colon is before the first slash (a port)
-			//     eg:   ghcr.io:8081/codspace/features/ruby
-			//  2. There is no tag at all
-			//     eg:   ghcr.io/codspace/features/ruby
-			// In both cases, assume the 'latest' tag
-			resource = input;
-			tag = 'latest';
-		} else {
-			// The version is specified by tag
-			// eg: ghcr.io/codspace/features/ruby:1.0.0
-			resource = input.substring(0, indexOfLastColon);
-			tag = input.substring(indexOfLastColon + 1);
-		}
+		// There is no tag or digest, so assume 'latest'
+		resource = input;
+		tag = 'latest';
 	}
+
 
 	if (tag && !regexForVersionOrDigest.test(tag)) {
 		output.write(`Tag '${tag}' for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
@@ -266,8 +266,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	// Simple mechanism to avoid making a DNS request for 
 	// something that is not a domain name.
 	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
-		output.write(`ERR: Registry '${ref.registry}' is not a valid domain name or IP address.`, LogLevel.Error);
-		return undefined;
+		return;
 	}
 
 	// TODO: Always use the manifest digest (the canonical digest) 

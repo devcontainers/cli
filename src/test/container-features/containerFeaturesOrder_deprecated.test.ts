@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { computeInstallationOrder, computeOverrideInstallationOrder } from '../../spec-configuration/containerFeaturesOrder';
+import { computeInstallationOrder_deprecated,  computeOverrideInstallationOrder_deprecated } from '../../spec-configuration/containerFeaturesOrder_deprecated';
 import { URI } from 'vscode-uri';
 import { devContainerDown, shellExec } from '../testUtils';
 import path from 'path';
@@ -16,7 +16,7 @@ describe('Container features install order', function () {
 
     it('has stable order among independent features', () => {
         assert.deepEqual(
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('C'),
                 installAfter('A'),
                 installAfter('B'),
@@ -27,7 +27,7 @@ describe('Container features install order', function () {
 
     it('orders "installAfter" first in breadth-first order (tree)', () => {
         assert.deepEqual(
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('A', 'B'),
                 installAfter('B', 'C'),
                 installAfter('C'),
@@ -40,7 +40,7 @@ describe('Container features install order', function () {
 
     it('orders "installAfter" first in breadth-first order (DAG)', () => {
         assert.deepEqual(
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('A', 'B', 'C'),
                 installAfter('B', 'C'),
                 installAfter('C'),
@@ -52,7 +52,7 @@ describe('Container features install order', function () {
 
     it('treats "installAfter" is a soft dependency', () => {
         assert.deepEqual(
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('A', 'B', 'C'),
                 installAfter('B'),
             ]).map(f => f.features[0].id),
@@ -62,7 +62,7 @@ describe('Container features install order', function () {
 
     it('orders independent features last', () => {
         assert.deepEqual(
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('A'),
                 installAfter('B', 'C'),
                 installAfter('C'),
@@ -73,7 +73,7 @@ describe('Container features install order', function () {
 
     it('detects cycles', () => {
         try {
-            computeInstallationOrder([
+            computeInstallationOrder_deprecated([
                 installAfter('A', 'B'),
                 installAfter('B'),
                 installAfter('C', 'D'),
@@ -88,7 +88,7 @@ describe('Container features install order', function () {
 
     it('respects OverrideConfig', () => {
         assert.deepEqual(
-            computeOverrideInstallationOrder(
+            computeOverrideInstallationOrder_deprecated(
                 { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['A', 'B', 'C'] },
                 [
                     installAfter('A', 'C'),
@@ -100,7 +100,7 @@ describe('Container features install order', function () {
     });
 
     it('respects overrideFeatureInstallOrder for OCI features', () => {
-        const orderedFeatures = computeOverrideInstallationOrder(
+        const orderedFeatures = computeOverrideInstallationOrder_deprecated(
             { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['ghcr.io/user/repo/node'] },
             [
                 getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
@@ -113,7 +113,7 @@ describe('Container features install order', function () {
 
     it('throws an error for features referenced in overrideFeatureInstallOrder without fully qualified id', () => {
         assert.throws(() => {
-            computeOverrideInstallationOrder(
+            computeOverrideInstallationOrder_deprecated(
                 { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['node'] },
                 [
                     getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { FeatureSet } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeatureSet } from './containerFeaturesConfiguration';
 import { DevContainerConfig } from './configuration';
 
 interface FeatureNode {
@@ -13,20 +13,20 @@ interface FeatureNode {
     after: Set<FeatureNode>;
 }
 
-export function computeFeatureInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
+export function computeFeatureInstallationOrder_deprecated(config: DevContainerConfig, features: FeatureSet[]) {
 
     if (config.overrideFeatureInstallOrder) {
-        return computeOverrideInstallationOrder(config, features);
+        return computeOverrideInstallationOrder_deprecated(config, features);
     }
     else {
-        return computeInstallationOrder(features);
+        return computeInstallationOrder_deprecated(features);
     }
 }
 
 // Exported for unit tests.
-export function computeOverrideInstallationOrder(config: DevContainerConfig, features: FeatureSet[]) {
+export function computeOverrideInstallationOrder_deprecated(config: DevContainerConfig, features: FeatureSet[]) {
     // Starts with the automatic installation order.
-    const automaticOrder = computeInstallationOrder(features);
+    const automaticOrder = computeInstallationOrder_deprecated(features);
 
     // Moves to the beginning the features that are explicitly configured.
     const orderedFeatures = [];
@@ -44,7 +44,7 @@ export function computeOverrideInstallationOrder(config: DevContainerConfig, fea
 }
 
 // Exported for unit tests.
-export function computeInstallationOrder(features: FeatureSet[]) {
+export function computeInstallationOrder_deprecated(features: FeatureSet[]) {
     const nodesById = features.map<FeatureNode>(feature => ({
         feature,
         before: new Set(),

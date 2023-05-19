@@ -13,7 +13,7 @@ import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from '.
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
-import { computeFeatureInstallationOrder } from './containerFeaturesOrder';
+import { computeFeatureInstallationOrder_deprecated } from './containerFeaturesOrder_deprecated';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
@@ -211,12 +211,6 @@ export interface ContainerFeatureInternalParams {
 
 export const multiStageBuildExploration = false;
 
-// Counter to ensure that no two folders are the same even if we are executing the same feature multiple times.
-let counter = 1;
-function getCounter() {
-	return counter++;
-}
-
 const isTsnode = path.basename(process.argv[0]) === 'ts-node' || process.argv.indexOf('ts-node/register') !== -1;
 
 export function getContainerFeaturesFolder(_extensionPath: string | { distFolder: string }) {
@@ -225,24 +219,6 @@ export function getContainerFeaturesFolder(_extensionPath: string | { distFolder
 	}
 	const distFolder = typeof _extensionPath === 'string' ? path.join(_extensionPath, 'dist') : _extensionPath.distFolder;
 	return path.join(distFolder, 'node_modules', 'vscode-dev-containers', 'container-features');
-}
-
-// Take a SourceInformation and condense it down into a single string
-// Useful for calculating a unique build folder name for a given featureSet.
-export function getSourceInfoString(srcInfo: SourceInformation): string {
-	const { type } = srcInfo;
-	switch (type) {
-		case 'local-cache':
-			return 'local-cache-' + getCounter();
-		case 'direct-tarball':
-			return srcInfo.tarballUri + getCounter();
-		case 'github-repo':
-			return `github-${srcInfo.owner}-${srcInfo.repo}-${srcInfo.isLatest ? 'latest' : srcInfo.tag}-${getCounter()}`;
-		case 'file-path':
-			return srcInfo.resolvedFilePath + '-' + getCounter();
-		case 'oci':
-			return `oci-${srcInfo.featureRef.resource}-${getCounter()}`;
-	}
 }
 
 // TODO: Move to node layer.
@@ -545,17 +521,10 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = featuresToArray(config, additionalFeatures);
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config, additionalFeatures), output);
 	if (!userFeatures) {
 		return undefined;
 	}
-
-	// Create the featuresConfig object.
-	// Initialize the featureSets object, and stash the dstFolder on the object for use later.
-	let featuresConfig: FeaturesConfig = {
-		featureSets: [],
-		dstFolder
-	};
 
 	// load local cache of features;
 	// TODO: Update so that cached features are always version 2
@@ -566,11 +535,30 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 		return undefined;
 	}
 
-	// Read features and get the type.
+	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, params.platform);
+	output.write(`configPath: ${configPath}`, LogLevel.Trace);
+
 	output.write('--- Processing User Features ----', LogLevel.Trace);
 	const lockfile = await readLockfile(config);
-	featuresConfig = await processUserFeatures(params, config, workspaceRoot, userFeatures, featuresConfig, lockfile);
-	output.write(JSON.stringify(featuresConfig, null, 4), LogLevel.Trace);
+
+	const processFeature = async (_userFeature: DevContainerFeature) => {
+		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
+	};
+
+	const featureSets: FeatureSet[] = [];
+	for (const userFeature of userFeatures) {
+		const processed = await processFeature(userFeature);
+		if (!processed) {
+			throw Error(`Could not resolve Feature ${userFeature.userFeatureId}`);
+		}
+		featureSets.push(processed);
+	}
+
+	// Create the featuresConfig object.
+	let featuresConfig: FeaturesConfig = {
+		featureSets: featureSets,
+		dstFolder
+	};
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
@@ -580,13 +568,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	await writeLockfile(params, config, featuresConfig);
 
-	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
-
-	output.write('--- Computed order ----', LogLevel.Trace);
-	for (const feature of orderedFeatures) {
-		output.write(`${feature.sourceInformation.userFeatureId}`, LogLevel.Trace);
-	}
-
+	const orderedFeatures = computeFeatureInstallationOrder_deprecated(config, featuresConfig.featureSets);
 	featuresConfig.featureSets = orderedFeatures;
 
 	return featuresConfig;
@@ -599,8 +581,8 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
-	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures).length) {
+export function userFeaturesToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures || {}).length) {
 		return undefined;
 	}
 
@@ -611,7 +593,7 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 		for (const userFeatureKey of Object.keys(config.features)) {
 			const userFeatureValue = config.features[userFeatureKey];
 			const feature: DevContainerFeature = {
-				id: userFeatureKey,
+				userFeatureId: userFeatureKey,
 				options: userFeatureValue
 			};
 			userFeatures.push(feature);
@@ -625,7 +607,7 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 			if (!userFeatureKeys.has(userFeatureKey)) {
 				const userFeatureValue = additionalFeatures[userFeatureKey];
 				const feature: DevContainerFeature = {
-					id: userFeatureKey,
+					userFeatureId: userFeatureKey,
 					options: userFeatureValue
 				};
 				userFeatures.push(feature);
@@ -634,26 +616,6 @@ function featuresToArray(config: DevContainerConfig, additionalFeatures: Record<
 	}
 
 	return userFeatures;
-}
-
-// Process features contained in devcontainer.json
-// Creates one feature set per feature to aid in support of the previous structure.
-async function processUserFeatures(params: ContainerFeatureInternalParams, config: DevContainerConfig, workspaceRoot: string, userFeatures: DevContainerFeature[], featuresConfig: FeaturesConfig, lockfile: Lockfile | undefined): Promise<FeaturesConfig> {
-	const { platform, output } = params;
-
-	let configPath = config.configFilePath && uriToFsPath(config.configFilePath, platform);
-	output.write(`configPath: ${configPath}`, LogLevel.Trace);
-
-	const updatedUserFeatures = updateDeprecatedFeaturesIntoOptions(userFeatures, output);
-	for (const userFeature of updatedUserFeatures) {
-		const newFeatureSet = await processFeatureIdentifier(params, configPath, workspaceRoot, userFeature, lockfile);
-
-		if (!newFeatureSet) {
-			throw new Error(`Failed to process feature ${userFeature.id}`);
-		}
-		featuresConfig.featureSets.push(newFeatureSet);
-	}
-	return featuresConfig;
 }
 
 const deprecatedFeaturesIntoOptions: Record<string, { mapTo: string; withOptions: any }> = {
@@ -677,14 +639,19 @@ const deprecatedFeaturesIntoOptions: Record<string, { mapTo: string; withOptions
 	},
 };
 
-export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFeature[], output: Log) {
+export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFeature[] | undefined, output: Log) {
+	if (!userFeatures) {
+		output.write('No user features to update', LogLevel.Trace);
+		return;
+	}
+
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
 	const versionBackwardComp = '1';
-	for (const update of userFeatures.filter(feature => deprecatedFeaturesIntoOptions[feature.id])) {
-		const { mapTo, withOptions } = deprecatedFeaturesIntoOptions[update.id];
-		output.write(`(!) WARNING: Using the deprecated '${update.id}' Feature. It is now part of the '${mapTo}' Feature. See https://github.com/devcontainers/features/tree/main/src/${mapTo}#options for the updated Feature.`, LogLevel.Warning);
+	for (const update of userFeatures.filter(feature => deprecatedFeaturesIntoOptions[feature.userFeatureId])) {
+		const { mapTo, withOptions } = deprecatedFeaturesIntoOptions[update.userFeatureId];
+		output.write(`(!) WARNING: Using the deprecated '${update.userFeatureId}' Feature. It is now part of the '${mapTo}' Feature. See https://github.com/devcontainers/features/tree/main/src/${mapTo}#options for the updated Feature.`, LogLevel.Warning);
 		const qualifiedMapToId = `${newFeaturePath}/${mapTo}`;
-		let userFeature = userFeatures.find(feature => feature.id === mapTo || feature.id === qualifiedMapToId || feature.id.startsWith(`${qualifiedMapToId}:`));
+		let userFeature = userFeatures.find(feature => feature.userFeatureId === mapTo || feature.userFeatureId === qualifiedMapToId || feature.userFeatureId.startsWith(`${qualifiedMapToId}:`));
 		if (userFeature) {
 			userFeature.options = {
 				...(
@@ -696,13 +663,13 @@ export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFe
 			};
 		} else {
 			userFeature = {
-				id: `${qualifiedMapToId}:${versionBackwardComp}`,
+				userFeatureId: `${qualifiedMapToId}:${versionBackwardComp}`,
 				options: withOptions
 			};
 			userFeatures.push(userFeature);
 		}
 	}
-	const updatedUserFeatures = userFeatures.filter(feature => !deprecatedFeaturesIntoOptions[feature.id]);
+	const updatedUserFeatures = userFeatures.filter(feature => !deprecatedFeaturesIntoOptions[feature.userFeatureId]);
 	return updatedUserFeatures;
 }
 
@@ -789,16 +756,16 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 export async function processFeatureIdentifier(params: CommonParams, configPath: string | undefined, _workspaceRoot: string, userFeature: DevContainerFeature, lockfile?: Lockfile, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
 	const { output } = params;
 
-	output.write(`* Processing feature: ${userFeature.id}`);
+	output.write(`* Processing feature: ${userFeature.userFeatureId}`);
 
 	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
-	const originalUserFeatureId = userFeature.id;
+	const originalUserFeatureId = userFeature.userFeatureId;
 	// Adding backward compatibility
 	if (!skipFeatureAutoMapping) {
-		userFeature.id = getBackwardCompatibleFeatureId(output, userFeature.id);
+		userFeature.userFeatureId = getBackwardCompatibleFeatureId(output, userFeature.userFeatureId);
 	}
 
-	const { type, manifest } = await getFeatureIdType(params, userFeature.id, lockfile);
+	const { type, manifest } = await getFeatureIdType(params, userFeature.userFeatureId, lockfile);
 
 	// cached feature
 	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
@@ -806,8 +773,8 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		output.write(`Cached feature found.`);
 
 		let feat: Feature = {
-			id: userFeature.id,
-			name: userFeature.id,
+			id: userFeature.userFeatureId,
+			name: userFeature.userFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -826,7 +793,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// remote tar file
 	if (type === 'direct-tarball') {
 		output.write(`Remote tar file found.`);
-		const tarballUri = new URL.URL(userFeature.id);
+		const tarballUri = new URL.URL(userFeature.userFeatureId);
 
 		const fullPath = tarballUri.pathname;
 		const tarballName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
@@ -848,7 +815,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 		let feat: Feature = {
 			id: id,
-			name: userFeature.id,
+			name: userFeature.userFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -869,10 +836,10 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
 
-		const id = path.basename(userFeature.id);
+		const id = path.basename(userFeature.userFeatureId);
 
 		// Fail on Absolute paths.
-		if (path.isAbsolute(userFeature.id)) {
+		if (path.isAbsolute(userFeature.userFeatureId)) {
 			output.write('An Absolute path to a local feature is not allowed.', LogLevel.Error);
 			return undefined;
 		}
@@ -882,7 +849,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			output.write('A local feature requires a configuration path.', LogLevel.Error);
 			return undefined;
 		}
-		const featureFolderPath = path.join(path.dirname(configPath), userFeature.id);
+		const featureFolderPath = path.join(path.dirname(configPath), userFeature.userFeatureId);
 
 		// Ensure we aren't escaping .devcontainer folder
 		const parent = path.join(_workspaceRoot, '.devcontainer');
@@ -894,14 +861,14 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			return undefined;
 		}
 
-		output.write(`Resolved: ${userFeature.id}  ->  ${featureFolderPath}`, LogLevel.Trace);
+		output.write(`Resolved: ${userFeature.userFeatureId}  ->  ${featureFolderPath}`, LogLevel.Trace);
 
 		// -- All parsing and validation steps complete at this point.
 
 		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
 		let feat: Feature = {
 			id,
-			name: userFeature.id,
+			name: userFeature.userFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -920,19 +887,19 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		return tryGetOCIFeatureSet(output, userFeature.id, userFeature.options, manifest, originalUserFeatureId);
+		return tryGetOCIFeatureSet(output, userFeature.userFeatureId, userFeature.options, manifest, originalUserFeatureId);
 	}
 
 	output.write(`Github feature.`);
 	// Github repository source.
 	let version = 'latest';
-	let splitOnAt = userFeature.id.split('@');
+	let splitOnAt = userFeature.userFeatureId.split('@');
 	if (splitOnAt.length > 2) {
 		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
 		return undefined;
 	}
 	if (splitOnAt.length === 2) {
-		output.write(`[${userFeature.id}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+		output.write(`[${userFeature.userFeatureId}] has version ${splitOnAt[1]}`, LogLevel.Trace);
 		version = splitOnAt[1];
 	}
 
@@ -943,7 +910,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	//  eg: <publisher>/<feature-set>/<feature>
 	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
 		// This is the final fallback. If we end up here, we weren't able to resolve the Feature
-		output.write(`Could not resolve Feature '${userFeature.id}'.  Ensure the Feature is published and accessible from your current environment.`, LogLevel.Error);
+		output.write(`Could not resolve Feature '${userFeature.userFeatureId}'.  Ensure the Feature is published and accessible from your current environment.`, LogLevel.Error);
 		return undefined;
 	}
 	const owner = splitOnSlash[0];
@@ -952,7 +919,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 	let feat: Feature = {
 		id: id,
-		name: userFeature.id,
+		name: userFeature.userFeatureId,
 		value: userFeature.options,
 		included: true,
 	};
@@ -997,7 +964,9 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 }
 
 async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
-	for (const featureSet of featuresConfig.featureSets) {
+	const featureSets = featuresConfig.featureSets;
+	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
+		const featureSet = featureSets[idx];
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
 				continue;
@@ -1010,7 +979,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const { output } = params;
 
 			const feature = featureSet.features[0];
-			const consecutiveId = feature.id + '_' + getCounter();
+			const consecutiveId = `${feature.id}_${idx}`;
 			// Calculate some predictable caching paths.
 			const featCachePath = path.join(dstFolder, consecutiveId);
 			const sourceInfoType = featureSet.sourceInformation?.type;

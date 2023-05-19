@@ -46,7 +46,7 @@ describe('Dev Container Features E2E (remote)', function () {
                 success = true;
             } catch (error) {
                 assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-                assert.ok(error.stderr.indexOf('Failed to process feature') > -1, `Actual error msg:  ${error.stderr}`);
+                assert.ok(error.stderr.indexOf('Could not resolve Feature') > -1, `Actual error msg:  ${error.stderr}`);
             }
             assert.equal(success, false, 'expect non-successful call');
         });
