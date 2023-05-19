@@ -18,6 +18,8 @@ import { CLIHost } from '../spec-common/commonUtils';
 import { Log } from '../spec-utils/log';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn } from '../spec-configuration/configurationCommonUtils';
 import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, updateFromOldProperties } from '../spec-configuration/configuration';
+import { ensureNoDisallowedFeatures } from './disallowedFeatures';
+import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 
 export { getWellKnownDevContainerPaths as getPossibleDevContainerPaths } from '../spec-configuration/configurationCommonUtils';
 
@@ -55,6 +57,11 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	const idLabels = providedIdLabels || (await findContainerAndIdLabels(params, undefined, providedIdLabels, workspace?.rootFolderPath, configPath?.fsPath, params.removeOnStartup)).idLabels;
 	const configWithRaw = addSubstitution(configs.config, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 	const { config } = configWithRaw;
+
+	const { dockerCLI, dockerComposeCLI } = params;
+	const { env } = common;
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+	await ensureNoDisallowedFeatures(cliParams, config, additionalFeatures, idLabels);
 
 	await runInitializeCommand({ ...params, common: { ...common, output: common.lifecycleHook.output } }, config.initializeCommand, common.lifecycleHook.onDidInput);
 
