@@ -66,7 +66,10 @@ export interface OCIManifest {
 		size: number;
 	};
 	layers: OCILayer[];
-	annotations?: {};
+	annotations?: {
+		'dev.containers.metadata'?: string;
+		'com.github.package.type'?: string;
+	};
 }
 
 export interface ManifestContainer {
