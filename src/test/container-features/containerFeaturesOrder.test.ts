@@ -153,34 +153,34 @@ describe('Feature Dependencies', function () {
             assert.deepStrictEqual(actual,
                 [
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/D',
+                        userFeatureId: 'ghcr.io/codspace/dependson/D',
                         options: { magicNumber: '30' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/d@sha256:7f7e5a6d0acc9d28ce9b9a2080a677b24dc8c16146aa21283a33b6b0da3a933a',
+                        canonicalId: 'ghcr.io/codspace/dependson/d@sha256:3795caa1e32ba6b30a08260039804eed6f3cf40811f0c65c118437743fa15ce8',
                     },
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/E',
+                        userFeatureId: 'ghcr.io/codspace/dependson/E',
                         options: { magicNumber: '50' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/e@sha256:3e8900ecf32ab5e6ec53d57af27aac30ae88f9587f67669c7dfad151a7aa0841',
+                        canonicalId: 'ghcr.io/codspace/dependson/e@sha256:9f36f159c70f8bebff57f341904b030733adb17ef12a5d58d4b3d89b2a6c7d5a',
                     },
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsonexperiment/a',
+                        userFeatureId: 'ghcr.io/codspace/dependson/a',
                         options: { magicNumber: '10' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:fcf65d5e171f1d339b50f5bc5a35159af11366eefd6f6b433f8bf9765863a699',
+                        canonicalId: 'ghcr.io/codspace/dependson/a@sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a',
                     },
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/A',
+                        userFeatureId: 'ghcr.io/codspace/dependson/A',
                         options: { magicNumber: '40' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/a@sha256:fcf65d5e171f1d339b50f5bc5a35159af11366eefd6f6b433f8bf9765863a699',
+                        canonicalId: 'ghcr.io/codspace/dependson/a@sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a',
                     },
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsOnExperiment/C',
+                        userFeatureId: 'ghcr.io/codspace/dependson/C',
                         options: { magicNumber: '20' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/c@sha256:11186388aa7c428f4c73456c3d012947d3c45c7f2f0638b892fb7cdb49e8a1d9',
+                        canonicalId: 'ghcr.io/codspace/dependson/c@sha256:db651708398b6d7af48f184c358728eaaf959606637133413cb4107b8454a868',
                     },
                     {
-                        userFeatureId: 'ghcr.io/codspace/dependsonexperiment/b',
+                        userFeatureId: 'ghcr.io/codspace/dependson/b',
                         options: { magicNumber: '400' },
-                        canonicalId: 'ghcr.io/codspace/dependsonexperiment/b@sha256:ec7e5ac599c1d6feaaa9e7dfe1564e5484b6fea9359e7a7ab8f16ae12c21a2fc',
+                        canonicalId: 'ghcr.io/codspace/dependson/b@sha256:e7e6b52884ae7f349baf207ac59f78857ab64529c890b646bb0282f962bb2941',
                     }
                 ]);
         });
