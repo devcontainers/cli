@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
 import { runCommandNoPty, plainExec } from '../spec-common/commonUtils';
-import { request, requestResolveHeaders } from '../spec-utils/httpRequest';
+import { requestResolveHeaders } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
@@ -396,30 +396,33 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		};
 	}
 
-	let authReq: Buffer;
-	try {
-		authReq = await request(httpOptions, output);
-	} catch (e: any) {
-		// This is ok if the registry is trying to speak Basic Auth with us.
-		output.write(`[httpOci] Could not fetch bearer token for '${service}': ${e}`, LogLevel.Error);
-		return;
+	let res = await requestResolveHeaders(httpOptions, output);
+	if (res && res.statusCode === 401 || res.statusCode === 403) {
+		output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
+		const body = res.resBody?.toString();
+		if (body) {
+			output.write(`${res.resBody.toString()}.`, LogLevel.Info);
+		}
+
+		// Try again without user credentials. If we're here, their creds are likely expired.
+		delete headers['authorization'];
+		res = await requestResolveHeaders(httpOptions, output);
 	}
 
-	if (!authReq) {
-		output.write(`[httpOci] Did not receive bearer token for '${service}'`, LogLevel.Error);
+	if (!res || res.statusCode > 299 || !res.resBody) {
+		output.write(`[httpOci] ${res.statusCode}: Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
 		return;
 	}
 
 	let scopeToken: string | undefined;
 	try {
-		const json = JSON.parse(authReq.toString());
+		const json = JSON.parse(res.resBody.toString());
 		scopeToken = json.token || json.access_token; // ghcr uses 'token', acr uses 'access_token'
 	} catch {
 		// not JSON
 	}
 	if (!scopeToken) {
-		output.write(`[httpOci] Unexpected bearer token response format for '${service}'`, LogLevel.Error);
-		output.write(`httpOci] Response: ${authReq.toString()}`, LogLevel.Trace);
+		output.write(`[httpOci] Unexpected bearer token response format for '${service}: ${res.resBody.toString()}'`, LogLevel.Error);
 		return;
 	}
 
