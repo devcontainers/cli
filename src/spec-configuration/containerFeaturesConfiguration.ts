@@ -18,6 +18,7 @@ import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFr
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
+import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -521,7 +522,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const { output } = params;
 
 	// Use experimental feature dependencies if explicitly enabled via flag, or if running in CI
-	const useExperimentalFeatureDependencies = params.experimentalFeatureDependencies || process.env['CI'];
+	const useExperimentalFeatureDependencies = params.experimentalFeatureDependencies || !!process.env['CI'];
 	output.write(`useExperimentalFeatureDependencies: ${useExperimentalFeatureDependencies}`, LogLevel.Trace);
 
 	const workspaceRoot = params.cwd;
@@ -546,18 +547,21 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	output.write('--- Processing User Features ----', LogLevel.Trace);
 	const lockfile = await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
 	};
 
+	output.write('--- Processing User Features ----', LogLevel.Trace);
 	// Feature Flag to enable experimental Feature dependencies
 	// https://github.com/devcontainers/spec/issues/109
-	let featureSets: FeatureSet[] = [];
+	let featureSets: FeatureSet[] | undefined = [];
 	if (useExperimentalFeatureDependencies) {
-		// TODO
+		featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+		if (!featureSets) {
+			throw new Error('Failed to compute Feature installation order!');
+		}
 	} else {
 		// Fallback to current/old implementation
 		for (const userFeature of userFeatures) {
@@ -571,7 +575,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	// Create the featuresConfig object.
 	const featuresConfig: FeaturesConfig = {
-		featureSets: featureSets,
+		featureSets,
 		dstFolder
 	};
 
@@ -582,8 +586,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	if (!useExperimentalFeatureDependencies) {
 		// Fallback to current/old implementation
-		const orderedFeatures = computeFeatureInstallationOrder_deprecated(config, featureSets);
-		featuresConfig.featureSets = orderedFeatures;
+		featuresConfig.featureSets = computeFeatureInstallationOrder_deprecated(config, featureSets);
 	}
 
 	return featuresConfig;
