@@ -35,6 +35,7 @@ import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply
 import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
 import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
+import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -576,6 +577,9 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
+
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
@@ -612,8 +616,6 @@ async function doBuild({
 				composeGlobalArgs.push('--env-file', envFile);
 			}
 			const projectName = await getProjectName(params, workspace, composeFiles);
-
-			const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
 
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 			const services = Object.keys(composeConfig.services || {});
