@@ -58,6 +58,7 @@ export interface SchemaFeatureBaseProperties {
 	installsAfter?: string[];
 	deprecated?: boolean;
 	legacyIds?: string[];
+	dependsOn?: Record<string, string | boolean | Record<string, string | boolean>>;
 }
 
 // Properties that are set programmatically for book-keeping purposes
@@ -595,7 +596,7 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-export function userFeaturesToArray(config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+export function userFeaturesToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
 	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures || {}).length) {
 		return undefined;
 	}
