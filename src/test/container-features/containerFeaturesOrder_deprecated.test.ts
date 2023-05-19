@@ -5,8 +5,7 @@
 
 import * as assert from 'assert';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { computeInstallationOrder_deprecated,  computeOverrideInstallationOrder_deprecated } from '../../spec-configuration/containerFeaturesOrder_deprecated';
-import { URI } from 'vscode-uri';
+import { computeInstallationOrder_deprecated, computeOverrideInstallationOrder_deprecated } from '../../spec-configuration/containerFeaturesOrder_deprecated';
 import { devContainerDown, shellExec } from '../testUtils';
 import path from 'path';
 
@@ -89,7 +88,7 @@ describe('Container features install order', function () {
     it('respects OverrideConfig', () => {
         assert.deepEqual(
             computeOverrideInstallationOrder_deprecated(
-                { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['A', 'B', 'C'] },
+                { overrideFeatureInstallOrder: ['A', 'B', 'C'] },
                 [
                     installAfter('A', 'C'),
                     installAfter('B', 'C'),
@@ -101,7 +100,7 @@ describe('Container features install order', function () {
 
     it('respects overrideFeatureInstallOrder for OCI features', () => {
         const orderedFeatures = computeOverrideInstallationOrder_deprecated(
-            { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['ghcr.io/user/repo/node'] },
+            { overrideFeatureInstallOrder: ['ghcr.io/user/repo/node'] },
             [
                 getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
                 getOCIFeatureSet('ghcr.io/user/repo/node:1')
@@ -114,7 +113,7 @@ describe('Container features install order', function () {
     it('throws an error for features referenced in overrideFeatureInstallOrder without fully qualified id', () => {
         assert.throws(() => {
             computeOverrideInstallationOrder_deprecated(
-                { image: 'ubuntu', configFilePath: URI.from({ 'scheme': 'https' }), overrideFeatureInstallOrder: ['node'] },
+                { overrideFeatureInstallOrder: ['node'] },
                 [
                     getOCIFeatureSet('ghcr.io/devcontainers/features/node:1'),
                     getOCIFeatureSet('ghcr.io/user/repo/node:1')
