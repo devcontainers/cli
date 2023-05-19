@@ -18,6 +18,7 @@ import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFr
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
+import { logFeatureAdvisories } from './featureAdvisories';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -200,6 +201,7 @@ export interface CollapsedFeaturesConfig {
 
 export interface ContainerFeatureInternalParams {
 	extensionPath: string;
+	cacheFolder: string;
 	cwd: string;
 	output: Log;
 	env: NodeJS.ProcessEnv;
@@ -578,6 +580,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
 
+	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
 
 	const orderedFeatures = computeFeatureInstallationOrder(config, featuresConfig.featureSets);
