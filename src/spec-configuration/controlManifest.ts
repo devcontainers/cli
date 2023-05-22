@@ -92,6 +92,17 @@ async function fetchControlManifest() {
 	});
 }
 
+// TODO: Remove after this is added to the actual control manifest.
+const testAdvisories = [
+	{
+		featureId: 'ghcr.io/devcontainers/features/feature-with-advisory',
+		introducedInVersion: '1.0.7',
+		fixedInVersion: '1.1.10',
+		description: 'Feature with advisory for testing.',
+		documentationURL: 'https://github.com/devcontainers/features/tree/main/src/feature-with-advisory#readme'
+	},
+];
+
 function sanitizeControlManifest(manifest: any): DevContainerControlManifest {
 	if (!manifest || typeof manifest !== 'object') {
 		return emptyControlManifest;
@@ -105,6 +116,6 @@ function sanitizeControlManifest(manifest: any): DevContainerControlManifest {
 			typeof f.introducedInVersion === 'string' &&
 			typeof f.fixedInVersion === 'string' &&
 			typeof f.description === 'string'
-		) : [],
+		) : testAdvisories,
 	};
 }
