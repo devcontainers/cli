@@ -5,7 +5,6 @@
 
 
 import { FeatureSet } from './containerFeaturesConfiguration';
-import { DevContainerConfig } from './configuration';
 
 interface FeatureNode {
     feature: FeatureSet;
@@ -13,7 +12,7 @@ interface FeatureNode {
     after: Set<FeatureNode>;
 }
 
-export function computeFeatureInstallationOrder_deprecated(config: DevContainerConfig, features: FeatureSet[]) {
+export function computeFeatureInstallationOrder_deprecated(config: { overrideFeatureInstallOrder?: string[] }, features: FeatureSet[]) {
 
     if (config.overrideFeatureInstallOrder) {
         return computeOverrideInstallationOrder_deprecated(config, features);
@@ -24,7 +23,7 @@ export function computeFeatureInstallationOrder_deprecated(config: DevContainerC
 }
 
 // Exported for unit tests.
-export function computeOverrideInstallationOrder_deprecated(config: DevContainerConfig, features: FeatureSet[]) {
+export function computeOverrideInstallationOrder_deprecated(config: { overrideFeatureInstallOrder?: string[] }, features: FeatureSet[]) {
     // Starts with the automatic installation order.
     const automaticOrder = computeInstallationOrder_deprecated(features);
 
