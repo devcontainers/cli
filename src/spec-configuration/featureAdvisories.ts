@@ -89,5 +89,5 @@ FEATURE ADVISORIES:${featuresWithAdvisories.map(f => `
 It is recommended that you update your configuration to versions of these features with the fixes applied.
 -----------------------------------------------------------------------------------------------------------
 
-`);
+`, LogLevel.Warning);
 }
