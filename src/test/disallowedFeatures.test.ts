@@ -46,6 +46,7 @@ describe(`Disallowed features check`, function () {
 					featureIdPrefix: 'example.io/test/node',
 				},
 			],
+			featureAdvisories: [],
 		};
 		assert.ok(findDisallowedFeatureEntry(controlManifest, 'example.io/test/node'));
 		assert.strictEqual(findDisallowedFeatureEntry(controlManifest, 'example.io/test/nodej'), undefined);
