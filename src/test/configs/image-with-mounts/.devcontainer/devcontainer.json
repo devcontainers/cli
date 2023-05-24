@@ -1,0 +1,9 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"mounts": [
+        {
+            "target": "/home/vscode/.vscode-server",
+            "type": "volume",
+        }
+    ]
+}
