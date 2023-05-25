@@ -18,7 +18,7 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, convertMountToVolume } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -543,7 +543,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     labels:${additionalLabels.map(label => `
       - '${label.replace(/\$/g, '$$$$').replace(/'/g, '\'\'')}'`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
-      - ${m.source}:${m.target}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
+      - ${convertMountToVolume(m)}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
 volumes:${volumeMounts.map(m => `
   ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
 `;

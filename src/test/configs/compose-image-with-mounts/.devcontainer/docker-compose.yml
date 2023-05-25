@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  test:
+    image: mcr.microsoft.com/devcontainers/base:latest
+    command: sleep infinity
+    volumes:
+      - /home/test_docker_compose

@@ -1,5 +1,7 @@
 {
-	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "test",
+	"workspaceFolder": "/",
 	"mounts": [
         {
             "target": "/home/test_devcontainer_config",

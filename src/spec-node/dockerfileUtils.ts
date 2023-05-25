@@ -273,9 +273,9 @@ export function supportsBuildContexts(dockerfile: Dockerfile) {
 }
 
 /**
- * Process the mount command arguments and return the command string 
+ * Convert mount command' arguments to string 
  * @param mount 
- * @returns command string 
+ * @returns mount command string 
  */
 export function generateMountCommand(mount: Mount | string): string[] {
 	const command: string = '--mount';
@@ -291,4 +291,21 @@ export function generateMountCommand(mount: Mount | string): string[] {
 	const args: string = `${type}${source}${destination}`;
 
 	return [command, args];
+}
+
+/**
+ * Convert mount command' arguments to Docker Compose volume
+ * @param mount 
+ * @returns mount command representation for Docker compose
+ */
+export function convertMountToVolume(mount: Mount): string {
+	let volume: string = '';
+
+	if (mount.source) {
+		volume = `${mount.source}:`;
+	}
+
+	volume += mount.target;
+
+	return volume;
 }
