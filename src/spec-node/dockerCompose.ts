@@ -500,7 +500,7 @@ async function generateFeaturesComposeOverrideContent(
 		...mergedConfig.mounts || [],
 		...additionalMounts,
 	].map(m => typeof m === 'string' ? parseMount(m) : m);
-	const namedVolumeMounts = mounts.filter(m => m.type === 'volume' && m.source);
+	const volumeMounts = mounts.filter(m => m.type === 'volume');
 	const customEntrypoints = mergedConfig.entrypoints || [];
 	const composeEntrypoint: string[] | undefined = typeof service.entrypoint === 'string' ? shellQuote.parse(service.entrypoint) : service.entrypoint;
 	const composeCommand: string[] | undefined = typeof service.command === 'string' ? shellQuote.parse(service.command) : service.command;
@@ -543,9 +543,9 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     labels:${additionalLabels.map(label => `
       - '${label.replace(/\$/g, '$$$$').replace(/'/g, '\'\'')}'`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
-      - ${convertMountToVolume(m)}`).join('')}` : ''}${gpuResources}${namedVolumeMounts.length ? `
-volumes:${namedVolumeMounts.map(m => `
-  ${convertMountToVolumeTopLevelElement(m)}`).join('')}` : ''}
+      - ${convertMountToVolume(m)}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
+volumes:${volumeMounts.map(m => `
+  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
 `;
 }
 
@@ -702,24 +702,6 @@ function convertMountToVolume(mount: Mount): string {
 	}
 
 	volume += mount.target;
-
-	return volume;
-}
-
-/**
- * Convert mount command' arguments to volume top-level element
- * @param mount 
- * @returns mount object representation as volumes top-level element
- * @throws if `source` property is undefined
- */
-function convertMountToVolumeTopLevelElement(mount: Mount): string {
-	let volume: string = `
-  ${mount.source}
-`;
-
-	if (mount.external) {
-		volume += '\n    external: true';
-	}
 
 	return volume;
 }
