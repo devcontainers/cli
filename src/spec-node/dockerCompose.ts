@@ -18,7 +18,7 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName, convertMountToVolume } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -687,4 +687,21 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 			};
 		})());
 	};
+}
+
+/**
+ * Convert mount command' arguments to Docker Compose volume
+ * @param mount 
+ * @returns mount command representation for Docker compose
+ */
+function convertMountToVolume(mount: Mount): string {
+	let volume: string = '';
+
+	if (mount.source) {
+		volume = `${mount.source}:`;
+	}
+
+	volume += mount.target;
+
+	return volume;
 }

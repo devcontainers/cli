@@ -292,20 +292,3 @@ export function generateMountCommand(mount: Mount | string): string[] {
 
 	return [command, args];
 }
-
-/**
- * Convert mount command' arguments to Docker Compose volume
- * @param mount 
- * @returns mount command representation for Docker compose
- */
-export function convertMountToVolume(mount: Mount): string {
-	let volume: string = '';
-
-	if (mount.source) {
-		volume = `${mount.source}:`;
-	}
-
-	volume += mount.target;
-
-	return volume;
-}
