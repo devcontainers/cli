@@ -545,7 +545,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     volumes:${mounts.map(m => `
       - ${convertMountToVolume(m)}`).join('')}` : ''}${gpuResources}${namedVolumeMounts.length ? `
 volumes:${namedVolumeMounts.map(m => `
-  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
+  ${convertMountToVolumeTopLevelElement(m)}`).join('')}` : ''}
 `;
 }
 
@@ -702,6 +702,24 @@ function convertMountToVolume(mount: Mount): string {
 	}
 
 	volume += mount.target;
+
+	return volume;
+}
+
+/**
+ * Convert mount command' arguments to volume top-level element
+ * @param mount 
+ * @returns mount object representation as volumes top-level element
+ * @throws if `source` property is undefined
+ */
+function convertMountToVolumeTopLevelElement(mount: Mount): string {
+	let volume: string = `
+  ${mount.source}:
+`;
+
+	if (mount.external) {
+		volume += '\n    external: true';
+	}
 
 	return volume;
 }
