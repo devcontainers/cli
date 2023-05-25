@@ -710,6 +710,7 @@ function convertMountToVolume(mount: Mount): string {
  * Convert mount command' arguments to volume top-level element
  * @param mount 
  * @returns mount object representation as volumes top-level element
+ * @throws if `source` property is undefined
  */
 function convertMountToVolumeTopLevelElement(mount: Mount): string {
 	let volume: string = `
