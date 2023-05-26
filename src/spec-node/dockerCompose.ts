@@ -561,7 +561,11 @@ export async function readDockerComposeConfig(params: DockerCLIParameters, compo
 		}
 		try {
 			const partial = toExecParameters(params, 'dockerComposeCLI' in params ? await params.dockerComposeCLI() : undefined);
-			const { stdout } = await dockerComposeCLI({ ...partial, print: 'onerror' }, ...composeGlobalArgs, 'config');
+			const { stdout } = await dockerComposeCLI({
+				...partial,
+				output: makeLog(params.output, LogLevel.Info),
+				print: 'onerror'
+			}, ...composeGlobalArgs, 'config');
 			const stdoutStr = stdout.toString();
 			params.output.write(stdoutStr);
 			return yaml.load(stdoutStr) || {} as any;
