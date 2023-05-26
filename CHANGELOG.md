@@ -2,6 +2,17 @@
 
 Notable changes.
 
+## May 2023
+
+### [0.42.0]
+
+- Add object notation support for `initializeCommand` (https://github.com/devcontainers/cli/pull/514)
+- Keep existing lockfile updated (https://github.com/devcontainers/spec/issues/236)
+- HttpOci: Retry fetching bearer token anonymously if credentials appear expired (https://github.com/devcontainers/cli/pull/515)
+- Bump proxy-agent (https://github.com/devcontainers/cli/pull/534)
+- Log feature advisories (https://github.com/devcontainers/cli/pull/528)
+- Check for disallowed features (https://github.com/devcontainers/cli/pull/521)
+
 ## April 2023
 
 ### [0.41.0]
