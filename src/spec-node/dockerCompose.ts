@@ -690,7 +690,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 }
 
 /**
- * Convert mount command' arguments to Docker Compose volume
+ * Convert mount command arguments to Docker Compose volume
  * @param mount 
  * @returns mount command representation for Docker compose
  */
@@ -707,15 +707,13 @@ function convertMountToVolume(mount: Mount): string {
 }
 
 /**
- * Convert mount command' arguments to volume top-level element
+ * Convert mount command arguments to volume top-level element
  * @param mount 
  * @returns mount object representation as volumes top-level element
- * @throws if `source` property is undefined
  */
 function convertMountToVolumeTopLevelElement(mount: Mount): string {
 	let volume: string = `
-  ${mount.source}:
-`;
+  ${mount.source}:`;
 
 	if (mount.external) {
 		volume += '\n    external: true';
