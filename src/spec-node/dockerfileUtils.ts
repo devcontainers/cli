@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as semver from 'semver';
+import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -269,4 +270,25 @@ export function supportsBuildContexts(dockerfile: Dockerfile) {
 		return true; // latest, labs or no tag.
 	}
 	return semver.intersects(numVersion, '>=1.4');
+}
+
+/**
+ * Convert mount command' arguments to string 
+ * @param mount 
+ * @returns mount command string 
+ */
+export function generateMountCommand(mount: Mount | string): string[] {
+	const command: string = '--mount';
+
+	if (typeof mount === 'string') {
+		return [command, mount];
+	}
+
+	const type: string = `type=${mount.type},`;
+	const source: string = mount.source ? `src=${mount.source},` : '';
+	const destination: string = `dst=${mount.target}`;
+
+	const args: string = `${type}${source}${destination}`;
+
+	return [command, args];
 }

@@ -12,7 +12,7 @@ import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromI
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -360,7 +360,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 		...[
 			...mergedConfig.mounts || [],
 			...params.additionalMounts,
-		].map(m => ['--mount', typeof m === 'string' ? m : `type=${m.type},src=${m.source},dst=${m.target}`])
+		].map(m => generateMountCommand(m))
 	);
 
 	const customEntrypoints = mergedConfig.entrypoints || [];

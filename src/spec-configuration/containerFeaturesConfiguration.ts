@@ -19,6 +19,7 @@ import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
+import { logFeatureAdvisories } from './featureAdvisories';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -96,7 +97,7 @@ export type FeatureOption = {
 };
 export interface Mount {
 	type: 'bind' | 'volume';
-	source: string;
+	source?: string;
 	target: string;
 	external?: boolean;
 }
@@ -202,6 +203,7 @@ export interface CollapsedFeaturesConfig {
 
 export interface ContainerFeatureInternalParams {
 	extensionPath: string;
+	cacheFolder: string;
 	cwd: string;
 	output: Log;
 	env: NodeJS.ProcessEnv;
@@ -582,6 +584,8 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
+
+	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
 
 	if (!useExperimentalFeatureDependencies) {

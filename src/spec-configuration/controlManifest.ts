@@ -15,14 +15,25 @@ export interface DisallowedFeature {
 	documentationURL?: string;
 }
 
+export interface FeatureAdvisory {
+	featureId: string;
+	introducedInVersion: string;
+	fixedInVersion: string;
+	description: string;
+	documentationURL?: string;
+
+}
+
 export interface DevContainerControlManifest {
 	disallowedFeatures: DisallowedFeature[];
+	featureAdvisories: FeatureAdvisory[];
 }
 
 const controlManifestFilename = 'control-manifest.json';
 
 const emptyControlManifest: DevContainerControlManifest = {
 	disallowedFeatures: [],
+	featureAdvisories: [],
 };
 
 const cacheTimeoutMillis = 5 * 60 * 1000; // 5 minutes
@@ -86,7 +97,14 @@ function sanitizeControlManifest(manifest: any): DevContainerControlManifest {
 		return emptyControlManifest;
 	}
 	const disallowedFeatures = manifest.disallowedFeatures as DisallowedFeature[] | undefined;
+	const featureAdvisories = manifest.featureAdvisories as FeatureAdvisory[] | undefined;
 	return {
 		disallowedFeatures: Array.isArray(disallowedFeatures) ? disallowedFeatures.filter(f => typeof f.featureIdPrefix === 'string') : [],
+		featureAdvisories: Array.isArray(featureAdvisories) ? featureAdvisories.filter(f =>
+			typeof f.featureId === 'string' &&
+			typeof f.introducedInVersion === 'string' &&
+			typeof f.fixedInVersion === 'string' &&
+			typeof f.description === 'string'
+		) : [],
 	};
 }

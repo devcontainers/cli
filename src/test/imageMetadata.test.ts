@@ -202,6 +202,24 @@ describe('Image Metadata', function () {
 					await shellExec(`docker rm -f ${response.containerId}`);
 				});
 			});
+
+			[
+				'image-with-mounts',
+				'compose-image-with-mounts'
+			].forEach(testFolderName => {
+				it('docker volume should not be named undefined if the src argument is omitted in mount command', async () => {
+					const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
+					const cliResult = await shellExec(`${cli} up --workspace-folder ${imageTestFolder}`);
+					const response = JSON.parse(cliResult.stdout);
+					assert.strictEqual(response.outcome, 'success');
+					const details = JSON.parse((await shellExec(`docker inspect ${response.containerId}`)).stdout)[0] as ContainerDetails;
+					const targetMount = details.Mounts.find(mount => mount.Destination === '/home/test_devcontainer_config');
+
+					assert.notEqual(targetMount?.Name?.toLowerCase(), 'undefined');
+
+					await shellExec(`docker rm -f ${response.containerId}`);
+				});
+			});
 		});
 	});
 
