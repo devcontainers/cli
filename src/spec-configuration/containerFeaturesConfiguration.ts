@@ -95,7 +95,7 @@ export type FeatureOption = {
 };
 export interface Mount {
 	type: 'bind' | 'volume';
-	source: string;
+	source?: string;
 	target: string;
 	external?: boolean;
 }

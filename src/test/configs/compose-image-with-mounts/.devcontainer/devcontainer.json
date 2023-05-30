@@ -1,0 +1,11 @@
+{
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "test",
+	"workspaceFolder": "/",
+	"mounts": [
+        {
+            "target": "/home/test_devcontainer_config",
+            "type": "volume",
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"mounts": [
+        {
+            "target": "/home/test_devcontainer_config",
+            "type": "volume",
+        }
+    ]
+}
