@@ -449,12 +449,13 @@ export async function computeDependsOnInstallationOrder(
 	params: CommonParams,
 	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
 	userFeatures: DevContainerFeature[],
-	config: { overrideFeatureInstallOrder?: string[] }): Promise<FeatureSet[] | undefined> {
+	config: { overrideFeatureInstallOrder?: string[] },
+	precomputedGraph?: DependencyGraph): Promise<FeatureSet[] | undefined> {
 
 	const { output } = params;
 
 	// Build dependency graph and resolves all to FeatureSets.
-	const graph = await buildDependencyGraph(params, processFeature, userFeatures, config);
+	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, config);
 	if (!graph) {
 		return;
 	}
