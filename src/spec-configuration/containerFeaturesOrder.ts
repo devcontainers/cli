@@ -14,8 +14,9 @@ import { CommonParams } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { fetchOCIFeature } from './containerFeaturesOCI';
 import { computeFeatureInstallationOrder_deprecated } from './containerFeaturesOrder_deprecated';
+
 interface FNode {
-	type: 'user-provided' | 'artificial' | 'resolved';
+	type: 'user-provided' | 'override' | 'resolved';
 	userFeatureId: string;
 	options: string | boolean | Record<string, string | boolean | undefined>;
 
@@ -30,6 +31,10 @@ interface FNode {
 	installsAfter: FNode[];
 
 	legacyIdAliases?: string[];
+
+	// Round Order Priority
+	// Effective value is always the max
+	roundPriority: number;
 }
 
 interface DependencyGraph {
@@ -192,65 +197,46 @@ async function applyOverrideFeatureInstallOrder(
 		return worklist;
 	}
 
-	const overrideFeatureNodes: FNode[] = [];
-
-	// Create an artificial node for each Feature in the override property.
+	// Create an override node for each Feature in the override property.
 	// Reverse iterate to remove out items from config that have been processed.
-	for (let j = config.overrideFeatureInstallOrder.length - 1; j >= 0; j--) {
-		const userFeatureId = config.overrideFeatureInstallOrder[j];
-		const overrideNode: FNode = {
-			type: 'artificial',
-			userFeatureId,
+	const originalLength = config.overrideFeatureInstallOrder.length;
+	for (let i = config.overrideFeatureInstallOrder.length - 1; i >= 0; i--) {
+		const overrideFeatureId = config.overrideFeatureInstallOrder[i];
+
+		// First element == N, last element == 1
+		const roundPriority = originalLength - i;
+
+		const tmpOverrideNode: FNode = {
+			type: 'override',
+			userFeatureId: overrideFeatureId,
 			options: {},
-			dependsOn: [],
+			roundPriority,
 			installsAfter: [],
+			dependsOn: [],
+			featureSet: undefined,
 		};
-		const processed = await processFeature(overrideNode);
+
+		const processed = await processFeature(tmpOverrideNode);
 		if (!processed) {
-			throw new Error(`Feature '${userFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
+			throw new Error(`Feature '${tmpOverrideNode.userFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
 		}
 
-		if (featureSupportsDependencies(processed)) {
-			overrideNode.featureSet = processed;
-			overrideFeatureNodes.push(overrideNode);
-			config.overrideFeatureInstallOrder.splice(j, 1);
+		if (!featureSupportsDependencies(processed)) {
+			// Process legacy Features later.
+			continue;
 		}
-	}
 
-	overrideFeatureNodes.reverse();
-	output.write(`[override-feature-nodes]: ${overrideFeatureNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+		tmpOverrideNode.featureSet = processed;
+		// Remove from the config list to not double process when handling legacy Features.
+		config.overrideFeatureInstallOrder.splice(i, 1);
 
-	for (let i = 0; i < overrideFeatureNodes.length - 1; i++) {
-		// Scan the resolvedGraph for a node that matches the next override node.
-		const currentOverrideNode = overrideFeatureNodes[i];
-		const nextOverrideNode = overrideFeatureNodes[i + 1];
-		let countMatches = 0;
+		// Scan the worklist, incrementing the priority of each Feature that matches the override.
 		for (const node of worklist) {
-			if (satisfiesSoftDependency(node, nextOverrideNode)) {
-				countMatches++;
-				// Add a soft dependency on the next override node.
-				output.write(`[override-feature-add-relationship]: ${node.userFeatureId} installsAfter ${currentOverrideNode.userFeatureId}`, LogLevel.Info);
-				node.installsAfter.push(currentOverrideNode);
+			if (satisfiesSoftDependency(node, tmpOverrideNode)) {
+				// Increase the priority of this node to install it sooner.
+				output.write(`[override]: '${node.userFeatureId}' has override priority of ${roundPriority}`, LogLevel.Info);
+				node.roundPriority = Math.max(node.roundPriority, roundPriority);
 			}
-		}
-
-		// Invariant: Every Feature indicated in the 'overrideFeatureInstallOrder' property should have at least one corresponding Feature in the resolved graph.
-		if (!countMatches) {
-			throw new Error(`The 'overrideFeatureInstallOrder' property includes references to Feature(s) that are not queued for installation.`);
-		}
-	}
-
-	// Add the final node to each leaf node's soft-dependency adjacency list (Enforcing override Features are installed first),
-	// Ensuring that such an act does not introduce a cycle.
-	const lastOverrideNode = overrideFeatureNodes[overrideFeatureNodes.length - 1];
-	for (const node of worklist) {
-		if (node.installsAfter.length === 0 //  TODO: necessary?
-			&& node.dependsOn.length === 0 // Leaf node
-			&& !satisfiesSoftDependency(node, lastOverrideNode) // Prevent cycles with itself
-			&& overrideFeatureNodes.every(override => !satisfiesSoftDependency(node, override))) // Prevent cycles with other override nodes 
-		{
-			output.write(`[override-feature-nodes-tail]: ${node.userFeatureId} installsAfter ${lastOverrideNode.userFeatureId}`, LogLevel.Info);
-			node.installsAfter.push(lastOverrideNode);
 		}
 	}
 
@@ -342,6 +328,7 @@ async function _buildDependencyGraph(
 					featureSet: undefined,
 					dependsOn: [],
 					installsAfter: [],
+					roundPriority: 0,
 				};
 				current.dependsOn.push(dependency);
 				worklist.push(dependency);
@@ -357,6 +344,7 @@ async function _buildDependencyGraph(
 					featureSet: undefined,
 					dependsOn: [],
 					installsAfter: [],
+					roundPriority: 0,
 				};
 				const processedFeatureSet = await processFeature(dependency);
 				if (!processedFeatureSet) {
@@ -436,7 +424,8 @@ export async function buildDependencyGraph(
 				userFeatureId: f.userFeatureId,
 				options: f.options,
 				dependsOn: [],
-				installsAfter: []
+				installsAfter: [],
+				roundPriority: 0,
 			};
 		});
 
@@ -514,7 +503,7 @@ export async function computeDependsOnInstallationOrder(
 			&& node.installsAfter.every(dep =>
 				installationOrder.some(installed => satisfiesSoftDependency(installed, dep))));
 
-		output.write(`Round: ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
+		output.write(`[round] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
 		if (round.length === 0) {
 			output.write('Circular dependency detected!', LogLevel.Error);
 			output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
@@ -526,6 +515,14 @@ export async function computeDependsOnInstallationOrder(
 
 		// Sort rounds lexicographically by id.
 		round.sort((a, b) => comparesTo(a, b));
+
+		output.write(`[round-sort-id] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
+
+		// Final sort of rounds by priority
+		// Higher priority nodes are installed earlier.
+		round.sort((a, b) => b.roundPriority - a.roundPriority);
+
+		output.write(`[round-sort-priority] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Info);
 
 		installationOrder.push(...round);
 	}
