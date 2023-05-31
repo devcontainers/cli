@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import * as os from 'os';
+import * as crypto from 'crypto';
 
 import { DEVCONTAINER_FEATURE_FILE_NAME, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
@@ -533,4 +534,44 @@ export async function computeDependsOnInstallationOrder(
 		installationOrder.map(n => n.featureSet!)
 	);
 
+}
+
+// Pretty-print the calculated graph in the mermaid flowchart format.
+// Viewable by copy-pasting the output string to a live editor, i.e: https://mermaid.live/
+export function generateMermaidDiagram(graph: FNode[]) {
+	// Output dependency graph in a mermaid flowchart format
+	const roots = graph?.filter(f => f.type === 'user-provided')!;
+	let str = 'flowchart\n';
+	for (const root of roots) {
+		str += `${generateMermaidSubtree(root, graph).reduce((p, c) => p + c + '\n', '')}`;
+	}
+	return str;
+}
+
+function generateMermaidSubtree(current: FNode, worklist: FNode[], acc: string[] = []) {
+	for (const child of current.dependsOn) {
+		// For each corresponding member of the worklist that satisfies this hard-dependency
+		for (const w of worklist) {
+			if (equals(w, child)) {
+				acc.push(`${generateMermaidNode(current)} --> ${generateMermaidNode(w)}`);
+			}
+		}
+		generateMermaidSubtree(child, worklist, acc);
+	}
+	for (const child of current.installsAfter) {
+		// For each corresponding member of the worklist that satisfies this soft-dependency
+		for (const w of worklist) {
+			if (satisfiesSoftDependency(w, child)) {
+				acc.push(`${generateMermaidNode(current)} -.-> ${generateMermaidNode(w)}`);
+			}
+		}
+		generateMermaidSubtree(child, worklist, acc);
+	}
+	return acc;
+}
+
+function generateMermaidNode(node: FNode) {
+	const hasher = crypto.createHash('sha256', { encoding: 'hex' });
+	const hash = hasher.update(JSON.stringify(node)).digest('hex').slice(0, 6);
+	return `${hash}[${node.userFeatureId}<br/><${node.roundPriority}>]`;
 }
