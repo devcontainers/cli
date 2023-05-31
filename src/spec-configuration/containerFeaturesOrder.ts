@@ -171,7 +171,7 @@ function comparesTo(a: FNode, b: FNode): number {
 			return aSourceInfo.resolvedFilePath.localeCompare(bSourceInfo.resolvedFilePath);
 
 		default:
-			throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
+			throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
 	}
 }
 
@@ -366,7 +366,6 @@ async function _buildDependencyGraph(
 		}
 
 		acc.push(current);
-		await _buildDependencyGraph(params, processFeature, worklist, acc, legacyAcc);
 	}
 
 	// Return the accumulated collection of dependencies.
@@ -382,7 +381,6 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
 	// TODO: Implement a caching layer here!
 	//       This can be optimized to share work done here
 	//       with the 'fetchFeatures()` stage later on.
-
 	const srcInfo = node?.featureSet?.sourceInformation;
 	if (!node.featureSet || !srcInfo || srcInfo.type !== 'oci') {
 		return;
@@ -397,7 +395,8 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
 		// For backwards compatibility,
 		// If the metadata is not present on the manifest, we have to fetch the entire blob
 		// to extract the 'installsAfter' property.
-		const tmp = path.join(os.tmpdir(), Math.random().toString(36).substring(2, 15));
+		// TODO: Cache this smarter to reuse later!
+		const tmp = path.join(os.tmpdir(), crypto.randomUUID());
 		const f = await fetchOCIFeature(params, node.featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
 
 		if (f && f.metadata) {
