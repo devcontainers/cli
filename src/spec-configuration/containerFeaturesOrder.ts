@@ -100,16 +100,75 @@ function satisfiesSoftDependency(node: FNode, softDep: FNode): boolean {
 	}
 }
 
+function optionsCompareTo(a: string | boolean | Record<string, string | boolean | undefined>, b: string | boolean | Record<string, string | boolean | undefined>): number {
+	if (typeof a === 'string' && typeof b === 'string') {
+		return a.localeCompare(b);
+	}
+
+	if (typeof a === 'boolean' && typeof b === 'boolean') {
+		return a === b ? 0 : a ? 1 : -1;
+	}
+
+	if (typeof a === 'object' && typeof b === 'object') {
+		// Compare lengths
+		const aKeys = Object.keys(a);
+		const bKeys = Object.keys(b);
+		if (aKeys.length !== bKeys.length) {
+			return aKeys.length - bKeys.length;
+		}
+
+		aKeys.sort();
+		bKeys.sort();
+
+		for (let i = 0; i < aKeys.length; i++) {
+			// Compare keys
+			if (aKeys[i] !== bKeys[i]) {
+				return aKeys[i].localeCompare(bKeys[i]);
+			}
+			// Compare values
+			const aVal = a[aKeys[i]];
+			const bVal = b[bKeys[i]];
+			if (typeof aVal === 'string' && typeof bVal === 'string') {
+				const v = aVal.localeCompare(bVal);
+				if (v !== 0) {
+					return v;
+				}
+			}
+			if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+				const v = aVal === bVal ? 0 : aVal ? 1 : -1;
+				if (v !== 0) {
+					return v;
+				}
+			}
+
+			if (typeof aVal === undefined) {
+				return 1;
+			}
+
+			if (typeof bVal === undefined) {
+				return -1;
+			}
+		}
+		// Object is piece-wise equal
+		return 0;
+	}
+	return (typeof a).localeCompare(typeof b);
+}
+
+
+
 // If the two features are equal, return 0.
 // If the sorting algorithm should place A _before_ B, return negative number.
 // If the sorting algorithm should place A _after_  B, return positive number.
-function comparesTo(a: FNode, b: FNode): number {
+function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
+	const { output } = params;
+
 	const aSourceInfo = a.featureSet?.sourceInformation;
 	let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
 	if (!aSourceInfo || !bSourceInfo) {
-		// TODO: This indicates a bug - remove once confident this is not happening!
-		throw new Error(`ERR: Missing source information! (${a.userFeatureId} ?~ ${b.userFeatureId})`);
+		output.write(`Missing sourceInfo: comparesTo(${aSourceInfo?.userFeatureId}, ${bSourceInfo?.userFeatureId})`, LogLevel.Trace);
+		throw new Error('ERR: Failure resolving Features.');
 	}
 
 	if (aSourceInfo.type !== bSourceInfo.type) {
@@ -126,15 +185,14 @@ function comparesTo(a: FNode, b: FNode): number {
 			const aDigest = aSourceInfo.manifestDigest;
 			const bDigest = bSourceInfo.manifestDigest;
 
-			const aOptions = JSON.stringify(a.options);
-			const bOptions = JSON.stringify(b.options);
-
 			const aCanonicalId = `${aResource}@${aDigest}`;
 			const bCanonicalId = `${bResource}@${bDigest}`;
 
-			if (aCanonicalId === bCanonicalId && aOptions === bOptions) {
-				// Equal!
-				return 0;
+			// Equal
+			if (aCanonicalId === bCanonicalId) {
+				if (optionsCompareTo(a.options, b.options) === 0) {
+					return 0;
+				}
 			}
 
 			// Sort by resource name
@@ -151,9 +209,9 @@ function comparesTo(a: FNode, b: FNode): number {
 			}
 
 			// Sort by options
-			// TODO: Compares options Record by stringifying them.  This isn't fully correct.
-			if (aOptions !== bOptions) {
-				return aOptions.localeCompare(bOptions);
+			const optionsVal = optionsCompareTo(a.options, b.options);
+			if (optionsVal !== 0) {
+				return optionsVal;
 			}
 
 			// Sort by manifest digest hash
@@ -169,7 +227,11 @@ function comparesTo(a: FNode, b: FNode): number {
 
 		case 'file-path':
 			bSourceInfo = bSourceInfo as FilePathSourceInformation;
-			return aSourceInfo.resolvedFilePath.localeCompare(bSourceInfo.resolvedFilePath);
+			const pathCompare = aSourceInfo.resolvedFilePath.localeCompare(bSourceInfo.resolvedFilePath);
+			if (pathCompare !== 0) {
+				return pathCompare;
+			}
+			return optionsCompareTo(a.options, b.options);
 
 		default:
 			throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
