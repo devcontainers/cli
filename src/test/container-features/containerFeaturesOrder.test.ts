@@ -305,6 +305,85 @@ describe('Feature Dependencies', function () {
                     }
                 ]);
         });
-    });
 
+        it('valid 2 overrides with mixed Feature types', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/mixed`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'file-path' || fs.sourceInformation.type === 'oci'));
+
+            const actual = installOrderNodes.map(fs => {
+                switch (fs.sourceInformation.type) {
+                    case 'oci':
+                        const srcInfo = fs.sourceInformation as OCISourceInformation;
+                        const ref = srcInfo.featureRef;
+                        return {
+                            id: `${ref.resource}@${srcInfo.manifestDigest}`,
+                            options: fs.features[0].value,
+                        };
+                    default:
+                        return {
+                            id: fs.sourceInformation.userFeatureId,
+                            options: fs.features[0].value
+                        };
+                }
+            });
+
+            assert.deepStrictEqual(actual.length, 9);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        'id': './d',
+                        'options': {}
+                    },
+                    {
+                        'id': './b',
+                        'options': {}
+                    },
+                    {
+                        'id': './c',
+                        'options': {}
+                    },
+                    {
+                        'id': 'ghcr.io/codspace/dependson/d@sha256:3795caa1e32ba6b30a08260039804eed6f3cf40811f0c65c118437743fa15ce8',
+                        'options': {
+                            'magicNumber': '30'
+                        }
+                    },
+                    {
+                        'id': 'ghcr.io/codspace/dependson/e@sha256:9f36f159c70f8bebff57f341904b030733adb17ef12a5d58d4b3d89b2a6c7d5a',
+                        'options': {
+                            'magicNumber': '50'
+                        }
+                    },
+                    {
+                        'id': 'ghcr.io/codspace/dependson/a@sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a',
+                        'options': {
+                            'magicNumber': '40'
+                        }
+                    },
+                    {
+                        'id': 'ghcr.io/codspace/dependson/c@sha256:db651708398b6d7af48f184c358728eaaf959606637133413cb4107b8454a868',
+                        'options': {
+                            'magicNumber': '20'
+                        }
+                    },
+                    {
+                        'id': 'ghcr.io/codspace/dependson/b@sha256:e7e6b52884ae7f349baf207ac59f78857ab64529c890b646bb0282f962bb2941',
+                        'options': {
+                            'magicNumber': '400'
+                        }
+                    },
+                    {
+                        'id': './a',
+                        'options': {}
+                    }
+                ]);
+        });
+    });
 });

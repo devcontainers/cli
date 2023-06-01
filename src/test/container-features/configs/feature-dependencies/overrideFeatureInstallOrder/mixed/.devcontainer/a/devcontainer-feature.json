@@ -4,11 +4,12 @@
 	"version": "0.0.1",
 	"dependsOn": {
 		"./b": {},
-		"./d": {}
+		"./c": {},
+		"./d": {},
+		"ghcr.io/codspace/dependson/b": {
+			"magicNumber": "400"
+		}
 	},
-	"installsAfter": [
-		"./c"
-	],
 	"options": {
 		"magicNumber": {
 			"type": "string",

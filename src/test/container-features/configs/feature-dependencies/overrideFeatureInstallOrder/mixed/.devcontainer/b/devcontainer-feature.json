@@ -1,14 +1,7 @@
 {
-	"name": "FeatureA",
-	"id": "a",
+	"name": "FeatureB",
+	"id": "b",
 	"version": "0.0.1",
-	"dependsOn": {
-		"./b": {},
-		"./d": {}
-	},
-	"installsAfter": [
-		"./c"
-	],
 	"options": {
 		"magicNumber": {
 			"type": "string",

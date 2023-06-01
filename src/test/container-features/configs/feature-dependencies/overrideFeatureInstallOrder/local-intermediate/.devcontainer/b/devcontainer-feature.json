@@ -1,6 +1,9 @@
 {
 	"name": "FeatureB",
 	"id": "b",
+	"dependsOn": {
+		"./c": {}
+	},
 	"version": "0.0.1",
 	"options": {
 		"magicNumber": {
