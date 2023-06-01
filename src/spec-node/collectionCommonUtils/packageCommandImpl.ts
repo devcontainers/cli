@@ -135,7 +135,7 @@ async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTempla
 
 	templateData.type = type;
 	templateData.fileCount = (await recursiveDirReader.default(srcFolder)).length;
-	templateData.featureIds = config.features ? Object.keys(config.features).map((k) => k.split(':')[0]) : [];
+	templateData.featureIds = config.features ? Object.keys(config.features).map((k) => k.split(':').slice(0, -1).join(':')) : [];
 
 	await writeLocalFile(devcontainerTemplateJsonPath, JSON.stringify(templateData, null, 4));
 
