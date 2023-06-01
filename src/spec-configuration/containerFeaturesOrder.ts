@@ -87,17 +87,16 @@ function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNo
 			const softDepFeatureRef = softDepSourceInfo.featureRef;
 			const softDepFeatureRefPrefix = `${softDepFeatureRef.registry}/${softDepFeatureRef.namespace}`;
 
-			return nodeFeatureRef.resource === softDepFeatureRef.resource || // Same resource
-				softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefPrefix}/${legacyId}` === nodeFeatureRef.resource) || // Handle 'legacyIds'
-				false;
+			return nodeFeatureRef.resource === softDepFeatureRef.resource // Same resource
+				|| softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefPrefix}/${legacyId}` === nodeFeatureRef.resource) // Handle 'legacyIds'
+				|| false;
 
-		case 'direct-tarball':
-			throw new Error(`TODO: Should be supported but is unimplemented!`);
 		case 'file-path':
 			softDepSourceInfo = softDepSourceInfo as FilePathSourceInformation;
 			return nodeSourceInfo.resolvedFilePath === softDepSourceInfo.resolvedFilePath;
+
 		default:
-			throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${nodeSourceInfo.type}'.`);
+			throw new Error(`Unexpected sourceInfo type: '${nodeSourceInfo.type}'.`);
 	}
 }
 
@@ -155,8 +154,6 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 	}
 	return (typeof a).localeCompare(typeof b);
 }
-
-
 
 // If the two features are equal, return 0.
 // If the sorting algorithm should place A _before_ B, return negative number.
@@ -223,9 +220,6 @@ function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
 			// Consider these two OCI Features equal.
 			return 0;
 
-		case 'direct-tarball':
-			throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
-
 		case 'file-path':
 			bSourceInfo = bSourceInfo as FilePathSourceInformation;
 			const pathCompare = aSourceInfo.resolvedFilePath.localeCompare(bSourceInfo.resolvedFilePath);
@@ -235,7 +229,7 @@ function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
 			return optionsCompareTo(a.options, b.options);
 
 		default:
-			throw new Error(`Feature dependencies are only supported in Features published (1) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${aSourceInfo.type}'.`);
+			throw new Error(`Unexpected sourceInfo type: '${aSourceInfo.type}'.`);
 	}
 }
 
@@ -243,9 +237,8 @@ function featureSupportsDependencies(featureSet?: FeatureSet): boolean {
 	if (!featureSet) {
 		return false;
 	}
-
 	const publishType = featureSet.sourceInformation.type;
-	// TODO: Implement 'direct-tarball'.
+	// TODO: Support direct-tarball
 	return publishType === 'oci' /*|| publishType === 'direct-tarball'*/ || publishType === 'file-path';
 }
 
@@ -323,7 +316,7 @@ async function _buildDependencyGraph(
 
 		const processedFeature = await processFeature(current);
 		if (!processedFeature) {
-			throw new Error(`ERR: Feature '${current.userFeatureId}' in dependency graph could not be processed.  You may not have permission to access this Feature.  Please report this to the Feature author.`);
+			throw new Error(`ERR: Feature '${current.userFeatureId}' could not be processed.  You may not have permission to access this Feature, or may not be logged in.  If the issue persists, report this to the Feature author.`);
 		}
 
 		// Set the processed FeatureSet object onto Node.
@@ -352,9 +345,6 @@ async function _buildDependencyGraph(
 				metadata = await getOCIFeatureMetadata(params, current);
 				break;
 
-			case 'direct-tarball':
-				throw new Error(`Feature type 'direct-tarball' will be supported but is unimplemented.`);
-
 			case 'file-path':
 				const filePath = (current.featureSet.sourceInformation as FilePathSourceInformation).resolvedFilePath;
 				const metadataFilePath = path.join(filePath, DEVCONTAINER_FEATURE_FILE_NAME);
@@ -368,7 +358,7 @@ async function _buildDependencyGraph(
 				break;
 
 			default:
-				throw new Error(`Feature dependencies are only supported in Features published (2) to an OCI registry, (2) as direct HTTPS tarball, or (3) as a local Feature.  Got type: '${processedFeature.sourceInformation.type}'.`);
+				throw new Error(`Unexpected sourceInfo type: '${processedFeature.sourceInformation.type}'.`);
 		}
 
 		// Resolve dependencies given the current Feature's metadata.
