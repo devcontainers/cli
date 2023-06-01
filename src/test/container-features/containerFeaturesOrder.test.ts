@@ -123,6 +123,83 @@ describe('Feature Dependencies', function () {
                 ]);
         });
 
+        it('valid dependsOn with round sorting based on options', async function () {
+            const testFolder = `${baseTestConfigPath}/dependsOn/local-with-options`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'local'
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'file-path'));
+
+            const actual = installOrderNodes.map(fs => {
+                return {
+                    userFeatureId: fs.sourceInformation.userFeatureId,
+                    options: fs.features[0].value
+                };
+            });
+
+            assert.deepStrictEqual(actual.length, 9);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: './b',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'a',
+                            optB: 'a'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'a',
+                            optB: 'b'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'b',
+                            optB: 'a'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'b',
+                            optB: 'b'
+                        }
+                    },
+                    {
+                        userFeatureId: './d',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './e',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './c',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './a',
+                        options: {
+                            optA: 'a',
+                            optB: 'b'
+                        }
+                    }
+                ]);
+        });
+
+
         it('valid dependsOn with published oci Features', async function () {
             const testFolder = `${baseTestConfigPath}/dependsOn/oci-ab`;
             const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
