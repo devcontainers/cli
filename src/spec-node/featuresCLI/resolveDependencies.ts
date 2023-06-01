@@ -88,7 +88,7 @@ async function featuresResolveDependencies({
 
 	const graph = await buildDependencyGraph(params, processFeature, userFeaturesConfig, config);
 	const worklist = graph?.worklist!;
-	console.log(generateMermaidDiagram(worklist));
+	console.log(generateMermaidDiagram(params, worklist));
 
 	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig, config, graph);
 

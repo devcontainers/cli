@@ -599,39 +599,39 @@ export async function computeDependsOnInstallationOrder(
 	return legacy.concat(
 		installationOrder.map(n => n.featureSet!)
 	);
-
 }
 
 // Pretty-print the calculated graph in the mermaid flowchart format.
 // Viewable by copy-pasting the output string to a live editor, i.e: https://mermaid.live/
-export function generateMermaidDiagram(graph: FNode[]) {
+export function generateMermaidDiagram(params: CommonParams, graph: FNode[]) {
 	// Output dependency graph in a mermaid flowchart format
 	const roots = graph?.filter(f => f.type === 'user-provided')!;
 	let str = 'flowchart\n';
 	for (const root of roots) {
-		str += `${generateMermaidSubtree(root, graph).reduce((p, c) => p + c + '\n', '')}`;
+		str += `${generateMermaidNode(root)}\n`;
+		str += `${generateMermaidSubtree(params, root, graph).reduce((p, c) => p + c + '\n', '')}`;
 	}
 	return str;
 }
 
-function generateMermaidSubtree(current: FNode, worklist: FNode[], acc: string[] = []) {
+function generateMermaidSubtree(params: CommonParams, current: FNode, worklist: FNode[], acc: string[] = []) {
 	for (const child of current.dependsOn) {
 		// For each corresponding member of the worklist that satisfies this hard-dependency
 		for (const w of worklist) {
-			if (equals(w, child)) {
+			if (equals(params, w, child)) {
 				acc.push(`${generateMermaidNode(current)} --> ${generateMermaidNode(w)}`);
 			}
 		}
-		generateMermaidSubtree(child, worklist, acc);
+		generateMermaidSubtree(params, child, worklist, acc);
 	}
 	for (const child of current.installsAfter) {
 		// For each corresponding member of the worklist that satisfies this soft-dependency
 		for (const w of worklist) {
-			if (satisfiesSoftDependency(w, child)) {
+			if (satisfiesSoftDependency(params, w, child)) {
 				acc.push(`${generateMermaidNode(current)} -.-> ${generateMermaidNode(w)}`);
 			}
 		}
-		generateMermaidSubtree(child, worklist, acc);
+		generateMermaidSubtree(params, child, worklist, acc);
 	}
 	return acc;
 }
