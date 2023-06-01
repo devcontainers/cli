@@ -114,7 +114,6 @@ export interface DockerResolverParameters {
 	isTTY: boolean;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
-	experimentalFeatureDependencies?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;

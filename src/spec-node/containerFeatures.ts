@@ -128,8 +128,8 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	const platform = params.common.cliHost.platform;
 
 	const cacheFolder = await getCacheFolder(params.common.cliHost);
-	const { experimentalLockfile, experimentalFrozenLockfile, experimentalFeatureDependencies } = params;
-	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile, experimentalFeatureDependencies }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
+	const { experimentalLockfile, experimentalFrozenLockfile } = params;
+	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {

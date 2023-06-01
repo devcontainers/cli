@@ -13,7 +13,6 @@ import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from '.
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
-import { computeFeatureInstallationOrder_deprecated } from './containerFeaturesOrder_deprecated';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
@@ -211,7 +210,6 @@ export interface ContainerFeatureInternalParams {
 	platform: NodeJS.Platform;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
-	experimentalFeatureDependencies?: boolean;
 }
 
 export const multiStageBuildExploration = false;
@@ -523,10 +521,6 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
-	// Use experimental feature dependencies if explicitly enabled via flag, or if running in CI
-	const useExperimentalFeatureDependencies = params.experimentalFeatureDependencies || !!process.env['CI'];
-	output.write(`useExperimentalFeatureDependencies: ${useExperimentalFeatureDependencies}`, LogLevel.Trace);
-
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
@@ -556,23 +550,9 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	};
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	// Feature Flag to enable experimental Feature dependencies
-	// https://github.com/devcontainers/spec/issues/109
-	let featureSets: FeatureSet[] | undefined = [];
-	if (useExperimentalFeatureDependencies) {
-		featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
-		if (!featureSets) {
-			throw new Error('Failed to compute Feature installation order!');
-		}
-	} else {
-		// Fallback to current/old implementation
-		for (const userFeature of userFeatures) {
-			const processed = await processFeature(userFeature);
-			if (!processed) {
-				throw Error(`Could not resolve Feature ${userFeature.userFeatureId}`);
-			}
-			featureSets.push(processed);
-		}
+	const featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+	if (!featureSets) {
+		throw new Error('Failed to compute Feature installation order!');
 	}
 
 	// Create the featuresConfig object.
@@ -587,12 +567,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
-
-	if (!useExperimentalFeatureDependencies) {
-		// Fallback to current/old implementation
-		featuresConfig.featureSets = computeFeatureInstallationOrder_deprecated(config, featureSets);
-	}
-
 	return featuresConfig;
 }
 
