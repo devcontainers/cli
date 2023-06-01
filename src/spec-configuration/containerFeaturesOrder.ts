@@ -43,35 +43,36 @@ interface DependencyGraph {
 	legacyWorklist: FNode[];
 }
 
-function equals(a: FNode, b: FNode) {
+function equals(params: CommonParams, a: FNode, b: FNode): boolean {
+	const { output } = params;
+
 	const aSourceInfo = a.featureSet?.sourceInformation;
 	let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
 	if (!aSourceInfo || !bSourceInfo) {
-		// TODO: This indicates a bug - remove once confident this is not happening!
-		throw new Error(`ERR: Missing source information! (${a.userFeatureId} ?= ${b.userFeatureId})`);
+		output.write(`Missing sourceInfo: equals(${aSourceInfo?.userFeatureId}, ${bSourceInfo?.userFeatureId})`, LogLevel.Trace);
+		throw new Error('ERR: Failure resolving Features.');
 	}
 
 	if (aSourceInfo.type !== bSourceInfo.type) {
-		// Not equal, cannot compare.
-		// TODO: But should we?
 		return false;
 	}
 
-	return comparesTo(a, b) === 0;
+	return comparesTo(params, a, b) === 0;
 }
 
-function satisfiesSoftDependency(node: FNode, softDep: FNode): boolean {
+function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNode): boolean {
+	const { output } = params;
+
 	const nodeSourceInfo = node.featureSet?.sourceInformation;
 	let softDepSourceInfo = softDep.featureSet?.sourceInformation; // Mutable only for type-casting.
 
 	if (!nodeSourceInfo || !softDepSourceInfo) {
-		// TODO: This indicates a bug - remove once confident this is not happening!
-		throw new Error(`ERR: Missing source information! (${node.userFeatureId} ?~> ${softDep.userFeatureId})`);
+		output.write(`Missing sourceInfo: satisifiesSoftDependency(${nodeSourceInfo?.userFeatureId}, ${softDepSourceInfo?.userFeatureId})`, LogLevel.Trace);
+		throw new Error('ERR: Failure resolving Features.');
 	}
 
 	if (nodeSourceInfo.type !== softDepSourceInfo.type) {
-		// TODO
 		return false;
 	}
 
@@ -295,9 +296,9 @@ async function applyOverrideFeatureInstallOrder(
 
 		// Scan the worklist, incrementing the priority of each Feature that matches the override.
 		for (const node of worklist) {
-			if (satisfiesSoftDependency(node, tmpOverrideNode)) {
+			if (satisfiesSoftDependency(params, node, tmpOverrideNode)) {
 				// Increase the priority of this node to install it sooner.
-				output.write(`[override]: '${node.userFeatureId}' has override priority of ${roundPriority}`, LogLevel.Info);
+				output.write(`[override]: '${node.userFeatureId}' has override priority of ${roundPriority}`, LogLevel.Trace);
 				node.roundPriority = Math.max(node.roundPriority, roundPriority);
 			}
 		}
@@ -318,7 +319,7 @@ async function _buildDependencyGraph(
 	while (worklist.length > 0) {
 		const current = worklist.shift()!;
 
-		output.write(`Resolving dependencies for '${current.userFeatureId}'...`, LogLevel.Info);
+		output.write(`Resolving Feature dependencies for '${current.userFeatureId}'...`, LogLevel.Info);
 
 		const processedFeature = await processFeature(current);
 		if (!processedFeature) {
@@ -338,7 +339,7 @@ async function _buildDependencyGraph(
 		// If the current Feature is already in the accumulator, skip it.
 		// This stops cycles but doesn't report them.  
 		// Cycles/inconsistencies are thrown as errors in the next stage (rounds).
-		if (acc.some(f => equals(f, current))) {
+		if (acc.some(f => equals(params, f, current))) {
 			continue;
 		}
 
@@ -491,12 +492,12 @@ export async function buildDependencyGraph(
 			};
 		});
 
-	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
 	const { worklist, legacyWorklist } = await _buildDependencyGraph(params, processFeature, rootNodes, [], []);
 
-	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
-	output.write(`[* legacy worklist] ${legacyWorklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write(`[* legacy worklist] ${legacyWorklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
 	// Apply the 'overrideFeatureInstallOrder' to the (non-legacy) worklist.
 	if (config?.overrideFeatureInstallOrder) {
@@ -533,10 +534,11 @@ export async function computeDependsOnInstallationOrder(
 
 	// Sanity check
 	if (worklist.some(node => !node.featureSet) || legacyWorklist.some(node => !node.userFeatureId)) {
-		throw new Error(`ERR: Some nodes in the dependency graph are malformed.`);
+		output.write('Feature dependency worklist contains one or more undefined entries.', LogLevel.Error);
+		throw new Error(`ERR: Failure resolving Feature dependencies.`);
 	}
 
-	output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+	output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
 	// For each node in the worklist, remove all 'soft-dependency' graph edges that are irrelevant
 	// i.e. the node is not a 'soft match' for any node in the worklist itself
@@ -545,7 +547,7 @@ export async function computeDependsOnInstallationOrder(
 		// reverse iterate
 		for (let j = node.installsAfter.length - 1; j >= 0; j--) {
 			const softDep = node.installsAfter[j];
-			if (!worklist.some(n => satisfiesSoftDependency(n, softDep))) {
+			if (!worklist.some(n => satisfiesSoftDependency(params, n, softDep))) {
 				output.write(`Soft-dependency '${softDep.userFeatureId}' is not required.  Removing from installation order...`, LogLevel.Info);
 				// Delete that soft-dependency
 				node.installsAfter.splice(j, 1);
@@ -553,7 +555,8 @@ export async function computeDependsOnInstallationOrder(
 		}
 	}
 
-	output.write(`[worklist-without-dangling-soft-deps]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Info);
+	output.write(`[worklist-without-dangling-soft-deps]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write('Starting round-based Feature install order calculation from worklist...', LogLevel.Trace);
 
 	const installationOrder: FNode[] = [];
 	while (worklist.length > 0) {
@@ -562,11 +565,11 @@ export async function computeDependsOnInstallationOrder(
 			(node.dependsOn.length === 0 && node.installsAfter.length === 0)
 			// OR, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satified in prior rounds
 			|| node.dependsOn.every(dep =>
-				installationOrder.some(installed => equals(installed, dep)))
+				installationOrder.some(installed => equals(params, installed, dep)))
 			&& node.installsAfter.every(dep =>
-				installationOrder.some(installed => satisfiesSoftDependency(installed, dep))));
+				installationOrder.some(installed => satisfiesSoftDependency(params, installed, dep))));
 
-		output.write(`[round] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
+		output.write(`\n[round] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
 		if (round.length === 0) {
 			output.write('Circular dependency detected!', LogLevel.Error);
 			output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
@@ -574,18 +577,18 @@ export async function computeDependsOnInstallationOrder(
 		}
 
 		// Delete all nodes present in this round from the worklist.
-		worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(r, node))));
+		worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(params, r, node))));
 
 		// Sort rounds lexicographically by id.
-		round.sort((a, b) => comparesTo(a, b));
+		round.sort((a, b) => comparesTo(params, a, b));
 
-		output.write(`[round-sort-id] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Info);
+		output.write(`[round-sort-id] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
 
 		// Final sort of rounds by priority
 		// Higher priority nodes are installed earlier.
 		round.sort((a, b) => b.roundPriority - a.roundPriority);
 
-		output.write(`[round-sort-priority] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Info);
+		output.write(`[round-sort-priority] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
 
 		installationOrder.push(...round);
 	}
