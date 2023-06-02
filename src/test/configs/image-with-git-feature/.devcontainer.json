@@ -3,5 +3,8 @@
 	"features": {
 		"ghcr.io/devcontainers/features/git": {}
 	},
+	"remoteEnv": {
+		"TEST_REMOTE_ENV": "Value 1"
+	},
 	"remoteUser": "node"
 }
