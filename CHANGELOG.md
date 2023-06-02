@@ -6,6 +6,7 @@ Notable changes.
 
 ### [0.43.0]
 Fix a bug in passing users secrets to dotfile clone and install commands (https://github.com/devcontainers/cli/pull/544)
+Fix for mount command string generation (https://github.com/devcontainers/cli/pull/537)
 
 ## May 2023
 
