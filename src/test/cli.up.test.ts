@@ -61,6 +61,14 @@ describe('Dev Containers CLI', function () {
 			assert.ok(containerId, 'Container id not found.');
 			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
 			assert.ok(dotfiles, 'Dotfiles not found.');
+
+			// assert file contents to ensure secrets & remoteEnv were available to the command
+			const catResp = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-git-feature cat /tmp/.dotfileEnvs`);
+			const { stdout, error } = catResp;
+			assert.strictEqual(error, null);
+			assert.match(stdout, /SECRET1=SecretValue1/);
+			assert.match(stdout, /TEST_REMOTE_ENV=Value 1/);
+
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
