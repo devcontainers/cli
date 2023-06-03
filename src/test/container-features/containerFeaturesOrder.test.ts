@@ -136,7 +136,7 @@ describe('Container features install order', function () {
                 'https://example.com/devcontainer-feature-c.tgz',
             ]
         );
-    })
+    });
 
     it('duplicate tarballs are reduced', () => {
         assert.deepEqual(
@@ -151,7 +151,7 @@ describe('Container features install order', function () {
                 'https://example.com/devcontainer-feature-c.tgz',
             ]
         );
-    })
+    });
 
     function installAfter(id: string, ...installsAfter: string[]): FeatureSet {
         return {
