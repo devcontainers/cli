@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder, generateContainerEnvs } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
@@ -66,11 +66,14 @@ describe('validate generateFeaturesConfig()', function () {
         // -- Test containerFeatures.ts helper functions
 
         // generateContainerEnvs
-        // TODO
-        //         const actualEnvs = generateContainerEnvs(featuresConfig);
-        //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
-        // ENV MYKEYTHREE=MYRESULTHREE`;
-        //         assert.strictEqual(actualEnvs, expectedEnvs);
+        const actualEnvs = featuresConfig.featureSets
+            .map(set => set.features
+                .map(f => generateContainerEnvs(f.containerEnv)))
+                    .flat()
+                    .join('\n');
+        const expectedEnvs = `ENV MYKEYONE="MY RESULT ONE"
+ENV MYKEYTWO="MY RESULT TWO"`;
+        assert.strictEqual(actualEnvs, expectedEnvs);
 
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');

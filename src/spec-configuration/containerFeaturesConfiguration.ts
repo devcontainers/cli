@@ -377,7 +377,7 @@ RUN chmod -R 0755 ${dest} \\
 	// Features version 2
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
-			result += generateContainerEnvs(feature);
+			result += generateContainerEnvs(feature.containerEnv);
 			const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
 			const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, feature.consecutiveId!);
 			if (!useBuildKitBuildContexts) {
@@ -407,15 +407,16 @@ RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source
 }
 
 // Features version two export their environment variables as part of the Dockerfile to make them available to subsequent features.
-export function generateContainerEnvs(feature: Feature) {
-	let result = '';
-	if (!feature.containerEnv) {
-		return result;
+export function generateContainerEnvs(containerEnv: Record<string, string> | undefined, escapeDollar = false): string {
+	if (!containerEnv) {
+		return '';
 	}
-	let keys = Object.keys(feature.containerEnv);
-	result = keys.map(k => `ENV ${k}=${feature.containerEnv![k]}`).join('\n');
-
-	return result;
+	const keys = Object.keys(containerEnv);
+	// https://docs.docker.com/engine/reference/builder/#envs
+	const r = escapeDollar ? /(?=["\\$])/g : /(?=["\\])/g; // escape double quotes, back slash, and optionally dollar sign
+	return keys.map(k => `ENV ${k}="${containerEnv[k]
+		.replace(r, '\\')
+		}"`).join('\n');
 }
 
 const allowedFeatureIdRegex = new RegExp('^[a-zA-Z0-9_-]*$');
