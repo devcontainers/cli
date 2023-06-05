@@ -45,6 +45,61 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
+		it('should execute successfully with valid config and dotfiles with custom install path as filename', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --dotfiles-install-command install.sh`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should execute successfully with valid config and dotfiles with custom install path as relative path', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --dotfiles-install-command ./install.sh`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should execute successfully with valid config and dotfiles with custom install path as absolute path', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --dotfiles-install-command /home/node/dotfiles/install.sh`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should execute successfully with valid config and dotfiles with non executable install script', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository codspace/test-dotfiles-non-executable --dotfiles-install-command .run-my-dotfiles-script`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should execute successfully with valid config and dotfiles with non executable absolute path install script', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository codspace/test-dotfiles-non-executable --dotfiles-install-command /home/node/dotfiles/.run-my-dotfiles-script`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
 		it('should execute successfully with valid config and dotfiles with secrets', async () => {
 			const testFolder = `${__dirname}/configs`;
 			let containerId: string | null = null;
