@@ -407,7 +407,7 @@ RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source
 }
 
 // Features version two export their environment variables as part of the Dockerfile to make them available to subsequent features.
-export function generateContainerEnvs(containerEnv: Record<string, string> | undefined, escapeDollar = false): string {
+export function generateContainerEnvs(containerEnv: Record<string, string> | undefined, escapeDollar = true): string {
 	if (!containerEnv) {
 		return '';
 	}
