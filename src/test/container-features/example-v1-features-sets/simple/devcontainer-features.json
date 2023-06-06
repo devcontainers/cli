@@ -5,7 +5,7 @@
             "id": "first",
             "name": "First Feature",
             "containerEnv": {
-				"MYKEYONE": "MYRESULTONE"
+				"MYKEYONE": "MY RESULT ONE"
 			},
             "options": {
                 "version": {
@@ -30,6 +30,9 @@
         {
             "id": "second",
             "name": "Second Feature",
+            "containerEnv": {
+				"MYKEYTWO": "MY RESULT TWO"
+			},
             "privileged": true,
             "options": {
                 "version": {

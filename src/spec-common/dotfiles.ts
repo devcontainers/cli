@@ -24,16 +24,15 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 	if (!repository) {
 		return;
 	}
-	const dockerEnv = await dockerEnvP;
-	const secrets = await secretsP;
 	if (repository.indexOf(':') === -1 && !/^\.{0,2}\//.test(repository)) {
 		repository = `https://github.com/${repository}.git`;
 	}
 	const shellServer = properties.shellServer;
 	const markerFile = getDotfilesMarkerFile(properties);
-	const env = Object.keys({ ...dockerEnv, ...secrets })
+	const dockerEnvAndSecrets = { ...await dockerEnvP, ...await secretsP };
+	const allEnv = Object.keys(dockerEnvAndSecrets)
 		.filter(key => !(key.startsWith('BASH_FUNC_') && key.endsWith('%%')))
-		.reduce((env, key) => `${env}${key}=${quoteValue(dockerEnv[key])} `, '');
+		.reduce((env, key) => `${env}${key}=${quoteValue(dockerEnvAndSecrets[key])} `, '');
 	try {
 		params.output.event({
 			type: 'progress',
@@ -44,11 +43,11 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 			await shellServer.exec(`# Clone & install dotfiles
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
-[ -e ${targetPath} ] || ${env}git clone ${repository} ${targetPath} || exit $?
+[ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
 if [ -x ${installCommand} ]
 then
 	echo Executing script ${installCommand}
-	cd ${targetPath} && ${env}${installCommand}
+	cd ${targetPath} && ${allEnv}${installCommand}
 else
 	echo Error: ${installCommand} not executable
 	exit 126
@@ -58,7 +57,7 @@ fi
 			await shellServer.exec(`# Clone & install dotfiles
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
-[ -e ${targetPath} ] || ${env}git clone ${repository} ${targetPath} || exit $?
+[ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
 cd ${targetPath}
 for f in ${installCommands.join(' ')}
 do
@@ -82,7 +81,7 @@ else
 	if [ -x "$installCommand" ]
 	then
 		echo Executing script '${targetPath}'/"$installCommand"
-		${env}./"$installCommand"
+		${allEnv}./"$installCommand"
 	else
 		echo Error: '${targetPath}'/"$installCommand" not executable
 		exit 126
