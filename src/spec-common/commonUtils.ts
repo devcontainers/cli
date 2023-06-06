@@ -316,6 +316,9 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 }
 
 export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
+	// COMPILE_FOR_PKG is inlined at build-time so ESBuild will only include one of these branches.
+	// Must use require() instead of async imports for standalone @vercel/pkg binaries, because it
+	// must be able to statically analyze all dependencies for bundling.
 	const pty = !!process.env.COMPILE_FOR_PKG
 		? (require('node-pty') as typeof ptyType)
 		: (await loadNativeModule<typeof ptyType>('node-pty'));
