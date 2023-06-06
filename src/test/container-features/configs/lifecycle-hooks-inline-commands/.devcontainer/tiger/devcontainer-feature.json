@@ -1,0 +1,17 @@
+{
+    "id": "tiger",
+    "version": "8.9.10",
+    "name": "Echos the tiger emoji. That is it!",
+    "options": {},
+    "updateContentCommand": "./.devcontainer/createMarker.sh tiger.updateContentCommand.testMarker",
+    "onCreateCommand": "./.devcontainer/createMarker.sh tiger.onCreateCommand.testMarker",
+    "postCreateCommand": "./.devcontainer/createMarker.sh tiger.postCreateCommand.testMarker",
+    "postStartCommand": "./.devcontainer/createMarker.sh tiger.postStartCommand.testMarker",
+    "postAttachCommand": [
+        ".devcontainer/createMarker.sh",
+        "tiger.postAttachCommand.testMarker"
+    ],
+    "installsAfter": [
+        "./panda"
+    ]
+}

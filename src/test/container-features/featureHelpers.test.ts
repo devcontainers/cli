@@ -2,11 +2,11 @@ import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier, updateDeprecatedFeaturesIntoOptions } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -206,9 +206,47 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: 'latest',
+				digest: undefined,
 				version: 'latest',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
+			};
+
+			if (featureSet.sourceInformation.type === 'oci') {
+				assert.ok(featureSet.sourceInformation.type === 'oci');
+				assert.deepEqual(featureSet.sourceInformation.featureRef, expectedFeatureRef);
+			} else {
+				assert.fail('sourceInformation.type is not oci');
+			}
+		});
+
+		it('should process oci registry (with a digest)', async function () {
+			const userFeature: DevContainerFeature = {
+				id: 'ghcr.io/devcontainers/features/ruby@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				options: {},
+			};
+
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
+			if (!featureSet) {
+				assert.fail('processFeatureIdentifier returned null');
+			}
+			const featureId = featureSet.features[0].id;
+			assertFeatureIdInvariant(featureId);
+			assert.strictEqual(featureSet?.features[0].id, 'ruby');
+
+			assert.exists(featureSet);
+
+			const expectedFeatureRef: OCIRef = {
+				id: 'ruby',
+				owner: 'devcontainers',
+				namespace: 'devcontainers/features',
+				registry: 'ghcr.io',
+				tag: undefined,
+				digest: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				version: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				resource: 'ghcr.io/devcontainers/features/ruby',
+				path: 'devcontainers/features/ruby',
 			};
 
 			if (featureSet.sourceInformation.type === 'oci') {
@@ -240,6 +278,8 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: '1.0.13',
+				digest: undefined,
 				version: '1.0.13',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
@@ -447,6 +487,58 @@ describe('validate function getBackwardCompatibleFeatureId', () => {
     });
 });
 
+describe('validate function updateDeprecatedFeaturesIntoOptions', () => {
+	it('should add feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+	
+	it('should update feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'ghcr.io/devcontainers/features/python:1',
+				options: {}
+			},
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+
+	it('should update legacy feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				id: 'python',
+				options: {}
+			},
+			{
+				id: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].id, 'python');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+});
+
 describe('validate function getFeatureInstallWrapperScript', () => {
 	it('returns a valid script when optional feature values do not exist', () => {
         const feature: Feature = {
@@ -530,6 +622,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -541,7 +634,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -612,6 +706,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -623,7 +718,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -697,6 +793,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -708,7 +805,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [

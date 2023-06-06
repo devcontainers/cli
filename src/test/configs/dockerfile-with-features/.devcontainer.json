@@ -10,5 +10,10 @@
 		"ghcr.io/devcontainers/feature-starter/hello:1": {
 			"greeting": "howdy"
 		}
+	},
+	"postCreateCommand": "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt",
+	"remoteEnv": {
+		"TEST": "ENV",
+		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}"
 	}
 }

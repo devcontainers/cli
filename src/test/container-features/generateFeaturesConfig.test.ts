@@ -1,8 +1,10 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder, generateContainerEnvs } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
+import * as os from 'os';
+import * as crypto from 'crypto';
 import { mkdirpLocal } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
@@ -17,7 +19,8 @@ describe('validate generateFeaturesConfig()', function () {
     // Setup
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
-    const params = { extensionPath: '', cwd: '', output, env, persistedFolder: '', skipFeatureAutoMapping: false, platform };
+	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
+    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {
@@ -63,27 +66,30 @@ describe('validate generateFeaturesConfig()', function () {
         // -- Test containerFeatures.ts helper functions
 
         // generateContainerEnvs
-        // TODO
-        //         const actualEnvs = generateContainerEnvs(featuresConfig);
-        //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
-        // ENV MYKEYTHREE=MYRESULTHREE`;
-        //         assert.strictEqual(actualEnvs, expectedEnvs);
+        const actualEnvs = featuresConfig.featureSets
+            .map(set => set.features
+                .map(f => generateContainerEnvs(f.containerEnv)))
+                    .flat()
+                    .join('\n');
+        const expectedEnvs = `ENV MYKEYONE="MY RESULT ONE"
+ENV MYKEYTWO="MY RESULT TWO"`;
+        assert.strictEqual(actualEnvs, expectedEnvs);
 
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/build-features/first_1
-RUN chmod -R 0700 /tmp/build-features/first_1 \\
-&& cd /tmp/build-features/first_1 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/dev-container-features/first_1
+RUN chmod -R 0755 /tmp/dev-container-features/first_1 \\
+&& cd /tmp/dev-container-features/first_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/build-features/second_2
-RUN chmod -R 0700 /tmp/build-features/second_2 \\
-&& cd /tmp/build-features/second_2 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/dev-container-features/second_2
+RUN chmod -R 0755 /tmp/dev-container-features/second_2 \\
+&& cd /tmp/dev-container-features/second_2 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -134,20 +140,20 @@ RUN chmod -R 0700 /tmp/build-features/second_2 \\
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/build-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/build-features/color_3
-RUN chmod -R 0700 /tmp/build-features/color_3 \\
-&& cd /tmp/build-features/color_3 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/dev-container-features/color_3
+RUN chmod -R 0755 /tmp/dev-container-features/color_3 \\
+&& cd /tmp/dev-container-features/color_3 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/build-features/hello_4
-RUN chmod -R 0700 /tmp/build-features/hello_4 \\
-&& cd /tmp/build-features/hello_4 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/dev-container-features/hello_4
+RUN chmod -R 0755 /tmp/dev-container-features/hello_4 \\
+&& cd /tmp/dev-container-features/hello_4 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
@@ -156,7 +162,7 @@ RUN chmod -R 0700 /tmp/build-features/hello_4 \\
     });
 
     it('should correctly return featuresConfig with customizations', async function () {
-        this.timeout('10s');
+        this.timeout('20s');
         const version = 'unittest';
         const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);

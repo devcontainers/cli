@@ -11,17 +11,5 @@
 			},
 			"whoisremoteuser": {}
 		}
-	},
-	"from_image_metadata_label_flag_enabled": {
-		"image": "mcr.microsoft.com/devcontainers/javascript-node:18",
-		"features": {
-			"whoisremoteuser": {}
-		}
-	},
-	"from_image_metadata_label_flag_disabled": {
-		"image": "mcr.microsoft.com/devcontainers/javascript-node:18",
-		"features": {
-			"whoisremoteuser": {}
-		}
 	}
 }

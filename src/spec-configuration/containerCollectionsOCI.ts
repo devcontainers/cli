@@ -2,6 +2,7 @@ import path from 'path';
 import * as semver from 'semver';
 import * as tar from 'tar';
 import * as jsonc from 'jsonc-parser';
+import * as crypto from 'crypto';
 
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
@@ -20,6 +21,7 @@ export interface CommonParams {
 
 // Represents the unique OCI identifier for a Feature or Template.
 // eg:  ghcr.io/devcontainers/features/go:1.0.0
+// eg:  ghcr.io/devcontainers/features/go@sha256:fe73f123927bd9ed1abda190d3009c4d51d0e17499154423c5913cf344af15a3
 // Constructed by 'getRef()'
 export interface OCIRef {
 	registry: string; 		// 'ghcr.io'
@@ -28,7 +30,10 @@ export interface OCIRef {
 	path: string;			// 'devcontainers/features/go'
 	resource: string;		// 'ghcr.io/devcontainers/features/go'
 	id: string;				// 'go'
-	version?: string;		// '1.0.0'
+
+	version: string;		// (Either the contents of 'tag' or 'digest')
+	tag?: string;			// '1.0.0'
+	digest?: string; 		// 'sha256:fe73f123927bd9ed1abda190d3009c4d51d0e17499154423c5913cf344af15a3'
 }
 
 // Represents the unique OCI identifier for a Collection's Metadata artifact.
@@ -38,6 +43,7 @@ export interface OCICollectionRef {
 	registry: string;		// 'ghcr.io'
 	path: string;			// 'devcontainers/features'
 	resource: string;		// 'ghcr.io/devcontainers/features'
+	tag: 'latest';			// 'latest' (always)
 	version: 'latest';		// 'latest' (always)
 }
 
@@ -62,6 +68,14 @@ export interface OCIManifest {
 	layers: OCILayer[];
 	annotations?: {};
 }
+
+export interface ManifestContainer {
+	manifestObj: OCIManifest;
+	manifestBuffer: Buffer;
+	contentDigest: string;
+	canonicalId: string;
+}
+
 
 interface OCITagList {
 	name: string;
@@ -88,12 +102,14 @@ interface OCIImageIndex {
 // Following Spec:   https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests
 // Alternative Spec: https://docs.docker.com/registry/spec/api/#overview
 //
-// Entire path ('namespace' in spec terminology) for the given repository 
+// The path:
+// 'namespace' in spec terminology for the given repository
 // (eg: devcontainers/features/go)
 const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
+// The reference:
 // MUST be either (a) the digest of the manifest or (b) a tag
 // MUST be at most 128 characters in length and MUST match the following regular expression:
-const regexForReference = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
+const regexForVersionOrDigest = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
@@ -124,20 +140,54 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	input = input.toLowerCase();
 
 	const indexOfLastColon = input.lastIndexOf(':');
+	const indexOfLastAtCharacter = input.lastIndexOf('@');
 
 	let resource = '';
-	let version = ''; // TODO: Support parsing out manifest digest (...@sha256:...)
+	let tag: string | undefined = undefined;
+	let digest: string | undefined = undefined;
 
-	// 'If' condition is true in the following cases:
-	//  1. The final colon is before the first slash (a port) :  eg:   ghcr.io:8081/codspace/features/ruby
-	//  2. There is no version :      				   			 eg:   ghcr.io/codspace/features/ruby
-	// In both cases, assume 'latest' tag.
-	if (indexOfLastColon === -1 || indexOfLastColon < input.indexOf('/')) {
-		resource = input;
-		version = 'latest';
+	if (indexOfLastAtCharacter !== -1) {
+		// The version is specified by digest
+		// eg: ghcr.io/codspace/features/ruby@sha256:abcdefgh
+		resource = input.substring(0, indexOfLastAtCharacter);
+		const digestWithHashingAlgorithm = input.substring(indexOfLastAtCharacter + 1);
+		const splitOnColon = digestWithHashingAlgorithm.split(':');
+		if (splitOnColon.length !== 2) {
+			output.write(`Failed to parse digest '${digestWithHashingAlgorithm}'.   Expected format: 'sha256:abcdefghijk'`, LogLevel.Error);
+			return;
+		}
+
+		if (splitOnColon[0] !== 'sha256') {
+			output.write(`Digest algorithm for input '${input}' failed validation.  Expected hashing algorithm to be 'sha256'.`, LogLevel.Error);
+			return;
+		}
+
+		if (!regexForVersionOrDigest.test(splitOnColon[1])) {
+			output.write(`Digest for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
+		}
+
+		digest = digestWithHashingAlgorithm;
 	} else {
-		resource = input.substring(0, indexOfLastColon);
-		version = input.substring(indexOfLastColon + 1);
+		// In both cases, assume 'latest' tag.
+		if (indexOfLastColon === -1 || indexOfLastColon < input.lastIndexOf('/')) {
+			//  1. The final colon is before the first slash (a port)
+			//     eg:   ghcr.io:8081/codspace/features/ruby
+			//  2. There is no tag at all
+			//     eg:   ghcr.io/codspace/features/ruby
+			// In both cases, assume the 'latest' tag
+			resource = input;
+			tag = 'latest';
+		} else {
+			// The version is specified by tag
+			// eg: ghcr.io/codspace/features/ruby:1.0.0
+			resource = input.substring(0, indexOfLastColon);
+			tag = input.substring(indexOfLastColon + 1);
+		}
+	}
+
+	if (tag && !regexForVersionOrDigest.test(tag)) {
+		output.write(`Tag '${tag}' for input '${input}' failed validation.  Expected digest to match regex '${regexForVersionOrDigest}'.`, LogLevel.Error);
+		return;
 	}
 
 	const splitOnSlash = resource.split('/');
@@ -149,36 +199,36 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 
 	const path = `${namespace}/${id}`;
 
+	if (!regexForPath.exec(path)) {
+		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
+		return;
+	}
+
+	const version = digest || tag || 'latest'; // The most specific version.
+
 	output.write(`> input: ${input}`, LogLevel.Trace);
 	output.write(`>`, LogLevel.Trace);
 	output.write(`> resource: ${resource}`, LogLevel.Trace);
 	output.write(`> id: ${id}`, LogLevel.Trace);
-	output.write(`> version: ${version}`, LogLevel.Trace);
 	output.write(`> owner: ${owner}`, LogLevel.Trace);
 	output.write(`> namespace: ${namespace}`, LogLevel.Trace); // TODO: We assume 'namespace' includes at least one slash (eg: 'devcontainers/features')
 	output.write(`> registry: ${registry}`, LogLevel.Trace);
 	output.write(`> path: ${path}`, LogLevel.Trace);
-
-	// Validate results of parse.
-
-	if (!regexForPath.exec(path)) {
-		output.write(`Parsed path '${path}' for input '${input}' failed validation.`, LogLevel.Error);
-		return undefined;
-	}
-
-	if (!regexForReference.test(version)) {
-		output.write(`Parsed version '${version}' for input '${input}' failed validation.`, LogLevel.Error);
-		return undefined;
-	}
+	output.write(`>`, LogLevel.Trace);
+	output.write(`> version: ${version}`, LogLevel.Trace);
+	output.write(`> tag?: ${tag}`, LogLevel.Trace);
+	output.write(`> digest?: ${digest}`, LogLevel.Trace);
 
 	return {
 		id,
-		version,
 		owner,
 		namespace,
 		registry,
 		resource,
 		path,
+		version,
+		tag,
+		digest,
 	};
 }
 
@@ -203,13 +253,14 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 		registry,
 		path,
 		resource,
-		version: 'latest'
+		version: 'latest',
+		tag: 'latest',
 	};
 }
 
 // Validate if a manifest exists and is reachable about the declared feature/template.
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
-export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<OCIManifest | undefined> {
+export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
 	// Simple mechanism to avoid making a DNS request for 
@@ -227,28 +278,68 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	}
 	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
-	const manifest = await getManifest(params, manifestUrl, ref);
+	const expectedDigest = manifestDigest || ('digest' in ref ? ref.digest : undefined);
+	const manifestContainer = await getManifest(params, manifestUrl, ref, undefined, expectedDigest);
 
-	if (!manifest) {
+	if (!manifestContainer || !manifestContainer.manifestObj) {
 		return;
 	}
 
-	if (manifest?.config.mediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
-		output.write(`(!) Unexpected manifest media type: ${manifest?.config.mediaType}`, LogLevel.Error);
+	const { manifestObj } = manifestContainer;
+
+	if (manifestObj.config.mediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
+		output.write(`(!) Unexpected manifest media type: ${manifestObj.config.mediaType}`, LogLevel.Error);
 		return undefined;
 	}
 
-	return manifest;
+	return manifestContainer;
 }
 
-export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string): Promise<OCIManifest | undefined> {
-	return await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+export async function getManifest(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType?: string, expectedDigest?: string): Promise<ManifestContainer | undefined> {
+	const { output } = params;
+	const res = await getBufferWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.manifest.v1+json');
+	if (!res) {
+		return undefined;
+	}
+
+	const { body, headers } = res;
+
+	// Per the specification:
+	// https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
+	// The registry server SHOULD return the canonical content digest in a header, but it's not required to.
+	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
+	// Headers are always automatically downcased by node.
+	let contentDigest = headers['docker-content-digest'];
+	if (!contentDigest || expectedDigest) {
+		if (!contentDigest) {
+			output.write('Registry did not send a \'docker-content-digest\' header.  Recalculating...', LogLevel.Trace);
+		}
+		contentDigest = `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
+	}
+
+	if (expectedDigest && contentDigest !== expectedDigest) {
+		throw new Error(`Digest did not match for ${ref.resource}.`);
+	}
+
+	return {
+		contentDigest,
+		manifestObj: JSON.parse(body.toString()),
+		manifestBuffer: body,
+		canonicalId: `${ref.resource}@${contentDigest}`,
+	};
 }
 
 // https://github.com/opencontainers/image-spec/blob/main/manifest.md
 export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
-	const imageIndex: OCIImageIndex = await getJsonWithMimeType(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
-	if (!imageIndex || !imageIndex.manifests) {
+	const { output } = params;
+	const response = await getJsonWithMimeType<OCIImageIndex>(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
+	if (!response) {
+		return undefined;
+	}
+
+	const { body: imageIndex } = response;
+	if (!imageIndex) {
+		output.write(`Unwrapped response for image index is undefined.`, LogLevel.Error);
 		return undefined;
 	}
 
@@ -266,7 +357,40 @@ export async function getImageIndexEntryForPlatform(params: CommonParams, url: s
 	});
 }
 
-async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<any | undefined> {
+async function getBufferWithMimeType(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: Buffer; headers: Record<string, string> } | undefined> {
+	const { output } = params;
+	const headers = {
+		'user-agent': 'devcontainer',
+		'accept': mimeType,
+	};
+
+	const httpOptions = {
+		type: 'GET',
+		url: url,
+		headers: headers
+	};
+
+	const res = await requestEnsureAuthenticated(params, httpOptions, ref);
+	if (!res) {
+		output.write(`Request '${url}' failed`, LogLevel.Error);
+		return;
+	}
+
+	// NOTE: A 404 is expected here if the manifest does not exist on the remote.
+	if (res.statusCode > 299) {
+		// Get the error out.
+		const errorMsg = res?.resBody?.toString();
+		output.write(`Did not fetch target with expected mimetype '${mimeType}': ${errorMsg}`, LogLevel.Trace);
+		return;
+	}
+
+	return {
+		body: res.resBody,
+		headers: res.resHeaders,
+	};
+}
+
+async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, mimeType: string): Promise<{ body: T; headers: Record<string, string> } | undefined> {
 	const { output } = params;
 	let body: string = '';
 	try {
@@ -283,11 +407,11 @@ async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRe
 
 		const res = await requestEnsureAuthenticated(params, httpOptions, ref);
 		if (!res) {
-			output.write('Request failed', LogLevel.Error);
+			output.write(`Request '${url}' failed`, LogLevel.Error);
 			return;
 		}
 
-		const { resBody, statusCode } = res;
+		const { resBody, statusCode, resHeaders } = res;
 		body = resBody.toString();
 
 		// NOTE: A 404 is expected here if the manifest does not exist on the remote.
@@ -295,9 +419,12 @@ async function getJsonWithMimeType(params: CommonParams, url: string, ref: OCIRe
 			output.write(`Did not fetch target with expected mimetype '${mimeType}': ${body}`, LogLevel.Trace);
 			return;
 		}
-		const parsed = JSON.parse(body);
-		output.write(`Fetched: ${JSON.stringify(parsed, undefined, 4)}`, LogLevel.Trace);
-		return parsed;
+		const parsedBody: T = JSON.parse(body);
+		output.write(`Fetched: ${JSON.stringify(parsedBody, undefined, 4)}`, LogLevel.Trace);
+		return {
+			body: parsedBody,
+			headers: resHeaders,
+		};
 	} catch (e) {
 		output.write(`Failed to parse JSON with mimeType '${mimeType}': ${body}`, LogLevel.Error);
 		return;
@@ -359,7 +486,7 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -388,6 +515,11 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		if (statusCode > 299) {
 			output.write(`Failed to fetch blob (${url}): ${resBody}`, LogLevel.Error);
 			return;
+		}
+
+		const actualDigest = `sha256:${crypto.createHash('sha256').update(resBody).digest('hex')}`;
+		if (actualDigest !== expectedDigest) {
+			throw new Error(`Digest did not match for ${ociRef.resource}.`);
 		}
 
 		await mkdirpLocal(destCachePath);

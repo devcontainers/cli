@@ -10,12 +10,12 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getContainerEnvMetadata, getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 
@@ -34,7 +34,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	const { common } = params;
 	const { cliHost, output } = common;
 
-	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, common.experimentalImageMetadata);
+	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute);
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
 	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return
@@ -126,12 +126,14 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 
 	// Processes the user's configuration.
 	const platform = params.common.cliHost.platform;
-	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
+	const cacheFolder = await getCacheFolder(params.common.cliHost);
+	const { experimentalLockfile, experimentalFrozenLockfile } = params;
+	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {
 				labels: {
-					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined).raw),
+					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined, [], getOmitDevcontainerPropertyOverride(params.common)).raw),
 				}
 			};
 		}
@@ -148,7 +150,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 }
 
 // NOTE: only exported to enable testing. Not meant to be called outside file.
-export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
+export function generateContainerEnvsV1(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
 		// We only need to generate this ENV references for the initial features specification.
@@ -157,8 +159,7 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 			result += '\n';
 			result += fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-				.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
-					.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
+				.reduce((envs, f) => envs.concat(generateContainerEnvs(f.containerEnv)), [] as string[])
 				.join('\n');
 		}
 	}
@@ -224,7 +225,7 @@ function getImageBuildOptions(params: DockerResolverParameters, config: Substitu
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }), params.common.experimentalImageMetadata)}
+${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
@@ -235,6 +236,14 @@ ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, 
 		} as Record<string, string>,
 		buildKitContexts: {} as Record<string, string>,
 	};
+}
+
+function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEnvFromMetadata?: boolean }): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
+	if (resolverParams.omitConfigRemotEnvFromMetadata) {
+		return ['remoteEnv'];
+	}
+
+	return [];
 }
 
 async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
@@ -260,7 +269,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 					hasConfigure: await hasConfigure,
 				};
 				return map;
-			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({})));
+			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({} as Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>)));
 
 	// With Buildkit (0.8.0 or later), we can supply an additional build context to provide access to
 	// the container-features content.
@@ -273,7 +282,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const buildContentImageName = 'dev_container_feature_content_temp';
 
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
-	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride);
+	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
 	const builtinVariables = [
 		`_CONTAINER_USER=${containerUser}`,
@@ -285,15 +294,12 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// When copying via buildkit, the content is accessed via '.' (i.e. in the context root)
 	// When copying via temp image, the content is in '/tmp/build-features'
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
-	const dockerfile = getContainerFeaturesBaseDockerFile()
+	const dockerfile = getContainerFeaturesBaseDockerFile(contentSourceRootPath)
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
-		.replace('{contentSourceRootPath}', contentSourceRootPath)
-		.replace('#{featureBuildStages}', getFeatureBuildStages(featuresConfig, buildStageScripts, contentSourceRootPath))
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
-		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
-		.replace('#{copyFeatureBuildStages}', getCopyFeatureBuildStages(featuresConfig, buildStageScripts))
-		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata, common.experimentalImageMetadata))
-		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
+		.replace('#{containerEnv}', generateContainerEnvsV1(featuresConfig))
+		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
+		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
 		;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
@@ -389,31 +395,6 @@ export function findContainerUsers(imageMetadata: SubstitutedConfig<ImageMetadat
 	return { containerUser, remoteUser };
 }
 
-function getFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[], contentSourceRootPath: string) {
-	return ([] as string[]).concat(...featuresConfig.featureSets
-		.map((featureSet, i) => featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => `FROM mcr.microsoft.com/vscode/devcontainers/base:0-focal as ${getSourceInfoString(featureSet.sourceInformation)}_${f.id}
-COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)}
-COPY --from=dev_containers_feature_content_normalize ${path.posix.join(contentSourceRootPath, getSourceInfoString(featureSet.sourceInformation), 'common')} ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'common')}
-RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/acquire`
-			)
-		)
-	).join('\n\n');
-}
-
-function getCopyFeatureBuildStages(featuresConfig: FeaturesConfig, buildStageScripts: Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>[]) {
-	return ([] as string[]).concat(...featuresConfig.featureSets
-		.map((featureSet, i) => featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
-			.map(f => {
-				const featurePath = path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(featureSet.sourceInformation), f.id);
-				return `COPY --from=${getSourceInfoString(featureSet.sourceInformation)}_${f.id} ${featurePath} ${featurePath}${buildStageScripts[i][f.id]?.hasConfigure ? `
-RUN cd ${path.posix.join('/tmp/build-features', getSourceInfoString(featureSet.sourceInformation), 'features', f.id)} && set -a && . ./devcontainer-features.env && set +a && ./bin/configure` : ''}`;
-			})
-		)
-	).join('\n\n');
-}
 
 function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);

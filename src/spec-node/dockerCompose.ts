@@ -17,7 +17,7 @@ import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/l
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
-import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
 
 const projectLabel = 'com.docker.compose.project';
@@ -68,13 +68,13 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 
-		const configs = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.experimentalImageMetadata, common.output).config;
-		const mergedConfig = mergeConfiguration(configWithRaw.config, configs);
+		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
+		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
 		const {
 			remoteEnv: extensionHostEnv,
-		} = await setupInContainer(common, containerProperties, mergedConfig);
+		} = await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 
 		return {
 			params: common,
@@ -176,9 +176,9 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 				dockerfile = modifiedDockerfile;
 			}
 		}
-		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, common.experimentalImageMetadata);
+		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute);
 	} else {
-		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, common.experimentalImageMetadata);
+		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
 	}
 
 	// determine whether we need to extend with features
@@ -500,7 +500,7 @@ async function generateFeaturesComposeOverrideContent(
 		...mergedConfig.mounts || [],
 		...additionalMounts,
 	].map(m => typeof m === 'string' ? parseMount(m) : m);
-	const volumeMounts = mounts.filter(m => m.type === 'volume');
+	const namedVolumeMounts = mounts.filter(m => m.type === 'volume' && m.source);
 	const customEntrypoints = mergedConfig.entrypoints || [];
 	const composeEntrypoint: string[] | undefined = typeof service.entrypoint === 'string' ? shellQuote.parse(service.entrypoint) : service.entrypoint;
 	const composeCommand: string[] | undefined = typeof service.command === 'string' ? shellQuote.parse(service.command) : service.command;
@@ -543,9 +543,9 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     labels:${additionalLabels.map(label => `
       - '${label.replace(/\$/g, '$$$$').replace(/'/g, '\'\'')}'`).join('')}` : ''}${mounts.length ? `
     volumes:${mounts.map(m => `
-      - ${m.source}:${m.target}`).join('')}` : ''}${gpuResources}${volumeMounts.length ? `
-volumes:${volumeMounts.map(m => `
-  ${m.source}:${m.external ? '\n    external: true' : ''}`).join('')}` : ''}
+      - ${convertMountToVolume(m)}`).join('')}` : ''}${gpuResources}${namedVolumeMounts.length ? `
+volumes:${namedVolumeMounts.map(m => `
+  ${convertMountToVolumeTopLevelElement(m)}`).join('')}` : ''}
 `;
 }
 
@@ -561,7 +561,11 @@ export async function readDockerComposeConfig(params: DockerCLIParameters, compo
 		}
 		try {
 			const partial = toExecParameters(params, 'dockerComposeCLI' in params ? await params.dockerComposeCLI() : undefined);
-			const { stdout } = await dockerComposeCLI({ ...partial, print: 'onerror' }, ...composeGlobalArgs, 'config');
+			const { stdout } = await dockerComposeCLI({
+				...partial,
+				output: makeLog(params.output, LogLevel.Info),
+				print: 'onerror'
+			}, ...composeGlobalArgs, 'config');
 			const stdoutStr = stdout.toString();
 			params.output.write(stdoutStr);
 			return yaml.load(stdoutStr) || {} as any;
@@ -687,4 +691,37 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 			};
 		})());
 	};
+}
+
+/**
+ * Convert mount command arguments to Docker Compose volume
+ * @param mount 
+ * @returns mount command representation for Docker compose
+ */
+function convertMountToVolume(mount: Mount): string {
+	let volume: string = '';
+
+	if (mount.source) {
+		volume = `${mount.source}:`;
+	}
+
+	volume += mount.target;
+
+	return volume;
+}
+
+/**
+ * Convert mount command arguments to volume top-level element
+ * @param mount 
+ * @returns mount object representation as volumes top-level element
+ */
+function convertMountToVolumeTopLevelElement(mount: Mount): string {
+	let volume: string = `
+  ${mount.source}:`;
+
+	if (mount.external) {
+		volume += '\n    external: true';
+	}
+
+	return volume;
 }

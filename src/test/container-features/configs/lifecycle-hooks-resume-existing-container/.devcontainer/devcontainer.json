@@ -1,0 +1,8 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"./hippo": {}
+	}
+}

@@ -8,18 +8,17 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
-import { createNullPostCreate, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
+import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
-import { promisify } from 'util';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
+import { Event } from '../spec-utils/event';
 
-export const experimentalImageMetadataDefault = true;
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
@@ -35,6 +34,7 @@ export interface ProvisionOptions {
 	logFormat: LogFormat;
 	log: (text: string) => void;
 	terminalDimensions: LogDimensions | undefined;
+	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 	defaultUserEnvProbe: UserEnvProbe;
 	removeExistingContainer: boolean;
 	buildNoCache: boolean;
@@ -55,23 +55,26 @@ export interface ProvisionOptions {
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
-	experimentalImageMetadata: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
+	omitConfigRemotEnvFromMetadata?: boolean;
 	dotfiles: {
 		repository?: string;
 		installCommand?: string;
 		targetPath?: string;
 	};
+	secretsFile?: string;
+	experimentalLockfile?: boolean;
+	experimentalFrozenLockfile?: boolean;
 }
 
-export async function launch(options: ProvisionOptions, idLabels: string[], disposables: (() => Promise<unknown> | undefined)[]) {
+export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
 	const params = await createDockerParams(options, disposables);
 	const output = params.common.output;
 	const text = 'Resolving Remote';
 	const start = output.start(text);
 
-	const result = await resolve(params, options.configFile, options.overrideConfigFile, idLabels, options.additionalFeatures ?? {});
+	const result = await resolve(params, options.configFile, options.overrideConfigFile, providedIdLabels, options.additionalFeatures ?? {});
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {
@@ -90,7 +93,7 @@ export async function launch(options: ProvisionOptions, idLabels: string[], disp
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, secretsFile, experimentalLockfile, experimentalFrozenLockfile } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -103,7 +106,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
-	const sessionId = (await promisify(crypto.randomBytes)(20)).toString('hex'); // TODO: Somehow enable correlation.
+	const sessionId = crypto.randomUUID();
 
 	const common: ResolverParameters = {
 		prebuild: options.prebuild,
@@ -123,7 +126,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output,
 		allowSystemConfigChange: true,
 		defaultUserEnvProbe: options.defaultUserEnvProbe,
-		postCreate: createNullPostCreate(options.postCreateEnabled, options.skipNonBlocking, output),
+		lifecycleHook: createNullLifecycleHook(options.postCreateEnabled, options.skipNonBlocking, output),
 		getLogLevel: () => options.logLevel,
 		onDidChangeLogLevel: () => ({ dispose() { } }),
 		loadNativeModule,
@@ -131,14 +134,15 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
+		secretsFile,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
-		experimentalImageMetadata: options.experimentalImageMetadata,
 		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,
+		omitConfigRemotEnvFromMetadata: options.omitConfigRemotEnvFromMetadata,
 		dotfilesConfiguration: {
 			repository: options.dotfiles.repository,
 			installCommand: options.dotfiles.installCommand,
@@ -178,7 +182,9 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
-		isTTY: process.stdin.isTTY || options.logFormat === 'json',
+		isTTY: process.stdout.isTTY || options.logFormat === 'json',
+		experimentalLockfile,
+		experimentalFrozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
@@ -190,19 +196,21 @@ export interface LogOptions {
 	logFormat: LogFormat;
 	log: (text: string) => void;
 	terminalDimensions: LogDimensions | undefined;
+	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 }
 
 export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
 	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
 	const output = createLogFrom(options, sessionStart, header);
 	output.dimensions = options.terminalDimensions;
+	output.onDidChangeDimensions = options.onDidChangeTerminalDimensions;
 	disposables.push(() => output.join());
 	return output;
 }
 
 function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
-		process.stdin.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
+		process.stdout.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
 		createPlainLog(write, () => logLevel);
 	const log = {
 		...makeLog(createCombinedLog([handler], header)),

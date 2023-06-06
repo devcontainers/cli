@@ -5,7 +5,7 @@
 
 import type { RequestOptions } from 'https';
 import { https, http } from 'follow-redirects';
-import ProxyAgent from 'proxy-agent';
+import { ProxyAgent } from 'proxy-agent';
 import * as url from 'url';
 import { Log, LogLevel } from './log';
 

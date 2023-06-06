@@ -1,0 +1,3 @@
+FROM ubuntu:latest
+
+ENV SUBFOLDER_CONFIG_IMAGE_ENV=true

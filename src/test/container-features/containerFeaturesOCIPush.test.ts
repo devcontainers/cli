@@ -196,6 +196,9 @@ registry`;
 		let publishResult: ExecResult | undefined = undefined;
 		let infoTagsResult: ExecResult | undefined = undefined;
 		let infoManifestResult: ExecResult | undefined = undefined;
+		let infoLegacyManifestResult: ExecResult | undefined = undefined;
+		let infoLegacyManifest2Result: ExecResult | undefined = undefined;
+
 
 		try {
 			publishResult = await shellExec(`${cli} features publish --log-level trace -r localhost:5000 -n octocat/features2 ${collectionFolder}/src`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
@@ -243,7 +246,7 @@ registry`;
 		// --- See that the manifest of legacyIds and ID are equal
 		success = false; // Reset success flag.
 		try {
-			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/new-color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/new-color --log-level trace --output-format json`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
 			success = true;
 
 		} catch (error) {
@@ -252,11 +255,11 @@ registry`;
 
 		assert.isTrue(success);
 		assert.isDefined(infoManifestResult);
-		const manifest = infoManifestResult.stdout;
+		const manifest = JSON.parse(infoManifestResult.stdout).manifest;
 
 		success = false; // Reset success flag.
 		try {
-			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			infoLegacyManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/color --log-level trace --output-format json`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
 			success = true;
 
 		} catch (error) {
@@ -265,12 +268,12 @@ registry`;
 
 		assert.isTrue(success);
 		assert.isDefined(infoManifestResult);
-		const legacyManifest = infoManifestResult.stdout;
-		assert.deepEqual(manifest, legacyManifest);
+		const legacyManifest = JSON.parse(infoLegacyManifestResult.stdout).manifest;
+		assert.deepEqual(JSON.stringify(manifest), JSON.stringify(legacyManifest));
 
 		success = false; // Reset success flag.
 		try {
-			infoManifestResult = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/old-color --log-level trace`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
+			infoLegacyManifest2Result = await shellExec(`${cli} features info manifest localhost:5000/octocat/features2/old-color --log-level trace --output-format json`, { env: { ...process.env, 'DEVCONTAINERS_OCI_AUTH': 'localhost:5000|myuser|mypass' } });
 			success = true;
 
 		} catch (error) {
@@ -279,8 +282,8 @@ registry`;
 
 		assert.isTrue(success);
 		assert.isDefined(infoManifestResult);
-		const legacyManifest2 = infoManifestResult.stdout;
-		assert.deepEqual(manifest, legacyManifest2);
+		const legacyManifest2 = JSON.parse(infoLegacyManifest2Result.stdout).manifest;
+		assert.deepEqual(JSON.stringify(manifest), JSON.stringify(legacyManifest2));
 
 		// --- Simple Feature
 		success = false; // Reset success flag.
@@ -302,10 +305,16 @@ registry`;
 
 //  NOTE:
 //  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
-describe('Test OCI Push Helper Functions', () => {
+describe('Test OCI Push Helper Functions', function () {
+	this.timeout('10s');
 	it('Generates the correct tgz manifest layer', async () => {
 
 		const dataBytes = fs.readFileSync(`${testAssetsDir}/go.tgz`);
+
+		const featureRef = getRef(output, 'ghcr.io/devcontainers/features/go');
+		if (!featureRef) {
+			assert.fail();
+		}
 
 		// Calculate the tgz layer and digest
 		const res = await calculateDataLayer(output, dataBytes, 'go.tgz', DEVCONTAINER_TAR_LAYER_MEDIATYPE);
@@ -324,20 +333,22 @@ describe('Test OCI Push Helper Functions', () => {
 		assert.deepEqual(res, expected);
 
 		// Generate entire manifest to be able to calculate content digest
-		const digestContainer = await calculateManifestAndContentDigest(output, res, undefined);
-		const contentDigest = digestContainer.contentDigest;
-		const manifestStr = digestContainer.manifestStr;
+		const manifestContainer = await calculateManifestAndContentDigest(output, featureRef, res, undefined);
+		if (!manifestContainer) {
+			assert.fail();
+		}
+		const { contentDigest, manifestBuffer } = manifestContainer;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
-		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestStr);
+		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestBuffer.toString());
 
 		// This is the canonical digest of the manifest
-		assert.strictEqual('9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);
+		assert.strictEqual('sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
 		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
-		assert.strictEqual(manifest?.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
+		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
 	});
 
 	it('Can check whether a blob exists', async () => {

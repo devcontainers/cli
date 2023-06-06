@@ -2,6 +2,100 @@
 
 Notable changes.
 
+## June 2023
+
+### [0.43.0]
+- Fix a bug in passing users secrets to dotfile clone and install commands (https://github.com/devcontainers/cli/pull/544)
+- Fix for mount command string generation (https://github.com/devcontainers/cli/pull/537)
+
+## May 2023
+
+### [0.42.0]
+
+- Add object notation support for `initializeCommand` (https://github.com/devcontainers/cli/pull/514)
+- Keep existing lockfile updated (https://github.com/devcontainers/spec/issues/236)
+- HttpOci: Retry fetching bearer token anonymously if credentials appear expired (https://github.com/devcontainers/cli/pull/515)
+- Bump proxy-agent (https://github.com/devcontainers/cli/pull/534)
+- Log feature advisories (https://github.com/devcontainers/cli/pull/528)
+- Check for disallowed features (https://github.com/devcontainers/cli/pull/521)
+
+## April 2023
+
+### [0.41.0]
+
+- Secret support for up and run-user-commands (https://github.com/devcontainers/cli/pull/493)
+
+### [0.40.0]
+
+- Experimental lockfile support (https://github.com/devcontainers/cli/pull/495)
+- Update vm2 (https://github.com/devcontainers/cli/pull/500)
+
+### [0.39.0]
+
+- Update auth precedence level for fetching Features/Templates. Notably preferring `docker login` credentials. (https://github.com/devcontainers/cli/pull/482)
+   - The precedence order (https://github.com/devcontainers/cli/blob/4fde394ac16df1061b731d2d2f226850277cbce2/src/spec-configuration/httpOCIRegistry.ts#L147) is now:
+		- parsed out of a special DEVCONTAINERS_OCI_AUTH environment variable
+		- Read from a docker credential helper indicated in config
+		- Read from a docker cred store indicated in config (https://docs.docker.com/engine/reference/commandline/login/#credentials-store)
+		- Read from a docker config file (flat file with base64 encoded credentials)
+		- Read from the platform's default credential helper
+		- Crafted from the `GITHUB_TOKEN` environment variable
+- Features can now be pinned to a digest in `devcontainer.json` (https://github.com/devcontainers/cli/pull/480)
+- Automatically clean up test containers when using `devcontainers features test` (https://github.com/devcontainers/cli/pull/450)
+   - The `--preserve-test-containers` flag can be used to disable this behavior
+- Various internal changes to the Features/Templates OCI registry implementation (https://github.com/devcontainers/cli/pull/490)
+
+### [0.38.0]
+
+- Update vm2 (https://github.com/devcontainers/cli/pull/488)
+
+### [0.37.0]
+
+- Add --config to build command (microsoft/vscode-remote-release#8068)
+- Features/Templates: Fix a bug in reading from docker credential helpers (https://github.com/devcontainers/cli/issues/477)
+
+## March 2023
+
+### [0.36.0]
+
+-  Add initial support for docker credential helpers when fetching Features/Templates. (https://github.com/devcontainers/cli/pull/460, contributed by @aaronlehmann)
+
+### [0.35.0]
+
+- Transform maven, gradle and jupyterlab usages to their features v2 counterparts. (https://github.com/devcontainers/cli/issues/461)
+- Escape and enclose containerEnv in quotes when writing to Dockerfile. (https://github.com/devcontainers/cli/issues/454)
+- Update package dependencies.
+
+### [0.34.0]
+
+- Also require name property in `devcontainer-feature.json`. (https://github.com/devcontainers/cli/pull/447)
+- Add `--omit-config-remote-env-from-metadata` to omit remoteEnv from devcontainer config on container metadata label. (https://github.com/devcontainers/cli/pull/453)
+- Only include required legacy scripts. (https://github.com/microsoft/vscode-remote-release/issues/7532)
+
+### [0.33.0]
+
+- Connect stdin to executed process. (https://github.com/devcontainers/cli/issues/59)
+- Better support for private Features published to Azure Container Registry (https://github.com/devcontainers/cli/pull/444)
+
+### [0.32.0]
+
+- Initial support for Features contributing lifecycle hooks (https://github.com/devcontainers/cli/pull/390)
+- Retry docker pull on error (https://github.com/devcontainers/cli/pull/428)
+- Fix: `devcontainer feature test` cmd should fail if Feature's sub-folder does not exist (https://github.com/devcontainers/cli/pull/418)
+
+## February 2023
+
+### [0.31.0]
+
+- Add label for config file. (https://github.com/microsoft/vscode-remote-release/issues/7548)
+- Add docs for `devcontainer templates publish`. (https://github.com/devcontainers/cli/pull/410)
+
+### [0.30.0]
+
+- Fix: Merge metadata logic for containerEnv for `devcontainer build`. (https://github.com/devcontainers/cli/pull/392)
+- Support querying registries that Accept application/vnd.oci.image.index.v1+json. (https://github.com/devcontainers/cli/pull/393)
+- Updates Features cache logic - Incrementally copy features near the layer they're installed. (https://github.com/devcontainers/cli/pull/382)
+
 ## January 2023
 
 ### [0.29.0]

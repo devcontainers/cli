@@ -10,7 +10,7 @@ import { devContainerDown, devContainerUp, shellExec, setupCLI } from '../testUt
 const pkg = require('../../../package.json');
 
 describe('Dev Container Features E2E (remote)', function () {
-    this.timeout('120s');
+    this.timeout('300s');
 
     const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
@@ -26,11 +26,9 @@ describe('Dev Container Features E2E (remote)', function () {
                 success = true;
             } catch (error) {
                 assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-                const res = JSON.parse(error.stdout);
-                assert.equal(res.outcome, 'error');
                 // "Failed to fetch tarball" happens if the test is executed without a $GITHUB_TOKEN
                 // "HTTP 404: Not Found" happens if the test is executed with a $GITHUB_TOKEN
-                assert.ok(res.message.indexOf('Failed to fetch tarball') > -1 || res.message.indexOf('HTTP 404: Not Found') > -1, `Actual error msg:  ${res.message}`);
+                assert.ok(error.stderr.indexOf('Failed to fetch tarball') > -1 || error.stderr.indexOf('HTTP 404: Not Found') > -1, `Actual error msg:  ${error.stderr}`);
             }
             assert.equal(success, false, 'expect non-successful call');
         });
@@ -43,9 +41,7 @@ describe('Dev Container Features E2E (remote)', function () {
                 success = true;
             } catch (error) {
                 assert.equal(error.error.code, 1, 'Should fail with exit code 1');
-                const res = JSON.parse(error.stdout);
-                assert.equal(res.outcome, 'error');
-                assert.ok(res.message.indexOf('Failed to process feature') > -1, `Actual error msg:  ${res.message}`);
+                assert.ok(error.stderr.indexOf('Failed to process feature') > -1, `Actual error msg:  ${error.stderr}`);
             }
             assert.equal(success, false, 'expect non-successful call');
         });
@@ -65,10 +61,8 @@ describe('Dev Container Features E2E (remote)', function () {
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
                 const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-                const response = JSON.parse(res.stdout);
-                console.log(res.stderr);
-                assert.equal(response.outcome, 'success');
-                assert.match(res.stderr, /CONTAINER ID/);
+                assert.isNull(res.error);
+                assert.match(res.stdout, /CONTAINER ID/);
             });
 
             it('should read configuration with features', async () => {
@@ -99,17 +93,15 @@ describe('Dev Container Features E2E (remote)', function () {
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
                 const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-                const response = JSON.parse(res.stdout);
-                console.log(res.stderr);
-                assert.equal(response.outcome, 'success');
-                assert.match(res.stderr, /CONTAINER ID/);
+                assert.isNull(res.error);
+                assert.match(res.stdout, /CONTAINER ID/);
             });
         });
     });
 });
 
 describe('Dev Container Features E2E - local cache/short-hand notation', function () {
-    this.timeout('240s');
+    this.timeout('300s');
 
     const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
@@ -124,10 +116,8 @@ describe('Dev Container Features E2E - local cache/short-hand notation', functio
 
         it('should exec a PATH without the string \'ENV\'', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} echo \${PATH}`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.notMatch(res.stderr, /ENV/);
+            assert.isNull(res.error);
+            assert.notMatch(res.stdout, /ENV/);
         });
     });
 });
@@ -149,10 +139,8 @@ describe('Dev Container Features E2E (local-path)', function () {
 
         it('should exec the color command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /my favorite color is gold/);
+            assert.isNull(res.error);
+            assert.match(res.stdout, /my favorite color is gold/);
         });
         it('should read configuration with features', async () => {
             const res = await shellExec(`${cli} read-configuration --workspace-folder ${testFolder} --include-features-configuration`);
@@ -168,20 +156,16 @@ describe('Dev Container Features E2E (local-path)', function () {
         beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
         afterEach(async () => await devContainerDown({ containerId }));
 
-        it('should exec the color command', async () => {
-            const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /my favorite color is gold/);
-        });
+            it('should exec the color command', async () => {
+                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
+                assert.isNull(res.error);
+                assert.match(res.stdout, /my favorite color is gold/);
+            });
 
         it('should exec the helloworld command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /Hello there, vscode!!!!/);
+            assert.isNull(res.error);
+            assert.match(res.stdout, /Hello there, vscode!!!!/);
         });
 
         it('should read configuration with features', async () => {
@@ -200,18 +184,14 @@ describe('Dev Container Features E2E (local-path)', function () {
 
         it('should exec the color commmand', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /my favorite color is gold/);
+            assert.isNull(res.error);
+            assert.match(res.stdout, /my favorite color is gold/);
         });
 
         it('should exec the helloworld commmand', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
-            const response = JSON.parse(res.stdout);
-            console.log(res.stderr);
-            assert.equal(response.outcome, 'success');
-            assert.match(res.stderr, /Hello there, vscode!!!!/);
+            assert.isNull(res.error);
+            assert.match(res.stdout, /Hello there, vscode!!!!/);
         });
 
         it('should read configuration with features with customizations', async () => {

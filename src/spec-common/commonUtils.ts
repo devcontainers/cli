@@ -122,24 +122,29 @@ export async function runCommandNoPty(options: {
 			}
 		});
 		const subs: Disposable[] = [];
-		p.exit.then(({ code }) => {
+		p.exit.then(({ code, signal }) => {
 			try {
+				const failed = !!code || !!signal;
 				subs.forEach(sub => sub.dispose());
 				const stdoutBuf = Buffer.concat(stdout);
 				const stderrBuf = Buffer.concat(stderr);
-				if (print === true || (code && print === 'onerror')) {
+				if (print === true || (failed && print === 'onerror')) {
 					output.write(stdoutBuf.toString().replace(/\r?\n/g, '\r\n'));
 					output.write(toErrorText(stderrBuf.toString()));
 				}
 				if (print && code) {
 					output.write(`Exit code ${code}`);
 				}
-				if (code) {
+				if (print && signal) {
+					output.write(`Process signal ${signal}`);
+				}
+				if (failed) {
 					reject({
 						message: `Command failed: ${cmd} ${(args || []).join(' ')}`,
 						stdout: stdoutBuf,
 						stderr: stderrBuf,
-						code
+						code,
+						signal,
 					});
 				} else {
 					resolve({
@@ -175,8 +180,11 @@ export async function runCommand(options: {
 	output: Log;
 	resolveOn?: RegExp;
 	onDidInput?: Event<string>;
+	stdin?: string;
+	print?: 'off' | 'continuous' | 'end';
 }) {
-	const { ptyExec, cmd, args, cwd, env, output, resolveOn, onDidInput } = options;
+	const { ptyExec, cmd, args, cwd, env, output, resolveOn, onDidInput, stdin } = options;
+	const print = options.print || 'continuous';
 
 	const p = await ptyExec({
 		cmd,
@@ -189,24 +197,33 @@ export async function runCommand(options: {
 	return new Promise<{ cmdOutput: string }>((resolve, reject) => {
 		let cmdOutput = '';
 
+		if (stdin) {
+			p.write(stdin);
+		}
+
 		const subs = [
 			onDidInput && onDidInput(data => p.write(data)),
 		];
 
 		p.onData(chunk => {
 			cmdOutput += chunk;
-			output.raw(chunk);
+			if (print === 'continuous') {
+				output.raw(chunk);
+			}
 			if (resolveOn && resolveOn.exec(cmdOutput)) {
 				resolve({ cmdOutput });
 			}
 		});
 		p.exit.then(({ code, signal }) => {
 			try {
+				if (print === 'end') {
+					output.raw(cmdOutput);
+				}
 				subs.forEach(sub => sub?.dispose());
 				if (code || signal) {
 					reject({
 						message: `Command failed: ${cmd} ${(args || []).join(' ')}`,
-						cmdOutput: cmdOutput,
+						cmdOutput,
 						code,
 						signal,
 					});
@@ -222,6 +239,48 @@ export async function runCommand(options: {
 		});
 	});
 }
+
+// From https://man7.org/linux/man-pages/man7/signal.7.html:
+export const processSignals: Record<string, number | undefined> = {
+	SIGHUP: 1,
+	SIGINT: 2,
+	SIGQUIT: 3,
+	SIGILL: 4,
+	SIGTRAP: 5,
+	SIGABRT: 6,
+	SIGIOT: 6,
+	SIGBUS: 7,
+	SIGEMT: undefined,
+	SIGFPE: 8,
+	SIGKILL: 9,
+	SIGUSR1: 10,
+	SIGSEGV: 11,
+	SIGUSR2: 12,
+	SIGPIPE: 13,
+	SIGALRM: 14,
+	SIGTERM: 15,
+	SIGSTKFLT: 16,
+	SIGCHLD: 17,
+	SIGCLD: undefined,
+	SIGCONT: 18,
+	SIGSTOP: 19,
+	SIGTSTP: 20,
+	SIGTTIN: 21,
+	SIGTTOU: 22,
+	SIGURG: 23,
+	SIGXCPU: 24,
+	SIGXFSZ: 25,
+	SIGVTALRM: 26,
+	SIGPROF: 27,
+	SIGWINCH: 28,
+	SIGIO: 29,
+	SIGPOLL: 29,
+	SIGPWR: 30,
+	SIGINFO: undefined,
+	SIGLOST: undefined,
+	SIGSYS: 31,
+	SIGUNUSED: 31,
+};
 
 export function plainExec(defaultCwd: string | undefined): ExecFunction {
 	return async function (params: ExecParameters): Promise<Exec> {
@@ -410,10 +469,6 @@ export function isEarlierVersion(left: number[], right: number[]) {
 	}
 	return false; // Equal.
 }
-
-export const fork = isTsnode ? (mod: string, args: readonly string[] | undefined, options: any) => {
-	return cp.spawn(tsnode, [mod, ...(args || [])], { ...options, windowsHide: true });
-} : cp.fork;
 
 export async function loadNativeModule<T>(moduleName: string): Promise<T | undefined> {
 	// Check NODE_PATH for Electron. Do this first to avoid loading a binary-incompatible version from the local node_modules during development.
