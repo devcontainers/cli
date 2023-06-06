@@ -137,7 +137,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	let baseName = 'dev_container_auto_added_stage_label';
 	let imageBuildInfo: ImageBuildInfo;
 
-	if (supportsBuildContexts(extractedDockerfile) == 'unknown') {
+	if (supportsBuildContexts(extractedDockerfile) == 'unknown' || 1) {
 		// Prebuild the image if the syntax used is not a known docker/dockerfile one
 		const prebuildArgs = [];
 		if (!buildParams.buildKitVersion &&

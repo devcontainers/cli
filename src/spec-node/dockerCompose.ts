@@ -182,7 +182,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 		const extractedDockerfile = extractDockerfile(originalDockerfile);
 
-		if (supportsBuildContexts(extractedDockerfile) == 'unknown') {
+		if (supportsBuildContexts(extractedDockerfile) == 'unknown' || 1) {
 			if (!noBuild) {
 				const prebuildArgs = ['--project-name', projectName, ...composeGlobalArgs];
 
