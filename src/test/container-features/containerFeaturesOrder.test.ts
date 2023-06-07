@@ -383,6 +383,44 @@ describe('Feature Dependencies', function () {
                 ]);
         });
 
+        it('valid 3 overrides with file-path Feature where round priority beats independent feature', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/local-roundPriority`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'local'
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'file-path'));
+
+            const actual = installOrderNodes.map(fs => {
+                return {
+                    userFeatureId: fs.sourceInformation.userFeatureId,
+                    options: fs.features[0].value
+                };
+            });
+
+            assert.deepStrictEqual(actual.length, 3);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: './a',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {}
+                    },
+                    {
+                        userFeatureId: './c',
+                        options: {}
+                    }
+                ]);
+        });
+
+
         it('valid 2 overrides with mixed Feature types', async function () {
             const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/mixed`;
             const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);

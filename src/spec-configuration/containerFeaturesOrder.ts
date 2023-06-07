@@ -566,20 +566,26 @@ export async function computeDependsOnInstallationOrder(
 			return;
 		}
 
+		output.write(`[round-candidates] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
+
+		// Given the set of eligible nodes to install this round,
+		// determine the highest 'roundPriority' present of the nodes in this
+		//  round, and exclude nodes from this round with a lower priority.
+		// This ensures that both:
+		//  -  The pre-computed graph derived from dependOn/installsAfter is honored
+		//  -  The overrideFeatureInstallOrder property (more generically, 'roundPriority') is honored
+		const maxRoundPriority = Math.max(...round.map(r => r.roundPriority));
+		round.splice(0, round.length, ...round.filter(node => node.roundPriority === maxRoundPriority));
+		output.write(`[round-after-filter-priority] (maxPriority=${maxRoundPriority}) ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
+
 		// Delete all nodes present in this round from the worklist.
 		worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(params, r, node))));
 
 		// Sort rounds lexicographically by id.
 		round.sort((a, b) => comparesTo(params, a, b));
+		output.write(`[round-after-comparesTo] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
 
-		output.write(`[round-sort-id] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
-
-		// Final sort of rounds by priority
-		// Higher priority nodes are installed earlier.
-		round.sort((a, b) => b.roundPriority - a.roundPriority);
-
-		output.write(`[round-sort-priority] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
-
+		// Commit round
 		installationOrder.push(...round);
 	}
 
