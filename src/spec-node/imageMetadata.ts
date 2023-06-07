@@ -484,14 +484,3 @@ function toLabelString(obj: object) {
 	return JSON.stringify(obj)
 		.replace(/(?=["\\$])/g, '\\');
 }
-
-export function getContainerEnvMetadata(containerEnv: Record<string, string> | undefined): string {
-	if (!containerEnv) {
-		return '';
-	}
-	const keys = Object.keys(containerEnv);
-	// https://docs.docker.com/engine/reference/builder/#envs
-	return keys.map(k => `ENV ${k}="${containerEnv[k]
-		.replace(/(?=["\\$])/g, '\\') // escape double quotes, back slash, and dollar sign
-		}"`).join('\n');
-}
