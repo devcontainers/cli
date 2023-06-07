@@ -507,8 +507,11 @@ export async function computeDependsOnInstallationOrder(
 
 	const { output } = params;
 
+	// Make a copy of config to avoid mutating the original.
+	const configCopy = { ...config };
+
 	// Build dependency graph and resolves all to FeatureSets.
-	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, config);
+	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, configCopy);
 	if (!graph) {
 		return;
 	}
@@ -590,7 +593,7 @@ export async function computeDependsOnInstallationOrder(
 	}
 
 	// Handle legacy worklist
-	const legacy = computeFeatureInstallationOrder_deprecated(config, legacyWorklist.reverse().map(n => n.featureSet!));
+	const legacy = computeFeatureInstallationOrder_deprecated(configCopy, legacyWorklist.reverse().map(n => n.featureSet!));
 
 	return legacy.concat(
 		installationOrder.map(n => n.featureSet!)
