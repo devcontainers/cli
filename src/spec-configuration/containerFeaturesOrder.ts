@@ -8,13 +8,12 @@ import * as jsonc from 'jsonc-parser';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-import { DEVCONTAINER_FEATURE_FILE_NAME, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
+import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerFeature } from './configuration';
 import { CommonParams } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { fetchOCIFeature } from './containerFeaturesOCI';
-import { computeFeatureInstallationOrder_deprecated } from './containerFeaturesOrder_deprecated';
 
 interface FNode {
 	type: 'user-provided' | 'override' | 'resolved';
