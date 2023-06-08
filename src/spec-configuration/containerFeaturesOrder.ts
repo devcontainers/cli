@@ -142,13 +142,11 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 					return v;
 				}
 			}
-
-			if (typeof aVal === undefined) {
-				return 1;
-			}
-
-			if (typeof bVal === undefined) {
-				return -1;
+			if (typeof aVal === undefined && typeof bVal === undefined) {
+				const v = aVal === bVal ? 0 : (aVal === undefined) ? 1 : -1;
+				if (v !== 0) {
+					return v;
+				}
 			}
 		}
 		// Object is piece-wise equal
