@@ -547,7 +547,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const lockfile = await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
-		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile, params.skipFeatureAutoMapping);
+		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
 	};
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
