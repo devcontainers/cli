@@ -8,7 +8,7 @@ import * as jsonc from 'jsonc-parser';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation } from '../spec-configuration/containerFeaturesConfiguration';
+import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation, fetchContentsAtTarballUri } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerFeature } from './configuration';
 import { CommonParams } from './containerCollectionsOCI';
@@ -348,8 +348,10 @@ async function _buildDependencyGraph(
 					metadata = jsonc.parse(serialized) as Feature;
 				}
 				break;
-			//case 'direct-tarball':
-			//  getTarballFeatureMetadata(params, current); // TODO
+
+			case 'direct-tarball':
+				metadata = await getTgzFeatureMetadata(params, current);
+				break;
 
 			default:
 				// Legacy
@@ -454,6 +456,29 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
 	}
 	output.write('No metadata found for Feature', LogLevel.Trace);
 	return;
+}
+
+async function getTgzFeatureMetadata(params: CommonParams, node: FNode): Promise<Feature | undefined> {
+	const { output } = params;
+
+	// TODO: Implement a caching layer here!
+	//       This can be optimized to share work done here
+	//       with the 'fetchFeatures()` stage later on.
+	const srcInfo = node?.featureSet?.sourceInformation;
+	if (!node.featureSet || !srcInfo || srcInfo.type !== 'direct-tarball') {
+		return;
+	}
+
+	const tmp = path.join(os.tmpdir(), crypto.randomUUID());
+	const result = await fetchContentsAtTarballUri(params, srcInfo.tarballUri, tmp, undefined, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+	if (!result || !result.metadata) {
+		output.write(`No metadata for Feature '${node.userFeatureId}' from '${srcInfo.tarballUri}'`, LogLevel.Trace);
+		return;
+	}
+
+	const metadata = result.metadata as Feature;
+	return metadata;
+
 }
 
 // Creates the directed acyclic graph (DAG) of Features and their dependencies.

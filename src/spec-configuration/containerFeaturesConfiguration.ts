@@ -1067,7 +1067,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			// Attempt to fetch from 'tarballUris' in order, until one succeeds.
 			let res: { computedDigest: string } | undefined;
 			for (const tarballUri of tarballUris) {
-				res = await fetchContentsAtTarballUri(tarballUri, featCachePath, headers, dstFolder, output);
+				res = await fetchContentsAtTarballUri(params, tarballUri, featCachePath, headers, dstFolder);
 
 				if (res) {
 					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
@@ -1091,14 +1091,16 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 	}
 }
 
-async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string }, dstFolder: string, output: Log): Promise<{ computedDigest: string } | undefined> {
+export async function fetchContentsAtTarballUri(params: { output: Log; env: NodeJS.ProcessEnv }, tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } | undefined, dstFolder: string, metadataFile?: string): Promise<{ computedDigest: string; metadata: {} | undefined } | undefined> {
+	const { output } = params;
 	const tempTarballPath = path.join(dstFolder, 'temp.tgz');
 	try {
 		const options = {
 			type: 'GET',
 			url: tarballUri,
-			headers
+			headers: headers ?? getRequestHeaders(params, { tarballUri, userFeatureId: tarballUri, type: 'direct-tarball' })
 		};
+
 		output.write(`Fetching tarball at ${options.url}`);
 		output.write(`Headers: ${JSON.stringify(options)}`, LogLevel.Trace);
 		const tarball = await request(options, output);
@@ -1131,9 +1133,30 @@ async function fetchContentsAtTarballUri(tarballUri: string, featCachePath: stri
 			}
 		);
 
+		// No 'metadataFile' to look for.
+		if (!metadataFile) {
 		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+			return { computedDigest, metadata: undefined };
+		}
 
-		return { computedDigest };
+		// Attempt to extract 'metadataFile'
+		await tar.x(
+			{
+				file: tempTarballPath,
+				cwd: featCachePath,
+				filter: (path: string, _: tar.FileStat) => {
+					return path === `./${metadataFile}`;
+				}
+			});
+		const pathToMetadataFile = path.join(featCachePath, metadataFile);
+		let metadata = undefined;
+		if (await isLocalFile(pathToMetadataFile)) {
+			output.write(`Found metadata file '${metadataFile}' in tgz`, LogLevel.Trace);
+			metadata = jsonc.parse((await readLocalFile(pathToMetadataFile)).toString());
+		}
+
+		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+		return { computedDigest, metadata };
 	} catch (e) {
 		output.write(`Caught failure when fetching from URI '${tarballUri}': ${e}`, LogLevel.Trace);
 		await cleanupIterationFetchAndMerge(tempTarballPath, output);

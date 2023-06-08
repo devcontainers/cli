@@ -270,6 +270,71 @@ describe('Feature Dependencies', function () {
                 ]);
         });
 
+        it('valid dependsOn with published tgz and oci Features', async function () {
+            const testFolder = `${baseTestConfigPath}/dependsOn/tgz-ab`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            // Assert all sourceInformation is of type 'oci' or 'direct-tarball'
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'oci' || fs.sourceInformation.type === 'direct-tarball'));
+
+            const actual = installOrderNodes.map(fs => {
+                const srcInfo = fs.sourceInformation;
+                switch (srcInfo.type) {
+                    case 'oci':
+                        return {
+                            userFeatureId: fs.sourceInformation.userFeatureId,
+                            options: fs.features[0].value,
+                            canonicalId: `${srcInfo.featureRef.resource}@${srcInfo.manifestDigest}`
+                        };
+                    case 'direct-tarball':
+                        return {
+                            tarballUri: srcInfo.tarballUri,
+                            options: fs.features[0].value,
+                        };
+                    default:
+                        assert.fail();
+                }
+            });
+
+            assert.deepStrictEqual(actual.length, 6);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        userFeatureId: 'ghcr.io/codspace/dependson/D',
+                        options: { magicNumber: '30' },
+                        canonicalId: 'ghcr.io/codspace/dependson/d@sha256:3795caa1e32ba6b30a08260039804eed6f3cf40811f0c65c118437743fa15ce8',
+                    },
+                    {
+                        userFeatureId: 'ghcr.io/codspace/dependson/E',
+                        options: { magicNumber: '50' },
+                        canonicalId: 'ghcr.io/codspace/dependson/e@sha256:9f36f159c70f8bebff57f341904b030733adb17ef12a5d58d4b3d89b2a6c7d5a',
+                    },
+                    {
+                        userFeatureId: 'ghcr.io/codspace/dependson/A',
+                        options: { magicNumber: '40' },
+                        canonicalId: 'ghcr.io/codspace/dependson/a@sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a',
+                    },
+                    {
+                        tarballUri: 'https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-A.tgz',
+                        options: { magicNumber: '10' },
+                    },
+                    {
+                        userFeatureId: 'ghcr.io/codspace/dependson/C',
+                        options: { magicNumber: '20' },
+                        canonicalId: 'ghcr.io/codspace/dependson/c@sha256:db651708398b6d7af48f184c358728eaaf959606637133413cb4107b8454a868',
+                    },
+                    {
+                        tarballUri: 'https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-B.tgz',
+                        options: { magicNumber: '400' }
+                    }
+                ]);
+        });
+
         it('invalid circular dependency', async function () {
             const testFolder = `${baseTestConfigPath}/dependsOn/invalid-circular`;
             const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
