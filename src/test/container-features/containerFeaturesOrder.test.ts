@@ -85,6 +85,15 @@ describe('Feature Dependencies', function () {
                     }
                 ]);
         });
+
+        it('invalid circular dependency', async function () {
+            const testFolder = `${baseTestConfigPath}/installsAfter/invalid-circular`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            assert.ok(!installOrderNodes);
+        });
+
     });
 
     describe('dependsOn', function () {
@@ -199,7 +208,6 @@ describe('Feature Dependencies', function () {
                 ]);
         });
 
-
         it('valid dependsOn with published oci Features', async function () {
             const testFolder = `${baseTestConfigPath}/dependsOn/oci-ab`;
             const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
@@ -260,6 +268,14 @@ describe('Feature Dependencies', function () {
                         canonicalId: 'ghcr.io/codspace/dependson/b@sha256:e7e6b52884ae7f349baf207ac59f78857ab64529c890b646bb0282f962bb2941',
                     }
                 ]);
+        });
+
+        it('invalid circular dependency', async function () {
+            const testFolder = `${baseTestConfigPath}/dependsOn/invalid-circular`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            assert.ok(!installOrderNodes);
         });
     });
 
@@ -420,7 +436,6 @@ describe('Feature Dependencies', function () {
                 ]);
         });
 
-
         it('valid 2 overrides with mixed Feature types', async function () {
             const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/mixed`;
             const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
@@ -500,5 +515,121 @@ describe('Feature Dependencies', function () {
                     }
                 ]);
         });
+
+        it('valid 3 overrides with mixed v2 Feature types', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/image-with-v2-features-with-overrideFeatureInstallOrder`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'file-path' || fs.sourceInformation.type === 'direct-tarball' || fs.sourceInformation.type === 'oci'));
+
+            const actual = installOrderNodes.map(fs => {
+                switch (fs.sourceInformation.type) {
+                    case 'oci':
+                        const srcInfo = fs.sourceInformation as OCISourceInformation;
+                        const ref = srcInfo.featureRef;
+                        return {
+                            id: `${ref.resource}@${srcInfo.manifestDigest}`,
+                            options: fs.features[0].value,
+                        };
+                    default:
+                        return {
+                            id: fs.sourceInformation.userFeatureId,
+                            options: fs.features[0].value
+                        };
+                }
+            });
+
+            assert.deepStrictEqual(actual.length, 5);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        id: './localFeatureA',
+                        options: {
+                            'greeting': 'buongiorno'
+                        }
+                    },
+                    {
+                        id: 'https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz',
+                        options: {
+                            'version': 'latest'
+                        }
+                    },
+                    {
+                        id: 'ghcr.io/devcontainers/features/python@sha256:675f3c93e52fa4b205827e3aae744905ae67951f70e3ec2611f766304b31f4a2',
+                        options: {
+                            version: 'none'
+                        }
+                    },
+                    {
+                        id: './localFeatureB',
+                        options: {
+                            'greeting': 'buongiorno'
+                        }
+                    },
+                    {
+                        id: 'ghcr.io/codspace/features/python@sha256:e4034c2a24d6c5d1cc0f6cb03091fc72d4e89f5cc64fa692cb69b671c81633d2',
+                        options: {
+                            'version': 'none'
+                        }
+                    }
+                ]
+            );
+        });
+
+        it('valid 3 overrides with mixed v1 Feature types', async function () {
+            const testFolder = `${baseTestConfigPath}/overrideFeatureInstallOrder/image-with-v1-features-with-overrideFeatureInstallOrder`;
+            const { params, userFeatures, processFeature, config } = await setupInstallOrderTest(testFolder);
+
+            const installOrderNodes = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+            if (!installOrderNodes) {
+                assert.fail();
+            }
+
+            assert.ok(installOrderNodes.every(fs => fs.sourceInformation.type === 'github-repo' || fs.sourceInformation.type === 'direct-tarball' || fs.sourceInformation.type === 'oci'));
+
+            const actual = installOrderNodes.map(fs => {
+                switch (fs.sourceInformation.type) {
+                    case 'oci':
+                        const srcInfo = fs.sourceInformation as OCISourceInformation;
+                        const ref = srcInfo.featureRef;
+                        return {
+                            id: ref.resource,
+                            options: fs.features[0].value,
+                        };
+                    default:
+                        return {
+                            id: fs.sourceInformation.userFeatureId,
+                            options: fs.features[0].value
+                        };
+                }
+            });
+
+            assert.deepStrictEqual(actual.length, 3);
+            assert.deepStrictEqual(actual,
+                [
+                    {
+                        id: 'codspace/features/devcontainer-feature-go@tarball02',
+                        options: {}
+                    },
+                    {
+                        id: 'codspace/myfeatures/helloworld',
+                        options: {
+                            greeting: 'howdy'
+                        }
+                    },
+                    {
+                        id: 'ghcr.io/devcontainers/features/terraform',
+                        options: 'latest'
+                    }
+                ]
+            );
+        });
+
+
     });
 });

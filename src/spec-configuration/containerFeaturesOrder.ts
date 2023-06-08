@@ -39,7 +39,6 @@ interface FNode {
 
 interface DependencyGraph {
 	worklist: FNode[];
-	legacyWorklist: FNode[];
 }
 
 function equals(params: CommonParams, a: FNode, b: FNode): boolean {
@@ -75,10 +74,6 @@ function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNo
 		return false;
 	}
 
-	if (!featureSupportsDependencies(node.featureSet) || !featureSupportsDependencies(softDep.featureSet)) {
-		return false;
-	}
-
 	switch (nodeSourceInfo.type) {
 		case 'oci':
 			softDepSourceInfo = softDepSourceInfo as OCISourceInformation;
@@ -94,8 +89,16 @@ function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNo
 			softDepSourceInfo = softDepSourceInfo as FilePathSourceInformation;
 			return nodeSourceInfo.resolvedFilePath === softDepSourceInfo.resolvedFilePath;
 
+		case 'direct-tarball':
+			softDepSourceInfo = softDepSourceInfo as DirectTarballSourceInformation;
+			return nodeSourceInfo.tarballUri === softDepSourceInfo.tarballUri;
+
 		default:
-			throw new Error(`Unexpected sourceInfo type: '${nodeSourceInfo.type}'.`);
+			// Legacy
+			const softDepId = softDepSourceInfo.userFeatureIdWithoutVersion || softDepSourceInfo.userFeatureId;
+			const nodeId = nodeSourceInfo.userFeatureIdWithoutVersion || nodeSourceInfo.userFeatureId;
+			return softDepId === nodeId;
+
 	}
 }
 
@@ -227,18 +230,24 @@ function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
 			}
 			return optionsCompareTo(a.options, b.options);
 
-		default:
-			throw new Error(`Unexpected sourceInfo type: '${aSourceInfo.type}'.`);
-	}
-}
+		case 'direct-tarball':
+			bSourceInfo = bSourceInfo as DirectTarballSourceInformation;
+			const urlCompare = aSourceInfo.tarballUri.localeCompare(bSourceInfo.tarballUri);
+			if (urlCompare !== 0) {
+				return urlCompare;
+			}
+			return optionsCompareTo(a.options, b.options);
 
-function featureSupportsDependencies(featureSet?: FeatureSet): boolean {
-	if (!featureSet) {
-		return false;
+		default:
+			// Legacy
+			const aId = aSourceInfo.userFeatureIdWithoutVersion || aSourceInfo.userFeatureId;
+			const bId = bSourceInfo.userFeatureIdWithoutVersion || bSourceInfo.userFeatureId;
+			const userIdCompare = aId.localeCompare(bId);
+			if (userIdCompare !== 0) {
+				return userIdCompare;
+			}
+			return optionsCompareTo(a.options, b.options);
 	}
-	const publishType = featureSet.sourceInformation.type;
-	// TODO: Support direct-tarball
-	return publishType === 'oci' /*|| publishType === 'direct-tarball'*/ || publishType === 'file-path';
 }
 
 async function applyOverrideFeatureInstallOrder(
@@ -254,7 +263,6 @@ async function applyOverrideFeatureInstallOrder(
 	}
 
 	// Create an override node for each Feature in the override property.
-	// Reverse iterate to remove out items from config that have been processed.
 	const originalLength = config.overrideFeatureInstallOrder.length;
 	for (let i = config.overrideFeatureInstallOrder.length - 1; i >= 0; i--) {
 		const overrideFeatureId = config.overrideFeatureInstallOrder[i];
@@ -277,14 +285,7 @@ async function applyOverrideFeatureInstallOrder(
 			throw new Error(`Feature '${tmpOverrideNode.userFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
 		}
 
-		if (!featureSupportsDependencies(processed)) {
-			// Process legacy Features later.
-			continue;
-		}
-
 		tmpOverrideNode.featureSet = processed;
-		// Remove from the config list to not double process when handling legacy Features.
-		config.overrideFeatureInstallOrder.splice(i, 1);
 
 		// Scan the worklist, incrementing the priority of each Feature that matches the override.
 		for (const node of worklist) {
@@ -304,8 +305,7 @@ async function _buildDependencyGraph(
 	params: CommonParams,
 	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
 	worklist: FNode[],
-	acc: FNode[],
-	legacyAcc: FNode[]): Promise<DependencyGraph> {
+	acc: FNode[]): Promise<DependencyGraph> {
 	const { output } = params;
 
 	while (worklist.length > 0) {
@@ -320,13 +320,6 @@ async function _buildDependencyGraph(
 
 		// Set the processed FeatureSet object onto Node.
 		current.featureSet = processedFeature;
-
-		// If the Feature doesn't support dependencies,  add it to the
-		// legacy accumulator but do not attempt to process its dependencies (since it cannot have any!)
-		if (!featureSupportsDependencies(processedFeature)) {
-			legacyAcc.push(current);
-			continue;
-		}
 
 		// If the current Feature is already in the accumulator, skip it.
 		// This stops cycles but doesn't report them.  
@@ -355,9 +348,13 @@ async function _buildDependencyGraph(
 					metadata = jsonc.parse(serialized) as Feature;
 				}
 				break;
+			//case 'direct-tarball':
+			//  getTarballFeatureMetadata(params, current); // TODO
 
 			default:
-				throw new Error(`Unexpected sourceInfo type: '${processedFeature.sourceInformation.type}'.`);
+				// Legacy
+				// No dependency metadata to retrieve.
+				break;
 		}
 
 		// Resolve dependencies given the current Feature's metadata.
@@ -424,7 +421,6 @@ async function _buildDependencyGraph(
 	// Return the accumulated collection of dependencies.
 	return {
 		worklist: acc,
-		legacyWorklist: legacyAcc
 	};
 }
 
@@ -483,17 +479,16 @@ export async function buildDependencyGraph(
 
 	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
-	const { worklist, legacyWorklist } = await _buildDependencyGraph(params, processFeature, rootNodes, [], []);
+	const { worklist } = await _buildDependencyGraph(params, processFeature, rootNodes, []);
 
 	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
-	output.write(`[* legacy worklist] ${legacyWorklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
-	// Apply the 'overrideFeatureInstallOrder' to the (non-legacy) worklist.
+	// Apply the 'overrideFeatureInstallOrder' to the worklist.
 	if (config?.overrideFeatureInstallOrder) {
 		await applyOverrideFeatureInstallOrder(params, processFeature, worklist, config);
 	}
 
-	return { worklist, legacyWorklist };
+	return { worklist };
 }
 
 // Returns the ordered list of FeatureSets to fetch and install, or undefined on error.
@@ -506,18 +501,15 @@ export async function computeDependsOnInstallationOrder(
 
 	const { output } = params;
 
-	// Make a copy of config to avoid mutating the original.
-	const configCopy = { ...config };
-
 	// Build dependency graph and resolves all to FeatureSets.
-	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, configCopy);
+	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, config);
 	if (!graph) {
 		return;
 	}
 
-	const { worklist, legacyWorklist } = graph;
+	const { worklist } = graph;
 
-	if ((worklist.length + legacyWorklist.length) === 0) {
+	if (worklist.length === 0) {
 		output.write('Zero length or undefined worklist.', LogLevel.Error);
 		return;
 	}
@@ -525,9 +517,9 @@ export async function computeDependsOnInstallationOrder(
 	output.write(`${JSON.stringify(worklist, null, 2)}`, LogLevel.Trace);
 
 	// Sanity check
-	if (worklist.some(node => !node.featureSet) || legacyWorklist.some(node => !node.userFeatureId)) {
+	if (worklist.some(node => !node.featureSet)) {
 		output.write('Feature dependency worklist contains one or more undefined entries.', LogLevel.Error);
-		throw new Error(`ERR: Failure resolving Feature dependencies.`);
+		throw new Error(`ERR: Failure resolving Features.`);
 	}
 
 	output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
@@ -591,12 +583,7 @@ export async function computeDependsOnInstallationOrder(
 		installationOrder.push(...round);
 	}
 
-	// Handle legacy worklist
-	const legacy = computeFeatureInstallationOrder_deprecated(configCopy, legacyWorklist.reverse().map(n => n.featureSet!));
-
-	return legacy.concat(
-		installationOrder.map(n => n.featureSet!)
-	);
+	return installationOrder.map(n => n.featureSet!);
 }
 
 // Pretty-print the calculated graph in the mermaid flowchart format.
