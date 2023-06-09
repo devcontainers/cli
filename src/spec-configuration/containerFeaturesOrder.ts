@@ -142,7 +142,7 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 					return v;
 				}
 			}
-			if (typeof aVal === undefined && typeof bVal === undefined) {
+			if (typeof aVal === 'undefined' || typeof bVal === 'undefined') {
 				const v = aVal === bVal ? 0 : (aVal === undefined) ? 1 : -1;
 				if (v !== 0) {
 					return v;
