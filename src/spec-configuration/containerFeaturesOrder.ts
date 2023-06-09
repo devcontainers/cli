@@ -11,7 +11,7 @@ import * as crypto from 'crypto';
 import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation, fetchContentsAtTarballUri } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerFeature } from './configuration';
-import { CommonParams } from './containerCollectionsOCI';
+import { CommonParams, OCIRef } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { fetchOCIFeature } from './containerFeaturesOCI';
 
@@ -56,7 +56,7 @@ function equals(params: CommonParams, a: FNode, b: FNode): boolean {
 		return false;
 	}
 
-	return comparesTo(params, a, b) === 0;
+	return compareTo(params, a, b) === 0;
 }
 
 function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNode): boolean {
@@ -155,17 +155,59 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 	return (typeof a).localeCompare(typeof b);
 }
 
+function ociResourceCompareTo(a: { featureRef: OCIRef; legacyIdAliases?: string[] }, b: { featureRef: OCIRef; legacyIdAliases?: string[] }): number {
+
+	// Left Side
+	const aFeatureRef = a.featureRef;
+	const aRegistryAndNamespace = `${aFeatureRef.registry}/${aFeatureRef.namespace}`;
+	const aPotentialIds = [aFeatureRef.id].concat(a.legacyIdAliases || []);
+
+	// Right Side
+	const bFeatureRef = b.featureRef;
+	const bRegistryAndNamespace = `${bFeatureRef.registry}/${bFeatureRef.namespace}`;
+	const bPotentialIds = [bFeatureRef.id].concat(b.legacyIdAliases || []);
+
+	// If the registry+namespace are different, sort by them
+	if (aRegistryAndNamespace !== bRegistryAndNamespace) {
+		return aRegistryAndNamespace.localeCompare(bRegistryAndNamespace);
+	}
+
+	let commonId: string | undefined = undefined;
+	// Determine if any permutation of the set of valid Ids are equal
+	// Prefer the the canonical/non-legacy Id.
+	// https://containers.dev/implementors/features/#steps-to-rename-a-feature
+	for (const aId of aPotentialIds) {
+		if (commonId) {
+			break;
+		}
+		for (const bId of bPotentialIds) {
+			if (aId === bId) {
+				commonId = aId;
+				break;
+			}
+		}
+	}
+
+	if (!commonId) {
+		// Sort by canonical id
+		return aFeatureRef.id.localeCompare(bFeatureRef.id);
+	}
+
+	// The (registry + namespace + id) are equal.
+	return 0;
+}
+
 // If the two features are equal, return 0.
 // If the sorting algorithm should place A _before_ B, return negative number.
 // If the sorting algorithm should place A _after_  B, return positive number.
-function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
+function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 	const { output } = params;
 
 	const aSourceInfo = a.featureSet?.sourceInformation;
 	let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
 
 	if (!aSourceInfo || !bSourceInfo) {
-		output.write(`Missing sourceInfo: comparesTo(${aSourceInfo?.userFeatureId}, ${bSourceInfo?.userFeatureId})`, LogLevel.Trace);
+		output.write(`Missing sourceInfo: compareTo(${aSourceInfo?.userFeatureId}, ${bSourceInfo?.userFeatureId})`, LogLevel.Trace);
 		throw new Error('ERR: Failure resolving Features.');
 	}
 
@@ -177,25 +219,23 @@ function comparesTo(params: CommonParams, a: FNode, b: FNode): number {
 		case 'oci':
 			bSourceInfo = bSourceInfo as OCISourceInformation;
 
-			const aResource = aSourceInfo.featureRef.resource;
-			const bResource = bSourceInfo.featureRef.resource;
-
 			const aDigest = aSourceInfo.manifestDigest;
 			const bDigest = bSourceInfo.manifestDigest;
 
-			const aCanonicalId = `${aResource}@${aDigest}`;
-			const bCanonicalId = `${bResource}@${bDigest}`;
-
-			// Equal
-			if (aCanonicalId === bCanonicalId) {
-				if (optionsCompareTo(a.options, b.options) === 0) {
-					return 0;
-				}
+			// Short circuit if the digests and options are equal
+			if (aDigest === bDigest && optionsCompareTo(a.options, b.options) === 0) {
+				return 0;
 			}
 
-			// Sort by resource name
-			if (aResource !== bResource) {
-				return aResource.localeCompare(bResource);
+			// Compare two OCI Features by their 
+			// resource accounting for legacy id aliases
+			const ociResourceVal = ociResourceCompareTo(
+				{ featureRef: aSourceInfo.featureRef, legacyIdAliases: a.legacyIdAliases },
+				{ featureRef: bSourceInfo.featureRef, legacyIdAliases: b.legacyIdAliases }
+			);
+
+			if (ociResourceVal !== 0) {
+				return ociResourceVal;
 			}
 
 			const aTag = aSourceInfo.featureRef.tag;
@@ -368,6 +408,10 @@ async function _buildDependencyGraph(
 			const dependsOn = metadata.dependsOn || {};
 			const installsAfter = metadata.installsAfter || [];
 
+			// Remember legacyIds
+			const legacyIds = (metadata.legacyIds || []);
+			current.legacyIdAliases = legacyIds;
+
 			// Add a new node for each 'dependsOn' dependency onto the 'current' node.
 			// **Add this new node to the worklist to process recursively**
 			for (const [userFeatureId, options] of Object.entries(dependsOn)) {
@@ -407,7 +451,7 @@ async function _buildDependencyGraph(
 				// https://containers.dev/implementors/features/#steps-to-rename-a-feature
 				const softDepMetadata = await getOCIFeatureMetadata(params, dependency);
 				if (softDepMetadata) {
-					const legacyIds = (softDepMetadata.legacyIds || []).concat(softDepMetadata.id);
+					const legacyIds = (softDepMetadata.legacyIds || []);
 					dependency.legacyIdAliases = legacyIds;
 				}
 
@@ -599,7 +643,7 @@ export async function computeDependsOnInstallationOrder(
 		worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(params, r, node))));
 
 		// Sort rounds lexicographically by id.
-		round.sort((a, b) => comparesTo(params, a, b));
+		round.sort((a, b) => compareTo(params, a, b));
 		output.write(`[round-after-comparesTo] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
 
 		// Commit round
