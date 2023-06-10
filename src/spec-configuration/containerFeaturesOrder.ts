@@ -30,7 +30,11 @@ interface FNode {
 	dependsOn: FNode[];
 	installsAfter: FNode[];
 
-	legacyIdAliases?: string[];
+	// If a Feature was renamed, this property will contain:
+	// [<currentId>, <...allPreviousIds>]
+	// See: https://containers.dev/implementors/features/#steps-to-rename-a-feature
+	// Eg: ['node', 'nodejs', 'nodejs-feature']
+	featureIdAliases?: string[];
 
 	// Round Order Priority
 	// Effective value is always the max
@@ -82,7 +86,7 @@ function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNo
 			const softDepFeatureRefPrefix = `${softDepFeatureRef.registry}/${softDepFeatureRef.namespace}`;
 
 			return nodeFeatureRef.resource === softDepFeatureRef.resource // Same resource
-				|| softDep.legacyIdAliases?.some(legacyId => `${softDepFeatureRefPrefix}/${legacyId}` === nodeFeatureRef.resource) // Handle 'legacyIds'
+				|| softDep.featureIdAliases?.some(legacyId => `${softDepFeatureRefPrefix}/${legacyId}` === nodeFeatureRef.resource) // Handle 'legacyIds'
 				|| false;
 
 		case 'file-path':
@@ -155,17 +159,15 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 	return (typeof a).localeCompare(typeof b);
 }
 
-function ociResourceCompareTo(a: { featureRef: OCIRef; legacyIdAliases?: string[] }, b: { featureRef: OCIRef; legacyIdAliases?: string[] }): number {
+function ociResourceCompareTo(a: { featureRef: OCIRef; aliases?: string[] }, b: { featureRef: OCIRef; aliases?: string[] }): number {
 
 	// Left Side
 	const aFeatureRef = a.featureRef;
 	const aRegistryAndNamespace = `${aFeatureRef.registry}/${aFeatureRef.namespace}`;
-	const aPotentialIds = [aFeatureRef.id].concat(a.legacyIdAliases || []);
 
 	// Right Side
 	const bFeatureRef = b.featureRef;
 	const bRegistryAndNamespace = `${bFeatureRef.registry}/${bFeatureRef.namespace}`;
-	const bPotentialIds = [bFeatureRef.id].concat(b.legacyIdAliases || []);
 
 	// If the registry+namespace are different, sort by them
 	if (aRegistryAndNamespace !== bRegistryAndNamespace) {
@@ -176,11 +178,11 @@ function ociResourceCompareTo(a: { featureRef: OCIRef; legacyIdAliases?: string[
 	// Determine if any permutation of the set of valid Ids are equal
 	// Prefer the the canonical/non-legacy Id.
 	// https://containers.dev/implementors/features/#steps-to-rename-a-feature
-	for (const aId of aPotentialIds) {
+	for (const aId of a.aliases || [aFeatureRef.id]) {
 		if (commonId) {
 			break;
 		}
-		for (const bId of bPotentialIds) {
+		for (const bId of b.aliases || [bFeatureRef.id]) {
 			if (aId === bId) {
 				commonId = aId;
 				break;
@@ -230,8 +232,8 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			// Compare two OCI Features by their 
 			// resource accounting for legacy id aliases
 			const ociResourceVal = ociResourceCompareTo(
-				{ featureRef: aSourceInfo.featureRef, legacyIdAliases: a.legacyIdAliases },
-				{ featureRef: bSourceInfo.featureRef, legacyIdAliases: b.legacyIdAliases }
+				{ featureRef: aSourceInfo.featureRef, aliases: a.featureIdAliases },
+				{ featureRef: bSourceInfo.featureRef, aliases: b.featureIdAliases }
 			);
 
 			if (ociResourceVal !== 0) {
@@ -410,7 +412,8 @@ async function _buildDependencyGraph(
 
 			// Remember legacyIds
 			const legacyIds = (metadata.legacyIds || []);
-			current.legacyIdAliases = legacyIds;
+			const currentId = metadata.currentId || metadata.id;
+			current.featureIdAliases = [currentId, ...legacyIds];
 
 			// Add a new node for each 'dependsOn' dependency onto the 'current' node.
 			// **Add this new node to the worklist to process recursively**
@@ -451,8 +454,9 @@ async function _buildDependencyGraph(
 				// https://containers.dev/implementors/features/#steps-to-rename-a-feature
 				const softDepMetadata = await getOCIFeatureMetadata(params, dependency);
 				if (softDepMetadata) {
-					const legacyIds = (softDepMetadata.legacyIds || []);
-					dependency.legacyIdAliases = legacyIds;
+					const legacyIds = softDepMetadata.legacyIds || [];
+					const currentId = softDepMetadata.currentId || softDepMetadata.id;
+					dependency.featureIdAliases = [currentId, ...legacyIds];
 				}
 
 				current.installsAfter.push(dependency);
@@ -676,14 +680,14 @@ function generateMermaidSubtree(params: CommonParams, current: FNode, worklist: 
 		}
 		generateMermaidSubtree(params, child, worklist, acc);
 	}
-	for (const child of current.installsAfter) {
+	for (const softDep of current.installsAfter) {
 		// For each corresponding member of the worklist that satisfies this soft-dependency
 		for (const w of worklist) {
-			if (satisfiesSoftDependency(params, w, child)) {
+			if (satisfiesSoftDependency(params, w, softDep)) {
 				acc.push(`${generateMermaidNode(current)} -.-> ${generateMermaidNode(w)}`);
 			}
 		}
-		generateMermaidSubtree(params, child, worklist, acc);
+		generateMermaidSubtree(params, softDep, worklist, acc);
 	}
 	return acc;
 }
@@ -691,5 +695,6 @@ function generateMermaidSubtree(params: CommonParams, current: FNode, worklist: 
 function generateMermaidNode(node: FNode) {
 	const hasher = crypto.createHash('sha256', { encoding: 'hex' });
 	const hash = hasher.update(JSON.stringify(node)).digest('hex').slice(0, 6);
-	return `${hash}[${node.userFeatureId}<br/><${node.roundPriority}>]`;
+	const aliases = node.featureIdAliases && node.featureIdAliases.length > 0 ? `<br>aliases: ${node.featureIdAliases.join(', ')}` : '';
+	return `${hash}[${node.userFeatureId}<br/><${node.roundPriority}>${aliases}]`;
 }
