@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { devContainerDown, devContainerUp, shellExec, UpResult, pathExists } from './testUtils';
+import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -34,12 +34,13 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
-		it('should execute successfully with valid config and dotfiles', async () => {
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles`);
+		it('should execute successfully with valid config with a Feature', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
+<<<<<<< HEAD
 			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
 			assert.ok(dotfiles, 'Dotfiles not found.');
 			await shellExec(`docker rm -f ${containerId}`);
@@ -131,6 +132,8 @@ describe('Dev Containers CLI', function () {
 			assert.match(logs, /Starting \*\*\*\*\*\*\*\*/);
 			assert.doesNotMatch(logs, /Starting container/);
 
+=======
+>>>>>>> e33e515 (refactor dotfiles tests)
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
