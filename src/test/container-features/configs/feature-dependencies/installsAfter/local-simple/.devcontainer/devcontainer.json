@@ -1,0 +1,9 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"./a": {},
+		"./c": {
+			"magicNumber": "321"
+		}
+	}
+}

@@ -23,6 +23,7 @@ const logLevelMap = {
 	info: LogLevel.Info,
 	debug: LogLevel.Debug,
 	trace: LogLevel.Trace,
+	error: LogLevel.Error,
 };
 
 type logLevelString = keyof typeof logLevelMap;

@@ -1,0 +1,15 @@
+{
+	"name": "FeatureB",
+	"id": "b",
+	"dependsOn": {
+		"./c": {}
+	},
+	"version": "0.0.1",
+	"options": {
+		"magicNumber": {
+			"type": "string",
+			"default": "0",
+			"description": "The magic number"
+		}
+	}
+}

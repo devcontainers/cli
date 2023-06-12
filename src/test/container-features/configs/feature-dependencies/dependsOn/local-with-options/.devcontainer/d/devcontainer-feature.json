@@ -1,0 +1,23 @@
+{
+	"name": "FeatureD",
+	"id": "d",
+	"version": "0.0.1",
+	"dependsOn": {
+		"./b": {
+			"optA": "b",
+			"optB": "b"
+		}
+	},
+	"options": {
+		"optA": {
+			"type": "string",
+			"default": "0",
+			"description": ""
+		},
+		"optB": {
+			"type": "string",
+			"default": "0",
+			"description": ""
+		}
+	}
+}

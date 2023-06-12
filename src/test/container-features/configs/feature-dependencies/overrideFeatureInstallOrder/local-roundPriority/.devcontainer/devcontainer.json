@@ -1,0 +1,12 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"./b": {},
+		"./c": {}
+	},
+	"overrideFeatureInstallOrder": [
+		"./a",
+		"./b",
+		"./c"
+	]
+}

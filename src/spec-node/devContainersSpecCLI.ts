@@ -36,6 +36,7 @@ import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from 
 import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
+import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -69,6 +70,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
+		y.command('resolve-dependencies', 'Read and resolve dependency graph from a configuration', featuresResolveDependenciesOptions, featuresResolveDependenciesHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
@@ -121,7 +123,7 @@ function provisionOptions(y: Argv) {
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -190,7 +192,7 @@ async function provision({
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -249,7 +251,7 @@ async function provision({
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
-		experimentalFrozenLockfile,
+		experimentalFrozenLockfile
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -472,7 +474,7 @@ function buildOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
 	});
 }
 
@@ -509,7 +511,7 @@ async function doBuild({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -555,7 +557,7 @@ async function doBuild({
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
 			experimentalLockfile,
-			experimentalFrozenLockfile,
+			experimentalFrozenLockfile
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
