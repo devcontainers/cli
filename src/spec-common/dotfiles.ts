@@ -40,30 +40,34 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 			status: 'running',
 		});
 		if (installCommand) {
-			await shellServer.exec(`# Clone & install dotfiles
+			await shellServer.exec(`# Clone & install dotfiles via '${installCommand}'
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
 [ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
 echo Setting current directory to ${targetPath}
 cd ${targetPath}
 
-if [ -f ${targetPath}/${installCommand} ]
+if [ -f "./${installCommand}" ]
 then
-	if [ ! -x ${targetPath}/${installCommand} ]
+	if [ ! -x "./${installCommand}" ]
 	then
-		echo Setting '${targetPath}'/'${installCommand}' as executable
-		chmod +x ${targetPath}/${installCommand}
+		echo Setting './${installCommand}' as executable
+		chmod +x "./${installCommand}"
 	fi
-	echo Executing command '${targetPath}/${installCommand}'...\n
-	${allEnv}${targetPath}/${installCommand}
-else
-	if [ ! -x ${installCommand} ]
+	echo Executing command './${installCommand}'..\n
+	${allEnv}"./${installCommand}"
+elif [ -f "${installCommand}" ]
+then
+	if [ ! -x "${installCommand}" ]
 	then
 		echo Setting '${installCommand}' as executable
 		chmod +x ${installCommand}
 	fi
 	echo Executing command '${installCommand}'...\n
 	${allEnv}${installCommand}
+else
+	echo Could not locate '${installCommand}'...\n
+	exit 126
 fi
 `, { logOutput: 'continuous', logLevel: LogLevel.Info });
 		} else {
