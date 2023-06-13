@@ -13,6 +13,7 @@ import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
 import { nullLog } from '../../spec-utils/log';
 import { runCommand } from '../../spec-common/commonUtils';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getSafeId } from '../containerFeatures';
 
 const TEST_LIBRARY_SCRIPT_NAME = 'dev-container-features-test-lib';
 
@@ -107,25 +108,67 @@ async function runGlobalFeatureTests(args: FeaturesTestCommandInput, testResults
 // Executes the same Feature twice with randomized options to ensure installation idempotency.
 async function runIdempotencyTest(args: FeaturesTestCommandInput, feature: string, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { collectionFolder, cliHost } = args;
-	const scenarioName = `'${feature}' Idempotency`;
+	const scenarioName = `${feature} Idempotency`;
 
 	const featureTestFolder = path.join(collectionFolder, 'test', feature);
+	const testFileName = 'idempotency.sh';
+	const testFilePath = path.join(featureTestFolder, testFileName);
+	if (!(await cliHost.isFile(testFilePath))) {
+		log(`Skipping idempotency test for ${feature} because '${testFilePath}' does not exist.`, { prefix: '⚠️', });
+		return testResults;
+	}
 
 	//Read Feature's metadata
 	const featureMetadata = await readFeatureMetadata(args, feature);
 	const options = featureMetadata.options || {};
-	log(`options: ${JSON.stringify(options)}`, { prefix: '📊', info: true });
+
+	// For each possible option, generate a random value for each Feature
+	const randomizedOptions: { [key: string]: string | boolean } = {};
+	Object.entries(options).forEach(([key, value]) => {
+		if (value.type === 'boolean') {
+			randomizedOptions[key] = !value.default;
+		}
+		if (value.type === 'string' && 'proposals' in value && value?.proposals?.length) {
+			const randomIndex = Math.floor(Math.random() * value.proposals.length);
+			randomizedOptions[key] = value.proposals[randomIndex];
+			if (randomizedOptions[key] === value.default) {
+				randomizedOptions[key] = value.proposals[(randomIndex + 1) % value.proposals.length];
+			}
+		}
+		if (value.type === 'string' && 'enum' in value && value?.enum?.length) {
+			const randomIndex = Math.floor(Math.random() * value.enum.length);
+			randomizedOptions[key] = value.enum[randomIndex];
+			if (randomizedOptions[key] === value.default) {
+				randomizedOptions[key] = value.enum[(randomIndex + 1) % value.enum.length];
+			}
+		}
+	});
+
+	// Default values
+	const defaultOptions = Object.entries(options).reduce((acc, [key, value]) => {
+		if (value.default === undefined) {
+			return acc;
+		}
+		acc[`${key}__DEFAULT`] = value.default;
+		return acc;
+	}, {} as { [key: string]: string | boolean });
 
 	const config: DevContainerConfig = {
 		image: args.baseImage,
 		features: {
-			[feature]: {},
-			[feature]: {},
+			[feature]: randomizedOptions, // Randomized option values
 		}
 	};
 
 	// Create Container
-	const workspaceFolder = await generateProjectFromScenario(cliHost, collectionFolder, scenarioName, config, undefined, true);
+	const workspaceFolder = await generateProjectFromScenario(
+		cliHost,
+		collectionFolder,
+		scenarioName,
+		config,
+		undefined,
+		[{ featureId: feature, featureValue: {} }] // Default option values
+	);
 	const params = await generateDockerParams(workspaceFolder, args);
 	await createContainerFromWorkingDirectory(params, workspaceFolder, args);
 
@@ -138,7 +181,7 @@ async function runIdempotencyTest(args: FeaturesTestCommandInput, feature: strin
 	// Execute Test
 	testResults.push({
 		testName: scenarioName,
-		result: await execTest(`test.sh`, workspaceFolder, cliHost)
+		result: await execTest(testFileName, workspaceFolder, cliHost, { ...randomizedOptions, ...defaultOptions })
 	});
 	return testResults;
 }
@@ -418,7 +461,7 @@ async function generateProjectFromScenario(
 	scenarioId: string,
 	scenarioObject: DevContainerConfig,
 	targetFeatureOrGlobal: string | undefined,
-	uniqueFeatureIds: boolean = false // Ensures that each Feature ID in the resultant project is unique
+	additionalFeatures: { featureId: string; featureValue: {} }[] = []
 ): Promise<string> {
 	const tmpFolder = await createTempDevcontainerFolder(cliHost);
 
@@ -430,9 +473,7 @@ async function generateProjectFromScenario(
 
 	// Prefix the local path to the collections directory
 	let updatedFeatures: Record<string, string | boolean | Record<string, string | boolean>> = {};
-	let counter = 0;
-	for (const [featureIdSrc, featureValue] of Object.entries(features)) {
-		let featureId = uniqueFeatureIds ? `${featureIdSrc}-${counter}` : featureIdSrc;
+	for (const [featureId, featureValue] of Object.entries(features)) {
 		// Do not overwrite Features that are not part of the target collection
 		// The '/' is only valid in a fully qualified Feature ID (eg: '[ghcr].io/devcontainers/features/go')
 		// This lets you use external Features as a part of the test scenario.
@@ -442,13 +483,28 @@ async function generateProjectFromScenario(
 		}
 
 		// Copy the feature source code to the temp folder
-		const pathToFeatureSource = `${collectionsDirectory}/src/${featureIdSrc}`;
+		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
 		await cpDirectoryLocal(pathToFeatureSource, `${tmpFolder}/.devcontainer/${featureId}`);
 
 		// Reference Feature in the devcontainer.json
 		updatedFeatures[`./${featureId}`] = featureValue;
 	}
+
+	let counter = 0;
+	for (const { featureId, featureValue } of additionalFeatures) {
+		const pathToFeatureSource = `${collectionsDirectory}/src/${featureId}`;
+
+		const orderedFeatureId = `${featureId}-${counter++}`;
+		const destPath = `${tmpFolder}/.devcontainer/${orderedFeatureId}`;
+		await cpDirectoryLocal(pathToFeatureSource, destPath);
+
+		// Reference Feature in the devcontainer.json
+		updatedFeatures[`./${orderedFeatureId}`] = featureValue;
+	}
+
 	scenarioObject.features = updatedFeatures;
+
+	log(`Scenario generated: ${JSON.stringify(scenarioObject, null, 2)}`, { prefix: '\n📝', info: true });
 
 	await cliHost.writeFile(`${tmpFolder}/.devcontainer/devcontainer.json`, Buffer.from(JSON.stringify(scenarioObject)));
 
@@ -516,19 +572,24 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	}
 }
 
-async function execTest(testFileName: string, workspaceFolder: string, cliHost: CLIHost) {
+async function execTest(testFileName: string, workspaceFolder: string, cliHost: CLIHost, injectedEnv: { [varName: string]: string | boolean } = {}) {
 	// Ensure all the tests scripts in the workspace folder are executable
 	// Update permissions on the copied files to make them readable/writable/executable by everyone
 	await cliHost.exec({ cmd: 'chmod', args: ['-R', '777', workspaceFolder], output: nullLog });
 
 	const cmd = `./${testFileName}`;
 	const args: string[] = [];
-	return await exec(cmd, args, workspaceFolder);
+	return await exec(cmd, args, workspaceFolder, injectedEnv);
 }
 
-async function exec(cmd: string, args: string[], workspaceFolder: string) {
+async function exec(cmd: string, args: string[], workspaceFolder: string, injectedEnv: { [name: string]: string | boolean } = {}) {
+	const injectedEnvArray = Object.keys(injectedEnv).length > 0
+		? Object.entries(injectedEnv).map(([key, value]) => `${getSafeId(key)}=${value}`)
+		: undefined;
+
 	const execArgs = {
 		...staticExecParams,
+		'remote-env': injectedEnvArray as any,
 		'workspace-folder': workspaceFolder,
 		'skip-feature-auto-mapping': false,
 		cmd,
