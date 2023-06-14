@@ -19,8 +19,6 @@ if [ -z "${FAVORITE__DEFAULT}" ]; then
 	exit 1
 fi
 
-
-
 # Definition specific tests
 check "runColorCmd" color
 
