@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import * as crypto from 'crypto';
-import * as jsonc from 'jsonc-parser';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
@@ -20,6 +19,7 @@ import { delay } from './async';
 import { Log, LogEvent, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { buildProcessTrees, findProcesses, Process, processTreeToString } from './proc';
 import { installDotfiles } from './dotfiles';
+import { readSecretsFromFile } from './secrets';
 
 export enum ResolverProgress {
 	Begin,
@@ -341,25 +341,6 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 			...params.remoteEnv,
 			...config.remoteEnv,
 		} as Record<string, string>));
-}
-
-export async function readSecretsFromFile(params: { output: Log; secretsFile?: string; cliHost: CLIHost }) {
-	const { secretsFile, cliHost } = params;
-	if (!secretsFile) {
-		return {};
-	}
-
-	try {
-		const fileBuff = await cliHost.readFile(secretsFile);
-		return jsonc.parse(fileBuff.toString()) as Record<string, string>;
-	}
-	catch (e) {
-		params.output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
-		throw new ContainerError({
-			description: 'Failed to read/parse secrets',
-			originalError: e
-		});
-	}
 }
 
 export async function runLifecycleHooks(params: ResolverParameters, lifecycleHooksInstallMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, remoteEnv: Promise<Record<string, string>>, secrets: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {

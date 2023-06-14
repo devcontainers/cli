@@ -13,7 +13,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer, readSecretsFromFile } from '../spec-common/injectHeadless';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
@@ -37,6 +37,7 @@ import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
+import { maskSecrets, readSecretsFromFile } from '../spec-common/secrets';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -200,6 +201,12 @@ async function provision({
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+
+	const cwd = workspaceFolder || process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+	const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
+
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -212,7 +219,7 @@ async function provision({
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
 		logLevel: mapLogLevel(logLevel),
 		logFormat,
-		log: text => process.stderr.write(text),
+		log,
 		terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
 		defaultUserEnvProbe,
 		removeExistingContainer,
@@ -776,6 +783,12 @@ async function doRunUserCommands({
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
+
+		const cwd = workspaceFolder || process.cwd();
+		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+		const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
+
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -787,7 +800,7 @@ async function doRunUserCommands({
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
 			logFormat,
-			log: text => process.stderr.write(text),
+			log,
 			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
 			defaultUserEnvProbe,
 			removeExistingContainer: false,
@@ -818,7 +831,7 @@ async function doRunUserCommands({
 		}, disposables);
 
 		const { common } = params;
-		const { cliHost, output } = common;
+		const { output } = common;
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -848,7 +861,6 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const secretsP = readSecretsFromFile(common);
 		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnvP, secretsP, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
