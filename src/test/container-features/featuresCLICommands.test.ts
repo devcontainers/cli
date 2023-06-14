@@ -46,7 +46,7 @@ describe('CLI features subcommands', async function () {
 			const expectedTestReport = `  ================== TEST REPORT ==================
 ✅ Passed:      'color'
 ✅ Passed:      'specific_color_scenario'
-✅ Passed:      'color duplicate'
+✅ Passed:      'color executed twice with randomized options'
 ✅ Passed:      'hello'
 ✅ Passed:      'custom_options'
 ✅ Passed:      'with_external_feature'`;
@@ -153,7 +153,7 @@ describe('CLI features subcommands', async function () {
 			const expectedTestReport = `  ================== TEST REPORT ==================
 ✅ Passed:      'color'
 ✅ Passed:      'specific_color_scenario'
-✅ Passed:      'color duplicate'
+✅ Passed:      'color executed twice with randomized options'
 ✅ Passed:      'hello'
 ✅ Passed:      'custom_options'
 ✅ Passed:      'with_external_feature'`;

@@ -108,7 +108,7 @@ async function runGlobalFeatureTests(args: FeaturesTestCommandInput, testResults
 // Executes the same Feature twice with randomized options to ensure Feature can be installed >1.
 async function runDuplicateTest(args: FeaturesTestCommandInput, feature: string, testResults: TestResult[] = []): Promise<TestResult[]> {
 	const { collectionFolder, cliHost } = args;
-	const scenarioName = `${feature} duplicated with random options`;
+	const scenarioName = `${feature} executed twice with randomized options`;
 
 	const featureTestFolder = path.join(collectionFolder, 'test', feature);
 	const testFileName = 'duplicate.sh';
