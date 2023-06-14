@@ -1,0 +1,11 @@
+{
+	"name": "FeatureA",
+	"id": "A",
+	"version": "1.0.1",
+	"dependsOn": {
+		"ghcr.io/codspace/dependsOnAndInstallsAfter/B:latest": {}
+	},
+	"installsAfter": [
+		"ghcr.io/codspace/dependsOnAndInstallsAfter/C"
+	]
+}

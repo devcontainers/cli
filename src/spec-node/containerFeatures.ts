@@ -10,12 +10,12 @@ import * as tar from 'tar';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
 import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, getSourceInfoString, Feature, multiStageBuildExploration, V1_DEVCONTAINER_FEATURES_FILE_NAME } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, V1_DEVCONTAINER_FEATURES_FILE_NAME, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
-import { getContainerEnvMetadata, getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 
@@ -126,6 +126,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 
 	// Processes the user's configuration.
 	const platform = params.common.cliHost.platform;
+
 	const cacheFolder = await getCacheFolder(params.common.cliHost);
 	const { experimentalLockfile, experimentalFrozenLockfile } = params;
 	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
@@ -150,7 +151,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 }
 
 // NOTE: only exported to enable testing. Not meant to be called outside file.
-export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
+export function generateContainerEnvsV1(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
 		// We only need to generate this ENV references for the initial features specification.
@@ -159,8 +160,7 @@ export function generateContainerEnvs(featuresConfig: FeaturesConfig) {
 			result += '\n';
 			result += fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-				.reduce((envs, f) => envs.concat(Object.keys(f.containerEnv || {})
-					.map(k => `ENV ${k}=${f.containerEnv![k]}`)), [] as string[])
+				.reduce((envs, f) => envs.concat(generateContainerEnvs(f.containerEnv)), [] as string[])
 				.join('\n');
 		}
 	}
@@ -257,21 +257,6 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		return undefined;
 	}
 
-	const buildStageScripts = await Promise.all(featuresConfig.featureSets
-		.map(featureSet => multiStageBuildExploration ? featureSet.features
-			.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-			.reduce(async (binScripts, feature) => {
-				const binPath = cliHost.path.join(dstFolder, getSourceInfoString(featureSet.sourceInformation), 'features', feature.id, 'bin');
-				const hasAcquire = cliHost.isFile(cliHost.path.join(binPath, 'acquire'));
-				const hasConfigure = cliHost.isFile(cliHost.path.join(binPath, 'configure'));
-				const map = await binScripts;
-				map[feature.id] = {
-					hasAcquire: await hasAcquire,
-					hasConfigure: await hasConfigure,
-				};
-				return map;
-			}, Promise.resolve({}) as Promise<Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>>) : Promise.resolve({} as Record<string, { hasAcquire: boolean; hasConfigure: boolean } | undefined>)));
-
 	// With Buildkit (0.8.0 or later), we can supply an additional build context to provide access to
 	// the container-features content.
 	// For non-Buildkit, we build a temporary image to hold the container-features content in a way
@@ -298,9 +283,9 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const dockerfile = getContainerFeaturesBaseDockerFile(contentSourceRootPath)
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
 		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
-		.replace('#{containerEnv}', generateContainerEnvs(featuresConfig))
+		.replace('#{containerEnv}', generateContainerEnvsV1(featuresConfig))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
-		.replace('#{containerEnvMetadata}', getContainerEnvMetadata(devContainerConfig.config.containerEnv))
+		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
 		;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const dockerfilePrefixContent = `${useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ?
@@ -311,8 +296,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
 	for await (const fSet of featuresConfig.featureSets) {
-		let i = 0;
-		if(fSet.internalVersion === '2')
+		if (fSet.internalVersion === '2')
 		{
 			for await (const fe of fSet.features) {
 				if (fe.cachePath)
@@ -330,26 +314,29 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 		} else {
 			const featuresEnv = ([] as string[]).concat(
 				...fSet.features
-					.filter(f => (includeAllConfiguredFeatures|| f.included) && f.value && !buildStageScripts[i][f.id]?.hasAcquire)
+					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 					.map(getFeatureEnvVariables)
 			).join('\n');
 			const envPath = cliHost.path.join(fSet.features[0].cachePath!, 'devcontainer-features.env');
 			await Promise.all([
 				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 				...fSet.features
-				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value && buildStageScripts[i][f.id]?.hasAcquire)
+					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
 				.map(f => {
-						const featuresEnv = [
-							...getFeatureEnvVariables(f),
-							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', getSourceInfoString(fSet.sourceInformation), f.id)}`
-						]
-							.join('\n');
-						const envPath = cliHost.path.join(dstFolder, getSourceInfoString(fSet.sourceInformation), 'features', f.id, 'devcontainer-features.env'); // next to bin/acquire
+					const consecutiveId = f.consecutiveId;
+					if (!consecutiveId) {
+						throw new Error('consecutiveId is undefined for Feature ' + f.id);
+					}
+					const featuresEnv = [
+						...getFeatureEnvVariables(f),
+						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', consecutiveId)}`
+					]
+						.join('\n');
+					const envPath = cliHost.path.join(dstFolder, consecutiveId, 'devcontainer-features.env'); // next to bin/acquire
 						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
 					})
 			]);
 		}
-		i++;
 	}
 
 	// For non-BuildKit, build the temporary image for the container-features content

@@ -1,0 +1,20 @@
+{
+	"name": "FeatureB",
+	"id": "B",
+	"version": "2.0.0",
+	"dependsOn": {
+		"ghcr.io/codspace/dependson/C": {
+			"magicNumber": "20"
+		},
+		"ghcr.io/codspace/dependson/D": {
+			"magicNumber": "30"
+		}
+	},
+	"options": {
+		"magicNumber": {
+			"type": "string",
+			"default": "0",
+			"description": "The magic number"
+		}
+	}
+}

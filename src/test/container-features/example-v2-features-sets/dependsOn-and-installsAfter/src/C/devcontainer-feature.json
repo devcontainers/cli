@@ -1,0 +1,8 @@
+{
+	"name": "FeatureC",
+	"id": "C",
+	"version": "1.0.0",
+	"installsAfter": [
+		"ghcr.io/codspace/dependsOnAndInstallsAfter/E"
+	]
+}

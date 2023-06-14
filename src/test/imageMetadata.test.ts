@@ -234,7 +234,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
-					consecutiveId: 'someFeature_1',
+					consecutiveId: 'someFeature_0',
 				}
 			]));
 			assert.strictEqual(metadata.length, 2);
@@ -414,7 +414,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
-					consecutiveId: 'someFeature_1',
+					consecutiveId: 'someFeature_0',
 				}
 			])));
 			const expected = [

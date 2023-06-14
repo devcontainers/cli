@@ -124,10 +124,28 @@ describe('getRef()', async function () {
         assert.equal(feat.resource, 'ghcr.io/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
         assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied.
+        assert.isUndefined(feat.digest);
         assert.equal(feat.tag, feat.version);
     });
 
-    it('valid getRef() with a registry that contains a port.', async () => {
+    it('valid getRef() with a registry that contains a port and a version tag.', async () => {
+        const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker:1.3.4');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.tag, '1.3.4');
+        assert.isUndefined(feat.digest);
+        assert.equal(feat.tag, feat.version);
+    });
+
+    it('valid getRef() with a registry that contains a port and latest tag.', async () => {
         const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker:latest');
         if (!feat) {
             assert.fail('featureRef should not be undefined');
@@ -139,8 +157,43 @@ describe('getRef()', async function () {
         assert.equal(feat.registry, 'docker.io:8001');
         assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
         assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
-        assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied.
+        assert.equal(feat.tag, 'latest');
+        assert.isUndefined(feat.digest);
         assert.equal(feat.tag, feat.version);
+    });
+
+    it('valid getRef() with a registry that contains a port and no tag.', async () => {
+        const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.tag, 'latest'); // Assumes latest since there is no tag
+        assert.isUndefined(feat.digest);
+        assert.equal(feat.tag, feat.version);
+    });
+
+    it('valid getRef() with a registry that contains a port and a digest.', async () => {
+        const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.digest, 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a');
+        assert.isUndefined(feat.tag);
+        assert.equal(feat.digest, feat.version);
     });
 
     it('valid getRef() really short path and no version', async () => {

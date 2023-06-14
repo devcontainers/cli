@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder, generateContainerEnvs } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
@@ -66,11 +66,14 @@ describe('validate generateFeaturesConfig()', function () {
         // -- Test containerFeatures.ts helper functions
 
         // generateContainerEnvs
-        // TODO
-        //         const actualEnvs = generateContainerEnvs(featuresConfig);
-        //         const expectedEnvs = `ENV MYKEYONE=MYRESULTONE
-        // ENV MYKEYTHREE=MYRESULTHREE`;
-        //         assert.strictEqual(actualEnvs, expectedEnvs);
+        const actualEnvs = featuresConfig.featureSets
+            .map(set => set.features
+                .map(f => generateContainerEnvs(f.containerEnv)))
+                    .flat()
+                    .join('\n');
+        const expectedEnvs = `ENV MYKEYONE="MY RESULT ONE"
+ENV MYKEYTWO="MY RESULT TWO"`;
+        assert.strictEqual(actualEnvs, expectedEnvs);
 
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
@@ -78,15 +81,15 @@ describe('validate generateFeaturesConfig()', function () {
 echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/dev-container-features/first_1
-RUN chmod -R 0755 /tmp/dev-container-features/first_1 \\
-&& cd /tmp/dev-container-features/first_1 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_0 /tmp/dev-container-features/first_0
+RUN chmod -R 0755 /tmp/dev-container-features/first_0 \\
+&& cd /tmp/dev-container-features/first_0 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/dev-container-features/second_2
-RUN chmod -R 0755 /tmp/dev-container-features/second_2 \\
-&& cd /tmp/dev-container-features/second_2 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_1 /tmp/dev-container-features/second_1
+RUN chmod -R 0755 /tmp/dev-container-features/second_1 \\
+&& cd /tmp/dev-container-features/second_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -141,16 +144,16 @@ echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> 
 echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/dev-container-features/color_3
-RUN chmod -R 0755 /tmp/dev-container-features/color_3 \\
-&& cd /tmp/dev-container-features/color_3 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_0 /tmp/dev-container-features/color_0
+RUN chmod -R 0755 /tmp/dev-container-features/color_0 \\
+&& cd /tmp/dev-container-features/color_0 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/dev-container-features/hello_4
-RUN chmod -R 0755 /tmp/dev-container-features/hello_4 \\
-&& cd /tmp/dev-container-features/hello_4 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_1 /tmp/dev-container-features/hello_1
+RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
+&& cd /tmp/dev-container-features/hello_1 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 

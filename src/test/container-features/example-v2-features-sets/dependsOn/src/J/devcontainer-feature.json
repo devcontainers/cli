@@ -1,0 +1,23 @@
+{
+	"name": "FeatureJ",
+	"id": "J",
+	"version": "2.0.0",
+	"dependsOn": {
+		"ghcr.io/codspace/dependsOn/A:2.0.0": {
+			"magicNumber": "60"
+		},
+		"ghcr.io/codspace/dependsOn/A:2.0.1": {
+			"magicNumber": "60"
+		},
+		"ghcr.io/codspace/dependsOn/C": {
+			"magicNumber": "100"
+		}
+	},
+	"options": {
+		"magicNumber": {
+			"type": "string",
+			"default": "0",
+			"description": "The magic number"
+		}
+	}
+}

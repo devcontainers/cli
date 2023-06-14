@@ -1,0 +1,13 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"./a": {
+			"optA": "a",
+			"optB": "b"
+		},
+		"./b": {
+			"optA": "a",
+			"optB": "b"
+		}
+	}
+}
