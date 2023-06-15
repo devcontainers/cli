@@ -15,7 +15,7 @@ describe('Dev Containers CLI', function () {
 	this.timeout('240s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `node dist/spec-node/devContainersSpecCLI.js`;
+	const cli = `npx --prefix ${tmp} devcontainer`;
 
 
 	before('Install', async () => {

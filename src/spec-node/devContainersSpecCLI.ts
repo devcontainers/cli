@@ -243,6 +243,7 @@ async function provision({
 		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
+		secretsP,
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
@@ -256,7 +257,6 @@ async function provision({
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
-		secretsP,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
