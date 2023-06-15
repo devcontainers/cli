@@ -123,24 +123,41 @@ async function runDuplicateTest(args: FeaturesTestCommandInput, feature: string,
 	const options = featureMetadata.options || {};
 
 	// For each possible option, generate a random value for each Feature
-	const randomizedOptions: { [key: string]: string | boolean } = {};
+	const nonDefaultOptions: { [key: string]: string | boolean } = {};
 	Object.entries(options).forEach(([key, value]) => {
 		if (value.type === 'boolean') {
-			randomizedOptions[key] = !value.default;
+			nonDefaultOptions[key] = !value.default;
 		}
 		if (value.type === 'string' && 'proposals' in value && value?.proposals?.length) {
-			const randomIndex = Math.floor(Math.random() * value.proposals.length);
-			randomizedOptions[key] = value.proposals[randomIndex];
-			if (randomizedOptions[key] === value.default) {
-				randomizedOptions[key] = value.proposals[(randomIndex + 1) % value.proposals.length];
+
+			// Get an index for the default value
+			let defaultValueIdx = value.default ? value.proposals.indexOf(value.default) : 0;
+			let idx = 0;
+			if (args.permitRandomization) {
+				// Select a random value that isn't the default
+				idx = Math.floor(Math.random() * value.proposals.length);
 			}
+
+			if (idx === defaultValueIdx) {
+				idx = (idx + 1) % value.proposals.length;
+			}
+
+			nonDefaultOptions[key] = value.proposals[idx];
 		}
 		if (value.type === 'string' && 'enum' in value && value?.enum?.length) {
-			const randomIndex = Math.floor(Math.random() * value.enum.length);
-			randomizedOptions[key] = value.enum[randomIndex];
-			if (randomizedOptions[key] === value.default) {
-				randomizedOptions[key] = value.enum[(randomIndex + 1) % value.enum.length];
+			// Get an index for the default value
+			let defaultValueIdx = value.default ? value.enum.indexOf(value.default) : 0;
+			let idx = 0;
+			if (args.permitRandomization) {
+				// Select a random value that isn't the default
+				idx = Math.floor(Math.random() * value.enum.length);
 			}
+
+			if (idx === defaultValueIdx) {
+				idx = (idx + 1) % value.enum.length;
+			}
+
+			nonDefaultOptions[key] = value.enum[idx];
 		}
 	});
 
@@ -156,7 +173,7 @@ async function runDuplicateTest(args: FeaturesTestCommandInput, feature: string,
 	const config: DevContainerConfig = {
 		image: args.baseImage,
 		features: {
-			[feature]: randomizedOptions, // Randomized option values
+			[feature]: nonDefaultOptions, // Set of non-default option values (when possible)
 		}
 	};
 
@@ -181,7 +198,7 @@ async function runDuplicateTest(args: FeaturesTestCommandInput, feature: string,
 	// Execute Test
 	testResults.push({
 		testName: scenarioName,
-		result: await execTest(testFileName, workspaceFolder, cliHost, { ...randomizedOptions, ...defaultOptions })
+		result: await execTest(testFileName, workspaceFolder, cliHost, { ...nonDefaultOptions, ...defaultOptions })
 	});
 	return testResults;
 }
