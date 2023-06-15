@@ -785,7 +785,6 @@ async function doRunUserCommands({
 		const cwd = workspaceFolder || process.cwd();
 		const cliHost = await getCLIHost(cwd, loadNativeModule);
 		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
-		// const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
 
 		const params = await createDockerParams({
 			dockerPath,

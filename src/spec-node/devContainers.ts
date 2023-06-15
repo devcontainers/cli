@@ -12,7 +12,7 @@ import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, Use
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
-import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog } from '../spec-utils/log';
+import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
@@ -101,7 +101,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
 	const pkg = getPackageConfig();
-	const output = createLog(options, pkg, sessionStart, disposables, omitLoggerHeader, secretsP);
+	const output = createLog(options, pkg, sessionStart, disposables, omitLoggerHeader, secretsP ? await secretsP : undefined);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
@@ -199,27 +199,21 @@ export interface LogOptions {
 	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean, secretsP?: Promise<Record<string, string>>) {
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean, secrets?: Record<string, string>) {
 	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
-	const output = createLogFrom(options, sessionStart, header, secretsP);
+	const output = createLogFrom(options, sessionStart, header, secrets);
 	output.dimensions = options.terminalDimensions;
 	output.onDidChangeDimensions = options.onDidChangeTerminalDimensions;
 	disposables.push(() => output.join());
 	return output;
 }
 
-function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined, secretsP?: Promise<Record<string, string>>): Log & { join(): Promise<void> } {
+function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined, secrets?: Record<string, string>): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
 		process.stdout.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
-		createPlainLog(write, () => logLevel);
-	const maskingHelper = async (text: string) => {
-		if (text && secretsP) {
-			return await maskSecrets(secretsP, text);
-		}
-		return text;
-	};
+			createPlainLog(write, () => logLevel);
 	const log = {
-		...makeLog(createCombinedLog([handler], maskingHelper, header)),
+		...makeLog(createCombinedLog([maskSecrets(handler, secrets)], header)),
 		join: async () => {
 			// TODO: wait for write() to finish.
 		},
@@ -227,12 +221,12 @@ function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionS
 	return log;
 }
 
-async function maskSecrets(secretsP: Promise<Record<string, string>>, text: string) {
-	const MASK = '********';
-	const secretValues = Object.values(await secretsP);
-	secretValues.forEach(secret => {
-		const regex = new RegExp(secret, 'g');
-		text = text.replace(regex, MASK);
-	});
-	return text;
+function maskSecrets(handler: LogHandler, secrets?: Record<string, string>): LogHandler {
+	if (secrets) {
+		const mask = '********';
+		const secretValues = secrets ? Object.values(secrets) : [];
+		return replaceAllLog(handler, secretValues, mask);
+	}
+
+	return handler;
 }
