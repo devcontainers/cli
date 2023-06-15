@@ -19,7 +19,6 @@ import { delay } from './async';
 import { Log, LogEvent, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { buildProcessTrees, findProcesses, Process, processTreeToString } from './proc';
 import { installDotfiles } from './dotfiles';
-import { readSecretsFromFile } from './secrets';
 
 export enum ResolverProgress {
 	Begin,
@@ -66,7 +65,7 @@ export interface ResolverParameters {
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;
-	secretsFile?: string;
+	secretsP?: Promise<Record<string, string>>;
 }
 
 export interface LifecycleHook {
@@ -325,9 +324,9 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
 	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
-	const secrets = readSecretsFromFile(params);
+	const secretsP = params.secretsP || Promise.resolve({});
 	if (params.lifecycleHook.enabled) {
-		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secrets, false);
+		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secretsP, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},

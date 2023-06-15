@@ -15,7 +15,7 @@ describe('Dev Containers CLI', function () {
 	this.timeout('240s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const cli = `node dist/spec-node/devContainersSpecCLI.js`;
 
 
 	before('Install', async () => {
@@ -55,7 +55,7 @@ describe('Dev Containers CLI', function () {
 			};
 			await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
 
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json --log-level trace`);
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json --log-level trace --log-format json`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			containerId = response.containerId;

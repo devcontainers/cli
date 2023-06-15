@@ -98,10 +98,10 @@ export const nullLog: Log = {
 
 export const terminalEscapeSequences = /(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]/g; // https://stackoverflow.com/questions/14693701/how-can-i-remove-the-ansi-escape-sequences-from-a-string-in-python/33925425#33925425
 
-export function createCombinedLog(logs: LogHandler[], header?: string): LogHandler {
+export function createCombinedLog(logs: LogHandler[], maskSecrets: (text: string) => Promise<string>, header?: string): LogHandler {
 	let sendHeader = !!header;
 	return {
-		event: e => {
+		event: async e => {
 			if (sendHeader) {
 				sendHeader = false;
 				logs.forEach(log => log.event({
@@ -110,6 +110,10 @@ export function createCombinedLog(logs: LogHandler[], header?: string): LogHandl
 					timestamp: Date.now(),
 					text: header!,
 				}));
+			}
+
+			if (e.type !== 'progress') {
+				e.text = await maskSecrets(e.text);
 			}
 			logs.forEach(log => log.event(e));
 		}

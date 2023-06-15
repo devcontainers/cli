@@ -63,9 +63,9 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
-	secretsFile?: string;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
+	secretsP?: Promise<Record<string, string>>;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -93,7 +93,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, secretsFile, experimentalLockfile, experimentalFrozenLockfile } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -101,7 +101,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
 	const pkg = getPackageConfig();
-	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
+	const output = createLog(options, pkg, sessionStart, disposables, omitLoggerHeader, secretsP);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
@@ -134,7 +134,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
-		secretsFile,
+		secretsP,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
@@ -199,24 +199,40 @@ export interface LogOptions {
 	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean, secretsP?: Promise<Record<string, string>>) {
 	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
-	const output = createLogFrom(options, sessionStart, header);
+	const output = createLogFrom(options, sessionStart, header, secretsP);
 	output.dimensions = options.terminalDimensions;
 	output.onDidChangeDimensions = options.onDidChangeTerminalDimensions;
 	disposables.push(() => output.join());
 	return output;
 }
 
-function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
+function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined, secretsP?: Promise<Record<string, string>>): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
 		process.stdout.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
 		createPlainLog(write, () => logLevel);
+	const maskingHelper = async (text: string) => {
+		if (text && secretsP) {
+			return await maskSecrets(secretsP, text);
+		}
+		return text;
+	};
 	const log = {
-		...makeLog(createCombinedLog([handler], header)),
+		...makeLog(createCombinedLog([handler], maskingHelper, header)),
 		join: async () => {
 			// TODO: wait for write() to finish.
 		},
 	};
 	return log;
+}
+
+async function maskSecrets(secretsP: Promise<Record<string, string>>, text: string) {
+	const MASK = '********';
+	const secretValues = Object.values(await secretsP);
+	secretValues.forEach(secret => {
+		const regex = new RegExp(secret, 'g');
+		text = text.replace(regex, MASK);
+	});
+	return text;
 }

@@ -21,7 +21,7 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { getCLIHost } from '../spec-common/cliHost';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
 import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
@@ -37,7 +37,6 @@ import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
-import { maskSecrets, readSecretsFromFile } from '../spec-common/secrets';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -205,7 +204,6 @@ async function provision({
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule);
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
-	const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
 
 	const options: ProvisionOptions = {
 		dockerPath,
@@ -219,7 +217,7 @@ async function provision({
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
 		logLevel: mapLogLevel(logLevel),
 		logFormat,
-		log,
+		log: text => process.stderr.write(text),
 		terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
 		defaultUserEnvProbe,
 		removeExistingContainer,
@@ -245,7 +243,6 @@ async function provision({
 		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
-		secretsFile,
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
@@ -258,7 +255,8 @@ async function provision({
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
-		experimentalFrozenLockfile
+		experimentalFrozenLockfile,
+		secretsP,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -787,7 +785,7 @@ async function doRunUserCommands({
 		const cwd = workspaceFolder || process.cwd();
 		const cliHost = await getCLIHost(cwd, loadNativeModule);
 		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
-		const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
+		// const log = async (text: string) => process.stderr.write(await maskSecrets(secretsP, text));
 
 		const params = await createDockerParams({
 			dockerPath,
@@ -800,7 +798,7 @@ async function doRunUserCommands({
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
 			logFormat,
-			log,
+			log: text => process.stderr.write(text),
 			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
 			defaultUserEnvProbe,
 			removeExistingContainer: false,
@@ -827,7 +825,7 @@ async function doRunUserCommands({
 				targetPath: dotfilesTargetPath,
 			},
 			containerSessionDataFolder,
-			secretsFile
+			secretsP,
 		}, disposables);
 
 		const { common } = params;
@@ -1241,4 +1239,32 @@ function createStdoutResizeEmitter(disposables: (() => Promise<unknown> | void)[
 	});
 	disposables.push(() => emitter.dispose());
 	return emitter.event;
+}
+
+async function readSecretsFromFile(params: { output?: Log; secretsFile?: string; cliHost: CLIHost }) {
+	const { secretsFile, cliHost, output } = params;
+	if (!secretsFile) {
+		return {};
+	}
+
+	try {
+		const fileBuff = await cliHost.readFile(secretsFile);
+		const parseErrors: jsonc.ParseError[] = [];
+		const secrets = jsonc.parse(fileBuff.toString(), parseErrors) as Record<string, string>;
+		if (parseErrors.length) {
+			throw new Error('Invalid json data');
+		}
+
+		return secrets;
+	}
+	catch (e) {
+		if (output) {
+			output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
+		}
+
+		throw new ContainerError({
+			description: 'Failed to read/parse secrets',
+			originalError: e
+		});
+	}
 }
