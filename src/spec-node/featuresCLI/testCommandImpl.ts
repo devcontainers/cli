@@ -172,6 +172,7 @@ async function runDuplicateTest(args: FeaturesTestCommandInput, feature: string,
 
 	const config: DevContainerConfig = {
 		image: args.baseImage,
+		remoteUser: args.remoteUser,
 		features: {
 			[feature]: nonDefaultOptions, // Set of non-default option values (when possible)
 		}
