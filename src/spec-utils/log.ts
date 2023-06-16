@@ -298,6 +298,10 @@ export function toWarningText(str: string) {
 }
 
 export function replaceAllLog(origin: LogHandler, values: string[], replacement: string): LogHandler {
+	if (!values.length) {
+		return origin;
+	}
+
 	const r = new RegExp(values.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
 	return {
 		event: e => {
