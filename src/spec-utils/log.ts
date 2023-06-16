@@ -298,17 +298,24 @@ export function toWarningText(str: string) {
 }
 
 export function replaceAllLog(origin: LogHandler, values: string[], replacement: string): LogHandler {
+	values = values
+		.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+		.filter(v => v.length);
 	if (!values.length) {
 		return origin;
 	}
-
-	const r = new RegExp(values.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+	const r = new RegExp(values.join('|'), 'g');
 	return {
 		event: e => {
 			if ('text' in e) {
 				origin.event({
 					...e,
 					text: e.text.replace(r, replacement),
+				});
+			} else if (e.type === 'progress' && e.stepDetail) {
+				origin.event({
+					...e,
+					stepDetail: e.stepDetail.replace(r, replacement),
 				});
 			} else {
 				origin.event(e);

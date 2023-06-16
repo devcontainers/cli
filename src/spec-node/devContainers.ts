@@ -224,7 +224,7 @@ function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionS
 function maskSecrets(handler: LogHandler, secrets?: Record<string, string>): LogHandler {
 	if (secrets) {
 		const mask = '********';
-		const secretValues = secrets ? Object.values(secrets) : [];
+		const secretValues = Object.values(secrets);
 		return replaceAllLog(handler, secretValues, mask);
 	}
 
