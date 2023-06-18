@@ -13,7 +13,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer, readSecretsFromFile } from '../spec-common/injectHeadless';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
@@ -21,7 +21,7 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { getCLIHost } from '../spec-common/cliHost';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
 import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
@@ -200,6 +200,11 @@ async function provision({
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+
+	const cwd = workspaceFolder || process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -238,7 +243,7 @@ async function provision({
 		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
-		secretsFile,
+		secretsP,
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
@@ -251,7 +256,7 @@ async function provision({
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
-		experimentalFrozenLockfile
+		experimentalFrozenLockfile,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -776,6 +781,11 @@ async function doRunUserCommands({
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
+
+		const cwd = workspaceFolder || process.cwd();
+		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -814,11 +824,11 @@ async function doRunUserCommands({
 				targetPath: dotfilesTargetPath,
 			},
 			containerSessionDataFolder,
-			secretsFile
+			secretsP,
 		}, disposables);
 
 		const { common } = params;
-		const { cliHost, output } = common;
+		const { output } = common;
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -848,7 +858,6 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const secretsP = readSecretsFromFile(common);
 		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnvP, secretsP, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
@@ -1229,4 +1238,32 @@ function createStdoutResizeEmitter(disposables: (() => Promise<unknown> | void)[
 	});
 	disposables.push(() => emitter.dispose());
 	return emitter.event;
+}
+
+async function readSecretsFromFile(params: { output?: Log; secretsFile?: string; cliHost: CLIHost }) {
+	const { secretsFile, cliHost, output } = params;
+	if (!secretsFile) {
+		return {};
+	}
+
+	try {
+		const fileBuff = await cliHost.readFile(secretsFile);
+		const parseErrors: jsonc.ParseError[] = [];
+		const secrets = jsonc.parse(fileBuff.toString(), parseErrors) as Record<string, string>;
+		if (parseErrors.length) {
+			throw new Error('Invalid json data');
+		}
+
+		return secrets;
+	}
+	catch (e) {
+		if (output) {
+			output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
+		}
+
+		throw new ContainerError({
+			description: 'Failed to read/parse secrets',
+			originalError: e
+		});
+	}
 }

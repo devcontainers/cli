@@ -202,9 +202,10 @@ describe('Feature lifecycle hooks', function () {
 				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
 				const secrets = {
 					'SECRET1': 'SecretValue1',
+					'MASK_IT': 'cycle',
 				};
 				await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
-				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: '--skip-post-create' })).containerId;
+				containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: `--secrets-file ${testFolder}/test-secrets-temp.json --skip-post-create` })).containerId;
 				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
 			});
 
@@ -262,6 +263,12 @@ describe('Feature lifecycle hooks', function () {
 						assert.strictEqual(catResp.error, null);
 						assert.match(catResp.stdout, /SECRET1=SecretValue1/);
 					}
+
+					// assert secret masking
+					// We log the string `LifecycleCommandExecutionMap: ...` from CLI. Since the word `cycle` is specified as a secret here, that should get masked
+					const logs = res.stderr;
+					assert.match(logs, /Life\*\*\*\*\*\*\*\*CommandExecutionMap: /);
+					assert.notMatch(logs, /LifecycleCommandExecutionMap: /);
 				}
 			});
 		});
