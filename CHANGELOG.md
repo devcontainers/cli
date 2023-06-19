@@ -4,6 +4,9 @@ Notable changes.
 
 ## June 2023
 
+### [0.45.0]
+- Mask user secrets in logs (https://github.com/devcontainers/cli/pull/551)
+
 ### [0.44.0]
 - Preview: Feature Dependencies (https://github.com/devcontainers/spec/pull/234)
    - `devcontainer-feature.json` can now specify a `dependsOn` property that lists other Features that must be installed before the current Feature can be installed.
