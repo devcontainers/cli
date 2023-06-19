@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import * as crypto from 'crypto';
-import * as jsonc from 'jsonc-parser';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
@@ -66,7 +65,7 @@ export interface ResolverParameters {
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;
-	secretsFile?: string;
+	secretsP?: Promise<Record<string, string>>;
 }
 
 export interface LifecycleHook {
@@ -325,9 +324,9 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
 	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
-	const secrets = readSecretsFromFile(params);
+	const secretsP = params.secretsP || Promise.resolve({});
 	if (params.lifecycleHook.enabled) {
-		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secrets, false);
+		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secretsP, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
@@ -341,25 +340,6 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 			...params.remoteEnv,
 			...config.remoteEnv,
 		} as Record<string, string>));
-}
-
-export async function readSecretsFromFile(params: { output: Log; secretsFile?: string; cliHost: CLIHost }) {
-	const { secretsFile, cliHost } = params;
-	if (!secretsFile) {
-		return {};
-	}
-
-	try {
-		const fileBuff = await cliHost.readFile(secretsFile);
-		return jsonc.parse(fileBuff.toString()) as Record<string, string>;
-	}
-	catch (e) {
-		params.output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
-		throw new ContainerError({
-			description: 'Failed to read/parse secrets',
-			originalError: e
-		});
-	}
 }
 
 export async function runLifecycleHooks(params: ResolverParameters, lifecycleHooksInstallMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, remoteEnv: Promise<Record<string, string>>, secrets: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
