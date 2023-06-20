@@ -37,7 +37,6 @@ export const staticExecParams = {
     'override-config': undefined,
     'terminal-rows': undefined,
     'terminal-columns': undefined,
-    'remote-env': undefined,
     'container-id': undefined,
     'mount-workspace-git-root': true,
     'log-level': 'info' as 'info',
