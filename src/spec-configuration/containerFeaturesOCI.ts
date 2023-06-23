@@ -15,7 +15,7 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 		value: options
 	};
 
-	const userFeatureIdWithoutVersion = originalUserFeatureId.split(':')[0];
+	const userFeatureIdWithoutVersion = getFeatureIdWithoutVersion(originalUserFeatureId);
 	let featureSet: FeatureSet = {
 		sourceInformation: {
 			type: 'oci',
@@ -30,6 +30,12 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 	};
 
 	return featureSet;
+}
+
+const lastDelimiter = /[/:@][^/:@]*$/;
+export function getFeatureIdWithoutVersion(featureId: string) {
+	const m = lastDelimiter.exec(featureId);
+	return m && m[0].charAt(0) !== '/' ? featureId.substring(0, m.index) : featureId;
 }
 
 export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<ManifestContainer | undefined> {
