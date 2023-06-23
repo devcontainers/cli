@@ -4,6 +4,10 @@ Notable changes.
 
 ## June 2023
 
+### [0.46.0]
+- Load `NODE_EXTRA_CA_CERTS` in Electron (https://github.com/devcontainers/cli/pull/559)
+- Features Test Cmd: "Duplicate" test mode to test Feature Idempotence (https://github.com/devcontainers/cli/pull/553)
+
 ### [0.45.0]
 - Mask user secrets in logs (https://github.com/devcontainers/cli/pull/551)
 
@@ -11,7 +15,7 @@ Notable changes.
 - Preview: Feature Dependencies (https://github.com/devcontainers/spec/pull/234)
    - `devcontainer-feature.json` can now specify a `dependsOn` property that lists other Features that must be installed before the current Feature can be installed.
    - Complete rewrite of the Feature dependency resolution model
-   - NOTE: This is a feature preview - Please submit your feedback!
+   - NOTE: This is a feature preview - please submit your feedback!
 - Fix containerEnv values with spaces (https://github.com/devcontainers/cli/issues/532)
 
 ### [0.43.0]
