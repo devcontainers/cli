@@ -34,7 +34,7 @@ export interface HostRequirements {
 }
 
 export interface DevContainerFeature {
-	userFeatureId: string;
+	id: string;
 	options: boolean | string | Record<string, boolean | string | undefined>;
 }
 

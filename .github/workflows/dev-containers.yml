@@ -44,9 +44,9 @@ jobs:
       fail-fast: false
       matrix:
         mocha-args: [
-          "src/test/container-features/containerFeaturesOrder.test.ts",
           "src/test/container-features/e2e.test.ts",
           "src/test/container-features/featuresCLICommands.test.ts",
+          "src/test/container-features/containerFeaturesOrder.test.ts",
           "src/test/cli.build.test.ts",
           "src/test/cli.exec.buildKit.1.test.ts",
           "src/test/cli.exec.buildKit.2.test.ts",
@@ -57,7 +57,7 @@ jobs:
           "src/test/imageMetadata.test.ts",
           "src/test/container-features/containerFeaturesOCIPush.test.ts",
           # Run all except the above:
-          "--exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/container-features/registryCompatibilityOCI.test.ts --exclude src/test/container-features/containerFeaturesOCIPush.test.ts --exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts --exclude src/test/imageMetadata.test.ts 'src/test/**/*.test.ts'",
+          "--exclude src/test/container-features/registryCompatibilityOCI.test.ts --exclude src/test/container-features/containerFeaturesOCIPush.test.ts --exclude src/test/container-features/e2e.test.ts --exclude src/test/container-features/featuresCLICommands.test.ts --exclude src/test/container-features/containerFeaturesOrder.test.ts --exclude src/test/cli.build.test.ts --exclude src/test/cli.exec.buildKit.1.test.ts --exclude src/test/cli.exec.buildKit.2.test.ts --exclude src/test/cli.exec.nonBuildKit.1.test.ts --exclude src/test/cli.exec.nonBuildKit.2.test.ts --exclude src/test/cli.test.ts --exclude src/test/cli.up.test.ts --exclude src/test/imageMetadata.test.ts 'src/test/**/*.test.ts'",
         ]
     steps:
     - name: Checkout
