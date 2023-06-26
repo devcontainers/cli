@@ -23,7 +23,7 @@ describe('Dotfiles', function () {
 
 	let containerId = '';
 	this.afterEach('Cleanup', async () => {
-		assert.ok(containerId, 'Container id not found.');
+		assert.ok(containerId, 'In Cleanup: Container id not found.');
 		await shellExec(`docker rm -f ${containerId}`);
 		containerId = '';
 	});
@@ -93,14 +93,15 @@ describe('Dotfiles', function () {
 		await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
 		const secrets = {
 			'SECRET1': 'SecretValue1',
+			'MASK_IT': 'container',
 		};
 		await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
 
-		const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json`);
+		const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json --log-level trace --log-format json`);
 		const response = JSON.parse(res.stdout);
 		assert.equal(response.outcome, 'success');
 		containerId = response.containerId;
-
+		assert.ok(containerId, 'Container id not found.');
 		const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
 		assert.ok(dotfiles, 'Dotfiles not found.');
 
@@ -111,6 +112,10 @@ describe('Dotfiles', function () {
 		assert.match(stdout, /SECRET1=SecretValue1/);
 		assert.match(stdout, /TEST_REMOTE_ENV=Value 1/);
 
-		await shellExec(`rm -f ${testFolder}/test-secrets-temp.json`);
+		// assert secret masking
+		// We log the message `Starting container` from CLI. Since the word `container` is specified as a secret here, that should get masked
+		const logs = res.stderr;
+		assert.match(logs, /Starting \*\*\*\*\*\*\*\*/);
+		assert.doesNotMatch(logs, /Starting container/);
 	});
 });
