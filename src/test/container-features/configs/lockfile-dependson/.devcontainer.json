@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/codspace/dependson/A:2": {},
+		"ghcr.io/codspace/dependson/E:1": {}
+	}
+}
