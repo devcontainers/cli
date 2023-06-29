@@ -4,6 +4,9 @@ Notable changes.
 
 ## June 2023
 
+### [0.48.0]
+- Update supported node engines to ^16.13.0 || >=18.0.0 (https://github.com/devcontainers/cli/pull/572)
+
 ### [0.47.0]
 - Upgrade compiler target to ES2021 (https://github.com/devcontainers/cli/pull/568)
 - Secret masking improvements (https://github.com/devcontainers/cli/pull/569)
