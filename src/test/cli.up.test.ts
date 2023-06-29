@@ -49,13 +49,8 @@ describe('Dev Containers CLI', function () {
 			const testFolder = `${__dirname}/configs`;
 			let containerId: string | null = null;
 			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
-			const secrets = {
-				'SECRET1': 'SecretValue1',
-				'MASK_IT': 'container',
-			};
-			await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
 
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json --log-level trace --log-format json`);
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets.json --log-level trace --log-format json`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			containerId = response.containerId;
@@ -71,7 +66,7 @@ describe('Dev Containers CLI', function () {
 			assert.match(stdout, /TEST_REMOTE_ENV=Value 1/);
 
 			// assert secret masking
-			// We log the message `Starting container` from CLI. Since the word `container` is specified as a secret here, that should get masked
+			// We log the message `Starting container` from CLI. Since the word `container` is specified as a secret (in test-secrets.json), that should get masked
 			const logs = res.stderr;
 			assert.match(logs, /Starting \*\*\*\*\*\*\*\*/);
 			assert.doesNotMatch(logs, /Starting container/);
