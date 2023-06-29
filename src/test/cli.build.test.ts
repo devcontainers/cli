@@ -209,6 +209,23 @@ describe('Dev Containers CLI', function () {
 			assert.equal(fs.existsSync(outputPath), true);
 		});
 
+		it(`should execute successfully and export buildx cache with container builder`, async () => {
+			const builderName = 'test-container-builder';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+				const outputPath = `${os.tmpdir()}/test-build-cache`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		})
+
 		it(`should execute successfully docker-compose without features with container builder`, async () => {
 			const builderName = 'test-container-builder';
 			try {
