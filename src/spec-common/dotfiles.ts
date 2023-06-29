@@ -43,7 +43,7 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 			await shellServer.exec(`# Clone & install dotfiles via '${installCommand}'
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
-[ -e ${targetPath} ] || ( ${allEnv}git clone ${repository} ${targetPath} || exit $?
+[ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
 echo Setting current directory to '${targetPath}'
 cd ${targetPath}
 

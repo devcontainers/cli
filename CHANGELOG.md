@@ -4,6 +4,10 @@ Notable changes.
 
 ## June 2023
 
+### [0.47.0]
+- Upgrade compiler target to ES2021 (https://github.com/devcontainers/cli/pull/568)
+- Secret masking improvements (https://github.com/devcontainers/cli/pull/569)
+
 ### [0.46.0]
 - Load `NODE_EXTRA_CA_CERTS` in Electron (https://github.com/devcontainers/cli/pull/559)
 - Features Test Cmd: "Duplicate" test mode to test Feature Idempotence (https://github.com/devcontainers/cli/pull/553)

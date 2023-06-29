@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUtils';
+import { devContainerDown, devContainerUp, pathExists, shellExec, UpResult } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -40,8 +40,11 @@ describe('Dev Containers CLI', function () {
 			assert.equal(response.outcome, 'success');
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
+			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
+			assert.ok(dotfiles, 'Dotfiles not found.');
 			await shellExec(`docker rm -f ${containerId}`);
 		});
+
 
 		it('should execute successfully with valid config with features', async () => {
 			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-features`);
