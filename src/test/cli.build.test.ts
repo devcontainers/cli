@@ -224,7 +224,7 @@ describe('Dev Containers CLI', function () {
 			} finally {
 				await shellExec(`docker buildx rm ${builderName}`);
 			}
-		})
+		});
 
 		it(`should execute successfully docker-compose without features with container builder`, async () => {
 			const builderName = 'test-container-builder';
