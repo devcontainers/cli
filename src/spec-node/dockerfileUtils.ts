@@ -11,11 +11,11 @@ export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommo
 export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
 
 
-const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gm');
-const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/;
+const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gmi');
+const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+AS\s+(?<label>[^\s]+))?/i;
 
-const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+[Aa][Ss]\s+(?<label>[^\s]+))?/m;
-const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gm;
+const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+AS\s+(?<label>[^\s]+))?/mi;
+const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gmi;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 
 const argumentExpression = /\$\{?(?<variable>[a-zA-Z0-9_]+)(?<isVarExp>:(?<option>-|\+)(?<word>[^\}]+))?\}?/g;
@@ -58,7 +58,7 @@ function parseFromStatement(line: string): From {
 }
 
 export function extractDockerfile(dockerfile: string): Dockerfile {
-	const fromStatementsAhead = /(?=^[\t ]*FROM)/gm;
+	const fromStatementsAhead = /(?=^[\t ]*FROM)/gmi;
 	const parts = dockerfile.split(fromStatementsAhead);
 	const preambleStr = fromStatementsAhead.test(parts[0] || '') ? '' : parts.shift()!;
 	const stageStrs = parts;
@@ -67,7 +67,7 @@ export function extractDockerfile(dockerfile: string): Dockerfile {
 		instructions: extractInstructions(stageStr),
 	}));
 	const directives = extractDirectives(preambleStr);
-	const versionMatch = directives.syntax && /^(?:docker.io\/)?docker\/dockerfile(?::(?<version>\S+))?/.exec(directives.syntax) || undefined;
+	const versionMatch = directives.syntax && /^(?:docker.io\/)?docker\/dockerfile(?::(?<version>\S+))?/i.exec(directives.syntax) || undefined;
 	const version = versionMatch && (versionMatch.groups?.version || 'latest');
 	return {
 		preamble: {
@@ -143,7 +143,7 @@ function extractInstructions(stageStr: string) {
 		.map(match => {
 			const groups = match.groups!;
 			return {
-				instruction: groups.instruction,
+				instruction: groups.instruction.toUpperCase(),
 				name: groups.name,
 				value: groups.value1 || groups.value2,
 			};
