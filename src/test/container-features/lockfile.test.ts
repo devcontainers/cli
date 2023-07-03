@@ -81,9 +81,15 @@ describe('Lockfile', function () {
 		
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
 		assert.ok(git);
-		assert.equal(git.current, '1.0.4');
+		assert.strictEqual(git.current, '1.0.4');
 		assert.ok(semver.gt(git.wanted, git.current), `semver.gt(${git.wanted}, ${git.current}) is false`);
 		assert.ok(semver.gt(git.latest, git.wanted), `semver.gt(${git.latest}, ${git.wanted}) is false`);
+
+		const lfs = response.features['ghcr.io/devcontainers/features/git-lfs@sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c'];
+		assert.ok(lfs);
+		assert.strictEqual(lfs.current, '1.0.6');
+		assert.strictEqual(lfs.current, lfs.wanted);
+		assert.ok(semver.gt(lfs.latest, lfs.wanted), `semver.gt(${lfs.latest}, ${lfs.wanted}) is false`);
 
 		const github = response.features['ghcr.io/devcontainers/features/github-cli'];
 		assert.ok(github);
