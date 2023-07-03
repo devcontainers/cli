@@ -32,10 +32,10 @@ export function tryGetOCIFeatureSet(output: Log, identifier: string, options: bo
 	return featureSet;
 }
 
-const lastDelimiter = /[/:@][^/:@]*$/;
+const lastDelimiter = /[:@][^/]*$/;
 export function getFeatureIdWithoutVersion(featureId: string) {
 	const m = lastDelimiter.exec(featureId);
-	return m && m[0].charAt(0) !== '/' ? featureId.substring(0, m.index) : featureId;
+	return m ? featureId.substring(0, m.index) : featureId;
 }
 
 export async function fetchOCIFeatureManifestIfExistsFromUserIdentifier(params: CommonParams, identifier: string, manifestDigest?: string): Promise<ManifestContainer | undefined> {

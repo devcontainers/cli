@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
+import textTable from 'text-table';
 
 import * as jsonc from 'jsonc-parser';
 
@@ -37,6 +38,7 @@ import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
+import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -1048,6 +1050,7 @@ function outdatedOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
+		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
@@ -1065,6 +1068,7 @@ async function outdated({
 	// 'user-data-folder': persistedFolder,
 	'workspace-folder': workspaceFolderArg,
 	config: configParam,
+	'output-format': outputFormat,
 	'log-level': logLevel,
 	'log-format': logFormat,
 	'terminal-rows': terminalRows,
@@ -1109,7 +1113,21 @@ async function outdated({
 
 		const outdated = await loadVersionInfo(params, configs.config.config);
 		await new Promise<void>((resolve, reject) => {
-			process.stdout.write(JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined) + '\n', err => err ? reject(err) : resolve());
+			let text;
+			if (outputFormat === 'text') {
+				const rows = Object.keys(outdated.features).map(key => {
+					const value = outdated.features[key];
+					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ];
+				});
+				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
+				text = textTable([
+					header,
+					...rows,
+				]);
+			} else {
+				text = JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined);
+			}
+			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
 		if (output) {

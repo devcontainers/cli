@@ -578,7 +578,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 
 	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config), output);
 	if (!userFeatures) {
-		return {};
+		return { features: {} };
 	}
 
 	const lockfile = await readLockfile(config);

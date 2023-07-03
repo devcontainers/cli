@@ -69,6 +69,7 @@
 		"@types/semver": "^7.3.13",
 		"@types/shell-quote": "^1.7.1",
 		"@types/tar": "^6.1.4",
+		"@types/text-table": "^0.2.2",
 		"@types/yargs": "^17.0.22",
 		"@typescript-eslint/eslint-plugin": "^5.55.0",
 		"@typescript-eslint/experimental-utils": "^5.55.0",
@@ -104,6 +105,7 @@
 		"shell-quote": "^1.8.0",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.13",
+		"text-table": "^0.2.0",
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.7",
 		"yargs": "~17.7.1"
