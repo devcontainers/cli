@@ -1,16 +1,1 @@
-dist
-built
-node_modules
-logs
-*.log
-*.tgz
-tmp
-tmp[0-9]
-tmp/*
-build-tmp
-.DS_Store
-.env
-output
-*.testMarker
-src/test/container-features/configs/temp_lifecycle-hooks-alternative-order
-test-secrets-temp.json
+
