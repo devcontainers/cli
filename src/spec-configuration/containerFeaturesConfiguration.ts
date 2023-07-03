@@ -1005,6 +1005,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
+				output.write(`* Fetched feature: ${featureDebugId} version ${feature.version}`);
 
 				continue;
 			}
