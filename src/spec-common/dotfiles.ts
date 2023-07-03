@@ -40,16 +40,33 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 			status: 'running',
 		});
 		if (installCommand) {
-			await shellServer.exec(`# Clone & install dotfiles
+			await shellServer.exec(`# Clone & install dotfiles via '${installCommand}'
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
 [ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
-if [ -x ${installCommand} ]
+echo Setting current directory to '${targetPath}'
+cd ${targetPath}
+
+if [ -f "./${installCommand}" ]
 then
-	echo Executing script ${installCommand}
-	cd ${targetPath} && ${allEnv}${installCommand}
+	if [ ! -x "./${installCommand}" ]
+	then
+		echo Setting './${installCommand}' as executable
+		chmod +x "./${installCommand}"
+	fi
+	echo Executing command './${installCommand}'..\n
+	${allEnv}"./${installCommand}"
+elif [ -f "${installCommand}" ]
+then
+	if [ ! -x "${installCommand}" ]
+	then
+		echo Setting '${installCommand}' as executable
+		chmod +x "${installCommand}"
+	fi
+	echo Executing command '${installCommand}'...\n
+	${allEnv}"${installCommand}"
 else
-	echo Error: ${installCommand} not executable
+	echo Could not locate '${installCommand}'...\n
 	exit 126
 fi
 `, { logOutput: 'continuous', logLevel: LogLevel.Info });
@@ -58,6 +75,7 @@ fi
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
 [ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
+echo Setting current directory to ${targetPath}
 cd ${targetPath}
 for f in ${installCommands.join(' ')}
 do
@@ -78,14 +96,14 @@ then
 		echo No dotfiles found.
 	fi
 else
-	if [ -x "$installCommand" ]
+	if [ ! -x "$installCommand" ]
 	then
-		echo Executing script '${targetPath}'/"$installCommand"
-		${allEnv}./"$installCommand"
-	else
-		echo Error: '${targetPath}'/"$installCommand" not executable
-		exit 126
+	   echo Setting '${targetPath}'/"$installCommand" as executable
+	   chmod +x "$installCommand"
 	fi
+
+	echo Executing command '${targetPath}'/"$installCommand"...\n
+	${allEnv}./"$installCommand"
 fi
 `, { logOutput: 'continuous', logLevel: LogLevel.Info });
 		}
