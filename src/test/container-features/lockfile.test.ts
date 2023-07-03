@@ -78,9 +78,16 @@ describe('Lockfile', function () {
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder}`);
 		const response = JSON.parse(res.stdout);
+		
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
+		assert.ok(git);
 		assert.equal(git.current, '1.0.4');
 		assert.ok(semver.gt(git.wanted, git.current), `semver.gt(${git.wanted}, ${git.current}) is false`);
 		assert.ok(semver.gt(git.latest, git.wanted), `semver.gt(${git.latest}, ${git.wanted}) is false`);
+
+		const github = response.features['ghcr.io/devcontainers/features/github-cli'];
+		assert.ok(github);
+		assert.strictEqual(github.current, github.latest);
+		assert.strictEqual(github.wanted, github.latest);
 	});
 });

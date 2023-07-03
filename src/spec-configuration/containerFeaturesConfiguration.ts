@@ -596,7 +596,11 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 				let wanted = lockfileVersion;
 				const tag = featureRef.tag;
 				if (tag) {
-					wanted = versions.find(version => semver.satisfies(version, tag));
+					if (tag === 'latest') {
+						wanted = versions[0];
+					} else {
+						wanted = versions.find(version => semver.satisfies(version, tag));
+					}
 				}
 				if (wanted) {
 					features[userFeatureId] = {
