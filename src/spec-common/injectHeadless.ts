@@ -236,9 +236,9 @@ export async function getContainerProperties(options: {
 		remoteExecAsRoot = remoteExec;
 	}
 	const osRelease = await getOSRelease(shellServer);
-	const passwdUser = await getUserFromEtcPasswd(shellServer, containerUser);
+	const passwdUser = await getUserFromPasswdDB(shellServer, containerUser);
 	if (!passwdUser) {
-		params.output.write(toWarningText(`User ${containerUser} not found in /etc/passwd.`));
+		params.output.write(toWarningText(`User ${containerUser} not found with 'getent passwd'.`));
 	}
 	const shell = await getUserShell(containerEnv, passwdUser);
 	const homeFolder = await getHomeFolder(containerEnv, passwdUser);
@@ -283,9 +283,9 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 	return containerEnv.SHELL || (passwdUser && passwdUser.shell) || '/bin/sh';
 }
 
-export async function getUserFromEtcPasswd(shellServer: ShellServer, userNameOrId: string) {
-	const { stdout } = await shellServer.exec('cat /etc/passwd', { logOutput: false });
-	return findUserInEtcPasswd(stdout, userNameOrId);
+export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
+	const { stdout } = await shellServer.exec(`getent passwd ${userNameOrId}`, { logOutput: false });
+	return findUserInPasswdDB(stdout, userNameOrId);
 }
 
 export interface PasswdUser {
@@ -296,7 +296,7 @@ export interface PasswdUser {
 	shell: string;
 }
 
-export function findUserInEtcPasswd(etcPasswd: string, nameOrId: string): PasswdUser | undefined {
+function findUserInPasswdDB(etcPasswd: string, nameOrId: string): PasswdUser | undefined {
 	const users = etcPasswd
 		.split(/\r?\n/)
 		.map(line => line.split(':'))
