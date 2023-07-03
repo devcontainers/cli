@@ -76,7 +76,7 @@ describe('Lockfile', function () {
 	it('outdated command', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder}`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
 		const response = JSON.parse(res.stdout);
 		
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
