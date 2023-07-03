@@ -607,4 +607,31 @@ describe('extractDockerfile', () => {
         assert.strictEqual(env.name, 'A');
         assert.strictEqual(env.value, 'B');
     });
+
+    it('lowercase instructions', async () => {
+        const dockerfile = `from E
+env A=B
+arg C
+user D
+`;
+        const extracted = extractDockerfile(dockerfile);
+        assert.strictEqual(extracted.stages.length, 1);
+
+        const stage = extracted.stages[0];
+        assert.strictEqual(stage.from.image, 'E');
+        assert.strictEqual(stage.instructions.length, 3);
+        
+        const env = stage.instructions[0];
+        assert.strictEqual(env.instruction, 'ENV');
+        assert.strictEqual(env.name, 'A');
+        assert.strictEqual(env.value, 'B');
+
+        const arg = stage.instructions[1];
+        assert.strictEqual(arg.instruction, 'ARG');
+        assert.strictEqual(arg.name, 'C');
+
+        const user = stage.instructions[2];
+        assert.strictEqual(user.instruction, 'USER');
+        assert.strictEqual(user.name, 'D');
+    });
 });
