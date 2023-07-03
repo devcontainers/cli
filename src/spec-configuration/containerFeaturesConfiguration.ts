@@ -8,6 +8,8 @@ import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
 import * as crypto from 'crypto';
+import * as semver from 'semver';
+import * as os from 'os';
 
 import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
@@ -15,7 +17,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
-import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getPublishedVersions, getRef } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
@@ -569,6 +571,73 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
 	return featuresConfig;
+}
+
+export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
+	const { output } = params;
+
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config), output);
+	if (!userFeatures) {
+		return { features: {} };
+	}
+
+	const lockfile = await readLockfile(config);
+
+	const features: Record<string, any> = {};
+
+	await Promise.all(userFeatures.map(async userFeature => {
+		const userFeatureId = userFeature.userFeatureId;
+		const updatedFeatureId = getBackwardCompatibleFeatureId(output, userFeatureId);
+		const featureRef = getRef(output, updatedFeatureId);
+		if (featureRef) {
+			const versions = (await getPublishedVersions(params, featureRef, true))
+				?.reverse();
+			if (versions) {
+				const lockfileVersion = lockfile?.features[userFeatureId]?.version;
+				let wanted = lockfileVersion;
+				const tag = featureRef.tag;
+				if (tag) {
+					if (tag === 'latest') {
+						wanted = versions[0];
+					} else {
+						wanted = versions.find(version => semver.satisfies(version, tag));
+					}
+				} else if (featureRef.digest && !wanted) {
+					const { type, manifest } = await getFeatureIdType(params, updatedFeatureId, undefined);
+					if (type === 'oci' && manifest) {
+						const wantedFeature = await findOCIFeatureMetadata(params, manifest);
+						wanted = wantedFeature?.version;
+					}
+				}
+				if (wanted) {
+					features[userFeatureId] = {
+						current: lockfileVersion || wanted,
+						wanted,
+						latest: versions[0],
+					};
+				}
+			}
+		}
+	}));
+
+	return { features };
+}
+
+async function findOCIFeatureMetadata(params: ContainerFeatureInternalParams, manifest: ManifestContainer) {
+	const annotation = manifest.manifestObj.annotations?.['dev.containers.metadata'];
+	if (annotation) {
+		return jsonc.parse(annotation) as Feature;
+	}
+
+	// Backwards compatibility.
+	const featureSet = tryGetOCIFeatureSet(params.output, manifest.canonicalId, {}, manifest, manifest.canonicalId);
+	if (!featureSet) {
+		return undefined;
+	}
+
+	const tmp = path.join(os.tmpdir(), crypto.randomUUID());
+	const f = await fetchOCIFeature(params, featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+	return f.metadata as Feature | undefined;
 }
 
 async function prepareOCICache(dstFolder: string) {

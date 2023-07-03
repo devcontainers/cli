@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as semver from 'semver';
 import { shellExec } from '../testUtils';
 import { cpLocal, readLocalFile, rmLocal } from '../../spec-utils/pfs';
 
@@ -70,5 +71,29 @@ describe('Lockfile', function () {
 			const expected = await readLocalFile(path.join(workspaceFolder, 'expected.devcontainer-lock.json'));
 			assert.equal(actual.toString(), expected.toString());
 		}
+	});
+
+	it('outdated command', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+		
+		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
+		assert.ok(git);
+		assert.strictEqual(git.current, '1.0.4');
+		assert.ok(semver.gt(git.wanted, git.current), `semver.gt(${git.wanted}, ${git.current}) is false`);
+		assert.ok(semver.gt(git.latest, git.wanted), `semver.gt(${git.latest}, ${git.wanted}) is false`);
+
+		const lfs = response.features['ghcr.io/devcontainers/features/git-lfs@sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c'];
+		assert.ok(lfs);
+		assert.strictEqual(lfs.current, '1.0.6');
+		assert.strictEqual(lfs.current, lfs.wanted);
+		assert.ok(semver.gt(lfs.latest, lfs.wanted), `semver.gt(${lfs.latest}, ${lfs.wanted}) is false`);
+
+		const github = response.features['ghcr.io/devcontainers/features/github-cli'];
+		assert.ok(github);
+		assert.strictEqual(github.current, github.latest);
+		assert.strictEqual(github.wanted, github.latest);
 	});
 });
