@@ -13,10 +13,6 @@ const packageJsonPath = path.join(__dirname, '..', 'package.json');
 const packageJsonText = fs.readFileSync(packageJsonPath, 'utf8');
 const packageJson = jsonc.parse(packageJsonText);
 
-const dependencies = {
-	'node-pty': packageJson.dependencies['node-pty'],
-};
-
-const edits = jsonc.modify(packageJsonText, ['dependencies'], dependencies, {});
+const edits = jsonc.modify(packageJsonText, ['dependencies'], {}, {});
 const patchedText = jsonc.applyEdits(packageJsonText, edits);
 fs.writeFileSync(packageJsonPath, patchedText);

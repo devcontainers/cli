@@ -97,7 +97,6 @@
 		"js-yaml": "^4.1.0",
 		"jsonc-parser": "^3.2.0",
 		"ncp": "^2.0.0",
-		"node-pty": "^0.10.1",
 		"proxy-agent": "^6.2.0",
 		"pull-stream": "^3.7.0",
 		"recursive-readdir": "^2.2.3",
@@ -109,5 +108,8 @@
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.7",
 		"yargs": "~17.7.1"
+	},
+	"optionalDependencies": {
+		"node-pty": "^0.10.1"
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters } from '../spec-common/commonUtils';
+import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
@@ -63,6 +63,7 @@ export interface PartialExecParameters {
 
 export interface PartialPtyExecParameters {
 	ptyExec: PtyExecFunction;
+	exec: ExecFunction; // for fallback operation
 	cmd: string;
 	args?: string[];
 	env: NodeJS.ProcessEnv;
@@ -326,7 +327,8 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		throw new Error('Missing node-pty');
+		const plain = dockerExecFunction(params, containerName, user);
+		return plainExecAsPtyExec(plain);
 	}
 
 	return async function (execParams: PtyExecParameters): Promise<PtyExec> {
@@ -407,12 +409,14 @@ export function toExecParameters(params: DockerCLIParameters | PartialExecParame
 export function toPtyExecParameters(params: DockerCLIParameters | PartialPtyExecParameters | DockerResolverParameters, compose?: DockerComposeCLI): PartialPtyExecParameters {
 	return 'dockerEnv' in params ? {
 		ptyExec: params.common.cliHost.ptyExec,
+		exec: params.common.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.dockerEnv,
 		output: params.common.output,
 	} : 'cliHost' in params ? {
 		ptyExec: params.cliHost.ptyExec,
+		exec: params.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.env,

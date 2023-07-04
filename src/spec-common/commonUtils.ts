@@ -12,7 +12,7 @@ import * as ptyType from 'node-pty';
 import { StringDecoder } from 'string_decoder';
 
 import { toErrorText } from './errors';
-import { Disposable, Event } from '../spec-utils/event';
+import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { isLocalFile } from '../spec-utils/pfs';
 import { Log, nullLog } from '../spec-utils/log';
 import { ShellServer } from './shellServer';
@@ -318,7 +318,8 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		throw new Error('Missing node-pty');
+		const plain = plainExec(defaultCwd);
+		return plainExecAsPtyExec(plain);
 	}
 
 	return async function (params: PtyExecParameters): Promise<PtyExec> {
@@ -364,6 +365,39 @@ export async function plainPtyExec(defaultCwd: string | undefined, loadNativeMod
 			async terminate() {
 				p.kill('SIGKILL');
 			}
+		};
+	};
+}
+
+export function plainExecAsPtyExec(plain: ExecFunction): PtyExecFunction {
+	return async function (params: PtyExecParameters): Promise<PtyExec> {
+		const p = await plain(params);
+		const onDataEmitter = new NodeEventEmitter<string>();
+		const stdoutDecoder = new StringDecoder();
+		p.stdout.on('data', data => onDataEmitter.fire(stdoutDecoder.write(data)));
+		p.stdout.on('end', () => {
+			const end = stdoutDecoder.end();
+			if (end) {
+				onDataEmitter.fire(end);
+			}
+		});
+		const stderrDecoder = new StringDecoder();
+		p.stderr.on('data', data => onDataEmitter.fire(stderrDecoder.write(data)));
+		p.stderr.on('end', () => {
+			const end = stderrDecoder.end();
+			if (end) {
+				onDataEmitter.fire(end);
+			}
+		});
+		return {
+			onData: onDataEmitter.event,
+			write: p.stdin.write.bind(p.stdin),
+			resize: () => { },
+			exit: p.exit.then(({ code, signal }) => ({
+				code: typeof code === 'number' ? code : undefined,
+				signal: typeof signal === 'string' ? processSignals[signal] : undefined,
+			})),
+			terminate: p.terminate.bind(p),
 		};
 	};
 }
