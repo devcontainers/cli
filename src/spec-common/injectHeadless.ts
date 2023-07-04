@@ -285,7 +285,7 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 
 export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
 	const { stdout } = await shellServer.exec(`getent passwd ${userNameOrId}`, { logOutput: false });
-	return findUserInPasswdDB(stdout, userNameOrId);
+	return parseUserInPasswdDB(stdout);
 }
 
 export interface PasswdUser {
@@ -296,18 +296,17 @@ export interface PasswdUser {
 	shell: string;
 }
 
-function findUserInPasswdDB(etcPasswd: string, nameOrId: string): PasswdUser | undefined {
-	const users = etcPasswd
-		.split(/\r?\n/)
-		.map(line => line.split(':'))
-		.map(row => ({
-			name: row[0],
-			uid: row[2],
-			gid: row[3],
-			home: row[5],
-			shell: row[6]
-		}));
-	return users.find(user => user.name === nameOrId || user.uid === nameOrId);
+function parseUserInPasswdDB(etcPasswdLine: string): PasswdUser | undefined {
+	const row = etcPasswdLine
+		.replace(/\n$/, '')
+		.split(':');
+	return {
+		name: row[0],
+		uid: row[2],
+		gid: row[3],
+		home: row[5],
+		shell: row[6]
+	};
 }
 
 export function getUserDataFolder(homeFolder: string, params: ResolverParameters) {
