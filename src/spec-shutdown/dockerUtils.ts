@@ -319,6 +319,7 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 			cmd,
 			args: (args || []).concat(execArgs),
 			env,
+			stdio: execParams.stdio,
 			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
 		});
 	};
