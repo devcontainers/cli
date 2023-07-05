@@ -653,14 +653,8 @@ async function doBuild({
 			}
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
-
-			if (imageNames) {
-				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
-				imageNameResult = imageNames;
-			} else {
-				imageNameResult = updatedImageName;
-			}
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames, additionalFeatures, false);
+			imageNameResult = updatedImageName;
 		}
 
 		return {

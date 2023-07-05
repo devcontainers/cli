@@ -30,7 +30,7 @@ export const getSafeId = (str: string) => str
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
 
-export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
+export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, imageNames: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
 	const { common } = params;
 	const { cliHost, output } = common;
 
@@ -50,8 +50,6 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	// Got feature extensions -> build the image
 	const dockerfilePath = cliHost.path.join(featureBuildInfo.dstFolder, 'Dockerfile.extended');
 	await cliHost.writeFile(dockerfilePath, Buffer.from(featureBuildInfo.dockerfilePrefixContent + featureBuildInfo.dockerfileContent));
-	const folderImageName = getFolderImageName(common);
-	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
 
 	const args: string[] = [];
 	if (!params.buildKitVersion &&
@@ -90,6 +88,11 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 	}
+
+	const folderImageName = getFolderImageName(common);
+	const updatedImageName: string[] = imageNames ?? [`${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`];
+	updatedImageName.map(imageName => args.push('-t', imageName));
+
 	// Once this is step merged with the user Dockerfile (or working against the base image),
 	// the path will be the dev container context
 	// Set empty dir under temp path as the context for now to ensure we don't have dependencies on the features content
@@ -97,7 +100,6 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	cliHost.mkdirp(emptyTempDir);
 	args.push(
 		'--target', featureBuildInfo.overrideTarget,
-		'-t', updatedImageName,
 		'-f', dockerfilePath,
 		emptyTempDir
 	);
@@ -110,7 +112,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		await dockerCLI(infoParams, ...args);
 	}
 	return {
-		updatedImageName: [ updatedImageName ],
+		updatedImageName: updatedImageName,
 		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
