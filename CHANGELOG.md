@@ -2,6 +2,14 @@
 
 Notable changes.
 
+## July 2023
+
+### [0.49.0]
+- Outdated command (https://github.com/devcontainers/cli/pull/565)
+- Case-insensitive instructions (https://github.com/microsoft/vscode-remote-release/issues/6850)
+- Automatically set execute bit when running dotfiles install script (https://github.com/devcontainers/cli/pull/541)
+- Use getent passwd (https://github.com/microsoft/vscode-remote-release/issues/2957)
+
 ## June 2023
 
 ### [0.48.0]
