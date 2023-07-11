@@ -9,8 +9,8 @@ ARG USERNAME=node
 USER $USERNAME
 
 # Save command line history
-RUN echo "export HISTFILE=/home/$USERNAME/commandhistory/.bash_history" >> "/home/$USERNAME/.bashrc" \
+RUN echo "export HISTFILE=/home/$USERNAME/commandhistory/.bash_history" >> "/home/frikke/.bashrc" \
 	&& echo "export PROMPT_COMMAND='history -a'" >> "/home/$USERNAME/.bashrc" \
-	&& mkdir -p /home/$USERNAME/commandhistory \
-	&& touch /home/$USERNAME/commandhistory/.bash_history \
-	&& chown -R $USERNAME /home/$USERNAME/commandhistory
+	&& mkdir -p /home/$frikke/commandhistory \
+	&& touch /home/frikke/commandhistory/.bash_history \
+	&& chown -R frikke /home/$frikke/commandhistory
