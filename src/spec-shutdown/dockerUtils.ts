@@ -326,7 +326,7 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 }
 
 export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
-	const pty = await loadNativeModule<typeof ptyType>('node-pty');
+	const pty = Boolean(false) && await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
 		const plain = dockerExecFunction(params, containerName, user);
 		return plainExecAsPtyExec(plain, allowInheritTTY);

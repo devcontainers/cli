@@ -317,7 +317,7 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 }
 
 export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
-	const pty = await loadNativeModule<typeof ptyType>('node-pty');
+	const pty = Boolean(false) && await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
 		const plain = plainExec(defaultCwd);
 		return plainExecAsPtyExec(plain, allowInheritTTY);
