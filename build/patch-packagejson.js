@@ -11,8 +11,11 @@ const path = require('path');
 
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
 const packageJsonText = fs.readFileSync(packageJsonPath, 'utf8');
-const packageJson = jsonc.parse(packageJsonText);
 
-const edits = jsonc.modify(packageJsonText, ['dependencies'], {}, {});
-const patchedText = jsonc.applyEdits(packageJsonText, edits);
+let patchedText = packageJsonText;
+for (const key of ['dependencies', 'devDependencies']) {
+	const edits = jsonc.modify(patchedText, [key], {}, {});
+	patchedText = jsonc.applyEdits(patchedText, edits);
+}
+
 fs.writeFileSync(packageJsonPath, patchedText);
