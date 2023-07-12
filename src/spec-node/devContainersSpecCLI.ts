@@ -205,7 +205,7 @@ async function provision({
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 
 	const cwd = workspaceFolder || process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
 
 	const options: ProvisionOptions = {
@@ -786,7 +786,7 @@ async function doRunUserCommands({
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
 
 		const params = await createDockerParams({
@@ -954,7 +954,7 @@ async function readConfiguration({
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();
@@ -1082,7 +1082,7 @@ async function outdated({
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
-		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule);
+		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();

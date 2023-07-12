@@ -92,7 +92,7 @@ async function featuresTest({
 	};
 
 	const cwd = process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const pkg = getPackageConfig();
 
 	const logLevel = mapLogLevel(inputLogLevel);

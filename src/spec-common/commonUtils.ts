@@ -316,11 +316,11 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 	};
 }
 
-export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
+export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
 		const plain = plainExec(defaultCwd);
-		return plainExecAsPtyExec(plain);
+		return plainExecAsPtyExec(plain, allowInheritTTY);
 	}
 
 	return async function (params: PtyExecParameters): Promise<PtyExec> {
@@ -370,15 +370,15 @@ export async function plainPtyExec(defaultCwd: string | undefined, loadNativeMod
 	};
 }
 
-export function plainExecAsPtyExec(plain: ExecFunction): PtyExecFunction {
+export function plainExecAsPtyExec(plain: ExecFunction, allowInheritTTY: boolean): PtyExecFunction {
 	return async function (params: PtyExecParameters): Promise<PtyExec> {
 		const p = await plain({
 			...params,
-			stdio: [
+			stdio: allowInheritTTY && params.output !== nullLog ? [
 				process.stdin.isTTY ? 'inherit' : 'pipe',
 				process.stdout.isTTY ? 'inherit' : 'pipe',
 				process.stderr.isTTY ? 'inherit' : 'pipe',
-			],
+			] : undefined,
 		});
 		const onDataEmitter = new NodeEventEmitter<string>();
 		if (p.stdout) {

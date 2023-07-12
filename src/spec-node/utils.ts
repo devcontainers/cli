@@ -380,7 +380,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	const [, user, , group] = /([^:]*)(:(.*))?/.exec(containerUser) as (string | undefined)[];
 	const containerEnv = envListToObj(containerInfo.Config.Env);
 	const remoteExec = dockerExecFunction(params, containerId, containerUser);
-	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule);
+	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule, common.allowInheritTTY);
 	const remoteExecAsRoot = dockerExecFunction(params, containerId, 'root');
 	return getContainerProperties({
 		params: common,
