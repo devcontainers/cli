@@ -54,9 +54,9 @@ export enum FileTypeBitmask {
 	SymbolicLink = 64
 }
 
-export async function getCLIHost(localCwd: string, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<CLIHost> {
+export async function getCLIHost(localCwd: string, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<CLIHost> {
 	const exec = plainExec(localCwd);
-	const ptyExec = await plainPtyExec(localCwd, loadNativeModule);
+	const ptyExec = await plainPtyExec(localCwd, loadNativeModule, allowInheritTTY);
 	return createLocalCLIHostFromExecFunctions(localCwd, exec, ptyExec, connectLocal);
 }
 

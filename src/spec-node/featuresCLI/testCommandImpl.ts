@@ -11,7 +11,7 @@ import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
 import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
 import { nullLog } from '../../spec-utils/log';
-import { runCommand } from '../../spec-common/commonUtils';
+import { runCommandNoPty } from '../../spec-common/commonUtils';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId } from '../containerFeatures';
 
@@ -81,8 +81,8 @@ export async function doFeaturesTestCommand(args: FeaturesTestCommandInput): Pro
 async function cleanup(cliHost: CLIHost) {
 	// Delete any containers that have the 'devcontainer.is_test_run=true' label set.
 	const filterForContainerIdArgs = ['ps', '-a', '--filter', 'label=devcontainer.is_test_run=true', '--format', '{{.ID}}'];
-	const { cmdOutput } = (await runCommand({ cmd: 'docker', args: filterForContainerIdArgs, output: nullLog, ptyExec: cliHost.ptyExec }));
-	const containerIds = cmdOutput.split('\n').filter(id => id !== '').map(s => s.trim());
+	const { stdout } = (await runCommandNoPty({ cmd: 'docker', args: filterForContainerIdArgs, output: nullLog, exec: cliHost.exec }));
+	const containerIds = stdout.toString().split('\n').filter(id => id !== '').map(s => s.trim());
 	log(`Cleaning up ${containerIds.length} test containers...`, { prefix: '🧹', info: true });
 	for (const containerId of containerIds) {
 		log(`Removing container ${containerId}...`, { prefix: '🧹', info: true });

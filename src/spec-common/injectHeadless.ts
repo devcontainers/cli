@@ -53,6 +53,7 @@ export interface ResolverParameters {
 	getLogLevel: () => LogLevel;
 	onDidChangeLogLevel: Event<LogLevel>;
 	loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>;
+	allowInheritTTY: boolean;
 	shutdowns: (() => Promise<void>)[];
 	backgroundTasks: (Promise<void> | (() => Promise<void>))[];
 	persistedFolder: string; // A path where config can be persisted and restored at a later time. Should default to tmpdir() folder if not provided.
