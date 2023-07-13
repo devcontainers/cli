@@ -1117,7 +1117,8 @@ async function outdated({
 			if (outputFormat === 'text') {
 				const rows = Object.keys(outdated.features).map(key => {
 					const value = outdated.features[key];
-					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ];
+					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
+						.map(v => v === undefined ? '-' : v);
 				});
 				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
 				text = textTable([

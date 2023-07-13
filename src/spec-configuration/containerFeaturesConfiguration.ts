@@ -609,13 +609,11 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 						wanted = wantedFeature?.version;
 					}
 				}
-				if (wanted) {
-					features[userFeatureId] = {
-						current: lockfileVersion || wanted,
-						wanted,
-						latest: versions[0],
-					};
-				}
+				features[userFeatureId] = {
+					current: lockfileVersion || wanted,
+					wanted,
+					latest: versions[0],
+				};
 			}
 		}
 	}));
