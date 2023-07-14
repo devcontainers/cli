@@ -116,4 +116,26 @@ describe('Lockfile', function () {
 		assert.strictEqual(azure.wanted, undefined);
 		assert.ok(azure.latest);
 	});
+
+	it('OCI feature integrity', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-oci-integrity');
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+		}
+	});
+
+	it('tarball URI feature integrity', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-tarball-integrity');
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+		}
+	});
 });

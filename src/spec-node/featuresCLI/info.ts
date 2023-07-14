@@ -105,7 +105,7 @@ async function featuresInfo({
 		const processFeature = async (_userFeature: DevContainerFeature) => {
 			return await processFeatureIdentifier(params, undefined, '', _userFeature);
 		};
-		const graph = await buildDependencyGraph(params, processFeature, [{ userFeatureId: featureId, options: {} }], { overrideFeatureInstallOrder: undefined });
+		const graph = await buildDependencyGraph(params, processFeature, [{ userFeatureId: featureId, options: {} }], { overrideFeatureInstallOrder: undefined }, undefined);
 		output.write(JSON.stringify(graph, undefined, 4), LogLevel.Trace);
 		if (!graph) {
 			output.write(`Could not build dependency graph.`, LogLevel.Error);
