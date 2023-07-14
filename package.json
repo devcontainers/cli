@@ -13,7 +13,7 @@
 	"bugs": {
 		"url": "https://github.com/devcontainers/cli/issues"
 	},
-	"license": "SEE LICENSE IN LICENSE.txt",
+	"license": "MIT",
 	"engines": {
 		"node": "^16.13.0 || >=18.0.0"
 	},
