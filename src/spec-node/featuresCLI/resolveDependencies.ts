@@ -9,6 +9,7 @@ import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { buildDependencyGraph, computeDependsOnInstallationOrder, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
+import { readLockfile } from '../../spec-configuration/lockfile';
 
 interface JsonOutput {
 	installOrder?: {
@@ -82,15 +83,16 @@ async function featuresResolveDependencies({
 		env: process.env,
 	};
 
+	const lockfile = await readLockfile(config);
 	const processFeature = async (_userFeature: DevContainerFeature) => {
-		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature);
+		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature, lockfile);
 	};
 
-	const graph = await buildDependencyGraph(params, processFeature, userFeaturesConfig, config);
+	const graph = await buildDependencyGraph(params, processFeature, userFeaturesConfig, config, lockfile);
 	const worklist = graph?.worklist!;
 	console.log(generateMermaidDiagram(params, worklist));
 
-	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig, config, graph);
+	const installOrder = await computeDependsOnInstallationOrder(params, processFeature, userFeaturesConfig, config, lockfile, graph);
 
 	if (!installOrder) {
 		// Bold

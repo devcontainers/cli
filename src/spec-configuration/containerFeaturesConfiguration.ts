@@ -553,7 +553,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	};
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	const featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+	const featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config, lockfile);
 	if (!featureSets) {
 		throw new Error('Failed to compute Feature installation order!');
 	}
@@ -566,7 +566,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
@@ -1027,7 +1027,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// throw new Error(`Unsupported feature source type: ${type}`);
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
 	const featureSets = featuresConfig.featureSets;
 	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
 		const featureSet = featureSets[idx];
@@ -1106,7 +1106,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const headers = getRequestHeaders(params, featureSet.sourceInformation);
 
 			// Ordered list of tarballUris to attempt to fetch from.
-			let tarballUris: string[] = [];
+			let tarballUris: (string | { uri: string; digest?: string })[] = [];
 
 			if (sourceInfoType === 'github-repo') {
 				output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
@@ -1129,16 +1129,20 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			} else {
 				// We have a plain ol' tarball URI, since we aren't in the github-repo case.
-				tarballUris.push(featureSet.sourceInformation.tarballUri);
+				const uri = featureSet.sourceInformation.tarballUri;
+				const digest = lockfile?.features[uri]?.integrity;
+				tarballUris.push({ uri, digest });
 			}
 
 			// Attempt to fetch from 'tarballUris' in order, until one succeeds.
 			let res: { computedDigest: string } | undefined;
 			for (const tarballUri of tarballUris) {
-				res = await fetchContentsAtTarballUri(params, tarballUri, featCachePath, headers, dstFolder);
+				const uri = typeof tarballUri === 'string' ? tarballUri : tarballUri.uri;
+				const digest = typeof tarballUri === 'string' ? undefined : tarballUri.digest;
+				res = await fetchContentsAtTarballUri(params, uri, digest, featCachePath, headers, dstFolder);
 
 				if (res) {
-					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
+					output.write(`Succeeded fetching ${uri}`, LogLevel.Trace);
 					if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath, res.computedDigest))) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 						throw new Error(err);
@@ -1159,7 +1163,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 	}
 }
 
-export async function fetchContentsAtTarballUri(params: { output: Log; env: NodeJS.ProcessEnv }, tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } | undefined, dstFolder: string, metadataFile?: string): Promise<{ computedDigest: string; metadata: {} | undefined } | undefined> {
+export async function fetchContentsAtTarballUri(params: { output: Log; env: NodeJS.ProcessEnv }, tarballUri: string, expectedDigest: string | undefined, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } | undefined, dstFolder: string, metadataFile?: string): Promise<{ computedDigest: string; metadata: {} | undefined } | undefined> {
 	const { output } = params;
 	const tempTarballPath = path.join(dstFolder, 'temp.tgz');
 	try {
@@ -1179,6 +1183,9 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 		}
 
 		const computedDigest = `sha256:${crypto.createHash('sha256').update(tarball).digest('hex')}`;
+		if (expectedDigest && computedDigest !== expectedDigest) {
+			throw new Error(`Digest did not match for ${tarballUri}.`);
+		}
 
 		// Filter what gets emitted from the tar.extract().
 		const filter = (file: string, _: tar.FileStat) => {
