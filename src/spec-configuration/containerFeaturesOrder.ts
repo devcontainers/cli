@@ -313,7 +313,7 @@ async function applyOverrideFeatureInstallOrder(
 
 		const tmpOverrideNode: FNode = {
 			type: 'override',
-			userFeatureId: overrideFeatureId,
+			userFeatureId: overrideFeatureId.toLowerCase(),
 			options: {},
 			roundPriority,
 			installsAfter: [],
@@ -424,7 +424,7 @@ async function _buildDependencyGraph(
 			for (const [userFeatureId, options] of Object.entries(dependsOn)) {
 				const dependency: FNode = {
 					type: 'resolved',
-					userFeatureId,
+					userFeatureId: userFeatureId.toLowerCase(),
 					options,
 					featureSet: undefined,
 					dependsOn: [],
@@ -440,7 +440,7 @@ async function _buildDependencyGraph(
 			for (const userFeatureId of installsAfter) {
 				const dependency: FNode = {
 					type: 'resolved',
-					userFeatureId,
+					userFeatureId: userFeatureId.toLowerCase(),
 					options: {},
 					featureSet: undefined,
 					dependsOn: [],
