@@ -527,7 +527,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config, additionalFeatures), output);
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(normalizedUserFeaturesToArray(config, additionalFeatures), output);
 	if (!userFeatures) {
 		return undefined;
 	}
@@ -576,7 +576,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
 	const { output } = params;
 
-	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config), output);
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(normalizedUserFeaturesToArray(config), output);
 	if (!userFeatures) {
 		return { features: {} };
 	}
@@ -645,33 +645,35 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-export function userFeaturesToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+export function normalizedUserFeaturesToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
 	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures || {}).length) {
 		return undefined;
 	}
 
 	const userFeatures: DevContainerFeature[] = [];
-	const userFeatureKeys = new Set<string>();
+	const keys = new Set<string>();
 
 	if (config.features) {
-		for (const userFeatureKey of Object.keys(config.features)) {
-			const userFeatureValue = config.features[userFeatureKey];
+		for (const rawKey of Object.keys(config.features)) {
+			const userFeatureKeyNormalized = rawKey.toLowerCase();
+			const userFeatureValue = config.features[rawKey];
 			const feature: DevContainerFeature = {
-				userFeatureId: userFeatureKey,
+				userFeatureId: userFeatureKeyNormalized,
 				options: userFeatureValue
 			};
 			userFeatures.push(feature);
-			userFeatureKeys.add(userFeatureKey);
+			keys.add(userFeatureKeyNormalized);
 		}
 	}
 
 	if (additionalFeatures) {
-		for (const userFeatureKey of Object.keys(additionalFeatures)) {
+		for (const rawKey of Object.keys(additionalFeatures)) {
+			const userFeatureKeyNormalized = rawKey.toLowerCase();
 			// add the additional feature if it hasn't already been added from the config features
-			if (!userFeatureKeys.has(userFeatureKey)) {
-				const userFeatureValue = additionalFeatures[userFeatureKey];
+			if (!keys.has(userFeatureKeyNormalized)) {
+				const userFeatureValue = additionalFeatures[rawKey];
 				const feature: DevContainerFeature = {
-					userFeatureId: userFeatureKey,
+					userFeatureId: userFeatureKeyNormalized,
 					options: userFeatureValue
 				};
 				userFeatures.push(feature);
