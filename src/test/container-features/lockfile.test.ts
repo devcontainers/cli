@@ -37,6 +37,20 @@ describe('Lockfile', function () {
 		assert.equal(actual.toString(), expected.toString());
 	});
 
+	it('lockfile with dependencies', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-dependson');
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await rmLocal(lockfilePath, { force: true });
+
+		const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		const response = JSON.parse(res.stdout);
+		assert.equal(response.outcome, 'success');
+		const actual = await readLocalFile(lockfilePath);
+		const expected = await readLocalFile(path.join(workspaceFolder, 'expected.devcontainer-lock.json'));
+		assert.equal(actual.toString(), expected.toString());
+	});
+
 	it('frozen lockfile', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-frozen');
 		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
@@ -101,5 +115,27 @@ describe('Lockfile', function () {
 		assert.strictEqual(azure.current, undefined);
 		assert.strictEqual(azure.wanted, undefined);
 		assert.ok(azure.latest);
+	});
+
+	it('OCI feature integrity', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-oci-integrity');
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+		}
+	});
+
+	it('tarball URI feature integrity', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-tarball-integrity');
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+		}
 	});
 });

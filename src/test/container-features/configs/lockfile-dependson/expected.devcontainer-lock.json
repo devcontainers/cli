@@ -1,0 +1,30 @@
+{
+  "features": {
+    "ghcr.io/codspace/dependson/A:2": {
+      "version": "2.0.1",
+      "resolved": "ghcr.io/codspace/dependson/a@sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a",
+      "integrity": "sha256:932027ef71da186210e6ceb3294c3459caaf6b548d2b547d5d26be3fc4b2264a",
+      "dependsOn": [
+        "ghcr.io/codspace/dependson/E"
+      ]
+    },
+    "ghcr.io/codspace/dependson/E": {
+      "version": "2.0.0",
+      "resolved": "ghcr.io/codspace/dependson/e@sha256:9f36f159c70f8bebff57f341904b030733adb17ef12a5d58d4b3d89b2a6c7d5a",
+      "integrity": "sha256:9f36f159c70f8bebff57f341904b030733adb17ef12a5d58d4b3d89b2a6c7d5a"
+    },
+    "ghcr.io/codspace/dependson/E:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/codspace/dependson/e@sha256:90b84127edab28ecb169cd6c6f2101ce0ea1d77589cee01951fec7f879f3a11c",
+      "integrity": "sha256:90b84127edab28ecb169cd6c6f2101ce0ea1d77589cee01951fec7f879f3a11c"
+    },
+    "https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-A.tgz": {
+      "version": "2.0.1",
+      "resolved": "https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-A.tgz",
+      "integrity": "sha256:f2dd5be682cceedb5497f9a734b5d5e7834424ade75b8cc700927242585ec671",
+      "dependsOn": [
+        "ghcr.io/codspace/dependson/E"
+      ]
+    }
+  }
+}
