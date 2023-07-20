@@ -116,19 +116,6 @@ describe('Dev Container Features E2E - local cache/short-hand notation', functio
         await shellExec(`mkdir -p ${tmp}`);
         await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
     });
-
-    describe(`image-with-v1-features-node-python-local-cache with --skipFeatureAutoMapping`, () => {
-        let containerId: string | null = null;
-        const testFolder = `${__dirname}/configs/image-with-v1-features-node-python-local-cache`;
-        beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace', 'extraArgs': '--skipFeatureAutoMapping' })).containerId);
-        afterEach(async () => await devContainerDown({ containerId }));
-
-        it('should exec a PATH without the string \'ENV\'', async () => {
-            const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} echo \${PATH}`);
-            assert.isNull(res.error);
-            assert.notMatch(res.stdout, /ENV/);
-        });
-    });
 });
 
 

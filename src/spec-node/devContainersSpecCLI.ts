@@ -186,7 +186,6 @@ async function provision({
 	'cache-from': addCacheFrom,
 	'buildkit': buildkit,
 	'additional-features': additionalFeaturesJson,
-	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
@@ -253,7 +252,6 @@ async function provision({
 		buildxPush: false,
 		buildxOutput: undefined,
 		additionalFeatures,
-		skipFeatureAutoMapping,
 		skipPostAttach,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
@@ -405,7 +403,6 @@ async function doSetUp({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
-			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
@@ -516,7 +513,6 @@ async function doBuild({
 	'push': buildxPush,
 	'output': buildxOutput,
 	'additional-features': additionalFeaturesJson,
-	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile
@@ -560,7 +556,6 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			buildxOutput,
-			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
@@ -766,7 +761,6 @@ async function doRunUserCommands({
 	prebuild,
 	'stop-for-personalization': stopForPersonalization,
 	'remote-env': addRemoteEnv,
-	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
@@ -818,7 +812,6 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
-			skipFeatureAutoMapping,
 			skipPostAttach,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
@@ -941,7 +934,6 @@ async function readConfiguration({
 	'include-features-configuration': includeFeaturesConfig,
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
-	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1002,7 +994,7 @@ async function readConfiguration({
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && !container);
-		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping, additionalFeatures) : undefined;
+		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, additionalFeatures) : undefined;
 		let mergedConfig: MergedDevContainerConfig | undefined;
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
@@ -1037,12 +1029,12 @@ async function readConfiguration({
 	process.exit(0);
 }
 
-async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
+async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
 	const { cliHost, output } = params;
 	const { cwd, env, platform } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
 	const cacheFolder = await getCacheFolder(cliHost);
-	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
+	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
 }
 
 function outdatedOptions(y: Argv) {
@@ -1107,7 +1099,6 @@ async function outdated({
 			cwd: cliHost.cwd,
 			output,
 			env: cliHost.env,
-			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
 		};
 
@@ -1223,7 +1214,6 @@ export async function doExec({
 	'terminal-columns': terminalColumns,
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
-	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -1268,7 +1258,6 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
-			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,

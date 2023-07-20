@@ -208,7 +208,6 @@ export interface ContainerFeatureInternalParams {
 	cwd: string;
 	output: Log;
 	env: NodeJS.ProcessEnv;
-	skipFeatureAutoMapping: boolean;
 	platform: NodeJS.Platform;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
@@ -819,7 +818,7 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 
 // Strictly processes the user provided feature identifier to determine sourceInformation type.
 // Returns a featureSet per feature.
-export async function processFeatureIdentifier(params: CommonParams, configPath: string | undefined, _workspaceRoot: string, userFeature: DevContainerFeature, lockfile?: Lockfile, skipFeatureAutoMapping?: boolean): Promise<FeatureSet | undefined> {
+export async function processFeatureIdentifier(params: CommonParams, configPath: string | undefined, _workspaceRoot: string, userFeature: DevContainerFeature, lockfile?: Lockfile): Promise<FeatureSet | undefined> {
 	const { output } = params;
 
 	output.write(`* Processing feature: ${userFeature.userFeatureId}`);

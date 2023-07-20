@@ -553,7 +553,6 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 		logLevel: common.getLogLevel(),
 		mountWorkspaceGitRoot: true,
 		remoteEnv: common.remoteEnv,
-		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		omitConfigRemotEnvFromMetadata: common.omitConfigRemotEnvFromMetadata,
 		log: text => quiet ? null : process.stderr.write(text),
@@ -653,7 +652,6 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
-		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
 		dotfiles: {}

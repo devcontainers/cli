@@ -20,7 +20,7 @@ describe('validate generateFeaturesConfig()', function () {
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
-    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform };
+    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', platform };
 
     // Mocha executes with the root of the project as the cwd.
     const localFeaturesFolder = (_: string) => {
@@ -182,8 +182,6 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
                 }
             },
         };
-
-        params.skipFeatureAutoMapping = true;
 
         const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, getContainerFeaturesFolder, {});
         if (!featuresConfig) {
