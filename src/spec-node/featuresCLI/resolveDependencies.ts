@@ -8,7 +8,7 @@ import { UnpackArgv } from '../devContainersSpecCLI';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { buildDependencyGraph, computeDependsOnInstallationOrder, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
-import { OCISourceInformation, processFeatureIdentifier, normalizedUserFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
+import { OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
 
 interface JsonOutput {
@@ -73,7 +73,7 @@ async function featuresResolveDependencies({
 		output.write(`No Features object in configuration '${configPath}'`, LogLevel.Error);
 		process.exit(1);
 	}
-	const userFeaturesConfig = normalizedUserFeaturesToArray(config);
+	const userFeaturesConfig = userFeaturesToArray(output, config);
 	if (!userFeaturesConfig) {
 		output.write(`Could not parse features object in configuration '${configPath}'`, LogLevel.Error);
 		process.exit(1);
@@ -84,8 +84,8 @@ async function featuresResolveDependencies({
 	};
 
 	const lockfile = await readLockfile(config);
-	const processFeature = async (_userFeature: DevContainerFeature) => {
-		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature, lockfile);
+	const processFeature = async (f: { userFeature: DevContainerFeature }) => {
+		return await processFeatureIdentifier(params, configPath, workspaceFolder, f.userFeature, lockfile);
 	};
 
 	const graph = await buildDependencyGraph(params, processFeature, userFeaturesConfig, config, lockfile);

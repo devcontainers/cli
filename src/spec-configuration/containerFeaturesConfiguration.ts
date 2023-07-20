@@ -526,7 +526,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	const workspaceRoot = params.cwd;
 	output.write(`workspace root: ${workspaceRoot}`, LogLevel.Trace);
 
-	const userFeatures = updateDeprecatedFeaturesIntoOptions(normalizedUserFeaturesToArray(config, additionalFeatures), output);
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(output, config, additionalFeatures), output);
 	if (!userFeatures) {
 		return undefined;
 	}
@@ -547,8 +547,8 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const lockfile = await readLockfile(config);
 
-	const processFeature = async (_userFeature: DevContainerFeature) => {
-		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
+	const processFeature = async (f: { userFeature: DevContainerFeature }) => {
+		return await processFeatureIdentifier(params, configPath, workspaceRoot, f.userFeature, lockfile);
 	};
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
@@ -575,7 +575,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
 	const { output } = params;
 
-	const userFeatures = updateDeprecatedFeaturesIntoOptions(normalizedUserFeaturesToArray(config), output);
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(output, config), output);
 	if (!userFeatures) {
 		return { features: {} };
 	}
@@ -585,7 +585,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 	const features: Record<string, any> = {};
 
 	await Promise.all(userFeatures.map(async userFeature => {
-		const userFeatureId = userFeature.userFeatureId;
+		const userFeatureId = userFeature.rawUserFeatureId;
 		const updatedFeatureId = getBackwardCompatibleFeatureId(output, userFeatureId);
 		const featureRef = getRef(output, updatedFeatureId);
 		if (featureRef) {
@@ -644,7 +644,12 @@ async function prepareOCICache(dstFolder: string) {
 	return ociCacheDir;
 }
 
-export function normalizedUserFeaturesToArray(config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
+export function normalizeUserFeatureIdentifier(output: Log, userFeatureId: string): string {
+	return getBackwardCompatibleFeatureId(output, userFeatureId).toLowerCase();
+}
+
+
+export function userFeaturesToArray(output: Log, config: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): DevContainerFeature[] | undefined {
 	if (!Object.keys(config.features || {}).length && !Object.keys(additionalFeatures || {}).length) {
 		return undefined;
 	}
@@ -653,26 +658,28 @@ export function normalizedUserFeaturesToArray(config: DevContainerConfig, additi
 	const keys = new Set<string>();
 
 	if (config.features) {
-		for (const rawKey of Object.keys(config.features)) {
-			const userFeatureKeyNormalized = rawKey.toLowerCase();
-			const userFeatureValue = config.features[rawKey];
+		for (const rawUserFeatureId of Object.keys(config.features)) {
+			const normalizedUserFeatureId = normalizeUserFeatureIdentifier(output, rawUserFeatureId);
+			const userFeatureValue = config.features[rawUserFeatureId];
 			const feature: DevContainerFeature = {
-				userFeatureId: userFeatureKeyNormalized,
+				rawUserFeatureId,
+				normalizedUserFeatureId,
 				options: userFeatureValue
 			};
 			userFeatures.push(feature);
-			keys.add(userFeatureKeyNormalized);
+			keys.add(normalizedUserFeatureId);
 		}
 	}
 
 	if (additionalFeatures) {
-		for (const rawKey of Object.keys(additionalFeatures)) {
-			const userFeatureKeyNormalized = rawKey.toLowerCase();
+		for (const rawUserFeatureId of Object.keys(additionalFeatures)) {
+			const normalizedUserFeatureId = normalizeUserFeatureIdentifier(output, rawUserFeatureId);
 			// add the additional feature if it hasn't already been added from the config features
-			if (!keys.has(userFeatureKeyNormalized)) {
-				const userFeatureValue = additionalFeatures[rawKey];
+			if (!keys.has(normalizedUserFeatureId)) {
+				const userFeatureValue = additionalFeatures[rawUserFeatureId];
 				const feature: DevContainerFeature = {
-					userFeatureId: userFeatureKeyNormalized,
+					rawUserFeatureId,
+					normalizedUserFeatureId,
 					options: userFeatureValue
 				};
 				userFeatures.push(feature);
@@ -712,11 +719,11 @@ export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFe
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
 	const versionBackwardComp = '1';
-	for (const update of userFeatures.filter(feature => deprecatedFeaturesIntoOptions[feature.userFeatureId])) {
-		const { mapTo, withOptions } = deprecatedFeaturesIntoOptions[update.userFeatureId];
-		output.write(`(!) WARNING: Using the deprecated '${update.userFeatureId}' Feature. It is now part of the '${mapTo}' Feature. See https://github.com/devcontainers/features/tree/main/src/${mapTo}#options for the updated Feature.`, LogLevel.Warning);
+	for (const update of userFeatures.filter(feature => deprecatedFeaturesIntoOptions[feature.rawUserFeatureId])) {
+		const { mapTo, withOptions } = deprecatedFeaturesIntoOptions[update.rawUserFeatureId];
+		output.write(`(!) WARNING: Using the deprecated '${update.rawUserFeatureId}' Feature. It is now part of the '${mapTo}' Feature. See https://github.com/devcontainers/features/tree/main/src/${mapTo}#options for the updated Feature.`, LogLevel.Warning);
 		const qualifiedMapToId = `${newFeaturePath}/${mapTo}`;
-		let userFeature = userFeatures.find(feature => feature.userFeatureId === mapTo || feature.userFeatureId === qualifiedMapToId || feature.userFeatureId.startsWith(`${qualifiedMapToId}:`));
+		let userFeature = userFeatures.find(feature => feature.rawUserFeatureId === mapTo || feature.rawUserFeatureId === qualifiedMapToId || feature.rawUserFeatureId.startsWith(`${qualifiedMapToId}:`));
 		if (userFeature) {
 			userFeature.options = {
 				...(
@@ -727,14 +734,16 @@ export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFe
 				...withOptions,
 			};
 		} else {
+			const rawUserFeatureId = `${qualifiedMapToId}:${versionBackwardComp}`;
 			userFeature = {
-				userFeatureId: `${qualifiedMapToId}:${versionBackwardComp}`,
+				rawUserFeatureId,
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, rawUserFeatureId),
 				options: withOptions
 			};
 			userFeatures.push(userFeature);
 		}
 	}
-	const updatedUserFeatures = userFeatures.filter(feature => !deprecatedFeaturesIntoOptions[feature.userFeatureId]);
+	const updatedUserFeatures = userFeatures.filter(feature => !deprecatedFeaturesIntoOptions[feature.rawUserFeatureId]);
 	return updatedUserFeatures;
 }
 
@@ -821,16 +830,9 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 export async function processFeatureIdentifier(params: CommonParams, configPath: string | undefined, _workspaceRoot: string, userFeature: DevContainerFeature, lockfile?: Lockfile): Promise<FeatureSet | undefined> {
 	const { output } = params;
 
-	output.write(`* Processing feature: ${userFeature.userFeatureId}`);
+	output.write(`* Processing feature: ${userFeature.rawUserFeatureId}`);
 
-	// id referenced by the user before the automapping from old shorthand syntax to "ghcr.io/devcontainers/features"
-	const originalUserFeatureId = userFeature.userFeatureId;
-	// Adding backward compatibility
-	if (!skipFeatureAutoMapping) {
-		userFeature.userFeatureId = getBackwardCompatibleFeatureId(output, userFeature.userFeatureId);
-	}
-
-	const { type, manifest } = await getFeatureIdType(params, userFeature.userFeatureId, lockfile);
+	const { type, manifest } = await getFeatureIdType(params, userFeature.normalizedUserFeatureId, lockfile);
 
 	// cached feature
 	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
@@ -838,8 +840,8 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		output.write(`Cached feature found.`);
 
 		let feat: Feature = {
-			id: userFeature.userFeatureId,
-			name: userFeature.userFeatureId,
+			id: userFeature.normalizedUserFeatureId,
+			name: userFeature.normalizedUserFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -847,7 +849,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'local-cache',
-				userFeatureId: originalUserFeatureId
+				userFeatureId: userFeature.rawUserFeatureId // Without backwards-compatible normalization
 			},
 			features: [feat],
 		};
@@ -858,7 +860,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// remote tar file
 	if (type === 'direct-tarball') {
 		output.write(`Remote tar file found.`);
-		const tarballUri = new URL.URL(userFeature.userFeatureId);
+		const tarballUri = new URL.URL(userFeature.rawUserFeatureId);
 
 		const fullPath = tarballUri.pathname;
 		const tarballName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
@@ -879,8 +881,8 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		}
 
 		let feat: Feature = {
-			id: id,
-			name: userFeature.userFeatureId,
+			id,
+			name: userFeature.normalizedUserFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -889,7 +891,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			sourceInformation: {
 				type: 'direct-tarball',
 				tarballUri: tarballUri.toString(),
-				userFeatureId: originalUserFeatureId
+				userFeatureId: userFeature.normalizedUserFeatureId,
 			},
 			features: [feat],
 		};
@@ -901,10 +903,8 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	if (type === 'file-path') {
 		output.write(`Local disk feature.`);
 
-		const id = path.basename(userFeature.userFeatureId);
-
 		// Fail on Absolute paths.
-		if (path.isAbsolute(userFeature.userFeatureId)) {
+		if (path.isAbsolute(userFeature.normalizedUserFeatureId)) {
 			output.write('An Absolute path to a local feature is not allowed.', LogLevel.Error);
 			return undefined;
 		}
@@ -914,7 +914,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			output.write('A local feature requires a configuration path.', LogLevel.Error);
 			return undefined;
 		}
-		const featureFolderPath = path.join(path.dirname(configPath), userFeature.userFeatureId);
+		const featureFolderPath = path.join(path.dirname(configPath), userFeature.rawUserFeatureId);  // OS Path may be case-sensitive
 
 		// Ensure we aren't escaping .devcontainer folder
 		const parent = path.join(_workspaceRoot, '.devcontainer');
@@ -926,14 +926,13 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			return undefined;
 		}
 
-		output.write(`Resolved: ${userFeature.userFeatureId}  ->  ${featureFolderPath}`, LogLevel.Trace);
+		output.write(`Resolved: ${userFeature.rawUserFeatureId}  ->  ${featureFolderPath}`, LogLevel.Trace);
 
 		// -- All parsing and validation steps complete at this point.
 
-		output.write(`Parsed feature id: ${id}`, LogLevel.Trace);
 		let feat: Feature = {
-			id,
-			name: userFeature.userFeatureId,
+			id: path.basename(userFeature.normalizedUserFeatureId),
+			name: userFeature.normalizedUserFeatureId,
 			value: userFeature.options,
 			included: true,
 		};
@@ -942,7 +941,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 			sourceInformation: {
 				type: 'file-path',
 				resolvedFilePath: featureFolderPath,
-				userFeatureId: originalUserFeatureId
+				userFeatureId: userFeature.normalizedUserFeatureId
 			},
 			features: [feat],
 		};
@@ -952,19 +951,19 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 	// (6) Oci Identifier
 	if (type === 'oci' && manifest) {
-		return tryGetOCIFeatureSet(output, userFeature.userFeatureId, userFeature.options, manifest, originalUserFeatureId);
+		return tryGetOCIFeatureSet(output, userFeature.normalizedUserFeatureId, userFeature.options, manifest, userFeature.rawUserFeatureId);
 	}
 
 	output.write(`Github feature.`);
 	// Github repository source.
 	let version = 'latest';
-	let splitOnAt = userFeature.userFeatureId.split('@');
+	let splitOnAt = userFeature.normalizedUserFeatureId.split('@');
 	if (splitOnAt.length > 2) {
 		output.write(`Parse error. Use the '@' symbol only to designate a version tag.`, LogLevel.Error);
 		return undefined;
 	}
 	if (splitOnAt.length === 2) {
-		output.write(`[${userFeature.userFeatureId}] has version ${splitOnAt[1]}`, LogLevel.Trace);
+		output.write(`[${userFeature.normalizedUserFeatureId}] has version ${splitOnAt[1]}`, LogLevel.Trace);
 		version = splitOnAt[1];
 	}
 
@@ -975,7 +974,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	//  eg: <publisher>/<feature-set>/<feature>
 	if (splitOnSlash.length !== 3 || splitOnSlash.some(x => x === '') || !allowedFeatureIdRegex.test(splitOnSlash[2])) {
 		// This is the final fallback. If we end up here, we weren't able to resolve the Feature
-		output.write(`Could not resolve Feature '${userFeature.userFeatureId}'.  Ensure the Feature is published and accessible from your current environment.`, LogLevel.Error);
+		output.write(`Could not resolve Feature '${userFeature.normalizedUserFeatureId}'.  Ensure the Feature is published and accessible from your current environment.`, LogLevel.Error);
 		return undefined;
 	}
 	const owner = splitOnSlash[0];
@@ -984,12 +983,12 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 
 	let feat: Feature = {
 		id: id,
-		name: userFeature.userFeatureId,
+		name: userFeature.normalizedUserFeatureId,
 		value: userFeature.options,
 		included: true,
 	};
 
-	const userFeatureIdWithoutVersion = originalUserFeatureId.split('@')[0];
+	const userFeatureIdWithoutVersion = userFeature.normalizedUserFeatureId.split('@')[0];
 	if (version === 'latest') {
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
@@ -999,7 +998,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 				owner,
 				repo,
 				isLatest: true,
-				userFeatureId: originalUserFeatureId,
+				userFeatureId: userFeature.normalizedUserFeatureId,
 				userFeatureIdWithoutVersion
 			},
 			features: [feat],
@@ -1016,7 +1015,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 				repo,
 				tag: version,
 				isLatest: false,
-				userFeatureId: originalUserFeatureId,
+				userFeatureId: userFeature.normalizedUserFeatureId,
 				userFeatureIdWithoutVersion
 			},
 			features: [feat],
