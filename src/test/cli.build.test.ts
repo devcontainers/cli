@@ -214,8 +214,25 @@ describe('Dev Containers CLI', function () {
 			try {
 				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
 
-				const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+				const testFolder = `${__dirname}/configs/dockerfile-without-features`;
 				const outputPath = `${os.tmpdir()}/test-build-cache`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+
+		it(`should execute successfully and export buildx cache with container builder and image`, async () => {
+			const builderName = 'test-container-builder-image';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/image`;
+				const outputPath = `${os.tmpdir()}/test-build-cache-image`;
 				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
