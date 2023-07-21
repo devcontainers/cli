@@ -53,6 +53,7 @@ export interface ResolverParameters {
 	getLogLevel: () => LogLevel;
 	onDidChangeLogLevel: Event<LogLevel>;
 	loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>;
+	allowInheritTTY: boolean;
 	shutdowns: (() => Promise<void>)[];
 	backgroundTasks: (Promise<void> | (() => Promise<void>))[];
 	persistedFolder: string; // A path where config can be persisted and restored at a later time. Should default to tmpdir() folder if not provided.
@@ -237,9 +238,9 @@ export async function getContainerProperties(options: {
 		remoteExecAsRoot = remoteExec;
 	}
 	const osRelease = await getOSRelease(shellServer);
-	const passwdUser = await getUserFromEtcPasswd(shellServer, containerUser);
+	const passwdUser = await getUserFromPasswdDB(shellServer, containerUser);
 	if (!passwdUser) {
-		params.output.write(toWarningText(`User ${containerUser} not found in /etc/passwd.`));
+		params.output.write(toWarningText(`User ${containerUser} not found with 'getent passwd'.`));
 	}
 	const shell = await getUserShell(containerEnv, passwdUser);
 	const homeFolder = await getHomeFolder(containerEnv, passwdUser);
@@ -284,9 +285,9 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 	return containerEnv.SHELL || (passwdUser && passwdUser.shell) || '/bin/sh';
 }
 
-export async function getUserFromEtcPasswd(shellServer: ShellServer, userNameOrId: string) {
-	const { stdout } = await shellServer.exec('cat /etc/passwd', { logOutput: false });
-	return findUserInEtcPasswd(stdout, userNameOrId);
+export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
+	const { stdout } = await shellServer.exec(`getent passwd ${userNameOrId}`, { logOutput: false });
+	return parseUserInPasswdDB(stdout);
 }
 
 export interface PasswdUser {
@@ -297,18 +298,17 @@ export interface PasswdUser {
 	shell: string;
 }
 
-export function findUserInEtcPasswd(etcPasswd: string, nameOrId: string): PasswdUser | undefined {
-	const users = etcPasswd
-		.split(/\r?\n/)
-		.map(line => line.split(':'))
-		.map(row => ({
-			name: row[0],
-			uid: row[2],
-			gid: row[3],
-			home: row[5],
-			shell: row[6]
-		}));
-	return users.find(user => user.name === nameOrId || user.uid === nameOrId);
+function parseUserInPasswdDB(etcPasswdLine: string): PasswdUser | undefined {
+	const row = etcPasswdLine
+		.replace(/\n$/, '')
+		.split(':');
+	return {
+		name: row[0],
+		uid: row[2],
+		gid: row[3],
+		home: row[5],
+		shell: row[6]
+	};
 }
 
 export function getUserDataFolder(homeFolder: string, params: ResolverParameters) {

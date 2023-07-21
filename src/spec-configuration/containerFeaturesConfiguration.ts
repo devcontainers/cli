@@ -8,6 +8,8 @@ import * as path from 'path';
 import * as URL from 'url';
 import * as tar from 'tar';
 import * as crypto from 'crypto';
+import * as semver from 'semver';
+import * as os from 'os';
 
 import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
@@ -15,7 +17,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
-import { CommonParams, OCIManifest, OCIRef } from './containerCollectionsOCI';
+import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getPublishedVersions, getRef } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
@@ -551,7 +553,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	};
 
 	output.write('--- Processing User Features ----', LogLevel.Trace);
-	const featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config);
+	const featureSets = await computeDependsOnInstallationOrder(params, processFeature, userFeatures, config, lockfile);
 	if (!featureSets) {
 		throw new Error('Failed to compute Feature installation order!');
 	}
@@ -564,11 +566,76 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir);
+	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig);
 	return featuresConfig;
+}
+
+export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
+	const { output } = params;
+
+	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config), output);
+	if (!userFeatures) {
+		return { features: {} };
+	}
+
+	const lockfile = await readLockfile(config);
+
+	const features: Record<string, any> = {};
+
+	await Promise.all(userFeatures.map(async userFeature => {
+		const userFeatureId = userFeature.userFeatureId;
+		const updatedFeatureId = getBackwardCompatibleFeatureId(output, userFeatureId);
+		const featureRef = getRef(output, updatedFeatureId);
+		if (featureRef) {
+			const versions = (await getPublishedVersions(params, featureRef, true))
+				?.reverse();
+			if (versions) {
+				const lockfileVersion = lockfile?.features[userFeatureId]?.version;
+				let wanted = lockfileVersion;
+				const tag = featureRef.tag;
+				if (tag) {
+					if (tag === 'latest') {
+						wanted = versions[0];
+					} else {
+						wanted = versions.find(version => semver.satisfies(version, tag));
+					}
+				} else if (featureRef.digest && !wanted) {
+					const { type, manifest } = await getFeatureIdType(params, updatedFeatureId, undefined);
+					if (type === 'oci' && manifest) {
+						const wantedFeature = await findOCIFeatureMetadata(params, manifest);
+						wanted = wantedFeature?.version;
+					}
+				}
+				features[userFeatureId] = {
+					current: lockfileVersion || wanted,
+					wanted,
+					latest: versions[0],
+				};
+			}
+		}
+	}));
+
+	return { features };
+}
+
+async function findOCIFeatureMetadata(params: ContainerFeatureInternalParams, manifest: ManifestContainer) {
+	const annotation = manifest.manifestObj.annotations?.['dev.containers.metadata'];
+	if (annotation) {
+		return jsonc.parse(annotation) as Feature;
+	}
+
+	// Backwards compatibility.
+	const featureSet = tryGetOCIFeatureSet(params.output, manifest.canonicalId, {}, manifest, manifest.canonicalId);
+	if (!featureSet) {
+		return undefined;
+	}
+
+	const tmp = path.join(os.tmpdir(), crypto.randomUUID());
+	const f = await fetchOCIFeature(params, featureSet, tmp, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+	return f.metadata as Feature | undefined;
 }
 
 async function prepareOCICache(dstFolder: string) {
@@ -960,7 +1027,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// throw new Error(`Unsupported feature source type: ${type}`);
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
 	const featureSets = featuresConfig.featureSets;
 	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
 		const featureSet = featureSets[idx];
@@ -1005,6 +1072,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 					throw new Error(err);
 				}
+				output.write(`* Fetched feature: ${featureDebugId} version ${feature.version}`);
 
 				continue;
 			}
@@ -1038,7 +1106,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 			const headers = getRequestHeaders(params, featureSet.sourceInformation);
 
 			// Ordered list of tarballUris to attempt to fetch from.
-			let tarballUris: string[] = [];
+			let tarballUris: (string | { uri: string; digest?: string })[] = [];
 
 			if (sourceInfoType === 'github-repo') {
 				output.write('Determining tarball URI for provided github repo.', LogLevel.Trace);
@@ -1061,16 +1129,20 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 
 			} else {
 				// We have a plain ol' tarball URI, since we aren't in the github-repo case.
-				tarballUris.push(featureSet.sourceInformation.tarballUri);
+				const uri = featureSet.sourceInformation.tarballUri;
+				const digest = lockfile?.features[uri]?.integrity;
+				tarballUris.push({ uri, digest });
 			}
 
 			// Attempt to fetch from 'tarballUris' in order, until one succeeds.
 			let res: { computedDigest: string } | undefined;
 			for (const tarballUri of tarballUris) {
-				res = await fetchContentsAtTarballUri(params, tarballUri, featCachePath, headers, dstFolder);
+				const uri = typeof tarballUri === 'string' ? tarballUri : tarballUri.uri;
+				const digest = typeof tarballUri === 'string' ? undefined : tarballUri.digest;
+				res = await fetchContentsAtTarballUri(params, uri, digest, featCachePath, headers, dstFolder);
 
 				if (res) {
-					output.write(`Succeeded fetching ${tarballUri}`, LogLevel.Trace);
+					output.write(`Succeeded fetching ${uri}`, LogLevel.Trace);
 					if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath, res.computedDigest))) {
 						const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
 						throw new Error(err);
@@ -1091,7 +1163,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 	}
 }
 
-export async function fetchContentsAtTarballUri(params: { output: Log; env: NodeJS.ProcessEnv }, tarballUri: string, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } | undefined, dstFolder: string, metadataFile?: string): Promise<{ computedDigest: string; metadata: {} | undefined } | undefined> {
+export async function fetchContentsAtTarballUri(params: { output: Log; env: NodeJS.ProcessEnv }, tarballUri: string, expectedDigest: string | undefined, featCachePath: string, headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } | undefined, dstFolder: string, metadataFile?: string): Promise<{ computedDigest: string; metadata: {} | undefined } | undefined> {
 	const { output } = params;
 	const tempTarballPath = path.join(dstFolder, 'temp.tgz');
 	try {
@@ -1111,6 +1183,9 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 		}
 
 		const computedDigest = `sha256:${crypto.createHash('sha256').update(tarball).digest('hex')}`;
+		if (expectedDigest && computedDigest !== expectedDigest) {
+			throw new Error(`Digest did not match for ${tarballUri}.`);
+		}
 
 		// Filter what gets emitted from the tar.extract().
 		const filter = (file: string, _: tar.FileStat) => {

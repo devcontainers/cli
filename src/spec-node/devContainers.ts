@@ -106,7 +106,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const allowInheritTTY = options.logFormat === 'text';
+	const cliHost = await getCLIHost(cwd, loadNativeModule, allowInheritTTY);
 	const sessionId = crypto.randomUUID();
 
 	const common: ResolverParameters = {
@@ -131,6 +132,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		getLogLevel: () => options.logLevel,
 		onDidChangeLogLevel: () => ({ dispose() { } }),
 		loadNativeModule,
+		allowInheritTTY,
 		shutdowns: [],
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import { DevContainerConfig } from './configuration';
 import { readLocalFile, writeLocalFile } from '../spec-utils/pfs';
-import { ContainerFeatureInternalParams, FeatureSet, FeaturesConfig, OCISourceInformation } from './containerFeaturesConfiguration';
+import { ContainerFeatureInternalParams, DirectTarballSourceInformation, FeatureSet, FeaturesConfig, OCISourceInformation } from './containerFeaturesConfiguration';
 
 
 export interface Lockfile {
@@ -28,13 +28,19 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 
 	const lockfile: Lockfile = featuresConfig.featureSets
 		.map(f => [f, f.sourceInformation] as const)
-		.filter((tup): tup is [FeatureSet, OCISourceInformation] => tup[1].type === 'oci')
-		.map(([set, source]) => ({
-			id: source.userFeatureId,
-			version: set.features[0].version!,
-			resolved: `${source.featureRef.registry}/${source.featureRef.path}@${set.computedDigest}`,
-			integrity: set.computedDigest!,
-		}))
+		.filter((tup): tup is [FeatureSet, OCISourceInformation | DirectTarballSourceInformation] => ['oci', 'direct-tarball'].indexOf(tup[1].type) !== -1)
+		.map(([set, source]) => {
+			const dependsOn = Object.keys(set.features[0].dependsOn || {});
+			return {
+				id: source.userFeatureId,
+				version: set.features[0].version!,
+				resolved: source.type === 'oci' ?
+					`${source.featureRef.registry}/${source.featureRef.path}@${set.computedDigest}` :
+					source.tarballUri,
+				integrity: set.computedDigest!,
+				dependsOn: dependsOn.length ? dependsOn : undefined,
+			};
+		})
 		.sort((a, b) => a.id.localeCompare(b.id))
 		.reduce((acc, cur) => {
 			const feature = { ...cur };

@@ -77,7 +77,7 @@ export interface ExecPtyResult {
 }
 
 export async function shellPtyExec(command: string, options: { stdin?: string } = {}): Promise<ExecPtyResult> {
-    const ptyExec = await plainPtyExec(undefined, loadNativeModule);
+    const ptyExec = await plainPtyExec(undefined, loadNativeModule, true);
     return runCommand({
         ptyExec,
         cmd: '/bin/sh',
@@ -147,7 +147,7 @@ export const testSubstitute: SubstituteConfig = value => {
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 export async function createCLIParams(hostPath: string) {
-	const cliHost = await getCLIHost(hostPath, loadNativeModule);
+	const cliHost = await getCLIHost(hostPath, loadNativeModule, true);
 	const dockerComposeCLI = dockerComposeCLIConfig({
 		exec: cliHost.exec,
 		env: cliHost.env,

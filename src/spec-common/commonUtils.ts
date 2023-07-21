@@ -12,7 +12,7 @@ import * as ptyType from 'node-pty';
 import { StringDecoder } from 'string_decoder';
 
 import { toErrorText } from './errors';
-import { Disposable, Event } from '../spec-utils/event';
+import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { isLocalFile } from '../spec-utils/pfs';
 import { Log, nullLog } from '../spec-utils/log';
 import { ShellServer } from './shellServer';
@@ -32,6 +32,7 @@ export interface ExecParameters {
 	cwd?: string;
 	cmd: string;
 	args?: string[];
+	stdio?: [cp.StdioNull | cp.StdioPipe, cp.StdioNull | cp.StdioPipe, cp.StdioNull | cp.StdioPipe];
 	output: Log;
 }
 
@@ -284,7 +285,7 @@ export const processSignals: Record<string, number | undefined> = {
 
 export function plainExec(defaultCwd: string | undefined): ExecFunction {
 	return async function (params: ExecParameters): Promise<Exec> {
-		const { cmd, args, output } = params;
+		const { cmd, args, stdio, output } = params;
 
 		const text = `Run: ${cmd} ${(args || []).join(' ').replace(/\n.*/g, '')}`;
 		const start = output.start(text);
@@ -292,7 +293,7 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 		const cwd = params.cwd || defaultCwd;
 		const env = params.env ? { ...process.env, ...params.env } : process.env;
 		const exec = await findLocalWindowsExecutable(cmd, cwd, env, output);
-		const p = cp.spawn(exec, args, { cwd, env, windowsHide: true });
+		const p = cp.spawn(exec, args, { cwd, env, stdio: stdio as any, windowsHide: true });
 
 		return {
 			stdin: p.stdin,
@@ -315,10 +316,11 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 	};
 }
 
-export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
+export async function plainPtyExec(defaultCwd: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		throw new Error('Missing node-pty');
+		const plain = plainExec(defaultCwd);
+		return plainExecAsPtyExec(plain, allowInheritTTY);
 	}
 
 	return async function (params: PtyExecParameters): Promise<PtyExec> {
@@ -364,6 +366,50 @@ export async function plainPtyExec(defaultCwd: string | undefined, loadNativeMod
 			async terminate() {
 				p.kill('SIGKILL');
 			}
+		};
+	};
+}
+
+export function plainExecAsPtyExec(plain: ExecFunction, allowInheritTTY: boolean): PtyExecFunction {
+	return async function (params: PtyExecParameters): Promise<PtyExec> {
+		const p = await plain({
+			...params,
+			stdio: allowInheritTTY && params.output !== nullLog ? [
+				process.stdin.isTTY ? 'inherit' : 'pipe',
+				process.stdout.isTTY ? 'inherit' : 'pipe',
+				process.stderr.isTTY ? 'inherit' : 'pipe',
+			] : undefined,
+		});
+		const onDataEmitter = new NodeEventEmitter<string>();
+		if (p.stdout) {
+			const stdoutDecoder = new StringDecoder();
+			p.stdout.on('data', data => onDataEmitter.fire(stdoutDecoder.write(data)));
+			p.stdout.on('close', () => {
+				const end = stdoutDecoder.end();
+				if (end) {
+					onDataEmitter.fire(end);
+				}
+			});
+		}
+		if (p.stderr) {
+			const stderrDecoder = new StringDecoder();
+			p.stderr.on('data', data => onDataEmitter.fire(stderrDecoder.write(data)));
+			p.stderr.on('close', () => {
+				const end = stderrDecoder.end();
+				if (end) {
+					onDataEmitter.fire(end);
+				}
+			});
+		}
+		return {
+			onData: onDataEmitter.event,
+			write: p.stdin ? p.stdin.write.bind(p.stdin) : () => {},
+			resize: () => {},
+			exit: p.exit.then(({ code, signal }) => ({
+				code: typeof code === 'number' ? code : undefined,
+				signal: typeof signal === 'string' ? processSignals[signal] : undefined,
+			})),
+			terminate: p.terminate.bind(p),
 		};
 	};
 }
