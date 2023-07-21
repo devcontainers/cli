@@ -621,6 +621,10 @@ async function doBuild({
 				throw new ContainerError({ description: '--output not supported.' });
 			}
 
+			if (buildxCacheTo) {
+				throw new ContainerError({ description: '--cache-to not supported.' });
+			}
+
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 			const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 			const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, workspaceFolder);
