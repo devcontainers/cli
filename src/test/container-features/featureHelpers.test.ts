@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier, updateDeprecatedFeaturesIntoOptions } from '../../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, normalizeUserFeatureIdentifier, processFeatureIdentifier, updateDeprecatedFeaturesIntoOptions } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
@@ -62,6 +62,7 @@ describe('validate processFeatureIdentifier', async function () {
 			// Parsed out of a user's devcontainer.json
 			let userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'docker-in-docker',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'docker-in-docker'),
 				options: {}
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -83,6 +84,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process github-repo (without version)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures/helloworld',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures/helloworld'),
 				options: {},
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -111,6 +113,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process github-repo (with version)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures/helloworld@v0.0.4',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures/helloworld@v0.0.4'),
 				options: {},
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -140,6 +143,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process direct-tarball (v2 with direct tar download)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz'),
 				options: {},
 			};
 
@@ -158,6 +162,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('local-path should parse when provided a relative path with Config file in $WORKSPACE_ROOT/.devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: './featureA',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, './featureA'),
 				options: {},
 			};
 
@@ -173,6 +178,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('local-path should parse when provided relative path with config file in $WORKSPACE_ROOT', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: './.devcontainer/featureB',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, './.devcontainer/featureB'),
 				options: {},
 			};
 
@@ -188,6 +194,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process oci registry (without tag)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'ghcr.io/codspace/features/ruby',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'ghcr.io/codspace/features/ruby'),
 				options: {},
 			};
 
@@ -224,6 +231,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process oci registry (with a digest)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'ghcr.io/devcontainers/features/ruby@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'ghcr.io/devcontainers/features/ruby@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a'),
 				options: {},
 			};
 
@@ -260,6 +268,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process oci registry (with a tag)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'ghcr.io/codspace/features/ruby:1.0.13',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'ghcr.io/codspace/features/ruby:1.0.13'),
 				options: {},
 			};
 
@@ -298,6 +307,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('local-path should fail to parse when provided  absolute path and defaultConfigPath with a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: '/some/long/path/to/helloworld',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, '/some/long/path/to/helloworld'),
 				options: {},
 			};
 
@@ -310,6 +320,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('local-path should fail to parse when provided an absolute path and defaultConfigPath without a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: '/some/long/path/to/helloworld',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, '/some/long/path/to/helloworld'),
 				options: {},
 			};
 
@@ -322,6 +333,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('local-path should fail to parse when provided an a relative path breaking out of the .devcontainer folder', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: '../featureC',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, '../featureC'),
 				options: {},
 			};
 
@@ -334,6 +346,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a generic tar with no feature and trailing slash', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz/',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'https://example.com/some/long/path/devcontainer-features.tgz/'),
 				options: {},
 			};
 
@@ -344,6 +357,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should not parse gitHub without triple slash', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures#helloworld',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures#helloworld'),
 				options: {},
 			};
 
@@ -354,6 +368,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a generic tar with no feature and no trailing slash', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'https://example.com/some/long/path/devcontainer-features.tgz'),
 				options: {},
 			};
 
@@ -364,6 +379,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a generic tar with a hash but no feature', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz#',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'https://example.com/some/long/path/devcontainer-features.tgz#'),
 				options: {},
 			};
 
@@ -374,6 +390,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a marketplace shorthand with only two segments and a hash with no feature', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures#',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures#'),
 				options: {},
 			};
 
@@ -384,6 +401,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a marketplace shorthand with only two segments (no feature)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures'),
 				options: {},
 			};
 
@@ -394,6 +412,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a marketplace shorthand with an invalid feature name (1)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures/@mycoolfeature',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures/@mycoolfeature'),
 				options: {},
 			};
 
@@ -404,6 +423,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a marketplace shorthand with an invalid feature name (2)', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures/MY_$UPER_COOL_FEATURE',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures/MY_$UPER_COOL_FEATURE'),
 				options: {},
 			};
 
@@ -414,6 +434,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should fail parsing a marketplace shorthand with only two segments, no hash, and with a version', async function () {
 			const userFeature: DevContainerFeature = {
 				rawUserFeatureId: 'octocat/myfeatures@v0.0.1',
+				normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, 'octocat/myfeatures@v0.0.1'),
 				options: {},
 			};
 
