@@ -315,5 +315,11 @@ describe('Dev Containers CLI', function () {
 			const details = JSON.parse((await shellExec(`docker inspect test-subfolder-config`)).stdout)[0] as ImageDetails;
 			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
+
+		it('should build with a local feature', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/image-with-local-feature --image-name test-local-feature`)
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.outcome, 'success');
+		});
 	});
 });
