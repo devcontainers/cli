@@ -311,10 +311,10 @@ export async function dockerComposePtyCLI(params: DockerCLIParameters | PartialP
 	});
 }
 
-export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined): ExecFunction {
+export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, pty = false): ExecFunction {
 	return async function (execParams: ExecParameters): Promise<Exec> {
 		const { exec, cmd, args, env } = toExecParameters(params);
-		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, false);
+		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, pty);
 		return exec({
 			cmd,
 			args: (args || []).concat(execArgs),
@@ -328,7 +328,7 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		const plain = dockerExecFunction(params, containerName, user);
+		const plain = dockerExecFunction(params, containerName, user, true);
 		return plainExecAsPtyExec(plain, allowInheritTTY);
 	}
 

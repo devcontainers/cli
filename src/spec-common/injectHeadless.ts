@@ -578,10 +578,10 @@ export async function runRemoteCommand(params: { output: Log; onDidInput?: Event
 				}
 			}
 		});
-		if (params.onDidInput) {
-			params.onDidInput(data => p.write(data));
-		} else if (params.stdin) {
-			const listener = (data: Buffer): void => p.write(data.toString());
+		if (p.write && params.onDidInput) {
+			params.onDidInput(data => p.write!(data));
+		} else if (p.write && params.stdin) {
+			const listener = (data: Buffer): void => p.write!(data.toString());
 			const stdin = params.stdin;
 			if (stdin.isTTY) {
 				stdin.setRawMode(true);

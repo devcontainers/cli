@@ -42,7 +42,7 @@ export interface ExecFunction {
 
 export interface PtyExec {
 	onData: Event<string>;
-	write(data: string): void;
+	write?(data: string): void;
 	resize(cols: number, rows: number): void;
 	exit: Promise<{ code: number | undefined; signal: number | undefined }>;
 	terminate(): Promise<void>;
@@ -198,13 +198,15 @@ export async function runCommand(options: {
 	return new Promise<{ cmdOutput: string }>((resolve, reject) => {
 		let cmdOutput = '';
 
-		if (stdin) {
-			p.write(stdin);
+		const subs: Disposable[] = [];
+		if (p.write) {
+			if (stdin) {
+				p.write(stdin);
+			}
+			if (onDidInput) {
+				subs.push(onDidInput(data => p.write!(data)));
+			}
 		}
-
-		const subs = [
-			onDidInput && onDidInput(data => p.write(data)),
-		];
 
 		p.onData(chunk => {
 			cmdOutput += chunk;
@@ -403,7 +405,7 @@ export function plainExecAsPtyExec(plain: ExecFunction, allowInheritTTY: boolean
 		}
 		return {
 			onData: onDataEmitter.event,
-			write: p.stdin ? p.stdin.write.bind(p.stdin) : () => {},
+			write: p.stdin ? p.stdin.write.bind(p.stdin) : undefined,
 			resize: () => {},
 			exit: p.exit.then(({ code, signal }) => ({
 				code: typeof code === 'number' ? code : undefined,
