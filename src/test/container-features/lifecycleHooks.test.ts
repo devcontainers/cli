@@ -371,6 +371,38 @@ describe('Feature lifecycle hooks', function () {
 		});
 	});
 
+	describe('lifecycle-hooks-with-variable-substitution', () => {
+		describe('devcontainer up', () => {
+			let containerId: string | null = null;
+			let containerUpStandardError: string;
+			const testFolder = `${__dirname}/configs/image-with-local-feature`;
+
+			before(async () => {
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				const res = await devContainerUp(cli, testFolder, { 'logLevel': 'trace' });
+				containerId = res.containerId;
+				containerUpStandardError = res.stderr;
+			});
+
+			after(async () => {
+				await devContainerDown({ containerId });
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			});
+
+			it('executes lifecycle hooks with variable substitution', async () => {
+				const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/variable-substitution.testMarker`);
+				assert.strictEqual(res.error, null);
+
+				const outputOfExecCommand = res.stdout;
+				console.log(outputOfExecCommand);
+
+				// Executes the command that was installed by the local Feature's 'postCreateCommand'.
+				assert.match(outputOfExecCommand, /vscode/);
+				assert.match(containerUpStandardError, /Running the postCreateCommand from Feature '.\/test-feature/);
+			});
+		});
+	});
+
 	describe('lifecycle-hooks-advanced', () => {
 
 		describe(`devcontainer up`, () => {

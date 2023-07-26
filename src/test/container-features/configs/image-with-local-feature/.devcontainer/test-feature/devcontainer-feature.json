@@ -10,5 +10,6 @@
 			"target": "/home/${remoteUser}",
 			"type": "volume"
 		}
-	]
+	],
+	"postCreateCommand": "/usr/bin/whoami && echo ${remoteUser} > /tmp/variable-substitution.testMarker"
 }
