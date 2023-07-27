@@ -4,6 +4,9 @@ Notable changes.
 
 ## July 2023
 
+### [0.50.1]
+- Fix: Allocate pty for `docker exec` (https://github.com/devcontainers/cli/issues/556)
+
 ### [0.50.0]
 - Publish without node-pty dependency (https://github.com/devcontainers/cli/pull/585)
 - Record feature dependencies in the lockfile (https://github.com/devcontainers/cli/pull/566)
