@@ -311,10 +311,12 @@ export async function dockerComposePtyCLI(params: DockerCLIParameters | PartialP
 	});
 }
 
-export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, pty = false): ExecFunction {
+export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, allocatePtyIfPossible = false): ExecFunction {
 	return async function (execParams: ExecParameters): Promise<Exec> {
 		const { exec, cmd, args, env } = toExecParameters(params);
-		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, pty);
+		// Spawning without node-pty: `docker exec` only accepts -t if stdin is a TTY. (https://github.com/devcontainers/cli/issues/606)
+		const canAllocatePty = allocatePtyIfPossible && process.stdin.isTTY && execParams.stdio?.[0] === 'inherit';
+		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, canAllocatePty);
 		return exec({
 			cmd,
 			args: (args || []).concat(execArgs),

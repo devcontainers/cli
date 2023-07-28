@@ -4,6 +4,9 @@ Notable changes.
 
 ## July 2023
 
+### [0.50.2]
+- Fix: Only allocate tty for `docker exec` when stdin is a tty (https://github.com/devcontainers/cli/issues/606)
+
 ### [0.50.1]
 - Fix: Allocate pty for `docker exec` (https://github.com/devcontainers/cli/issues/556)
 
