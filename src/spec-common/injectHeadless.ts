@@ -61,7 +61,6 @@ export interface ResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
-	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;

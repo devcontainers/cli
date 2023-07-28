@@ -28,14 +28,14 @@ async function setupInstallOrderTest(testWorkspaceFolder: string) {
 
     const buffer = await readLocalFile(configPath);
     const config = JSON.parse(buffer.toString()) as DevContainerConfig;
-    const userFeatures = userFeaturesToArray(config);
+    const userFeatures = userFeaturesToArray(output, config);
 
     if (!userFeatures) {
         assert.fail(`Test: Could not extract userFeatures from config: ${configPath}`);
     }
 
-    const processFeature = async (_userFeature: DevContainerFeature) => {
-        return await processFeatureIdentifier(params, configPath, testWorkspaceFolder, _userFeature);
+    const processFeature = async (f: { userFeature: DevContainerFeature }) => {
+        return await processFeatureIdentifier(params, configPath, testWorkspaceFolder, f.userFeature);
     };
 
     return {

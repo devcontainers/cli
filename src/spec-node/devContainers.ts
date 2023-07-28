@@ -53,7 +53,6 @@ export interface ProvisionOptions {
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
-	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
@@ -140,7 +139,6 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
-		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		containerSessionDataFolder: options.containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: options.skipPersistingCustomizationsFromFeatures,

@@ -6,7 +6,7 @@ import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { buildDependencyGraph, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
-import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { normalizeUserFeatureIdentifier, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -102,10 +102,15 @@ async function featuresInfo({
 			process.exit(1);
 		}
 
-		const processFeature = async (_userFeature: DevContainerFeature) => {
-			return await processFeatureIdentifier(params, undefined, '', _userFeature);
+		const processFeature = async (f: { userFeature: DevContainerFeature }) => {
+			return await processFeatureIdentifier(params, undefined, '', f.userFeature);
 		};
-		const graph = await buildDependencyGraph(params, processFeature, [{ userFeatureId: featureId, options: {} }], { overrideFeatureInstallOrder: undefined }, undefined);
+		const userFeature = {
+			rawUserFeatureId: featureId,
+			normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, featureId),
+			options: {}
+		};
+		const graph = await buildDependencyGraph(params, processFeature, [userFeature], { overrideFeatureInstallOrder: undefined }, undefined);
 		output.write(JSON.stringify(graph, undefined, 4), LogLevel.Trace);
 		if (!graph) {
 			output.write(`Could not build dependency graph.`, LogLevel.Error);

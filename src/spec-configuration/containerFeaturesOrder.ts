@@ -8,7 +8,7 @@ import * as jsonc from 'jsonc-parser';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation, fetchContentsAtTarballUri } from '../spec-configuration/containerFeaturesConfiguration';
+import { DEVCONTAINER_FEATURE_FILE_NAME, DirectTarballSourceInformation, Feature, FeatureSet, FilePathSourceInformation, OCISourceInformation, fetchContentsAtTarballUri, normalizeUserFeatureIdentifier } from '../spec-configuration/containerFeaturesConfiguration';
 import { LogLevel } from '../spec-utils/log';
 import { DevContainerFeature } from './configuration';
 import { CommonParams, OCIRef } from './containerCollectionsOCI';
@@ -18,8 +18,8 @@ import { Lockfile } from './lockfile';
 
 interface FNode {
 	type: 'user-provided' | 'override' | 'resolved';
-	userFeatureId: string;
-	options: string | boolean | Record<string, string | boolean | undefined>;
+	// Object from reading Features referenced in the devcontainer.json or devcontainer-feature.json
+	userFeature: DevContainerFeature;
 
 	// FeatureSet contains 'sourceInformation', useful for:
 	//      Providing information on if Feature is an OCI Feature, Direct HTTPS Feature, or Local Feature.
@@ -205,6 +205,8 @@ function ociResourceCompareTo(a: { featureRef: OCIRef; aliases?: string[] }, b: 
 // If the sorting algorithm should place A _after_  B, return positive number.
 function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 	const { output } = params;
+	const aOptions = a.userFeature.options;
+	const bOptions = b.userFeature.options;
 
 	const aSourceInfo = a.featureSet?.sourceInformation;
 	let bSourceInfo = b.featureSet?.sourceInformation; // Mutable only for type-casting.
@@ -226,7 +228,7 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			const bDigest = bSourceInfo.manifestDigest;
 
 			// Short circuit if the digests and options are equal
-			if (aDigest === bDigest && optionsCompareTo(a.options, b.options) === 0) {
+			if (aDigest === bDigest && optionsCompareTo(aOptions, bOptions) === 0) {
 				return 0;
 			}
 
@@ -250,7 +252,7 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			}
 
 			// Sort by options
-			const optionsVal = optionsCompareTo(a.options, b.options);
+			const optionsVal = optionsCompareTo(aOptions, bOptions);
 			if (optionsVal !== 0) {
 				return optionsVal;
 			}
@@ -269,7 +271,7 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			if (pathCompare !== 0) {
 				return pathCompare;
 			}
-			return optionsCompareTo(a.options, b.options);
+			return optionsCompareTo(aOptions, bOptions);
 
 		case 'direct-tarball':
 			bSourceInfo = bSourceInfo as DirectTarballSourceInformation;
@@ -277,7 +279,7 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			if (urlCompare !== 0) {
 				return urlCompare;
 			}
-			return optionsCompareTo(a.options, b.options);
+			return optionsCompareTo(aOptions, bOptions);
 
 		default:
 			// Legacy
@@ -287,13 +289,13 @@ function compareTo(params: CommonParams, a: FNode, b: FNode): number {
 			if (userIdCompare !== 0) {
 				return userIdCompare;
 			}
-			return optionsCompareTo(a.options, b.options);
+			return optionsCompareTo(aOptions, bOptions);
 	}
 }
 
 async function applyOverrideFeatureInstallOrder(
 	params: CommonParams,
-	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+	processFeature: (f: { userFeature: DevContainerFeature }) => Promise<FeatureSet | undefined>,
 	worklist: FNode[],
 	config: { overrideFeatureInstallOrder?: string[] },
 ) {
@@ -311,10 +313,15 @@ async function applyOverrideFeatureInstallOrder(
 		// First element == N, last element == 1
 		const roundPriority = originalLength - i;
 
+		const userFeature = {
+			rawUserFeatureId: overrideFeatureId,
+			normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, overrideFeatureId),
+			options: {},
+		} as DevContainerFeature;
+
 		const tmpOverrideNode: FNode = {
 			type: 'override',
-			userFeatureId: overrideFeatureId,
-			options: {},
+			userFeature,
 			roundPriority,
 			installsAfter: [],
 			dependsOn: [],
@@ -323,7 +330,7 @@ async function applyOverrideFeatureInstallOrder(
 
 		const processed = await processFeature(tmpOverrideNode);
 		if (!processed) {
-			throw new Error(`Feature '${tmpOverrideNode.userFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
+			throw new Error(`Feature '${tmpOverrideNode.userFeature.rawUserFeatureId}' in 'overrideFeatureInstallOrder' could not be processed.`);
 		}
 
 		tmpOverrideNode.featureSet = processed;
@@ -332,7 +339,7 @@ async function applyOverrideFeatureInstallOrder(
 		for (const node of worklist) {
 			if (satisfiesSoftDependency(params, node, tmpOverrideNode)) {
 				// Increase the priority of this node to install it sooner.
-				output.write(`[override]: '${node.userFeatureId}' has override priority of ${roundPriority}`, LogLevel.Trace);
+				output.write(`[override]: '${node.userFeature.rawUserFeatureId}' has override priority of ${roundPriority}`, LogLevel.Trace);
 				node.roundPriority = Math.max(node.roundPriority, roundPriority);
 			}
 		}
@@ -344,7 +351,7 @@ async function applyOverrideFeatureInstallOrder(
 
 async function _buildDependencyGraph(
 	params: CommonParams,
-	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+	processFeature: (f: { userFeature: DevContainerFeature }) => Promise<FeatureSet | undefined>,
 	worklist: FNode[],
 	acc: FNode[],
 	lockfile: Lockfile | undefined): Promise<DependencyGraph> {
@@ -353,12 +360,12 @@ async function _buildDependencyGraph(
 	while (worklist.length > 0) {
 		const current = worklist.shift()!;
 
-		output.write(`Resolving Feature dependencies for '${current.userFeatureId}'...`, LogLevel.Info);
+		output.write(`Resolving Feature dependencies for '${current.userFeature.rawUserFeatureId}'...`, LogLevel.Info);
 
 		const processedFeature = await processFeature(current);
 		if (!processedFeature) {
-			throw new Error(`ERR: Feature '${current.userFeatureId}' could not be processed.  You may not have permission to access this Feature, or may not be logged in.  If the issue persists, report this to the Feature author.`);
-		}
+			throw new Error(`ERR: Feature '${current.userFeature.rawUserFeatureId}' could not be processed.  You may not have permission to access this Feature, or may not be logged in.  If the issue persists, report this to the Feature author.`);
+		}	
 
 		// Set the processed FeatureSet object onto Node.
 		current.featureSet = processedFeature;
@@ -383,7 +390,7 @@ async function _buildDependencyGraph(
 				const filePath = (current.featureSet.sourceInformation as FilePathSourceInformation).resolvedFilePath;
 				const metadataFilePath = path.join(filePath, DEVCONTAINER_FEATURE_FILE_NAME);
 				if (!isLocalFile(filePath)) {
-					throw new Error(`Metadata file '${metadataFilePath}' cannot be read for Feature '${current.userFeatureId}'.`);
+					throw new Error(`Metadata file '${metadataFilePath}' cannot be read for Feature '${current.userFeature.rawUserFeatureId}'.`);
 				}
 				const serialized = (await readLocalFile(metadataFilePath)).toString();
 				if (serialized) {
@@ -424,8 +431,11 @@ async function _buildDependencyGraph(
 			for (const [userFeatureId, options] of Object.entries(dependsOn)) {
 				const dependency: FNode = {
 					type: 'resolved',
-					userFeatureId,
-					options,
+					userFeature: {
+						rawUserFeatureId: userFeatureId,
+						normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, userFeatureId),
+						options,
+					},
 					featureSet: undefined,
 					dependsOn: [],
 					installsAfter: [],
@@ -437,11 +447,16 @@ async function _buildDependencyGraph(
 
 			// Add a new node for each 'installsAfter' soft-dependency onto the 'current' node.
 			// Soft-dependencies are NOT recursively processed - do *not* add to worklist.
-			for (const userFeatureId of installsAfter) {
+			for (const rawUserFeatureId of installsAfter) {
+				const userFeature = {
+					rawUserFeatureId,
+					normalizedUserFeatureId: normalizeUserFeatureIdentifier(output, rawUserFeatureId),
+					options: {},
+				} as DevContainerFeature;		
+
 				const dependency: FNode = {
 					type: 'resolved',
-					userFeatureId,
-					options: {},
+					userFeature,
 					featureSet: undefined,
 					dependsOn: [],
 					installsAfter: [],
@@ -449,7 +464,7 @@ async function _buildDependencyGraph(
 				};
 				const processedFeatureSet = await processFeature(dependency);
 				if (!processedFeatureSet) {
-					throw new Error(`installsAfter dependency '${userFeatureId}' of Feature '${current.userFeatureId}' could not be processed.`);
+					throw new Error(`installsAfter dependency '${userFeature.rawUserFeatureId}' of Feature '${current.userFeature.rawUserFeatureId}' could not be processed.`);
 				}
 
 				dependency.featureSet = processedFeatureSet;
@@ -522,7 +537,7 @@ async function getTgzFeatureMetadata(params: CommonParams, node: FNode, expected
 	const tmp = path.join(os.tmpdir(), crypto.randomUUID());
 	const result = await fetchContentsAtTarballUri(params, srcInfo.tarballUri, expectedDigest, tmp, undefined, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
 	if (!result || !result.metadata) {
-		output.write(`No metadata for Feature '${node.userFeatureId}' from '${srcInfo.tarballUri}'`, LogLevel.Trace);
+		output.write(`No metadata for Feature '${node.userFeature.rawUserFeatureId}' from '${srcInfo.tarballUri}'`, LogLevel.Trace);
 		return;
 	}
 
@@ -534,7 +549,7 @@ async function getTgzFeatureMetadata(params: CommonParams, node: FNode, expected
 // Creates the directed acyclic graph (DAG) of Features and their dependencies.
 export async function buildDependencyGraph(
 	params: CommonParams,
-	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+	processFeature: (f: { userFeature: DevContainerFeature }) => Promise<FeatureSet | undefined>, 
 	userFeatures: DevContainerFeature[],
 	config: { overrideFeatureInstallOrder?: string[] },
 	lockfile: Lockfile | undefined): Promise<DependencyGraph | undefined> {
@@ -542,22 +557,21 @@ export async function buildDependencyGraph(
 	const { output } = params;
 
 	const rootNodes =
-		userFeatures.map<FNode>(f => {
+		userFeatures.map<FNode>(userFeature => {
 			return {
 				type: 'user-provided', // This Feature was provided by the user in the 'features' object of devcontainer.json.
-				userFeatureId: f.userFeatureId,
-				options: f.options,
+				userFeature,
 				dependsOn: [],
 				installsAfter: [],
 				roundPriority: 0,
 			};
 		});
 
-	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 
 	const { worklist } = await _buildDependencyGraph(params, processFeature, rootNodes, [], lockfile);
 
-	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 
 	// Apply the 'overrideFeatureInstallOrder' to the worklist.
 	if (config?.overrideFeatureInstallOrder) {
@@ -570,7 +584,7 @@ export async function buildDependencyGraph(
 // Returns the ordered list of FeatureSets to fetch and install, or undefined on error.
 export async function computeDependsOnInstallationOrder(
 	params: CommonParams,
-	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
+	processFeature: (f: { userFeature: DevContainerFeature }) => Promise<FeatureSet | undefined>, 
 	userFeatures: DevContainerFeature[],
 	config: { overrideFeatureInstallOrder?: string[] },
 	lockfile?: Lockfile,
@@ -599,7 +613,7 @@ export async function computeDependsOnInstallationOrder(
 		throw new Error(`ERR: Failure resolving Features.`);
 	}
 
-	output.write(`[raw worklist]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write(`[raw worklist]: ${worklist.map(n => n.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 
 	// For each node in the worklist, remove all 'soft-dependency' graph edges that are irrelevant
 	// i.e. the node is not a 'soft match' for any node in the worklist itself
@@ -609,14 +623,14 @@ export async function computeDependsOnInstallationOrder(
 		for (let j = node.installsAfter.length - 1; j >= 0; j--) {
 			const softDep = node.installsAfter[j];
 			if (!worklist.some(n => satisfiesSoftDependency(params, n, softDep))) {
-				output.write(`Soft-dependency '${softDep.userFeatureId}' is not required.  Removing from installation order...`, LogLevel.Info);
+				output.write(`Soft-dependency '${softDep.userFeature.rawUserFeatureId}' is not required.  Removing from installation order...`, LogLevel.Info);
 				// Delete that soft-dependency
 				node.installsAfter.splice(j, 1);
 			}
 		}
 	}
 
-	output.write(`[worklist-without-dangling-soft-deps]: ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
+	output.write(`[worklist-without-dangling-soft-deps]: ${worklist.map(n => n.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 	output.write('Starting round-based Feature install order calculation from worklist...', LogLevel.Trace);
 
 	const installationOrder: FNode[] = [];
@@ -630,14 +644,14 @@ export async function computeDependsOnInstallationOrder(
 			&& node.installsAfter.every(dep =>
 				installationOrder.some(installed => satisfiesSoftDependency(params, installed, dep))));
 
-		output.write(`\n[round] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
+		output.write(`\n[round] ${round.map(r => r.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 		if (round.length === 0) {
 			output.write('Circular dependency detected!', LogLevel.Error);
-			output.write(`Nodes remaining: ${worklist.map(n => n.userFeatureId!).join(', ')}`, LogLevel.Error);
+			output.write(`Nodes remaining: ${worklist.map(n => n.userFeature.rawUserFeatureId!).join(', ')}`, LogLevel.Error);
 			return;
 		}
 
-		output.write(`[round-candidates] ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
+		output.write(`[round-candidates] ${round.map(r => `${r.userFeature.rawUserFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
 
 		// Given the set of eligible nodes to install this round,
 		// determine the highest 'roundPriority' present of the nodes in this
@@ -647,14 +661,14 @@ export async function computeDependsOnInstallationOrder(
 		//  -  The overrideFeatureInstallOrder property (more generically, 'roundPriority') is honored
 		const maxRoundPriority = Math.max(...round.map(r => r.roundPriority));
 		round.splice(0, round.length, ...round.filter(node => node.roundPriority === maxRoundPriority));
-		output.write(`[round-after-filter-priority] (maxPriority=${maxRoundPriority}) ${round.map(r => `${r.userFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
+		output.write(`[round-after-filter-priority] (maxPriority=${maxRoundPriority}) ${round.map(r => `${r.userFeature.rawUserFeatureId} (${r.roundPriority})`).join(', ')}`, LogLevel.Trace);
 
 		// Delete all nodes present in this round from the worklist.
 		worklist.splice(0, worklist.length, ...worklist.filter(node => !round.some(r => equals(params, r, node))));
 
 		// Sort rounds lexicographically by id.
 		round.sort((a, b) => compareTo(params, a, b));
-		output.write(`[round-after-comparesTo] ${round.map(r => r.userFeatureId).join(', ')}`, LogLevel.Trace);
+		output.write(`[round-after-comparesTo] ${round.map(r => r.userFeature.rawUserFeatureId).join(', ')}`, LogLevel.Trace);
 
 		// Commit round
 		installationOrder.push(...round);
@@ -702,5 +716,5 @@ function generateMermaidNode(node: FNode) {
 	const hasher = crypto.createHash('sha256', { encoding: 'hex' });
 	const hash = hasher.update(JSON.stringify(node)).digest('hex').slice(0, 6);
 	const aliases = node.featureIdAliases && node.featureIdAliases.length > 0 ? `<br>aliases: ${node.featureIdAliases.join(', ')}` : '';
-	return `${hash}[${node.userFeatureId}<br/><${node.roundPriority}>${aliases}]`;
+	return `${hash}[${node.userFeature.normalizedUserFeatureId}<br/><${node.roundPriority}>${aliases}]`;
 }
