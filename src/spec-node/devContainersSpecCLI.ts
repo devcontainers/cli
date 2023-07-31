@@ -252,6 +252,7 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
+		buildxCacheTo: undefined,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
@@ -405,6 +406,7 @@ async function doSetUp({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -474,6 +476,7 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
+		'cache-to': { type: 'string', description: 'A destination of buildx cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
@@ -515,6 +518,7 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'output': buildxOutput,
+	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
@@ -560,6 +564,7 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			buildxOutput,
+			buildxCacheTo,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
@@ -614,6 +619,10 @@ async function doBuild({
 
 			if (buildxOutput) {
 				throw new ContainerError({ description: '--output not supported.' });
+			}
+
+			if (buildxCacheTo) {
+				throw new ContainerError({ description: '--cache-to not supported.' });
 			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
@@ -818,6 +827,7 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -1268,6 +1278,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,

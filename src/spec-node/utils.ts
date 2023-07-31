@@ -117,6 +117,7 @@ export interface DockerResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 }
 
 export interface ResolverResult {
