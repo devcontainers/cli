@@ -14,6 +14,7 @@ import { DevContainerFeature } from './configuration';
 import { CommonParams, OCIRef } from './containerCollectionsOCI';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { fetchOCIFeature } from './containerFeaturesOCI';
+import { Lockfile } from './lockfile';
 
 interface FNode {
 	type: 'user-provided' | 'override' | 'resolved';
@@ -345,7 +346,8 @@ async function _buildDependencyGraph(
 	params: CommonParams,
 	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
 	worklist: FNode[],
-	acc: FNode[]): Promise<DependencyGraph> {
+	acc: FNode[],
+	lockfile: Lockfile | undefined): Promise<DependencyGraph> {
 	const { output } = params;
 
 	while (worklist.length > 0) {
@@ -390,7 +392,9 @@ async function _buildDependencyGraph(
 				break;
 
 			case 'direct-tarball':
-				metadata = await getTgzFeatureMetadata(params, current);
+				const tarballUri = (processedFeature.sourceInformation as DirectTarballSourceInformation).tarballUri;
+				const expectedDigest = lockfile?.features[tarballUri]?.integrity;
+				metadata = await getTgzFeatureMetadata(params, current, expectedDigest);
 				break;
 
 			default:
@@ -504,7 +508,7 @@ async function getOCIFeatureMetadata(params: CommonParams, node: FNode): Promise
 	return;
 }
 
-async function getTgzFeatureMetadata(params: CommonParams, node: FNode): Promise<Feature | undefined> {
+async function getTgzFeatureMetadata(params: CommonParams, node: FNode, expectedDigest: string | undefined): Promise<Feature | undefined> {
 	const { output } = params;
 
 	// TODO: Implement a caching layer here!
@@ -516,7 +520,7 @@ async function getTgzFeatureMetadata(params: CommonParams, node: FNode): Promise
 	}
 
 	const tmp = path.join(os.tmpdir(), crypto.randomUUID());
-	const result = await fetchContentsAtTarballUri(params, srcInfo.tarballUri, tmp, undefined, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
+	const result = await fetchContentsAtTarballUri(params, srcInfo.tarballUri, expectedDigest, tmp, undefined, tmp, DEVCONTAINER_FEATURE_FILE_NAME);
 	if (!result || !result.metadata) {
 		output.write(`No metadata for Feature '${node.userFeatureId}' from '${srcInfo.tarballUri}'`, LogLevel.Trace);
 		return;
@@ -532,7 +536,8 @@ export async function buildDependencyGraph(
 	params: CommonParams,
 	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
 	userFeatures: DevContainerFeature[],
-	config: { overrideFeatureInstallOrder?: string[] }): Promise<DependencyGraph | undefined> {
+	config: { overrideFeatureInstallOrder?: string[] },
+	lockfile: Lockfile | undefined): Promise<DependencyGraph | undefined> {
 
 	const { output } = params;
 
@@ -550,7 +555,7 @@ export async function buildDependencyGraph(
 
 	output.write(`[* user-provided] ${rootNodes.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
-	const { worklist } = await _buildDependencyGraph(params, processFeature, rootNodes, []);
+	const { worklist } = await _buildDependencyGraph(params, processFeature, rootNodes, [], lockfile);
 
 	output.write(`[* resolved worklist] ${worklist.map(n => n.userFeatureId).join(', ')}`, LogLevel.Trace);
 
@@ -568,12 +573,13 @@ export async function computeDependsOnInstallationOrder(
 	processFeature: (userFeature: DevContainerFeature) => Promise<FeatureSet | undefined>,
 	userFeatures: DevContainerFeature[],
 	config: { overrideFeatureInstallOrder?: string[] },
+	lockfile?: Lockfile,
 	precomputedGraph?: DependencyGraph): Promise<FeatureSet[] | undefined> {
 
 	const { output } = params;
 
 	// Build dependency graph and resolves all to FeatureSets.
-	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, config);
+	const graph = precomputedGraph ?? await buildDependencyGraph(params, processFeature, userFeatures, config, lockfile);
 	if (!graph) {
 		return;
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters } from '../spec-common/commonUtils';
+import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
@@ -63,6 +63,7 @@ export interface PartialExecParameters {
 
 export interface PartialPtyExecParameters {
 	ptyExec: PtyExecFunction;
+	exec: ExecFunction; // for fallback operation
 	cmd: string;
 	args?: string[];
 	env: NodeJS.ProcessEnv;
@@ -310,23 +311,27 @@ export async function dockerComposePtyCLI(params: DockerCLIParameters | PartialP
 	});
 }
 
-export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined): ExecFunction {
+export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, allocatePtyIfPossible = false): ExecFunction {
 	return async function (execParams: ExecParameters): Promise<Exec> {
 		const { exec, cmd, args, env } = toExecParameters(params);
-		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, false);
+		// Spawning without node-pty: `docker exec` only accepts -t if stdin is a TTY. (https://github.com/devcontainers/cli/issues/606)
+		const canAllocatePty = allocatePtyIfPossible && process.stdin.isTTY && execParams.stdio?.[0] === 'inherit';
+		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, canAllocatePty);
 		return exec({
 			cmd,
 			args: (args || []).concat(execArgs),
 			env,
+			stdio: execParams.stdio,
 			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
 		});
 	};
 }
 
-export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
+export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		throw new Error('Missing node-pty');
+		const plain = dockerExecFunction(params, containerName, user, true);
+		return plainExecAsPtyExec(plain, allowInheritTTY);
 	}
 
 	return async function (execParams: PtyExecParameters): Promise<PtyExec> {
@@ -407,12 +412,14 @@ export function toExecParameters(params: DockerCLIParameters | PartialExecParame
 export function toPtyExecParameters(params: DockerCLIParameters | PartialPtyExecParameters | DockerResolverParameters, compose?: DockerComposeCLI): PartialPtyExecParameters {
 	return 'dockerEnv' in params ? {
 		ptyExec: params.common.cliHost.ptyExec,
+		exec: params.common.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.dockerEnv,
 		output: params.common.output,
 	} : 'cliHost' in params ? {
 		ptyExec: params.cliHost.ptyExec,
+		exec: params.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.env,

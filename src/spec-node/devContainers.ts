@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
@@ -105,7 +106,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const allowInheritTTY = options.logFormat === 'text';
+	const cliHost = await getCLIHost(cwd, loadNativeModule, allowInheritTTY);
 	const sessionId = crypto.randomUUID();
 
 	const common: ResolverParameters = {
@@ -130,6 +132,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		getLogLevel: () => options.logLevel,
 		onDidChangeLogLevel: () => ({ dispose() { } }),
 		loadNativeModule,
+		allowInheritTTY,
 		shutdowns: [],
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
@@ -138,6 +141,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
+		buildxCacheTo: options.buildxCacheTo,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		containerSessionDataFolder: options.containerSessionDataFolder,
@@ -188,6 +192,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
+		buildxCacheTo: common.buildxCacheTo,
 	};
 }
 

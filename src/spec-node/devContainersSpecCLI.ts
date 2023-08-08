@@ -205,7 +205,7 @@ async function provision({
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 
 	const cwd = workspaceFolder || process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
 
 	const options: ProvisionOptions = {
@@ -252,6 +252,7 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
+		buildxCacheTo: undefined,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
@@ -405,6 +406,7 @@ async function doSetUp({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -474,6 +476,7 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
+		'cache-to': { type: 'string', description: 'A destination of buildx cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
@@ -515,6 +518,7 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'output': buildxOutput,
+	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
@@ -560,6 +564,7 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			buildxOutput,
+			buildxCacheTo,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
@@ -614,6 +619,10 @@ async function doBuild({
 
 			if (buildxOutput) {
 				throw new ContainerError({ description: '--output not supported.' });
+			}
+
+			if (buildxCacheTo) {
+				throw new ContainerError({ description: '--cache-to not supported.' });
 			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
@@ -780,7 +789,7 @@ async function doRunUserCommands({
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
 
 		const params = await createDockerParams({
@@ -812,6 +821,7 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -948,7 +958,7 @@ async function readConfiguration({
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();
@@ -1076,7 +1086,7 @@ async function outdated({
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
-		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule);
+		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();
@@ -1111,7 +1121,8 @@ async function outdated({
 			if (outputFormat === 'text') {
 				const rows = Object.keys(outdated.features).map(key => {
 					const value = outdated.features[key];
-					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ];
+					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
+						.map(v => v === undefined ? '-' : v);
 				});
 				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
 				text = textTable([
@@ -1261,6 +1272,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,

@@ -75,6 +75,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			}
 		}
+		if (params.buildxCacheTo) {
+			args.push('--cache-to', params.buildxCacheTo);
+		}
 
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);

@@ -2,6 +2,26 @@
 
 Notable changes.
 
+## July 2023
+
+### [0.50.2]
+- Fix: Only allocate tty for `docker exec` when stdin is a tty (https://github.com/devcontainers/cli/issues/606)
+
+### [0.50.1]
+- Fix: Allocate pty for `docker exec` (https://github.com/devcontainers/cli/issues/556)
+
+### [0.50.0]
+- Publish without node-pty dependency (https://github.com/devcontainers/cli/pull/585)
+- Record feature dependencies in the lockfile (https://github.com/devcontainers/cli/pull/566)
+- Record features referenced by tarball URI in lockfile (https://github.com/devcontainers/cli/pull/594)
+- Update proxy-agent to avoid vm2 (https://github.com/devcontainers/cli/pull/596)
+
+### [0.49.0]
+- Outdated command (https://github.com/devcontainers/cli/pull/565)
+- Case-insensitive instructions (https://github.com/microsoft/vscode-remote-release/issues/6850)
+- Automatically set execute bit when running dotfiles install script (https://github.com/devcontainers/cli/pull/541)
+- Use getent passwd (https://github.com/microsoft/vscode-remote-release/issues/2957)
+
 ## June 2023
 
 ### [0.48.0]

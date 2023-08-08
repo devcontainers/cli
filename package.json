@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.48.0",
+	"version": "0.50.2",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -13,7 +13,7 @@
 	"bugs": {
 		"url": "https://github.com/devcontainers/cli/issues"
 	},
-	"license": "SEE LICENSE IN LICENSE.txt",
+	"license": "MIT",
 	"engines": {
 		"node": "^16.13.0 || >=18.0.0"
 	},
@@ -98,7 +98,7 @@
 		"jsonc-parser": "^3.2.0",
 		"ncp": "^2.0.0",
 		"node-pty": "^0.10.1",
-		"proxy-agent": "^6.2.0",
+		"proxy-agent": "^6.3.0",
 		"pull-stream": "^3.7.0",
 		"recursive-readdir": "^2.2.3",
 		"semver": "^7.3.8",

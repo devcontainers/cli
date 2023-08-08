@@ -193,6 +193,9 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			}
 		}
+		if (buildParams.buildxCacheTo) {
+			args.push('--cache-to', buildParams.buildxCacheTo);
+		}
 		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');

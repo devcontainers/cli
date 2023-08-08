@@ -1,0 +1,9 @@
+{
+  "features": {
+    "ghcr.io/codspace/features/color:1.0.0": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/codspace/features/color@sha256:c22e8f1065e198289b86780f38a041ad32d827819677fbb1c4c9555797814a0b",
+      "integrity": "sha256:c22e8f1065e198289b86780f38a041ad32d827819677fbb1c4c9555797814a00"
+    }
+  }
+}
