@@ -109,5 +109,14 @@
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.7",
 		"yargs": "~17.7.1"
+	},
+	"pkg": {
+		"scripts": [
+			"scripts/updateUID.Dockerfile"
+		],
+		"assets": [
+			"node_modules/vscode-dev-containers/package.json",
+			"dist/node_modules/vscode-dev-containers/container-features"
+		]
 	}
 }

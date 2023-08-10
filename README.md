@@ -125,6 +125,22 @@ Verify you can run the CLI and see its help text:
 node devcontainer.js --help
 ```
 
+### Packaging
+
+Compile
+
+```bash
+npm install -g pkg
+pkg .
+```
+
+Ship
+
+```bash
+scp cli-linux example.com:devcontainer
+ssh example.com sudo mv -v devcontainer /opt/devcontainer
+```
+
 ## Specification
 
 The dev container CLI is part of the [Development Containers Specification](https://github.com/devcontainers/spec). This spec seeks to find ways to enrich existing formats with common development specific settings, tools, and configuration while still providing a simplified, un-orchestrated single container option – so that they can be used as coding environments or for continuous integration and testing.
