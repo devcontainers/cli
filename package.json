@@ -37,6 +37,7 @@
 		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
 		"definitions-copy": "copyfiles \"node_modules/vscode-dev-containers/container-features/{devcontainer-features.json,feature-scripts.env,fish-debian.sh,homebrew-debian.sh,install.sh}\" dist",
 		"npm-pack": "npm pack",
+		"build-executable": "node build/single-executable.js",
 		"clean": "npm-run-all clean-dist clean-built",
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
