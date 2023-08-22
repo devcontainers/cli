@@ -14,6 +14,7 @@ import { StringDecoder } from 'string_decoder';
 import { toErrorText } from './errors';
 import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { isLocalFile } from '../spec-utils/pfs';
+import { escapeRegExCharacters } from '../spec-utils/strings';
 import { Log, nullLog } from '../spec-utils/log';
 import { ShellServer } from './shellServer';
 
@@ -580,4 +581,12 @@ export async function getLocalUsername() {
 		})();
 	}
 	return localUsername;
+}
+
+export function getEntPasswdShellCommand(userNameOrId: string) {
+	const escapedForShell = userNameOrId.replace(/['\\]/g, '\\$&');
+	const escapedForRexExp = escapeRegExCharacters(userNameOrId)
+		.replaceAll('\'', '\\\'');
+	// Leading space makes sure we don't concatenate to arithmetic expansion (https://tldp.org/LDP/abs/html/dblparens.html).
+	return ` (command -v getent >/dev/null 2>&1 && getent passwd '${escapedForShell}' || grep -E '^${escapedForRexExp}|^[^:]*:[^:]*:${escapedForRexExp}:' /etc/passwd)`;
 }

@@ -8,6 +8,7 @@ import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
 import { Event } from '../spec-utils/event';
+import { escapeRegExCharacters } from '../spec-utils/strings';
 
 export interface ContainerDetails {
 	Id: string;
@@ -351,7 +352,7 @@ function replacingDockerExecLog(original: Log, cmd: string, args: string[]) {
 }
 
 function replacingLog(original: Log, search: string, replace: string) {
-	const searchR = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+	const searchR = new RegExp(escapeRegExCharacters(search), 'g');
 	const wrapped = makeLog({
 		...original,
 		get dimensions() {

@@ -21,6 +21,7 @@ import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getPublishedVersi
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
+import { getEntPasswdShellCommand } from '../spec-common/commonUtils';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -323,8 +324,8 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: 
 
 	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd ${containerUser} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
-echo "_REMOTE_USER_HOME=$(getent passwd ${remoteUser} | cut -d: -f6)" >> ${builtinsEnvFile}
+echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand(containerUser)} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
+echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand(remoteUser)} | cut -d: -f6)" >> ${builtinsEnvFile}
 
 `;
 
