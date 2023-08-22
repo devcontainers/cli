@@ -131,6 +131,7 @@ describe('Image Metadata', function () {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
 				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
+					await shellExec(`docker pull ubuntu:latest`);
 					
 					const imageName = `${testFolderName}${options.useBuildKit ? '' : '-buildkit'}-test`;
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
