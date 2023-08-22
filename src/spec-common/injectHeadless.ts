@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
-import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec } from './commonUtils';
+import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec, getEntPasswdShellCommand } from './commonUtils';
 import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
 import { URI } from 'vscode-uri';
@@ -286,7 +286,7 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 }
 
 export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
-	const { stdout } = await shellServer.exec(`getent passwd ${userNameOrId}`, { logOutput: false });
+	const { stdout } = await shellServer.exec(getEntPasswdShellCommand(userNameOrId), { logOutput: false });
 	return parseUserInPasswdDB(stdout);
 }
 
