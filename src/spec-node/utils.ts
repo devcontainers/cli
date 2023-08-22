@@ -248,7 +248,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 
 	let targetDigest: string | undefined = undefined;
 	const manifest = await getManifest(params, manifestUrl, ref, 'application/vnd.docker.distribution.manifest.v2+json');
-	if (manifest) {
+	if (manifest?.manifestObj.config) { // Checking for config because the above mime type sometimes returns an image index.
 		targetDigest = manifest.manifestObj.config.digest;
 	} else {
 		// If we couldn't fetch the manifest, perhaps the registry supports querying for the 'Image Index'
