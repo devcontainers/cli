@@ -37,6 +37,10 @@ export interface ExecParameters {
 	output: Log;
 }
 
+export interface Policy {
+	imageAllowList: string[] | undefined;
+}
+
 export interface ExecFunction {
 	(params: ExecParameters): Promise<Exec>;
 }

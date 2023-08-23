@@ -32,9 +32,9 @@ export const getSafeId = (str: string) => str
 
 export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
 	const { common } = params;
-	const { cliHost, output } = common;
+	const { cliHost, output, policy } = common;
 
-	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute);
+	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, policy);
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
 	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return

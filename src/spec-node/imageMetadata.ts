@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Policy } from '../spec-common/commonUtils';
 import { ContainerError } from '../spec-common/errors';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
@@ -329,7 +330,7 @@ export interface ImageBuildInfo {
 	dockerfile?: Dockerfile;
 }
 
-export async function getImageBuildInfo(params: DockerResolverParameters | DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerConfig>): Promise<ImageBuildInfo> {
+export async function getReadConfigurationImageBuildInfo(params: DockerResolverParameters | DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerConfig>): Promise<ImageBuildInfo> {
 	const { dockerCLI, dockerComposeCLI } = params;
 	const { cliHost, output } = 'cliHost' in params ? params : params.common;
 
@@ -365,7 +366,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			const dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute);
 		} else {
-			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
+			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute,);
 		}
 
 	} else {
@@ -379,8 +380,8 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 	}
 }
 
-export async function getImageBuildInfoFromImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, substitute: SubstituteConfig): Promise<ImageBuildInfo & { imageDetails: ImageDetails }> {
-	const imageDetails = await inspectDockerImage(params, imageName, true);
+export async function getImageBuildInfoFromImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, substitute: SubstituteConfig, policy?: Policy): Promise<ImageBuildInfo & { imageDetails: ImageDetails }> {
+	const imageDetails = await inspectDockerImage(params, imageName, true, policy);
 	const user = imageDetails.Config.User || 'root';
 	const { output } = 'output' in params ? params : params.common;
 	const metadata = getImageMetadata(imageDetails, substitute, output);
@@ -391,9 +392,9 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 	};
 }
 
-export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
+export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, policy?: Policy) {
 	const { output } = 'output' in params ? params : params.common;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true, policy), dockerfile, dockerBuildArgs, targetStage, substitute, output);
 }
 
 export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log): Promise<ImageBuildInfo> {

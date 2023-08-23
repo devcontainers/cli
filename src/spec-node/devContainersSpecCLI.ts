@@ -23,14 +23,14 @@ import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { CLIHost, getCLIHost } from '../spec-common/cliHost';
-import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
+import { loadNativeModule, Policy, processSignals } from '../spec-common/commonUtils';
 import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder, loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getDevcontainerMetadata, getReadConfigurationImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
 import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
@@ -126,7 +126,8 @@ function provisionOptions(y: Argv) {
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'image-allow-list': { type: 'array', string: true, hidden: true, description: 'A list of images. User-provided images must match a given prefix in the list. A trailing wildcard character ("*") is supported.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -195,7 +196,8 @@ async function provision({
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'image-allow-list': imageAllowList,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -207,6 +209,10 @@ async function provision({
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
+	const policy: Policy = {
+		imageAllowList,
+	};
 
 	const options: ProvisionOptions = {
 		dockerPath,
@@ -261,6 +267,7 @@ async function provision({
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
+		policy,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -415,6 +422,7 @@ async function doSetUp({
 				installCommand: dotfilesInstallCommand,
 				targetPath: dotfilesTargetPath,
 			},
+			policy: undefined,
 		}, disposables);
 
 		const { common } = params;
@@ -570,7 +578,8 @@ async function doBuild({
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
 			experimentalLockfile,
-			experimentalFrozenLockfile
+			experimentalFrozenLockfile,
+			policy: undefined
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -661,7 +670,7 @@ async function doBuild({
 				throw new ContainerError({ description: 'No image information specified in devcontainer.json.' });
 			}
 
-			await inspectDockerImage(params, config.image, true);
+			await inspectDockerImage(params, config.image, true, params.common.policy);
 			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
 
 			if (imageNames) {
@@ -838,6 +847,7 @@ async function doRunUserCommands({
 			},
 			containerSessionDataFolder,
 			secretsP,
+			policy: undefined
 		}, disposables);
 
 		const { common } = params;
@@ -1021,7 +1031,7 @@ async function readConfiguration({
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
-				const imageBuildInfo = await getImageBuildInfo(params, configuration);
+				const imageBuildInfo = await getReadConfigurationImageBuildInfo(params, configuration);
 				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
@@ -1283,7 +1293,8 @@ export async function doExec({
 			buildxOutput: undefined,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
-			dotfiles: {}
+			dotfiles: {},
+			policy: undefined,
 		}, disposables);
 
 		const { common } = params;

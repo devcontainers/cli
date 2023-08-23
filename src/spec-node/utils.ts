@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { CLIHost, runCommandNoPty, runCommand, getLocalUsername } from '../spec-common/commonUtils';
+import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, Policy } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
 import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
@@ -205,7 +205,23 @@ export async function checkDockerSupportForGPU(params: DockerCLIParameters | Doc
 	return runtimeFound;
 }
 
-export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
+export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean, policy: Policy | undefined) {
+	const imageAllowList = policy?.imageAllowList;
+	if (imageAllowList && imageAllowList.length) {
+		// Allow list entries are prefixes of image repositories, possibly with a trailing wildcard.
+		const allowed = imageAllowList.some(allowed => {
+			if (allowed.endsWith('*')) {
+				return imageName.startsWith(allowed.slice(0, -1));
+			} else {
+				return imageName === allowed;
+			}
+		});
+
+		if (!allowed) {
+			throw new Error(`Image '${imageName}' is not permitted.`);
+		}
+	}
+
 	try {
 		return await inspectImage(params, imageName);
 	} catch (err) {

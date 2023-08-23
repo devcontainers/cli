@@ -9,7 +9,7 @@ import * as os from 'os';
 
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
-import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { Policy, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
@@ -67,6 +67,7 @@ export interface ProvisionOptions {
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
+	policy?: Policy;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -151,7 +152,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 			repository: options.dotfiles.repository,
 			installCommand: options.dotfiles.installCommand,
 			targetPath: options.dotfiles.targetPath || '~/dotfiles',
-		}
+		},
+		policy: options.policy,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

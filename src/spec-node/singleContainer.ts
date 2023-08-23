@@ -124,7 +124,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 }
 
 async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
-	const { cliHost, output } = buildParams.common;
+	const { cliHost, output, policy } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
 	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
@@ -148,7 +148,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute, policy);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
 	let finalDockerfilePath = dockerfilePath;
@@ -251,7 +251,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
 	}
 
-	const imageDetails = () => inspectDockerImage(buildParams, baseImageNames[0], false);
+	const imageDetails = () => inspectDockerImage(buildParams, baseImageNames[0], false, policy);
 
 	return {
 		updatedImageName: baseImageNames,

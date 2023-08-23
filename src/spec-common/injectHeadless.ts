@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
-import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec, getEntPasswdShellCommand } from './commonUtils';
+import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec, Policy, getEntPasswdShellCommand } from './commonUtils';
 import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
 import { URI } from 'vscode-uri';
@@ -68,6 +68,7 @@ export interface ResolverParameters {
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;
 	secretsP?: Promise<Record<string, string>>;
+	policy?: Policy;
 }
 
 export interface LifecycleHook {

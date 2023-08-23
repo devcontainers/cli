@@ -147,7 +147,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean) {
 
 	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
-	const { cliHost, env, output } = common;
+	const { cliHost, env, output, policy } = common;
 	const { config } = configWithRaw;
 
 	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output };
@@ -178,7 +178,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		}
 		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute);
 	} else {
-		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
+		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute, policy);
 	}
 
 	// determine whether we need to extend with features
@@ -384,7 +384,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
-		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
+		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true, params.common.policy));
 		const mergedConfig = mergeConfiguration(config, imageMetadata.config);
 		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, mergedConfig, currentImageName, imageDetails, service.user);
 
