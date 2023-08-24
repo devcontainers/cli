@@ -60,6 +60,9 @@ describe('getEntPasswdShellCommand', function () {
 			assert.strictEqual(userById.name, userName);
 			assert.strictEqual(userById.home, '/home/foo');
 
+			const nonexistentUser = await getUserFromPasswdDB(shellServer, '123456');
+			assert.strictEqual(undefined, nonexistentUser);
+
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 	});

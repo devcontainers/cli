@@ -287,6 +287,9 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 
 export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
 	const { stdout } = await shellServer.exec(getEntPasswdShellCommand(userNameOrId), { logOutput: false });
+	if (!stdout.trim()) {
+		return undefined;
+	}
 	return parseUserInPasswdDB(stdout);
 }
 

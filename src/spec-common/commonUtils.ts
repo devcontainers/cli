@@ -588,5 +588,5 @@ export function getEntPasswdShellCommand(userNameOrId: string) {
 	const escapedForRexExp = escapeRegExCharacters(userNameOrId)
 		.replaceAll('\'', '\\\'');
 	// Leading space makes sure we don't concatenate to arithmetic expansion (https://tldp.org/LDP/abs/html/dblparens.html).
-	return ` (command -v getent >/dev/null 2>&1 && getent passwd '${escapedForShell}' || grep -E '^${escapedForRexExp}|^[^:]*:[^:]*:${escapedForRexExp}:' /etc/passwd)`;
+	return ` (command -v getent >/dev/null 2>&1 && getent passwd '${escapedForShell}' || grep -E '^${escapedForRexExp}|^[^:]*:[^:]*:${escapedForRexExp}:' /etc/passwd || true)`;
 }
