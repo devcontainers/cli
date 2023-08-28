@@ -4,6 +4,9 @@ Notable changes.
 
 ## August 2023
 
+### [0.51.1]
+- Handle missing entry in /etc/passwd gracefully (https://github.com/microsoft/vscode-remote-release/issues/8875)
+
 ### [0.51.0]
 - Add `--cache-to` option to `devcontainer build` command (https://github.com/devcontainers/cli/pull/570)
 - Fix: Fallback when getent is not available (https://github.com/microsoft/vscode-remote-release/issues/8811)
