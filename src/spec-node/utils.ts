@@ -205,6 +205,12 @@ export async function checkDockerSupportForGPU(params: DockerCLIParameters | Doc
 	return runtimeFound;
 }
 
+export function isBuildKitImagePolicyError(err: any): boolean {
+	const imagePolicyErrorString = 'could not resolve image due to policy';
+	return (err?.cmdOutput && typeof err.cmdOutput === 'string' && err.cmdOutput.indexOf(imagePolicyErrorString) > -1) ||
+		(err?.stderr && typeof err.stderr === 'string' && err.stderr.indexOf(imagePolicyErrorString) > -1);
+}
+
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
