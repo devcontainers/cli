@@ -4,6 +4,10 @@ Notable changes.
 
 ## August 2023
 
+### [0.51.2]
+
+- Surface buildkit policy errors (https://github.com/devcontainers/cli/pull/627)
+
 ### [0.51.1]
 - Handle missing entry in /etc/passwd gracefully (https://github.com/microsoft/vscode-remote-release/issues/8875)
 
