@@ -390,24 +390,23 @@ describe('Feature lifecycle hooks', function () {
 			});
 
 			it('executes lifecycle hooks with variable substitution', async () => {
+				// substitution in feature
 				const res1 = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/feature.variable-substitution.testMarker`);
 				assert.strictEqual(res1.error, null);
 
 				const outputOfExecCommand1 = res1.stdout;
 				console.log(outputOfExecCommand1);
 
-				// Executes the command that was installed by the local Feature's 'postCreateCommand'.
 				assert.strictEqual(outputOfExecCommand1, 'vscode\n');
 				assert.match(containerUpStandardError, /Running the postCreateCommand from Feature '.\/test-feature/);
 
-				// substitutuin in main devcontainer.json
+				// substitution in main devcontainer.json
 				const res2 = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/container.variable-substitution.testMarker`);
 				assert.strictEqual(res2.error, null);
 
 				const outputOfExecCommand2 = res2.stdout;
 				console.log(outputOfExecCommand2);
 
-				// Executes the command that was installed by the local Feature's 'postCreateCommand'.
 				assert.strictEqual(outputOfExecCommand2, 'vscode\n');
 				assert.match(containerUpStandardError, /Running the postCreateCommand from devcontainer.json/);
 
@@ -415,7 +414,6 @@ describe('Feature lifecycle hooks', function () {
 				const res3 = await shellExec(`docker inspect ${containerId} --format '{{json .Mounts}}'`);
 				assert.strictEqual(res3.error, null);
 
-				// json parse res3
 				const mounts = JSON.parse(res3.stdout);
 				assert.exists(mounts.find((item: { Type: string; Destination: string }) => item.Type === 'volume' && item.Destination === '/home/vscode'));
 			});
