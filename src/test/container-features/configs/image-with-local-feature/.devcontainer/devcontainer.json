@@ -4,5 +4,6 @@
 	"features": {
 		"./test-feature": {}
 	},
-	"remoteUser": "vscode"
+	"remoteUser": "vscode",
+	"postCreateCommand": "echo ${remoteUser} > /tmp/container.variable-substitution.testMarker"
 }

@@ -11,5 +11,5 @@
 			"type": "volume"
 		}
 	],
-	"postCreateCommand": "/usr/bin/whoami && echo ${remoteUser} > /tmp/variable-substitution.testMarker"
+	"postCreateCommand": "/usr/bin/whoami && echo ${remoteUser} > /tmp/feature.variable-substitution.testMarker"
 }
