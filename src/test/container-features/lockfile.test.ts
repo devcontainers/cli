@@ -138,4 +138,41 @@ describe('Lockfile', function () {
 			assert.equal(response.outcome, 'error');
 		}
 	});
+
+	it('empty lockfile should init', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-generate-from-empty-file');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer', 'devcontainer-lock.json');
+		const cleanup = async () => {
+			await rmLocal(lockfilePath, { force: true });
+			await shellExec(`touch ${lockfilePath}`);
+		};
+
+		await cleanup();
+		const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder}`);
+		const response = JSON.parse(res.stdout);
+		assert.equal(response.outcome, 'success');
+		const actual = JSON.parse((await readLocalFile(lockfilePath)).toString());
+		assert.ok(actual.features['ghcr.io/devcontainers/features/dotnet:2']);
+		await cleanup();
+	});
+
+	it('empty lockfile should not init when frozen', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-generate-from-empty-file-frozen');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer', 'devcontainer-lock.json');
+		const cleanup = async () => {
+			await rmLocal(lockfilePath, { force: true });
+			await shellExec(`touch ${lockfilePath}`);
+		};
+
+		await cleanup();
+		try {
+			await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-frozen-lockfile`);
+			await cleanup();
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+			assert.equal(response.message, 'Lockfile does not match.');
+			await cleanup();
+		}
+	});
 });

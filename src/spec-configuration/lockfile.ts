@@ -13,7 +13,7 @@ export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig) {
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig, forceInitLockfile?: boolean) {
 	const lockfilePath = getLockfilePath(config);
 	const oldLockfileContent = await readLocalFile(lockfilePath)
 		.catch(err => {
@@ -22,7 +22,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			}
 		});
 
-	if (!oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
+	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
 		return;
 	}
 
@@ -63,13 +63,17 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	}
 }
 
-export async function readLockfile(config: DevContainerConfig): Promise<Lockfile | undefined> {
+export async function readLockfile(config: DevContainerConfig): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
 	try {
 		const content = await readLocalFile(getLockfilePath(config));
-		return JSON.parse(content.toString()) as Lockfile;
+		// If empty file, use as maker to initialize lockfile when build completes.
+		if (content.toString().trim() === '') {
+			return { initLockfile: true };
+		}
+		return { lockfile: JSON.parse(content.toString()) as Lockfile };
 	} catch (err) {
 		if (err?.code === 'ENOENT') {
-			return undefined;
+			return {};
 		}
 		throw err;
 	}
