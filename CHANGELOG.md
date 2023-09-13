@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## September 2023
+
+### [0.51.3]
+
+- Update UID only if GID is in use
+- Empty lockfile in workspaceFolder will initialize lockfile (https://github.com/devcontainers/cli/pull/637)
+
 ## August 2023
 
 ### [0.51.2]
