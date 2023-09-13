@@ -547,7 +547,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	const lockfile = await readLockfile(config);
+	const { lockfile, initLockfile } = await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
@@ -570,7 +570,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
-	await writeLockfile(params, config, featuresConfig);
+	await writeLockfile(params, config, featuresConfig, initLockfile);
 	return featuresConfig;
 }
 
@@ -582,7 +582,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 		return { features: {} };
 	}
 
-	const lockfile = await readLockfile(config);
+	const { lockfile } = await readLockfile(config);
 
 	const features: Record<string, any> = {};
 
