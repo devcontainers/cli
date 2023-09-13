@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## September 2023
+
+### [0.51.3]
+
+- Update UID only if GID is in use (https://github.com/microsoft/vscode-remote-release/issues/7284)
+- Empty lockfile in workspaceFolder will initialize lockfile (https://github.com/devcontainers/cli/pull/637)
+
 ## August 2023
 
 ### [0.51.2]
