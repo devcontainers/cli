@@ -79,6 +79,13 @@ export async function readLockfile(config: DevContainerConfig): Promise<{ lockfi
 	}
 }
 
+export async function updateLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig) {
+	//  Truncate existing lockfile
+	await writeLocalFile(getLockfilePath(config), Buffer.from(''));
+	// Regenerate
+	await writeLockfile(params, config, featuresConfig, true);
+}
+
 export function getLockfilePath(configOrPath: DevContainerConfig | string) {
 	const configPath = typeof configOrPath === 'string' ? configOrPath : configOrPath.configFilePath!.fsPath;
 	return path.join(path.dirname(configPath), path.basename(configPath).startsWith('.') ? '.devcontainer-lock.json' : 'devcontainer-lock.json');  

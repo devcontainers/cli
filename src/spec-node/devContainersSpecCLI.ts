@@ -39,6 +39,7 @@ import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
 import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
+import { updateLockfile } from '../spec-configuration/lockfile';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -1065,6 +1066,9 @@ function outdatedOptions(y: Argv) {
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+		'regenerate': { type: 'boolean', default: false, description: 'Regenerate a new lockfile based on the devcontainer.json' },
+		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' }
 	});
 }
 
@@ -1083,6 +1087,9 @@ async function outdated({
 	'log-format': logFormat,
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
+	'regenerate': regenerate,
+	'docker-path': dockerPath,
+	'docker-compose-path': dockerComposePath,
 }: OutdatedArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1140,6 +1147,28 @@ async function outdated({
 			}
 			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
 		});
+
+		if (regenerate) {
+			const dockerCLI = dockerPath || 'docker';
+			const dockerComposeCLI = dockerComposeCLIConfig({
+				exec: cliHost.exec,
+				env: cliHost.env,
+				output,
+			}, dockerCLI, dockerComposePath || 'docker-compose');
+			const dockerParams: DockerCLIParameters = {
+				cliHost,
+				dockerCLI,
+				dockerComposeCLI,
+				env: cliHost.env,
+				output
+			};
+			const featuresConfig = await readFeaturesConfig(dockerParams, pkg, configs.config.config, extensionPath, false, {});
+			if (!featuresConfig) {
+				throw new ContainerError({ description: `Failed to update lockfile` });
+			}
+			await updateLockfile(params, configs.config.config, featuresConfig);
+		}
+
 	} catch (err) {
 		if (output) {
 			output.write(err && (err.stack || err.message) || String(err));
