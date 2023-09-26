@@ -62,7 +62,7 @@ export async function getControlManifest(cacheFolder: string, output: Log): Prom
 async function updateControlManifest(controlManifestPath: string, oldManifest: DevContainerControlManifest | undefined, output: Log): Promise<DevContainerControlManifest> {
 	let manifestBuffer: Buffer;
 	try {
-		manifestBuffer = await fetchControlManifest();
+		manifestBuffer = await fetchControlManifest(output);
 	} catch (error) {
 		output.write(`Failed to fetch control manifest: ${error.message}`, LogLevel.Error);
 		if (oldManifest) {
@@ -81,7 +81,7 @@ async function updateControlManifest(controlManifestPath: string, oldManifest: D
 	return sanitizeControlManifest(jsonc.parse(manifestBuffer.toString()));
 }
 
-async function fetchControlManifest() {
+async function fetchControlManifest(output: Log) {
 	return request({
 		type: 'GET',
 		url: 'https://containers.dev/static/devcontainer-control-manifest.json',
@@ -89,7 +89,7 @@ async function fetchControlManifest() {
 			'user-agent': 'devcontainers-vscode',
 			'accept': 'application/json',
 		},
-	});
+	}, output);
 }
 
 function sanitizeControlManifest(manifest: any): DevContainerControlManifest {

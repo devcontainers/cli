@@ -10,6 +10,7 @@ import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
 import { shellExec } from '../testUtils';
+import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -78,18 +79,18 @@ ENV MYKEYTWO="MY RESULT TWO"`;
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand('testContainerUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand('testRemoteUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_1 /tmp/dev-container-features/first_1
-RUN chmod -R 0755 /tmp/dev-container-features/first_1 \\
-&& cd /tmp/dev-container-features/first_1 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_0 /tmp/dev-container-features/first_0
+RUN chmod -R 0755 /tmp/dev-container-features/first_0 \\
+&& cd /tmp/dev-container-features/first_0 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_2 /tmp/dev-container-features/second_2
-RUN chmod -R 0755 /tmp/dev-container-features/second_2 \\
-&& cd /tmp/dev-container-features/second_2 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_1 /tmp/dev-container-features/second_1
+RUN chmod -R 0755 /tmp/dev-container-features/second_1 \\
+&& cd /tmp/dev-container-features/second_1 \\
 && chmod +x ./install.sh \\
 && ./install.sh
 
@@ -140,20 +141,20 @@ RUN chmod -R 0755 /tmp/dev-container-features/second_2 \\
         // getFeatureLayers
         const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
         const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(getent passwd testContainerUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(getent passwd testRemoteUser | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
+echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand('testContainerUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand('testRemoteUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_3 /tmp/dev-container-features/color_3
-RUN chmod -R 0755 /tmp/dev-container-features/color_3 \\
-&& cd /tmp/dev-container-features/color_3 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_0 /tmp/dev-container-features/color_0
+RUN chmod -R 0755 /tmp/dev-container-features/color_0 \\
+&& cd /tmp/dev-container-features/color_0 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
 
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_4 /tmp/dev-container-features/hello_4
-RUN chmod -R 0755 /tmp/dev-container-features/hello_4 \\
-&& cd /tmp/dev-container-features/hello_4 \\
+COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_1 /tmp/dev-container-features/hello_1
+RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
+&& cd /tmp/dev-container-features/hello_1 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 

@@ -2,7 +2,68 @@
 
 Notable changes.
 
+## September 2023
+
+### [0.51.3]
+
+- Update UID only if GID is in use (https://github.com/microsoft/vscode-remote-release/issues/7284)
+- Empty lockfile in workspaceFolder will initialize lockfile (https://github.com/devcontainers/cli/pull/637)
+
+## August 2023
+
+### [0.51.2]
+
+- Surface buildkit policy errors (https://github.com/devcontainers/cli/pull/627)
+
+### [0.51.1]
+- Handle missing entry in /etc/passwd gracefully (https://github.com/microsoft/vscode-remote-release/issues/8875)
+
+### [0.51.0]
+- Add `--cache-to` option to `devcontainer build` command (https://github.com/devcontainers/cli/pull/570)
+- Fix: Fallback when getent is not available (https://github.com/microsoft/vscode-remote-release/issues/8811)
+
+## July 2023
+
+### [0.50.2]
+- Fix: Only allocate tty for `docker exec` when stdin is a tty (https://github.com/devcontainers/cli/issues/606)
+
+### [0.50.1]
+- Fix: Allocate pty for `docker exec` (https://github.com/devcontainers/cli/issues/556)
+
+### [0.50.0]
+- Publish without node-pty dependency (https://github.com/devcontainers/cli/pull/585)
+- Record feature dependencies in the lockfile (https://github.com/devcontainers/cli/pull/566)
+- Record features referenced by tarball URI in lockfile (https://github.com/devcontainers/cli/pull/594)
+- Update proxy-agent to avoid vm2 (https://github.com/devcontainers/cli/pull/596)
+
+### [0.49.0]
+- Outdated command (https://github.com/devcontainers/cli/pull/565)
+- Case-insensitive instructions (https://github.com/microsoft/vscode-remote-release/issues/6850)
+- Automatically set execute bit when running dotfiles install script (https://github.com/devcontainers/cli/pull/541)
+- Use getent passwd (https://github.com/microsoft/vscode-remote-release/issues/2957)
+
 ## June 2023
+
+### [0.48.0]
+- Update supported node engines to ^16.13.0 || >=18.0.0 (https://github.com/devcontainers/cli/pull/572)
+
+### [0.47.0]
+- Upgrade compiler target to ES2021 (https://github.com/devcontainers/cli/pull/568)
+- Secret masking improvements (https://github.com/devcontainers/cli/pull/569)
+
+### [0.46.0]
+- Load `NODE_EXTRA_CA_CERTS` in Electron (https://github.com/devcontainers/cli/pull/559)
+- Features Test Cmd: "Duplicate" test mode to test Feature Idempotence (https://github.com/devcontainers/cli/pull/553)
+
+### [0.45.0]
+- Mask user secrets in logs (https://github.com/devcontainers/cli/pull/551)
+
+### [0.44.0]
+- Preview: Feature Dependencies (https://github.com/devcontainers/spec/pull/234)
+   - `devcontainer-feature.json` can now specify a `dependsOn` property that lists other Features that must be installed before the current Feature can be installed.
+   - Complete rewrite of the Feature dependency resolution model
+   - NOTE: This is a feature preview - please submit your feedback!
+- Fix containerEnv values with spaces (https://github.com/devcontainers/cli/issues/532)
 
 ### [0.43.0]
 - Fix a bug in passing users secrets to dotfile clone and install commands (https://github.com/devcontainers/cli/pull/544)

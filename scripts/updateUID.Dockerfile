@@ -18,9 +18,11 @@ RUN eval $(sed -n "s/${REMOTE_USER}:[^:]*:\([^:]*\):\([^:]*\):[^:]*:\([^:]*\).*/
 		echo "UIDs and GIDs are the same ($NEW_UID:$NEW_GID)."; \
 	elif [ "$OLD_UID" != "$NEW_UID" -a -n "$EXISTING_USER" ]; then \
 		echo "User with UID exists ($EXISTING_USER=$NEW_UID)."; \
-	elif [ "$OLD_GID" != "$NEW_GID" -a -n "$EXISTING_GROUP" ]; then \
-		echo "Group with GID exists ($EXISTING_GROUP=$NEW_GID)."; \
 	else \
+		if [ "$OLD_GID" != "$NEW_GID" -a -n "$EXISTING_GROUP" ]; then \
+			echo "Group with GID exists ($EXISTING_GROUP=$NEW_GID)."; \
+			NEW_GID="$OLD_GID"; \
+		fi; \
 		echo "Updating UID:GID from $OLD_UID:$OLD_GID to $NEW_UID:$NEW_GID."; \
 		sed -i -e "s/\(${REMOTE_USER}:[^:]*:\)[^:]*:[^:]*/\1${NEW_UID}:${NEW_GID}/" /etc/passwd; \
 		if [ "$OLD_GID" != "$NEW_GID" ]; then \

@@ -117,6 +117,7 @@ export interface DockerResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 }
 
 export interface ResolverResult {
@@ -204,6 +205,12 @@ export async function checkDockerSupportForGPU(params: DockerCLIParameters | Doc
 	return runtimeFound;
 }
 
+export function isBuildKitImagePolicyError(err: any): boolean {
+	const imagePolicyErrorString = 'could not resolve image due to policy';
+	return (err?.cmdOutput && typeof err.cmdOutput === 'string' && err.cmdOutput.indexOf(imagePolicyErrorString) > -1) ||
+		(err?.stderr && typeof err.stderr === 'string' && err.stderr.indexOf(imagePolicyErrorString) > -1);
+}
+
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
@@ -247,7 +254,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 
 	let targetDigest: string | undefined = undefined;
 	const manifest = await getManifest(params, manifestUrl, ref, 'application/vnd.docker.distribution.manifest.v2+json');
-	if (manifest) {
+	if (manifest?.manifestObj.config) { // Checking for config because the above mime type sometimes returns an image index.
 		targetDigest = manifest.manifestObj.config.digest;
 	} else {
 		// If we couldn't fetch the manifest, perhaps the registry supports querying for the 'Image Index'
@@ -380,7 +387,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	const [, user, , group] = /([^:]*)(:(.*))?/.exec(containerUser) as (string | undefined)[];
 	const containerEnv = envListToObj(containerInfo.Config.Env);
 	const remoteExec = dockerExecFunction(params, containerId, containerUser);
-	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule);
+	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule, common.allowInheritTTY);
 	const remoteExecAsRoot = dockerExecFunction(params, containerId, 'root');
 	return getContainerProperties({
 		params: common,

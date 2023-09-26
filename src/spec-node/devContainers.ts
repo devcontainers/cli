@@ -12,7 +12,7 @@ import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, Use
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
-import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog } from '../spec-utils/log';
+import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
@@ -63,9 +64,9 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
-	secretsFile?: string;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
+	secretsP?: Promise<Record<string, string>>;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -93,7 +94,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, secretsFile, experimentalLockfile, experimentalFrozenLockfile } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -101,11 +102,12 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const extensionPath = path.join(__dirname, '..', '..');
 	const sessionStart = new Date();
 	const pkg = getPackageConfig();
-	const output = createLog(options, pkg, sessionStart, disposables, options.omitLoggerHeader);
+	const output = createLog(options, pkg, sessionStart, disposables, omitLoggerHeader, secretsP ? await secretsP : undefined);
 
 	const appRoot = undefined;
 	const cwd = options.workspaceFolder || process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const allowInheritTTY = options.logFormat === 'text';
+	const cliHost = await getCLIHost(cwd, loadNativeModule, allowInheritTTY);
 	const sessionId = crypto.randomUUID();
 
 	const common: ResolverParameters = {
@@ -130,14 +132,16 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		getLogLevel: () => options.logLevel,
 		onDidChangeLogLevel: () => ({ dispose() { } }),
 		loadNativeModule,
+		allowInheritTTY,
 		shutdowns: [],
 		backgroundTasks: [],
 		persistedFolder: persistedFolder || await getCacheFolder(cliHost), // Fallback to tmp folder, even though that isn't 'persistent'
 		remoteEnv,
-		secretsFile,
+		secretsP,
 		buildxPlatform: options.buildxPlatform,
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
+		buildxCacheTo: options.buildxCacheTo,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		containerSessionDataFolder: options.containerSessionDataFolder,
@@ -188,6 +192,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
+		buildxCacheTo: common.buildxCacheTo,
 	};
 }
 
@@ -199,24 +204,34 @@ export interface LogOptions {
 	onDidChangeTerminalDimensions?: Event<LogDimensions>;
 }
 
-export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean) {
+export function createLog(options: LogOptions, pkg: PackageConfiguration, sessionStart: Date, disposables: (() => Promise<unknown> | undefined)[], omitHeader?: boolean, secrets?: Record<string, string>) {
 	const header = omitHeader ? undefined : `${pkg.name} ${pkg.version}. Node.js ${process.version}. ${os.platform()} ${os.release()} ${os.arch()}.`;
-	const output = createLogFrom(options, sessionStart, header);
+	const output = createLogFrom(options, sessionStart, header, secrets);
 	output.dimensions = options.terminalDimensions;
 	output.onDidChangeDimensions = options.onDidChangeTerminalDimensions;
 	disposables.push(() => output.join());
 	return output;
 }
 
-function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined): Log & { join(): Promise<void> } {
+function createLogFrom({ log: write, logLevel, logFormat }: LogOptions, sessionStart: Date, header: string | undefined = undefined, secrets?: Record<string, string>): Log & { join(): Promise<void> } {
 	const handler = logFormat === 'json' ? createJSONLog(write, () => logLevel, sessionStart) :
 		process.stdout.isTTY ? createTerminalLog(write, () => logLevel, sessionStart) :
-		createPlainLog(write, () => logLevel);
+			createPlainLog(write, () => logLevel);
 	const log = {
-		...makeLog(createCombinedLog([handler], header)),
+		...makeLog(createCombinedLog([maskSecrets(handler, secrets)], header)),
 		join: async () => {
 			// TODO: wait for write() to finish.
 		},
 	};
 	return log;
+}
+
+function maskSecrets(handler: LogHandler, secrets?: Record<string, string>): LogHandler {
+	if (secrets) {
+		const mask = '********';
+		const secretValues = Object.values(secrets);
+		return replaceAllLog(handler, secretValues, mask);
+	}
+
+	return handler;
 }

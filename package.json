@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.43.0",
+	"version": "0.51.3",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -13,9 +13,9 @@
 	"bugs": {
 		"url": "https://github.com/devcontainers/cli/issues"
 	},
-	"license": "SEE LICENSE IN LICENSE.txt",
+	"license": "MIT",
 	"engines": {
-		"node": ">=14.17.0"
+		"node": "^16.13.0 || >=18.0.0"
 	},
 	"scripts": {
 		"compile": "npm-run-all clean-dist definitions compile-dev",
@@ -98,6 +98,7 @@
 		"@types/semver": "^7.3.13",
 		"@types/shell-quote": "^1.7.1",
 		"@types/tar": "^6.1.4",
+		"@types/text-table": "^0.2.2",
 		"@types/yargs": "^17.0.22",
 		"@typescript-eslint/eslint-plugin": "^5.55.0",
 		"@typescript-eslint/experimental-utils": "^5.55.0",
@@ -128,13 +129,14 @@
 		"jsonc-parser": "^3.2.0",
 		"ncp": "^2.0.0",
 		"node-pty": "^0.10.1",
-		"proxy-agent": "^6.2.0",
+		"proxy-agent": "^6.3.0",
 		"pull-stream": "^3.7.0",
 		"recursive-readdir": "^2.2.3",
 		"semver": "^7.3.8",
 		"shell-quote": "^1.8.0",
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.13",
+		"text-table": "^0.2.0",
 		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.7",
 		"yargs": "~17.7.1"

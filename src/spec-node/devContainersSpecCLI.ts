@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
+import textTable from 'text-table';
 
 import * as jsonc from 'jsonc-parser';
 
@@ -13,7 +14,7 @@ import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder,
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer, readSecretsFromFile } from '../spec-common/injectHeadless';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
@@ -21,9 +22,9 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { getCLIHost } from '../spec-common/cliHost';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
-import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder, loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
@@ -36,6 +37,8 @@ import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from 
 import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
+import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
+import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -64,11 +67,13 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
+	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
+		y.command('resolve-dependencies', 'Read and resolve dependency graph from a configuration', featuresResolveDependenciesOptions, featuresResolveDependenciesHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
@@ -121,7 +126,7 @@ function provisionOptions(y: Argv) {
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -190,7 +195,7 @@ async function provision({
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -198,6 +203,11 @@ async function provision({
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+
+	const cwd = workspaceFolder || process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
+	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -236,12 +246,13 @@ async function provision({
 		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
-		secretsFile,
+		secretsP,
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
+		buildxCacheTo: undefined,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
@@ -395,6 +406,7 @@ async function doSetUp({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -464,6 +476,7 @@ function buildOptions(y: Argv) {
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
+		'cache-to': { type: 'string', description: 'A destination of buildx cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
@@ -472,7 +485,7 @@ function buildOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
 	});
 }
 
@@ -505,11 +518,12 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'output': buildxOutput,
+	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -550,12 +564,13 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			buildxOutput,
+			buildxCacheTo,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
 			experimentalLockfile,
-			experimentalFrozenLockfile,
+			experimentalFrozenLockfile
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -604,6 +619,10 @@ async function doBuild({
 
 			if (buildxOutput) {
 				throw new ContainerError({ description: '--output not supported.' });
+			}
+
+			if (buildxCacheTo) {
+				throw new ContainerError({ description: '--cache-to not supported.' });
 			}
 
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
@@ -774,6 +793,11 @@ async function doRunUserCommands({
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
+
+		const cwd = workspaceFolder || process.cwd();
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
+		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -803,6 +827,7 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
 			skipPersistingCustomizationsFromFeatures: false,
@@ -812,11 +837,11 @@ async function doRunUserCommands({
 				targetPath: dotfilesTargetPath,
 			},
 			containerSessionDataFolder,
-			secretsFile
+			secretsP,
 		}, disposables);
 
 		const { common } = params;
-		const { cliHost, output } = common;
+		const { output } = common;
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -846,7 +871,6 @@ async function doRunUserCommands({
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const secretsP = readSecretsFromFile(common);
 		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnvP, secretsP, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
@@ -940,7 +964,7 @@ async function readConfiguration({
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();
@@ -1029,6 +1053,104 @@ async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfi
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
 	const cacheFolder = await getCacheFolder(cliHost);
 	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
+}
+
+function outdatedOptions(y: Argv) {
+	return y.options({
+		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
+		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
+		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
+		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
+		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
+		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+	});
+}
+
+type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
+
+function outdatedHandler(args: OutdatedArgs) {
+	(async () => outdated(args))().catch(console.error);
+}
+
+async function outdated({
+	// 'user-data-folder': persistedFolder,
+	'workspace-folder': workspaceFolderArg,
+	config: configParam,
+	'output-format': outputFormat,
+	'log-level': logLevel,
+	'log-format': logFormat,
+	'terminal-rows': terminalRows,
+	'terminal-columns': terminalColumns,
+}: OutdatedArgs) {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+	let output: Log | undefined;
+	try {
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
+		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
+		const extensionPath = path.join(__dirname, '..', '..');
+		const sessionStart = new Date();
+		const pkg = getPackageConfig();
+		output = createLog({
+			logLevel: mapLogLevel(logLevel),
+			logFormat,
+			log: text => process.stderr.write(text),
+			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
+		}, pkg, sessionStart, disposables);
+
+		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
+		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+		if (!configs) {
+			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
+		}
+
+		const cacheFolder = await getCacheFolder(cliHost);
+		const params = {
+			extensionPath,
+			cacheFolder,
+			cwd: cliHost.cwd,
+			output,
+			env: cliHost.env,
+			skipFeatureAutoMapping: false,
+			platform: cliHost.platform,
+		};
+
+		const outdated = await loadVersionInfo(params, configs.config.config);
+		await new Promise<void>((resolve, reject) => {
+			let text;
+			if (outputFormat === 'text') {
+				const rows = Object.keys(outdated.features).map(key => {
+					const value = outdated.features[key];
+					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
+						.map(v => v === undefined ? '-' : v);
+				});
+				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
+				text = textTable([
+					header,
+					...rows,
+				]);
+			} else {
+				text = JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined);
+			}
+			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
+		});
+	} catch (err) {
+		if (output) {
+			output.write(err && (err.stack || err.message) || String(err));
+		} else {
+			console.error(err);
+		}
+		await dispose();
+		process.exit(1);
+	}
+	await dispose();
+	process.exit(0);
 }
 
 function execOptions(y: Argv) {
@@ -1156,6 +1278,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,
@@ -1227,4 +1350,32 @@ function createStdoutResizeEmitter(disposables: (() => Promise<unknown> | void)[
 	});
 	disposables.push(() => emitter.dispose());
 	return emitter.event;
+}
+
+async function readSecretsFromFile(params: { output?: Log; secretsFile?: string; cliHost: CLIHost }) {
+	const { secretsFile, cliHost, output } = params;
+	if (!secretsFile) {
+		return {};
+	}
+
+	try {
+		const fileBuff = await cliHost.readFile(secretsFile);
+		const parseErrors: jsonc.ParseError[] = [];
+		const secrets = jsonc.parse(fileBuff.toString(), parseErrors) as Record<string, string>;
+		if (parseErrors.length) {
+			throw new Error('Invalid json data');
+		}
+
+		return secrets;
+	}
+	catch (e) {
+		if (output) {
+			output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
+		}
+
+		throw new ContainerError({
+			description: 'Failed to read/parse secrets',
+			originalError: e
+		});
+	}
 }

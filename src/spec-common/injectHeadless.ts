@@ -7,11 +7,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import * as crypto from 'crypto';
-import * as jsonc from 'jsonc-parser';
 
 import { ContainerError, toErrorText, toWarningText } from './errors';
 import { launch, ShellServer } from './shellServer';
-import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec } from './commonUtils';
+import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec, getEntPasswdShellCommand } from './commonUtils';
 import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
 import { URI } from 'vscode-uri';
@@ -54,6 +53,7 @@ export interface ResolverParameters {
 	getLogLevel: () => LogLevel;
 	onDidChangeLogLevel: Event<LogLevel>;
 	loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>;
+	allowInheritTTY: boolean;
 	shutdowns: (() => Promise<void>)[];
 	backgroundTasks: (Promise<void> | (() => Promise<void>))[];
 	persistedFolder: string; // A path where config can be persisted and restored at a later time. Should default to tmpdir() folder if not provided.
@@ -61,12 +61,13 @@ export interface ResolverParameters {
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;
-	secretsFile?: string;
+	secretsP?: Promise<Record<string, string>>;
 }
 
 export interface LifecycleHook {
@@ -237,9 +238,9 @@ export async function getContainerProperties(options: {
 		remoteExecAsRoot = remoteExec;
 	}
 	const osRelease = await getOSRelease(shellServer);
-	const passwdUser = await getUserFromEtcPasswd(shellServer, containerUser);
+	const passwdUser = await getUserFromPasswdDB(shellServer, containerUser);
 	if (!passwdUser) {
-		params.output.write(toWarningText(`User ${containerUser} not found in /etc/passwd.`));
+		params.output.write(toWarningText(`User ${containerUser} not found with 'getent passwd'.`));
 	}
 	const shell = await getUserShell(containerEnv, passwdUser);
 	const homeFolder = await getHomeFolder(containerEnv, passwdUser);
@@ -284,9 +285,12 @@ async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdU
 	return containerEnv.SHELL || (passwdUser && passwdUser.shell) || '/bin/sh';
 }
 
-export async function getUserFromEtcPasswd(shellServer: ShellServer, userNameOrId: string) {
-	const { stdout } = await shellServer.exec('cat /etc/passwd', { logOutput: false });
-	return findUserInEtcPasswd(stdout, userNameOrId);
+export async function getUserFromPasswdDB(shellServer: ShellServer, userNameOrId: string) {
+	const { stdout } = await shellServer.exec(getEntPasswdShellCommand(userNameOrId), { logOutput: false });
+	if (!stdout.trim()) {
+		return undefined;
+	}
+	return parseUserInPasswdDB(stdout);
 }
 
 export interface PasswdUser {
@@ -297,18 +301,17 @@ export interface PasswdUser {
 	shell: string;
 }
 
-export function findUserInEtcPasswd(etcPasswd: string, nameOrId: string): PasswdUser | undefined {
-	const users = etcPasswd
-		.split(/\r?\n/)
-		.map(line => line.split(':'))
-		.map(row => ({
-			name: row[0],
-			uid: row[2],
-			gid: row[3],
-			home: row[5],
-			shell: row[6]
-		}));
-	return users.find(user => user.name === nameOrId || user.uid === nameOrId);
+function parseUserInPasswdDB(etcPasswdLine: string): PasswdUser | undefined {
+	const row = etcPasswdLine
+		.replace(/\n$/, '')
+		.split(':');
+	return {
+		name: row[0],
+		uid: row[2],
+		gid: row[3],
+		home: row[5],
+		shell: row[6]
+	};
 }
 
 export function getUserDataFolder(homeFolder: string, params: ResolverParameters) {
@@ -325,9 +328,9 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
 	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
-	const secrets = readSecretsFromFile(params);
+	const secretsP = params.secretsP || Promise.resolve({});
 	if (params.lifecycleHook.enabled) {
-		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secrets, false);
+		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secretsP, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
@@ -341,25 +344,6 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 			...params.remoteEnv,
 			...config.remoteEnv,
 		} as Record<string, string>));
-}
-
-export async function readSecretsFromFile(params: { output: Log; secretsFile?: string; cliHost: CLIHost }) {
-	const { secretsFile, cliHost } = params;
-	if (!secretsFile) {
-		return {};
-	}
-
-	try {
-		const fileBuff = await cliHost.readFile(secretsFile);
-		return jsonc.parse(fileBuff.toString()) as Record<string, string>;
-	}
-	catch (e) {
-		params.output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
-		throw new ContainerError({
-			description: 'Failed to read/parse secrets',
-			originalError: e
-		});
-	}
 }
 
 export async function runLifecycleHooks(params: ResolverParameters, lifecycleHooksInstallMap: LifecycleHooksInstallMap, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, remoteEnv: Promise<Record<string, string>>, secrets: Promise<Record<string, string>>, stopForPersonalization: boolean): Promise<'skipNonBlocking' | 'prebuild' | 'stopForPersonalization' | 'done'> {
@@ -598,10 +582,10 @@ export async function runRemoteCommand(params: { output: Log; onDidInput?: Event
 				}
 			}
 		});
-		if (params.onDidInput) {
-			params.onDidInput(data => p.write(data));
-		} else if (params.stdin) {
-			const listener = (data: Buffer): void => p.write(data.toString());
+		if (p.write && params.onDidInput) {
+			params.onDidInput(data => p.write!(data));
+		} else if (p.write && params.stdin) {
+			const listener = (data: Buffer): void => p.write!(data.toString());
 			const stdin = params.stdin;
 			if (stdin.isTTY) {
 				stdin.setRawMode(true);

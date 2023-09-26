@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { devContainerDown, devContainerUp, shellExec, UpResult, pathExists, setupCLI } from './testUtils';
+import { devContainerDown, devContainerUp, shellExec, UpResult, setupCLI } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -29,41 +29,12 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
-		it('should execute successfully with valid config and dotfiles', async () => {
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles`);
+		it('should execute successfully with valid config with a Feature', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
-			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
-			assert.ok(dotfiles, 'Dotfiles not found.');
-			await shellExec(`docker rm -f ${containerId}`);
-		});
-
-		it('should execute successfully with valid config and dotfiles with secrets', async () => {
-			const testFolder = `${__dirname}/configs`;
-			let containerId: string | null = null;
-			await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
-			const secrets = {
-				'SECRET1': 'SecretValue1',
-			};
-			await shellExec(`printf '${JSON.stringify(secrets)}' > ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
-
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles --secrets-file ${testFolder}/test-secrets-temp.json`);
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
-			containerId = response.containerId;
-			assert.ok(containerId, 'Container id not found.');
-			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
-			assert.ok(dotfiles, 'Dotfiles not found.');
-
-			// assert file contents to ensure secrets & remoteEnv were available to the command
-			const catResp = await shellExec(`${cli} exec --workspace-folder ${__dirname}/configs/image-with-git-feature cat /tmp/.dotfileEnvs`);
-			const { stdout, error } = catResp;
-			assert.strictEqual(error, null);
-			assert.match(stdout, /SECRET1=SecretValue1/);
-			assert.match(stdout, /TEST_REMOTE_ENV=Value 1/);
-
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 

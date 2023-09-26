@@ -129,7 +129,8 @@ describe('Image Metadata', function () {
 				const imageTestFolder = `${__dirname}/configs/${testFolderName}`;
 
 				it(`build should collect metadata on image label [${testFolderName}, ${text}]`, async () => {
-
+					await shellExec(`docker pull ubuntu:latest`);
+					
 					const imageName = `${testFolderName}${options.useBuildKit ? '' : '-buildkit'}-test`;
 					const buildKitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
 					const res = await shellExec(`${cli} build --workspace-folder ${imageTestFolder} --image-name ${imageName}${buildKitOption}`);
@@ -232,7 +233,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
-					consecutiveId: 'someFeature_1',
+					consecutiveId: 'someFeature_0',
 				}
 			]));
 			assert.strictEqual(metadata.length, 2);
@@ -412,7 +413,7 @@ describe('Image Metadata', function () {
 					id: 'someFeature',
 					value: 'someValue',
 					included: true,
-					consecutiveId: 'someFeature_1',
+					consecutiveId: 'someFeature_0',
 				}
 			])));
 			const expected = [

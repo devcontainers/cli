@@ -6,14 +6,14 @@
 import * as path from 'path';
 import { DevContainerConfig } from './configuration';
 import { readLocalFile, writeLocalFile } from '../spec-utils/pfs';
-import { ContainerFeatureInternalParams, FeatureSet, FeaturesConfig, OCISourceInformation } from './containerFeaturesConfiguration';
+import { ContainerFeatureInternalParams, DirectTarballSourceInformation, FeatureSet, FeaturesConfig, OCISourceInformation } from './containerFeaturesConfiguration';
 
 
 export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig) {
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig, forceInitLockfile?: boolean) {
 	const lockfilePath = getLockfilePath(config);
 	const oldLockfileContent = await readLocalFile(lockfilePath)
 		.catch(err => {
@@ -22,19 +22,25 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			}
 		});
 
-	if (!oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
+	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
 		return;
 	}
 
 	const lockfile: Lockfile = featuresConfig.featureSets
 		.map(f => [f, f.sourceInformation] as const)
-		.filter((tup): tup is [FeatureSet, OCISourceInformation] => tup[1].type === 'oci')
-		.map(([set, source]) => ({
-			id: source.userFeatureId,
-			version: set.features[0].version!,
-			resolved: `${source.featureRef.registry}/${source.featureRef.path}@${set.computedDigest}`,
-			integrity: set.computedDigest!,
-		}))
+		.filter((tup): tup is [FeatureSet, OCISourceInformation | DirectTarballSourceInformation] => ['oci', 'direct-tarball'].indexOf(tup[1].type) !== -1)
+		.map(([set, source]) => {
+			const dependsOn = Object.keys(set.features[0].dependsOn || {});
+			return {
+				id: source.userFeatureId,
+				version: set.features[0].version!,
+				resolved: source.type === 'oci' ?
+					`${source.featureRef.registry}/${source.featureRef.path}@${set.computedDigest}` :
+					source.tarballUri,
+				integrity: set.computedDigest!,
+				dependsOn: dependsOn.length ? dependsOn : undefined,
+			};
+		})
 		.sort((a, b) => a.id.localeCompare(b.id))
 		.reduce((acc, cur) => {
 			const feature = { ...cur };
@@ -57,13 +63,17 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	}
 }
 
-export async function readLockfile(config: DevContainerConfig): Promise<Lockfile | undefined> {
+export async function readLockfile(config: DevContainerConfig): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
 	try {
 		const content = await readLocalFile(getLockfilePath(config));
-		return JSON.parse(content.toString()) as Lockfile;
+		// If empty file, use as maker to initialize lockfile when build completes.
+		if (content.toString().trim() === '') {
+			return { initLockfile: true };
+		}
+		return { lockfile: JSON.parse(content.toString()) as Lockfile };
 	} catch (err) {
 		if (err?.code === 'ENOENT') {
-			return undefined;
+			return {};
 		}
 		throw err;
 	}

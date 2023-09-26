@@ -3,7 +3,7 @@
 		"composite": true,
 		"rootDir": "./src",
 		"outDir": "./built",
-		"target": "es2019",
+		"target": "es2021",
 		"module": "commonjs",
 		"esModuleInterop": true,
 		"strict": true,

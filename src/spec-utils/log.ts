@@ -23,6 +23,7 @@ const logLevelMap = {
 	info: LogLevel.Info,
 	debug: LogLevel.Debug,
 	trace: LogLevel.Trace,
+	error: LogLevel.Error,
 };
 
 type logLevelString = keyof typeof logLevelMap;
@@ -294,4 +295,38 @@ export function toWarningText(str: string) {
 	return str.split(/\r?\n/)
 		.map(line => `[1m[33m${line}[39m[22m`)
 		.join('\r\n') + '\r\n';
+}
+
+export function replaceAllLog(origin: LogHandler, values: string[], replacement: string): LogHandler {
+	values = values
+		.filter(v => v.length)
+		.sort((a, b) => b.length - a.length);
+	if (!values.length) {
+		return origin;
+	}
+	return {
+		event: e => {
+			if ('text' in e) {
+				origin.event({
+					...e,
+					text: replaceValues(e.text, replacement, values),
+				});
+			} else if (e.type === 'progress' && e.stepDetail) {
+				origin.event({
+					...e,
+					stepDetail: replaceValues(e.stepDetail, replacement, values),
+				});
+			} else {
+				origin.event(e);
+			}
+		}
+	};
+}
+
+function replaceValues(str: string, replacement: string, values: string[]) {
+	values.forEach(x => {
+		str = str.replaceAll(x, replacement);
+	});
+
+	return str;
 }

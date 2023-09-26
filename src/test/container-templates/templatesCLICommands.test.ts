@@ -73,7 +73,7 @@ describe('tests packageTemplates()', async function () {
 	after('Install', uninstallCLI);
 
 	const cwd = process.cwd();
-	const cliHost = await getCLIHost(cwd, loadNativeModule);
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 
 	let args: PackageCommandInput = {
 		targetFolder: '',

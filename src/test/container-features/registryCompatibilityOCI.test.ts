@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from 'chai';
+import * as os from 'os';
+import * as path from 'path';
 import { devContainerDown, devContainerUp, shellExec, setupCLI } from '../testUtils';
 
 const pkg = require('../../../package.json');
@@ -118,7 +120,7 @@ describe('Registry Compatibility', function () {
 		describe(name, async function () {
 			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)('devcontainer up', async function () {
 
-				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
+				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || path.join(os.homedir(), 'fake-path');
 				const gitHubToken = (useAuthStrategy === AuthStrategy.GitHubToken) ? (process.env.GITHUB_TOKEN ?? '') : '';
 
 				let containerId: string | null = null;
@@ -141,7 +143,7 @@ describe('Registry Compatibility', function () {
 
 			((authStrategyKey && !envVariableExists(authStrategyKey)) ? describe.skip : describe)(`devcontainer features info manifest`, async function () {
 
-				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || '/fake-path';
+				const authFolder = constructAuthFromStrategy(tmp, useAuthStrategy ?? AuthStrategy.Anonymous, authStrategyKey) || path.join(os.homedir(), 'fake-path');
 				const gitHubToken = (useAuthStrategy === AuthStrategy.GitHubToken) ? (process.env.GITHUB_TOKEN ?? '') : '';
 
 				it('fetches manifest', async function () {

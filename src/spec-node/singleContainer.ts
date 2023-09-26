@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
@@ -193,6 +193,9 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			}
 		}
+		if (buildParams.buildxCacheTo) {
+			args.push('--cache-to', buildParams.buildxCacheTo);
+		}
 		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
@@ -245,6 +248,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			await dockerCLI(infoParams, ...args);
 		}
 	} catch (err) {
+		if (isBuildKitImagePolicyError(err)) {
+			throw new ContainerError({ description: 'Could not resolve image due to policy.', originalError: err, data: { fileWithError: dockerfilePath } });
+		}
+
 		throw new ContainerError({ description: 'An error occurred building the image.', originalError: err, data: { fileWithError: dockerfilePath } });
 	}
 

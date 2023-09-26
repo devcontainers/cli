@@ -1,0 +1,11 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-B.tgz": {
+			"magicNumber": "400"
+		},
+		"https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-A.tgz": {
+			"magicNumber": "10"
+		}
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"name": "FeatureE",
+	"id": "E",
+	"version": "2.0.0",
+	"options": {
+		"magicNumber": {
+			"type": "string",
+			"default": "0",
+			"description": "The magic number"
+		}
+	}
+}

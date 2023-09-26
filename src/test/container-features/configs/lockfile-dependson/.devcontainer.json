@@ -1,0 +1,8 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/codspace/dependson/A:2": {},
+		"ghcr.io/codspace/dependson/E:1": {},
+		"https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-A.tgz": {}
+	}
+}

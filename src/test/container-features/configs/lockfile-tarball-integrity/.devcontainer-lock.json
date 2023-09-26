@@ -1,0 +1,9 @@
+{
+  "features": {
+    "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
+      "version": "1.0.0",
+      "resolved": "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
+      "integrity": "sha256:9cf3f2a17c1bb2b599b6027cfa975d2fb28234df88ba33ff5e276fa052aac7a0"
+    }
+  }
+}

@@ -4,6 +4,9 @@ import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
+import { buildDependencyGraph, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
+import { DevContainerFeature } from '../../spec-configuration/configuration';
+import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -11,7 +14,7 @@ export function featuresInfoOptions(y: Argv) {
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		})
-		.positional('mode', { choices: ['manifest' as 'manifest', 'tags' as 'tags', 'verbose' as 'verbose'], description: 'Data to query. Select \'verbose\' to return everything.' })
+		.positional('mode', { choices: ['manifest' as 'manifest', 'tags' as 'tags', 'dependencies' as 'dependencies', 'verbose' as 'verbose'], description: 'Data to query. Select \'verbose\' to return everything.' })
 		.positional('feature', { type: 'string', demandOption: true, description: 'Feature Identifier' });
 }
 
@@ -62,12 +65,13 @@ async function featuresInfo({
 		process.exit(1);
 	}
 
-	// -- Get the manifest
+	const manifestContainer = await getManifest(params, featureRef);
+	if (!manifestContainer) {
+		process.exit(1);
+	}
+
+	// -- Display the manifest
 	if (mode === 'manifest' || mode === 'verbose') {
-		const manifestContainer = await getManifest(params, featureRef);
-		if (!manifestContainer) {
-			return;
-		}
 		const { manifestObj, canonicalId } = manifestContainer;
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Manifest'));
@@ -86,9 +90,32 @@ async function featuresInfo({
 		if (outputFormat === 'text') {
 			console.log(encloseStringInBox('Published Version'));
 			console.log(`${publishedVersions.join('\n   ')}`);
-
 		} else {
 			jsonOutput.publishedVersions = publishedVersions;
+		}
+	}
+
+	if ((mode === 'dependencies' || mode === 'verbose') && outputFormat === 'text') {
+		output.write(`Building dependency graph for '${featureId}'...`, LogLevel.Info);
+		if (!featureRef) {
+			output.write(`Provide Feature reference '${featureId}' is invalid.`, LogLevel.Error);
+			process.exit(1);
+		}
+
+		const processFeature = async (_userFeature: DevContainerFeature) => {
+			return await processFeatureIdentifier(params, undefined, '', _userFeature);
+		};
+		const graph = await buildDependencyGraph(params, processFeature, [{ userFeatureId: featureId, options: {} }], { overrideFeatureInstallOrder: undefined }, undefined);
+		output.write(JSON.stringify(graph, undefined, 4), LogLevel.Trace);
+		if (!graph) {
+			output.write(`Could not build dependency graph.`, LogLevel.Error);
+			process.exit(1);
+		}
+
+		if (outputFormat === 'text') {
+			console.log(encloseStringInBox('Dependency Tree (Render with https://mermaid.live/)'));
+			const diagram = generateMermaidDiagram(params, graph.worklist);
+			console.log(diagram);
 		}
 	}
 
@@ -105,7 +132,6 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 	const { outputFormat } = params;
 
 	const manifestContainer = await fetchOCIManifestIfExists(params, featureRef, undefined);
-
 	if (!manifestContainer) {
 		if (outputFormat === 'json') {
 			console.log(JSON.stringify({}));
@@ -114,7 +140,6 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 		}
 		return process.exit(1);
 	}
-
 	return manifestContainer;
 }
 

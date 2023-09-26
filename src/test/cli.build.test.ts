@@ -204,6 +204,61 @@ describe('Dev Containers CLI', function () {
 			assert.equal(fs.existsSync(outputPath), true);
 		});
 
+		it(`should execute successfully and export buildx cache with container builder`, async () => {
+			const builderName = 'test-container-builder';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/dockerfile-without-features`;
+				const outputPath = `${os.tmpdir()}/test-build-cache`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+
+		it(`should execute successfully and export buildx cache with container builder and image`, async () => {
+			const builderName = 'test-container-builder-image';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/image`;
+				const outputPath = `${os.tmpdir()}/test-build-cache-image`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+
+		it('should fail with docker-compose and --cache-to not supported', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/compose-image-with-features`;
+			const builderName = 'test-container-builder';
+			const outputPath = `${os.tmpdir()}/test-build-cache`;
+
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /not supported/);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+
 		it(`should execute successfully docker-compose without features with container builder`, async () => {
 			const builderName = 'test-container-builder';
 			try {

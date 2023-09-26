@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -274,6 +274,10 @@ ${cacheFromOverrideContent}
 				await dockerComposeCLI(infoParams, ...args);
 			}
 		} catch (err) {
+			if (isBuildKitImagePolicyError(err)) {
+				throw new ContainerError({ description: 'Could not resolve image due to policy.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
+			}
+
 			throw err instanceof ContainerError ? err : new ContainerError({ description: 'An error occurred building the Docker Compose images.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
 		}
 	}
