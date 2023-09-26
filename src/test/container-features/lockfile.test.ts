@@ -117,6 +117,18 @@ describe('Lockfile', function () {
 		assert.ok(azure.latest);
 	});
 
+	it('upgrade command', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-upgrade-command');
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await cpLocal(path.join(workspaceFolder, 'outdated.devcontainer-lock.json'), lockfilePath);
+
+		await shellExec(`${cli} upgrade --workspace-folder ${workspaceFolder}`);
+		const actual = await readLocalFile(lockfilePath);
+		const expected = await readLocalFile(path.join(workspaceFolder, 'upgraded.devcontainer-lock.json'));
+		assert.equal(actual.toString(), expected.toString());
+	});
+
 	it('OCI feature integrity', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-oci-integrity');
 

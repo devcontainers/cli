@@ -39,7 +39,7 @@ import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
 import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
-import { featuresUpgradeHandler, featuresUpgradeOptions } from './featuresCLI/upgrade';
+import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
 import { readFeaturesConfig } from './featureUtils';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
@@ -70,12 +70,12 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
+	y.command('upgrade', 'Upgrade lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
 		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
-		y.command('upgrade', 'Upgrade Features by rewriting lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 		y.command('resolve-dependencies', 'Read and resolve dependency graph from a configuration', featuresResolveDependenciesOptions, featuresResolveDependenciesHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {

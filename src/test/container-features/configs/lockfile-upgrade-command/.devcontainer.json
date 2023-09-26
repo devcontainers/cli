@@ -1,0 +1,9 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/devcontainers/features/git:1.1.5": "latest",
+		"ghcr.io/devcontainers/features/git-lfs@sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c": "latest",
+		"ghcr.io/devcontainers/features/github-cli:1.0.9": "latest",
+		"ghcr.io/devcontainers/features/azure-cli:1.2.1": "latest"
+	}
+}

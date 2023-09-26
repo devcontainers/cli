@@ -1,22 +1,22 @@
 import { Argv } from 'yargs';
-import { UnpackArgv } from '../devContainersSpecCLI';
-import { dockerComposeCLIConfig } from '../dockerCompose';
-import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
-import { createLog } from '../devContainers';
-import { getPackageConfig } from '../../spec-utils/product';
-import { DockerCLIParameters } from '../../spec-shutdown/dockerUtils';
+import { UnpackArgv } from './devContainersSpecCLI';
+import { dockerComposeCLIConfig } from './dockerCompose';
+import { Log, LogLevel, mapLogLevel } from '../spec-utils/log';
+import { createLog } from './devContainers';
+import { getPackageConfig } from '../spec-utils/product';
+import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import path from 'path';
-import { getCLIHost } from '../../spec-common/cliHost';
-import { loadNativeModule } from '../../spec-common/commonUtils';
+import { getCLIHost } from '../spec-common/cliHost';
+import { loadNativeModule } from '../spec-common/commonUtils';
 import { URI } from 'vscode-uri';
-import { workspaceFromPath } from '../../spec-utils/workspaces';
-import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../../spec-configuration/configurationCommonUtils';
-import { readDevContainerConfigFile } from '../configContainer';
-import { ContainerError } from '../../spec-common/errors';
-import { getCacheFolder } from '../utils';
-import { getLockfilePath, writeLockfile } from '../../spec-configuration/lockfile';
-import { writeLocalFile } from '../../spec-utils/pfs';
-import { readFeaturesConfig } from '../featureUtils';
+import { workspaceFromPath } from '../spec-utils/workspaces';
+import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
+import { readDevContainerConfigFile } from './configContainer';
+import { ContainerError } from '../spec-common/errors';
+import { getCacheFolder } from './utils';
+import { getLockfilePath, writeLockfile } from '../spec-configuration/lockfile';
+import { writeLocalFile } from '../spec-utils/pfs';
+import { readFeaturesConfig } from './featureUtils';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -26,7 +26,6 @@ export function featuresUpgradeOptions(y: Argv) {
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
-			'init-lockfile': { type: 'boolean', description: 'Initialize lockfile if it does not exist.', default: false },
 		});
 }
 
@@ -42,7 +41,6 @@ async function featuresUpgrade({
 	config: configArg,
 	'docker-compose-path': dockerComposePath,
 	'log-level': inputLogLevel,
-	'init-lockfile': initLockfile,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -93,20 +91,12 @@ async function featuresUpgrade({
 			platform: cliHost.platform,
 		};
 
-		const lockfilePath = getLockfilePath(config);
-
-		// Check if lockfile exists
-		if (!initLockfile && !(await cliHost.isFile(lockfilePath))) {
-			output.write(`Lockfile does not exist.  Add '--init-lockfile' to initialize.`, LogLevel.Error);
-			await dispose();
-			process.exit(1);
-		}
-
 		const bold = process.stdout.isTTY ? '\x1b[1m' : '';
 		const clear = process.stdout.isTTY ? '\x1b[0m' : '';
 		output.raw(`${bold}Upgrading lockfile...\n${clear}\n`, LogLevel.Info);
 
 		// Truncate existing lockfile
+		const lockfilePath = getLockfilePath(config);
 		await writeLocalFile(lockfilePath, '');
 		// Update lockfile
 		const featuresConfig = await readFeaturesConfig(dockerParams, pkg, config, extensionPath, false, {});
