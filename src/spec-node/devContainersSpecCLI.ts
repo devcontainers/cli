@@ -10,7 +10,7 @@ import textTable from 'text-table';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder } from './utils';
+import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -18,18 +18,18 @@ import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setu
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
-import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
+import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
-import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder, loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
+import { loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
-import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
+import { getPackageConfig, } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
@@ -39,6 +39,8 @@ import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
 import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
+import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
+import { readFeaturesConfig } from './featureUtils';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -68,6 +70,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
 	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
+	y.command('upgrade', 'Upgrade lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
@@ -1045,14 +1048,6 @@ async function readConfiguration({
 	}
 	await dispose();
 	process.exit(0);
-}
-
-async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
-	const { cliHost, output } = params;
-	const { cwd, env, platform } = cliHost;
-	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
-	const cacheFolder = await getCacheFolder(cliHost);
-	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
 }
 
 function outdatedOptions(y: Argv) {
