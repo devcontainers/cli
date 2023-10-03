@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## October 2023
+
+### [0.52.0]
+
+- Add `upgrade` command to generate an updated lockfile (https://github.com/devcontainers/cli/pull/645)
+
 ## September 2023
 
 ### [0.51.3]
