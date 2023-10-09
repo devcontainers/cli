@@ -218,6 +218,16 @@ export async function runCommand(options: {
 				resolve({ cmdOutput });
 			}
 		});
+		
+		p.onData(data => {
+			if (data.includes('authorization denied by plugin')) {
+				reject({
+					message: `Command failed due to authorization denied by plugin: ${cmd} ${(args || []).join(' ')}`,
+					cmdOutput,
+				});
+			}
+		});
+
 		p.exit.then(({ code, signal }) => {
 			try {
 				if (print === 'end') {
