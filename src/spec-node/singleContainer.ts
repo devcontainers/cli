@@ -71,8 +71,14 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 }
 
 function createSetupError(originalError: any, container: ContainerDetails | undefined, params: DockerResolverParameters, containerProperties: ContainerProperties | undefined, config: DevContainerConfig | undefined): ContainerError {
+	let description = 'An error occurred setting up the container.';
+
+	if (originalError?.cmdOutput?.includes('docker: Error response from daemon: authorization denied by plugin')) {
+		description = originalError.cmdOutput;
+	}
+
 	const err = originalError instanceof ContainerError ? originalError : new ContainerError({
-		description: 'An error occurred setting up the container.',
+		description,
 		originalError
 	});
 	if (container) {
