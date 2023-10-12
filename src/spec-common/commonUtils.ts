@@ -218,7 +218,6 @@ export async function runCommand(options: {
 				resolve({ cmdOutput });
 			}
 		});
-
 		p.exit.then(({ code, signal }) => {
 			try {
 				if (print === 'end') {
