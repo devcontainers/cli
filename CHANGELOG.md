@@ -4,6 +4,10 @@ Notable changes.
 
 ## October 2023
 
+### [0.52.1]
+
+- Updates create error description to include cause for docker auth plugin errors (https://github.com/devcontainers/cli/pull/656)
+
 ### [0.52.0]
 
 - Add `upgrade` command to generate an updated lockfile (https://github.com/devcontainers/cli/pull/645)
