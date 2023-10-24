@@ -161,7 +161,7 @@ async function addFeatures(output: Log, newFeatures: TemplateFeatureOption[], co
 			const propertyPath = ['features', newFeature.id];
 
 			edits = edits.concat(
-				jsonc.modify(updatedText, propertyPath, newFeature.options, { formattingOptions: {} }
+				jsonc.modify(updatedText, propertyPath, newFeature.options ?? {}, { formattingOptions: {} }
 				));
 
 			updatedText = jsonc.applyEdits(updatedText, edits);
