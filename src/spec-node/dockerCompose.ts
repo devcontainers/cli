@@ -423,7 +423,13 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		}
 	} catch (err) {
 		cancel!();
-		throw new ContainerError({ description: 'An error occurred starting Docker Compose up.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
+
+		let description = 'An error occurred starting Docker Compose up.';
+		if (err?.cmdOutput?.includes('Cannot create container for service app: authorization denied by plugin')) {
+			description = err.cmdOutput;
+		}
+
+		throw new ContainerError({ description, originalError: err, data: { fileWithError: localComposeFiles[0] } });
 	}
 
 	await started;
