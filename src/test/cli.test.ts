@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
-import { devContainerDown, devContainerUp, shellExec } from './testUtils';
+import { devContainerDown, devContainerUp, shellExec, setupCLI } from './testUtils';
 
 const pkg = require('../../package.json');
 
 describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-	});
+	before('Install', installCLI);
+	after('Install', uninstallCLI);
 
 	it('Global --help', async () => {
 		const res = await shellExec(`${cli} --help`);

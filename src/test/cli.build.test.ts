@@ -5,9 +5,8 @@
 
 import * as fs from 'fs';
 import * as assert from 'assert';
-import * as path from 'path';
 import * as os from 'os';
-import { buildKitOptions, shellExec } from './testUtils';
+import { buildKitOptions, shellExec, setupCLI } from './testUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { envListToObj } from '../spec-node/utils';
 
@@ -16,14 +15,10 @@ const pkg = require('../../package.json');
 describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-	});
+	before('Install', installCLI);
+	after('Install', uninstallCLI);
 
 	describe('Command build', () => {
 

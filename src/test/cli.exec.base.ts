@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
-import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellBufferExec, shellExec, shellPtyExec } from './testUtils';
+import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellBufferExec, shellExec, shellPtyExec, setupCLI } from './testUtils';
 
 const pkg = require('../../package.json');
 
@@ -14,14 +13,10 @@ export function describeTests1({ text, options }: BuildKitOption) {
 	describe('Dev Containers CLI', function () {
 		this.timeout('360s');
 
-		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-		const cli = `npx --prefix ${tmp} devcontainer`;
+		const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-		before('Install', async () => {
-			await shellExec(`rm -rf ${tmp}/node_modules`);
-			await shellExec(`mkdir -p ${tmp}`);
-			await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-		});
+		before('Install', installCLI);
+		after('Install', uninstallCLI);
 
 		describe('Command exec', () => {
 
@@ -185,14 +180,10 @@ export function describeTests2({ text, options }: BuildKitOption) {
 	describe('Dev Containers CLI', function () {
 		this.timeout('300s');
 
-		const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-		const cli = `npx --prefix ${tmp} devcontainer`;
+		const { cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
-		before('Install', async () => {
-			await shellExec(`rm -rf ${tmp}/node_modules`);
-			await shellExec(`mkdir -p ${tmp}`);
-			await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-		});
+		before('Install', installCLI);
+		after('Install', uninstallCLI);
 
 		describe('Command exec', () => {
 
@@ -370,7 +361,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 						assert.match(res.stdout, /howdy, node/);
 					});
 				});
-		
+
 				it('should fail with "not found" error when config is not found', async () => {
 					let success = false;
 					try {

@@ -6,7 +6,7 @@
 import { assert } from 'chai';
 import * as os from 'os';
 import * as path from 'path';
-import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
+import { devContainerDown, devContainerUp, shellExec, setupCLI } from '../testUtils';
 
 const pkg = require('../../../package.json');
 
@@ -109,14 +109,11 @@ function constructAuthFromStrategy(tmpFolder: string, authStrategy: AuthStrategy
 
 describe('Registry Compatibility', function () {
 	this.timeout('120s');
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
 
-	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-	});
+	const { cli, installCLI, tmp, uninstallCLI } = setupCLI(pkg.version);
+
+	before('Install', installCLI);
+	after('Install', uninstallCLI);
 
 	registryCompatibilityTestPlan.forEach(({ name, configName, testFeatureId, testCommand, testCommandResult, useAuthStrategy, authStrategyKey }) => {
 		this.timeout('120s');

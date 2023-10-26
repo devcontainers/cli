@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
-import { ExecResult, shellExec } from '../testUtils';
+import { ExecResult, shellExec, setupCLI } from '../testUtils';
 import { DevContainerCollectionMetadata, packageTemplates } from '../../spec-node/templatesCLI/packageImpl';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
 import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
@@ -16,15 +16,13 @@ const pkg = require('../../../package.json');
 describe('tests apply command', async function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
+	const { tmp, cli, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
 	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await installCLI();
 		await shellExec(`rm -rf ${tmp}/output`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
+	after('Install', uninstallCLI);
 
 	it('templates apply subcommand', async function () {
 		let success = false;
@@ -66,17 +64,16 @@ describe('tests apply command', async function () {
 describe('tests packageTemplates()', async function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
+	const { tmp, installCLI, uninstallCLI } = setupCLI(pkg.version);
 
 	before('Install', async () => {
-		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await installCLI();
 		await shellExec(`rm -rf ${tmp}/output`);
-		await shellExec(`mkdir -p ${tmp}`);
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
+	after('Install', uninstallCLI);
 
-    const cwd = process.cwd();
-    const cliHost = await getCLIHost(cwd, loadNativeModule, true);
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 
 	let args: PackageCommandInput = {
 		targetFolder: '',
