@@ -553,6 +553,57 @@ describe('test function getPublishedVersions', async () => {
 			assert.fail('featureRef should not be undefined');
 		}
 		const versionsList = await getPublishedVersions({ output, env: process.env }, featureRef) ?? [];
-		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0', 'latest']);
+		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0']);
 	});
+
+	it('should list published versions in an advanced case', async () => {
+		// https://github.com/codspace/versioning/pkgs/container/versioning%2Ffoo/versions
+		const resource = 'ghcr.io/codspace/versioning/foo';
+		const ref = getRef(output, resource);
+		if (!ref) {
+			assert.fail('ref should not be undefined');
+		}
+		const versionsList = await getPublishedVersions({ output, env: process.env }, ref, true) ?? [];
+		console.log(versionsList);
+		const expected = [
+			'0.0.0',
+			'0.0.1',
+			'0.0.2',
+			'0.1.0',
+			'0.2.0',
+			'0.3.0',
+			'0.3.1',
+			'0.3.2',
+			'0.3.3',
+			'0.3.4',
+			'0.3.5',
+			'0.3.6',
+			'0.3.7',
+			'0.3.8',
+			'0.3.9',
+			'0.3.10',
+			'0.3.11',
+			'0.3.12',
+			'0.4.0',
+			'1.0.0',
+			'1.1.0',
+			'2.0.0',
+			'2.1.0',
+			'2.2.0',
+			'2.2.1',
+			'2.3.0',
+			'2.4.0',
+			'2.5.0',
+			'2.6.0',
+			'2.7.0',
+			'2.8.0',
+			'2.9.0',
+			'2.10.0',
+			'2.10.1',
+			'2.11.0',
+			'2.11.1',
+		];
+		assert.deepStrictEqual(versionsList, expected);
+	});
+
 });

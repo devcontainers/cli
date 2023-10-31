@@ -474,14 +474,13 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 			return publishedVersionsResponse.tags;
 		}
 
-		// Sort tags in descending order, removing latest.
-		const hasLatest = publishedVersionsResponse.tags.includes('latest');
 		const sortedVersions = publishedVersionsResponse.tags
-			.filter(f => f !== 'latest')
-			.sort((a, b) => semver.compareIdentifiers(a, b));
+			.filter(f => semver.valid(f)) // Remove all major,minor,latest tags
+			.sort((a, b) => semver.compare(a, b));
 
+		output.write(`Published versions (sorted) for '${ref.id}': ${JSON.stringify(sortedVersions, undefined, 2)}`, LogLevel.Trace);
 
-		return hasLatest ? ['latest', ...sortedVersions] : sortedVersions;
+		return sortedVersions;
 	} catch (e) {
 		output.write(`Failed to parse published versions: ${e}`, LogLevel.Error);
 		return;

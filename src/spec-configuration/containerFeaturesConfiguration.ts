@@ -613,7 +613,9 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 				features[userFeatureId] = {
 					current: lockfileVersion || wanted,
 					wanted,
+					wantedMajor: wanted && semver.major(wanted),
 					latest: versions[0],
+					latestMajor: semver.major(versions[0]),
 				};
 			}
 		}
