@@ -433,9 +433,28 @@ async function getJsonWithMimeType<T>(params: CommonParams, url: string, ref: OC
 	}
 }
 
-// Lists published versions/tags of a feature/template 
+// Gets published tags and sorts them by ascending semantic version.
+// Omits any tags (eg: 'latest', or major/minor tags '1','1.0') that are not semantic versions.
+export async function getVersionsStrictSorted(params: CommonParams, ref: OCIRef): Promise<string[] | undefined> {
+	const { output } = params;
+
+	const publishedTags = await getPublishedTags(params, ref);
+	if (!publishedTags) {
+		return;
+	}
+
+	const sortedVersions = publishedTags
+		.filter(f => semver.valid(f)) // Remove all major,minor,latest tags
+		.sort((a, b) => semver.compare(a, b));
+
+	output.write(`Published versions (sorted) for '${ref.id}': ${JSON.stringify(sortedVersions, undefined, 2)}`, LogLevel.Trace);
+
+	return sortedVersions;
+}
+
+// Lists published tags of a Feature/Template
 // Specification: https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#content-discovery
-export async function getPublishedVersions(params: CommonParams, ref: OCIRef, sorted: boolean = false): Promise<string[] | undefined> {
+export async function getPublishedTags(params: CommonParams, ref: OCIRef): Promise<string[] | undefined> {
 	const { output } = params;
 	try {
 		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
@@ -470,17 +489,10 @@ export async function getPublishedVersions(params: CommonParams, ref: OCIRef, so
 
 		const publishedVersionsResponse: OCITagList = JSON.parse(body);
 
-		if (!sorted) {
-			return publishedVersionsResponse.tags;
-		}
-
-		const sortedVersions = publishedVersionsResponse.tags
-			.filter(f => semver.valid(f)) // Remove all major,minor,latest tags
-			.sort((a, b) => semver.compare(a, b));
-
-		output.write(`Published versions (sorted) for '${ref.id}': ${JSON.stringify(sortedVersions, undefined, 2)}`, LogLevel.Trace);
-
-		return sortedVersions;
+		// Return published tags from the registry as-is, meaning:
+		// - Not necessarily sorted
+		// - *Including* major/minor/latest tags
+		return publishedVersionsResponse.tags;
 	} catch (e) {
 		output.write(`Failed to parse published versions: ${e}`, LogLevel.Error);
 		return;

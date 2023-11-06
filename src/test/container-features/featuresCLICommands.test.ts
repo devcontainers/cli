@@ -4,7 +4,7 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
 import { getSemanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
-import { getRef, getPublishedVersions } from '../../spec-configuration/containerCollectionsOCI';
+import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
@@ -545,14 +545,14 @@ describe('test function getSermanticVersions', () => {
 	});
 });
 
-describe('test function getPublishedVersions', async () => {
+describe('test function getVersionsStrictSorted', async () => {
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
 		const featureRef = getRef(output, resource);
 		if (!featureRef) {
 			assert.fail('featureRef should not be undefined');
 		}
-		const versionsList = await getPublishedVersions({ output, env: process.env }, featureRef) ?? [];
+		const versionsList = await getPublishedTags({ output, env: process.env }, featureRef) ?? [];
 		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0']);
 	});
 
@@ -563,7 +563,7 @@ describe('test function getPublishedVersions', async () => {
 		if (!ref) {
 			assert.fail('ref should not be undefined');
 		}
-		const versionsList = await getPublishedVersions({ output, env: process.env }, ref, true) ?? [];
+		const versionsList = await getVersionsStrictSorted({ output, env: process.env }, ref) ?? [];
 		console.log(versionsList);
 		const expected = [
 			'0.0.0',

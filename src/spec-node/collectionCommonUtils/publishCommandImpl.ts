@@ -1,7 +1,7 @@
 import path from 'path';
 import * as semver from 'semver';
 import { Log, LogLevel } from '../../spec-utils/log';
-import { CommonParams, getPublishedVersions, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
+import { CommonParams, getPublishedTags, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { OCICollectionFileName } from './packageCommandImpl';
 import { pushCollectionMetadata, pushOCIFeatureOrTemplate } from '../../spec-configuration/containerCollectionsOCIPush';
 
@@ -43,7 +43,7 @@ export async function doPublishCommand(params: CommonParams, version: string, oc
 	const { output } = params;
 
 	output.write(`Fetching published versions...`, LogLevel.Info);
-	const publishedVersions = await getPublishedVersions(params, ociRef);
+	const publishedVersions = await getPublishedTags(params, ociRef);
 
 	if (!publishedVersions) {
 		return;

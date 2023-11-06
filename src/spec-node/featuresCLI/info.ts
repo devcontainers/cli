@@ -1,5 +1,5 @@
 import { Argv } from 'yargs';
-import { OCIManifest, OCIRef, fetchOCIManifestIfExists, getPublishedVersions, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { OCIManifest, OCIRef, fetchOCIManifestIfExists, getPublishedTags, getRef } from '../../spec-configuration/containerCollectionsOCI';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
@@ -27,7 +27,7 @@ export function featuresInfoHandler(args: FeaturesInfoArgs) {
 interface InfoJsonOutput {
 	manifest?: OCIManifest;
 	canonicalId?: string;
-	publishedVersions?: string[];
+	publishedTags?: string[];
 }
 
 async function featuresInfo({
@@ -86,12 +86,12 @@ async function featuresInfo({
 
 	// --- Get all published tags for resource
 	if (mode === 'tags' || mode === 'verbose') {
-		const publishedVersions = await getTags(params, featureRef);
+		const publishedTags = await getTags(params, featureRef);
 		if (outputFormat === 'text') {
-			console.log(encloseStringInBox('Published Version'));
-			console.log(`${publishedVersions.join('\n   ')}`);
+			console.log(encloseStringInBox('Published Tags'));
+			console.log(`${publishedTags.join('\n   ')}`);
 		} else {
-			jsonOutput.publishedVersions = publishedVersions;
+			jsonOutput.publishedTags = publishedTags;
 		}
 	}
 
@@ -145,8 +145,8 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 
 async function getTags(params: { output: Log; env: NodeJS.ProcessEnv; outputFormat: string }, featureRef: OCIRef) {
 	const { outputFormat } = params;
-	const publishedVersions = await getPublishedVersions(params, featureRef, true);
-	if (!publishedVersions || publishedVersions.length === 0) {
+	const publishedTags = await getPublishedTags(params, featureRef);
+	if (!publishedTags || publishedTags.length === 0) {
 		if (outputFormat === 'json') {
 			console.log(JSON.stringify({}));
 		} else {
@@ -154,7 +154,7 @@ async function getTags(params: { output: Log; env: NodeJS.ProcessEnv; outputForm
 		}
 		process.exit(1);
 	}
-	return publishedVersions;
+	return publishedTags;
 }
 
 function encloseStringInBox(str: string, indent: number = 0) {

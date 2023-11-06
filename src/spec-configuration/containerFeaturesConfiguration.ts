@@ -17,7 +17,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
-import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getPublishedVersions, getRef } from './containerCollectionsOCI';
+import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getRef, getVersionsStrictSorted } from './containerCollectionsOCI';
 import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
@@ -591,7 +591,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 		const updatedFeatureId = getBackwardCompatibleFeatureId(output, userFeatureId);
 		const featureRef = getRef(output, updatedFeatureId);
 		if (featureRef) {
-			const versions = (await getPublishedVersions(params, featureRef, true))
+			const versions = (await getVersionsStrictSorted(params, featureRef))
 				?.reverse();
 			if (versions) {
 				const lockfileVersion = lockfile?.features[userFeatureId]?.version;
