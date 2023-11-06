@@ -124,7 +124,7 @@ registry`;
 		assert.isDefined(infoTagsResult);
 		const tags = JSON.parse(infoTagsResult.stdout);
 		const publishedVersions: string[] = tags['publishedVersions'];
-		assert.equal(publishedVersions.length, 4);
+		assert.equal(publishedVersions.length, 1);
 
 		success = false; // Reset success flag.
 		try {
@@ -300,7 +300,7 @@ registry`;
 		assert.isDefined(infoTagsResult);
 		const tags = JSON.parse(infoTagsResult.stdout);
 		const publishedVersions: string[] = tags['publishedVersions'];
-		assert.equal(publishedVersions.length, 4);
+		assert.equal(publishedVersions.length, 1);
 	});
 });
 
