@@ -43,13 +43,13 @@ export async function doPublishCommand(params: CommonParams, version: string, oc
 	const { output } = params;
 
 	output.write(`Fetching published versions...`, LogLevel.Info);
-	const publishedVersions = await getPublishedTags(params, ociRef);
+	const publishedTags = await getPublishedTags(params, ociRef);
 
-	if (!publishedVersions) {
+	if (!publishedTags) {
 		return;
 	}
 
-	const semanticVersions: string[] | undefined = getSemanticVersions(version, publishedVersions, output);
+	const semanticVersions: string[] | undefined = getSemanticVersions(version, publishedTags, output);
 
 	if (!!semanticVersions) {
 		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);

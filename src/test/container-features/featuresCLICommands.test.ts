@@ -545,15 +545,15 @@ describe('test function getSermanticVersions', () => {
 	});
 });
 
-describe('test function getVersionsStrictSorted', async () => {
+describe('test functions getVersionsStrictSorted and getPublishedTags', async () => {
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
 		const featureRef = getRef(output, resource);
 		if (!featureRef) {
 			assert.fail('featureRef should not be undefined');
 		}
-		const versionsList = await getPublishedTags({ output, env: process.env }, featureRef) ?? [];
-		assert.includeMembers(versionsList, ['1', '1.0', '1.0.0']);
+		const publishedTags = await getPublishedTags({ output, env: process.env }, featureRef) ?? [];
+		assert.includeMembers(publishedTags, ['1', '1.0', '1.0.0', 'latest']);
 	});
 
 	it('should list published versions in an advanced case', async () => {
@@ -565,7 +565,7 @@ describe('test function getVersionsStrictSorted', async () => {
 		}
 		const versionsList = await getVersionsStrictSorted({ output, env: process.env }, ref) ?? [];
 		console.log(versionsList);
-		const expected = [
+		const expectedVersions = [
 			'0.0.0',
 			'0.0.1',
 			'0.0.2',
@@ -603,7 +603,76 @@ describe('test function getVersionsStrictSorted', async () => {
 			'2.11.0',
 			'2.11.1',
 		];
-		assert.deepStrictEqual(versionsList, expected);
+		// Order matters here
+		assert.deepStrictEqual(versionsList, expectedVersions);
+
+
+		const publishedTags = await getPublishedTags({ output, env: process.env }, ref) ?? [];
+		const expectedTags = [
+			'latest',
+			'0',
+			'1',
+			'2',
+			'0.0',
+			'0.0.0',
+			'0.0.1',
+			'0.0.2',
+			'0.1',
+			'0.1.0',
+			'0.2',
+			'0.2.0',
+			'0.3',
+			'0.3.0',
+			'0.3.1',
+			'0.3.10',
+			'0.3.11',
+			'0.3.12',
+			'0.3.2',
+			'0.3.3',
+			'0.3.4',
+			'0.3.5',
+			'0.3.6',
+			'0.3.7',
+			'0.3.8',
+			'0.3.9',
+			'0.4',
+			'0.4.0',
+			'1.0',
+			'1.0.0',
+			'1.1',
+			'1.1.0',
+			'2.0',
+			'2.0.0',
+			'2.1',
+			'2.1.0',
+			'2.10',
+			'2.10.0',
+			'2.10.1',
+			'2.11',
+			'2.11.0',
+			'2.11.1',
+			'2.2',
+			'2.2.0',
+			'2.2.1',
+			'2.3',
+			'2.3.0',
+			'2.4',
+			'2.4.0',
+			'2.5',
+			'2.5.0',
+			'2.6',
+			'2.6.0',
+			'2.7',
+			'2.7.0',
+			'2.8',
+			'2.8.0',
+			'2.9',
+			'2.9.0'
+		];
+		// Order is not guaranteed here (up to however the registry returns the tags)
+		assert.strictEqual(publishedTags.length, expectedTags.length);
+		assert.includeMembers(publishedTags, expectedTags);
+
 	});
 
 });
