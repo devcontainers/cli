@@ -100,7 +100,7 @@ async function featuresPublish({
             process.exit(1);
         }
 
-        const isPublished = (publishResult?.digest && publishResult?.publishedVersions.length > 0);
+        const isPublished = (publishResult?.digest && publishResult?.publishedTags.length > 0);
         let thisResult = isPublished ? {
             ...publishResult,
             version: f.version,
@@ -126,7 +126,7 @@ async function featuresPublish({
                     process.exit(1);
                 }
 
-                if (publishResult?.digest && publishResult?.publishedVersions.length > 0) {
+                if (publishResult?.digest && publishResult?.publishedTags.length > 0) {
                     publishedLegacyIds.push(legacyId);
                 }
             }

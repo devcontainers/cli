@@ -300,7 +300,7 @@ registry`;
 		assert.isDefined(infoTagsResult);
 		const tags = JSON.parse(infoTagsResult.stdout);
 		const publishedTags: string[] = tags['publishedTags'];
-		assert.equal(publishedTags.length, 1);
+		assert.equal(publishedTags.length, 4);
 	});
 });
 

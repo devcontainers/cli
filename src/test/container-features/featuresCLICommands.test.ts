@@ -3,7 +3,7 @@ import path from 'path';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
-import { getSemanticVersions } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
+import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -484,63 +484,63 @@ describe('CLI features subcommands', async function () {
 describe('test function getSermanticVersions', () => {
 	it('should generate correct semantic versions for first publishing', async () => {
 		let version = '1.0.0';
-		let publishedVersions: string[] = [];
+		let publishedTags: string[] = [];
 		let expectedSemVer = ['1', '1.0', '1.0.0', 'latest'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should generate correct semantic versions for publishing new patch version', async () => {
 		let version = '1.0.1';
-		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', 'latest'];
 		let expectedSemVer = ['1', '1.0', '1.0.1', 'latest'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should generate correct semantic versions for publishing new minor version', async () => {
 		let version = '1.1.0';
-		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', '1.0.1', 'latest'];
 		let expectedSemVer = ['1', '1.1', '1.1.0', 'latest'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should generate correct semantic versions for publishing new major version', async () => {
 		let version = '2.0.0';
-		let publishedVersions = ['1', '1.0', '1.0.0', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', 'latest'];
 		let expectedSemVer = ['2', '2.0', '2.0.0', 'latest'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should generate correct semantic versions for publishing hotfix patch version', async () => {
 		let version = '1.0.2';
-		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '1.1', '1.1.0', '2', '2.0', '2.0.0', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', '1.0.1', '1.1', '1.1.0', '2', '2.0', '2.0.0', 'latest'];
 		let expectedSemVer = ['1.0', '1.0.2'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should generate correct semantic versions for publishing hotfix minor version', async () => {
 		let version = '1.0.1';
-		let publishedVersions = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', '2', '2.0', '2.0.0', 'latest'];
 		let expectedSemVer = ['1', '1.0', '1.0.1'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.equal(semanticVersions?.toString(), expectedSemVer.toString());
 	});
 
 	it('should return undefined for already published version', async () => {
 		let version = '1.0.1';
-		let publishedVersions = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
+		let publishedTags = ['1', '1.0', '1.0.0', '1.0.1', '2', '2.0', '2.0.0', 'latest'];
 
-		let semanticVersions = getSemanticVersions(version, publishedVersions, output);
+		let semanticVersions = getSemanticTags(version, publishedTags, output);
 		assert.isUndefined(semanticVersions);
 	});
 });
