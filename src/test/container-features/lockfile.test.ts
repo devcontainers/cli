@@ -115,6 +115,14 @@ describe('Lockfile', function () {
 		assert.strictEqual(azure.current, undefined);
 		assert.strictEqual(azure.wanted, undefined);
 		assert.ok(azure.latest);
+
+		const foo = response.features['ghcr.io/codspace/versioning/foo:0.3.1'];
+		assert.ok(foo);
+		assert.strictEqual(foo.current, '0.3.1');
+		assert.strictEqual(foo.wanted, '0.3.1');
+		assert.strictEqual(foo.wantedMajor, '0');
+		assert.strictEqual(foo.latest, '2.11.1');
+		assert.strictEqual(foo.latestMajor, '2');
 	});
 
 	it('upgrade command', async () => {

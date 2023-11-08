@@ -15,7 +15,7 @@ export const output = makeLog(createPlainLog(text => process.stdout.write(text),
 const testAssetsDir = `${__dirname}/assets`;
 
 interface PublishResult {
-	publishedVersions: string[];
+	publishedTags: string[];
 	digest: string;
 	version: string;
 	publishedLegacyIds?: string[];
@@ -87,7 +87,7 @@ registry`;
 			const color = result['color'];
 			assert.isDefined(color);
 			assert.isDefined(color.digest);
-			assert.deepEqual(color.publishedVersions, [
+			assert.deepEqual(color.publishedTags, [
 				'1',
 				'1.0',
 				'1.0.0',
@@ -99,7 +99,7 @@ registry`;
 			const hello = result['hello'];
 			assert.isDefined(hello);
 			assert.isDefined(hello.digest);
-			assert.deepEqual(hello.publishedVersions, [
+			assert.deepEqual(hello.publishedTags, [
 				'1',
 				'1.0',
 				'1.0.0',
@@ -123,8 +123,8 @@ registry`;
 		assert.isTrue(success);
 		assert.isDefined(infoTagsResult);
 		const tags = JSON.parse(infoTagsResult.stdout);
-		const publishedVersions: string[] = tags['publishedVersions'];
-		assert.equal(publishedVersions.length, 4);
+		const publishedTags: string[] = tags['publishedTags'];
+		assert.equal(publishedTags.length, 4);
 
 		success = false; // Reset success flag.
 		try {
@@ -172,15 +172,15 @@ registry`;
 			assert.isObject(color);
 			// Check that the color object has no properties
 			assert.isUndefined(color.digest);
-			assert.isUndefined(color.publishedVersions);
+			assert.isUndefined(color.publishedTags);
 			assert.isUndefined(color.version);
 
 			// -- The breakfix version of hello was updated, so major and minor should be published again, too.
 			const hello = result['hello'];
 			assert.isDefined(hello);
 			assert.isDefined(hello.digest);
-			assert.isArray(hello.publishedVersions);
-			assert.deepEqual(hello.publishedVersions, [
+			assert.isArray(hello.publishedTags);
+			assert.deepEqual(hello.publishedTags, [
 				'1',
 				'1.0',
 				'1.0.1',
@@ -219,7 +219,7 @@ registry`;
 			const newColor = result['new-color'];
 			assert.isDefined(newColor);
 			assert.isDefined(newColor.digest);
-			assert.deepEqual(newColor.publishedVersions, [
+			assert.deepEqual(newColor.publishedTags, [
 				'1',
 				'1.0',
 				'1.0.1',
@@ -234,7 +234,7 @@ registry`;
 			const hello = result['hello'];
 			assert.isDefined(hello);
 			assert.isDefined(hello.digest);
-			assert.deepEqual(hello.publishedVersions, [
+			assert.deepEqual(hello.publishedTags, [
 				'1',
 				'1.0',
 				'1.0.0',
@@ -299,8 +299,8 @@ registry`;
 		assert.isTrue(success);
 		assert.isDefined(infoTagsResult);
 		const tags = JSON.parse(infoTagsResult.stdout);
-		const publishedVersions: string[] = tags['publishedVersions'];
-		assert.equal(publishedVersions.length, 4);
+		const publishedTags: string[] = tags['publishedTags'];
+		assert.equal(publishedTags.length, 4);
 	});
 });
 

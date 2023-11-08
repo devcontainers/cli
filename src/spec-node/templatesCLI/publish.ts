@@ -94,7 +94,7 @@ async function templatesPublish({
             process.exit(1);
         }
 
-        const thisResult = (publishResult?.digest && publishResult?.publishedVersions?.length > 0) ? {
+        const thisResult = (publishResult?.digest && publishResult?.publishedTags?.length > 0) ? {
             ...publishResult,
             version: t.version,
         } : {};
