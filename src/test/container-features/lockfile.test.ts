@@ -129,6 +129,15 @@ describe('Lockfile', function () {
 		assert.equal(actual.toString(), expected.toString());
 	});
 
+	it('upgrade command in --dry-run mode', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-dependson');
+		const res = await shellExec(`${cli} upgrade --dry-run --workspace-folder ${workspaceFolder}`);
+		const lockfile = JSON.parse(res.stdout);
+		assert.ok(lockfile);
+		assert.ok(lockfile.features);
+		assert.ok(lockfile.features['ghcr.io/codspace/dependson/A:2']);
+	});
+
 	it('OCI feature integrity', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-oci-integrity');
 

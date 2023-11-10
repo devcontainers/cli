@@ -26,6 +26,7 @@ export function featuresUpgradeOptions(y: Argv) {
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
+			'dry-run': { type: 'boolean', description: 'Write generated lockfile to standard out instead of to disk.' },
 		});
 }
 
@@ -41,6 +42,7 @@ async function featuresUpgrade({
 	config: configArg,
 	'docker-compose-path': dockerComposePath,
 	'log-level': inputLogLevel,
+	'dry-run': dryRun,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -103,7 +105,13 @@ async function featuresUpgrade({
 		if (!featuresConfig) {
 			throw new ContainerError({ description: `Failed to update lockfile` });
 		}
-		await writeLockfile(params, config, featuresConfig, true);
+		const lockFile = await writeLockfile(params, config, featuresConfig, true, dryRun);
+		if (dryRun) {
+			if (!lockFile) {
+				throw new ContainerError({ description: `Failed to generate lockfile.` });
+			}
+			console.log(lockFile);
+		}
 	} catch (err) {
 		if (output) {
 			output.write(err && (err.stack || err.message) || String(err));
