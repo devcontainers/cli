@@ -13,7 +13,7 @@ export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig, forceInitLockfile?: boolean) {
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig, forceInitLockfile?: boolean, dryRun?: boolean): Promise<string | undefined> {
 	const lockfilePath = getLockfilePath(config);
 	const oldLockfileContent = await readLocalFile(lockfilePath)
 		.catch(err => {
@@ -51,7 +51,13 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			features: {} as Record<string, { version: string; resolved: string; integrity: string }>,
 		});
 
-	const newLockfileContent = Buffer.from(JSON.stringify(lockfile, null, 2));
+	const newLockfileContentString = JSON.stringify(lockfile, null, 2);
+
+	if (dryRun) {
+		return newLockfileContentString;
+	}
+
+	const newLockfileContent = Buffer.from(newLockfileContentString);
 	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
@@ -61,6 +67,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 		}
 		await writeLocalFile(lockfilePath, newLockfileContent);
 	}
+	return;
 }
 
 export async function readLockfile(config: DevContainerConfig): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
