@@ -2,6 +2,15 @@
 
 Notable changes.
 
+## November 2023
+
+### [0.53.0]
+
+- add `--dry-run` to `upgrade` command (https://github.com/devcontainers/cli/pull/679)
+- Fix version sorting and report major version in `outdated` command (https://github.com/devcontainers/cli/pull/670)
+	- NOTE: This changes the signature of the `features info` command and the output of publishing Features/Templates.  The key `publishedVersions` has been renamed to `publishedTags` to better mirror the key's values.
+- Docker compose: Updates create error description to include cause for docker auth plugin errors (https://github.com/devcontainers/cli/pull/660)
+
 ## October 2023
 
 ### [0.52.1]
