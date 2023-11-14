@@ -1,3 +1,5 @@
+import * as jsonc from 'jsonc-parser';
+
 import { Argv } from 'yargs';
 import { UnpackArgv } from './devContainersSpecCLI';
 import { dockerComposeCLIConfig } from './dockerCompose';
@@ -6,17 +8,18 @@ import { createLog } from './devContainers';
 import { getPackageConfig } from '../spec-utils/product';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import path from 'path';
-import { getCLIHost } from '../spec-common/cliHost';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule } from '../spec-common/commonUtils';
 import { URI } from 'vscode-uri';
-import { workspaceFromPath } from '../spec-utils/workspaces';
+import { Workspace, workspaceFromPath } from '../spec-utils/workspaces';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { readDevContainerConfigFile } from './configContainer';
 import { ContainerError } from '../spec-common/errors';
 import { getCacheFolder } from './utils';
-import { getLockfilePath, writeLockfile } from '../spec-configuration/lockfile';
-import { writeLocalFile } from '../spec-utils/pfs';
+import { Lockfile, generateLockfile, getLockfilePath, writeLockfile } from '../spec-configuration/lockfile';
+import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
+import { DevContainerConfig } from '../spec-configuration/configuration';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -27,6 +30,22 @@ export function featuresUpgradeOptions(y: Argv) {
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'dry-run': { type: 'boolean', description: 'Write generated lockfile to standard out instead of to disk.' },
+			// Added for dependabot
+			'feature': { hidden: true, type: 'string', alias: 'f', description: 'Upgrade the version requirements of a given Feature (and its dependencies).  Then, upgrade the lockfile.   Must supply \'--target-version\'.' },
+			'target-version': { hidden: true, type: 'string', alias: 'v', description: 'The major (x), minor (x.y), or patch version (x.y.z) of the Feature to pin in devcontainer.json.  Must supply a \'--feature\'.' },
+		})
+		.check(argv => {
+			if (argv.feature && !argv['target-version'] || !argv.feature && argv['target-version']) {
+				throw new Error('The \'--target-version\' and \'--feature\' flag must be used together.');
+			}
+
+			if (argv['target-version']) {
+				const targetVersion = argv['target-version'];
+				if (!targetVersion.match(/^\d+(\.\d+(\.\d+)?)?$/)) {
+					throw new Error(`Invalid version '${targetVersion}'.  Must be in the form of 'x', 'x.y', or 'x.y.z'`);
+				}
+			}
+			return true;
 		});
 }
 
@@ -43,6 +62,8 @@ async function featuresUpgrade({
 	'docker-compose-path': dockerComposePath,
 	'log-level': inputLogLevel,
 	'dry-run': dryRun,
+	feature: feature,
+	'target-version': targetVersion,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -77,11 +98,7 @@ async function featuresUpgrade({
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
-		if (!configs) {
-			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
-		}
-		const config = configs.config.config;
+		let config = await getConfig(configPath, cliHost, workspace, output, configFile);
 		const cacheFolder = await getCacheFolder(cliHost);
 		const params = {
 			extensionPath,
@@ -93,25 +110,31 @@ async function featuresUpgrade({
 			platform: cliHost.platform,
 		};
 
-		const bold = process.stdout.isTTY ? '\x1b[1m' : '';
-		const clear = process.stdout.isTTY ? '\x1b[0m' : '';
-		output.raw(`${bold}Upgrading lockfile...\n${clear}\n`, LogLevel.Info);
+		if (feature && targetVersion) {
+			output.write(`Updating '${feature}' to '${targetVersion}' in devcontainer.json`, LogLevel.Info);
+			// Update Feature version tag in devcontainer.json
+			await updateFeatureVersionInConfig(params, config, config.configFilePath!.fsPath, feature, targetVersion);
+			// Re-read config for subsequent lockfile generation
+			config = await getConfig(configPath, cliHost, workspace, output, configFile);
+		}
 
-		// Truncate existing lockfile
-		const lockfilePath = getLockfilePath(config);
-		await writeLocalFile(lockfilePath, '');
-		// Update lockfile
 		const featuresConfig = await readFeaturesConfig(dockerParams, pkg, config, extensionPath, false, {});
 		if (!featuresConfig) {
 			throw new ContainerError({ description: `Failed to update lockfile` });
 		}
-		const lockFile = await writeLockfile(params, config, featuresConfig, true, dryRun);
+
+		const lockfile: Lockfile = await generateLockfile(featuresConfig);
+
 		if (dryRun) {
-			if (!lockFile) {
-				throw new ContainerError({ description: `Failed to generate lockfile.` });
-			}
-			console.log(lockFile);
+			console.log(JSON.stringify(lockfile, null, 2));
+			return;
 		}
+
+		// Truncate any existing lockfile
+		const lockfilePath = getLockfilePath(config);
+		await writeLocalFile(lockfilePath, '');
+		// Update lockfile
+		await writeLockfile(params, config, lockfile, true);
 	} catch (err) {
 		if (output) {
 			output.write(err && (err.stack || err.message) || String(err));
@@ -123,4 +146,72 @@ async function featuresUpgrade({
 	}
 	await dispose();
 	process.exit(0);
+}
+
+async function updateFeatureVersionInConfig(params: { output: Log }, config: DevContainerConfig, configPath: string, targetFeature: string, targetVersion: string) {
+	const { output } = params;
+
+	if (!config.features) {
+		// No Features in config to upgrade
+		output.write(`No Features found in '${configPath}'.`);
+		return;
+	}
+
+	if (!configPath || !(await isLocalFile(configPath))) {
+		throw new ContainerError({ description: `Error running upgrade command.  Config path '${configPath}' does not exist.` });
+	}
+
+	const configText = await readLocalFile(configPath);
+	const previousConfigText: string = configText.toString();
+	let updatedText: string = configText.toString();
+
+	// Clear Features object to make editing easier
+	const edits = jsonc.modify(updatedText, ['features'], {}, { formattingOptions: {} });
+	updatedText = jsonc.applyEdits(updatedText, edits);
+
+	const targetFeatureNoVersion = getFeatureIdWithoutVersion(targetFeature);
+	for (const [userFeatureId, options] of Object.entries(config.features)) {
+
+		// Filter to only modify target Feature.
+		// Rewrite non-target Feature back exactly how they were.
+		if (targetFeatureNoVersion !== getFeatureIdWithoutVersion(userFeatureId)) {
+			const propertyPath = ['features', userFeatureId];
+			updatedText = applyEdit(updatedText, propertyPath, options ?? {});
+			continue;
+		}
+
+		const updatedId = `${getFeatureIdWithoutVersion(userFeatureId)}:${targetVersion}`;
+
+		// Update config
+		const propertyPath = ['features', updatedId];
+		updatedText = applyEdit(updatedText, propertyPath, options ?? {});
+	}
+
+	output.write(updatedText, LogLevel.Trace);
+	if (updatedText === previousConfigText) {
+		output.write(`No changes to config file: ${configPath}\n`, LogLevel.Trace);
+		return;
+	}
+
+	output.write(`Updating config file: '${configPath}'`, LogLevel.Info);
+	await writeLocalFile(configPath, updatedText);
+}
+
+function applyEdit(text: string, propertyPath: string[], options: string | boolean | Record<string, string | boolean>): string {
+	let edits: jsonc.Edit[] = jsonc.modify(text, propertyPath, options, { formattingOptions: {} });
+	return jsonc.applyEdits(text, edits);
+}
+
+async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+	if (!configs) {
+		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
+	}
+	return configs.config.config;
+}
+
+const lastDelimiter = /[:@][^/]*$/;
+function getFeatureIdWithoutVersion(featureId: string) {
+	const m = lastDelimiter.exec(featureId);
+	return m ? featureId.substring(0, m.index) : featureId;
 }
