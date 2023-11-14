@@ -146,6 +146,24 @@ describe('Lockfile', function () {
 		assert.ok(lockfile.features['ghcr.io/codspace/dependson/A:2']);
 	});
 
+	it('upgrade command with --feature', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-upgrade-feature');
+		await cpLocal(path.join(workspaceFolder, 'input.devcontainer.json'), path.join(workspaceFolder, '.devcontainer.json'));
+
+		const res = await shellExec(`${cli} upgrade --dry-run --workspace-folder ${workspaceFolder} --feature ghcr.io/codspace/versioning/foo --target-version 2`);
+
+		// Check devcontainer.json was updated
+		const actual = await readLocalFile(path.join(workspaceFolder, '.devcontainer.json'));
+		const expected = await readLocalFile(path.join(workspaceFolder, 'expected.devcontainer.json'));
+		assert.equal(actual.toString(), expected.toString());
+
+		// Check lockfile was updated
+		const lockfile = JSON.parse(res.stdout);
+		assert.ok(lockfile);
+		assert.ok(lockfile.features);
+		assert.ok(lockfile.features['ghcr.io/codspace/versioning/foo:2'].version === '2.11.1');
+	});
+
 	it('OCI feature integrity', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-oci-integrity');
 
