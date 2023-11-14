@@ -584,7 +584,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 
 	const { lockfile } = await readLockfile(config);
 
-	const features: Record<string, any> = {};
+	const resolved: Record<string, any> = {};
 
 	await Promise.all(userFeatures.map(async userFeature => {
 		const userFeatureId = userFeature.userFeatureId;
@@ -610,7 +610,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 						wanted = wantedFeature?.version;
 					}
 				}
-				features[userFeatureId] = {
+				resolved[userFeatureId] = {
 					current: lockfileVersion || wanted,
 					wanted,
 					wantedMajor: wanted && semver.major(wanted)?.toString(),
@@ -621,7 +621,13 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 		}
 	}));
 
-	return { features };
+	// Reorder Features to match the order in which they were specified in config
+	return {
+		features: userFeatures.reduce((acc, userFeature) => {
+			acc[userFeature.userFeatureId] = resolved[userFeature.userFeatureId];
+			return acc;
+		}, {} as Record<string, any>)
+	};
 }
 
 async function findOCIFeatureMetadata(params: ContainerFeatureInternalParams, manifest: ManifestContainer) {
