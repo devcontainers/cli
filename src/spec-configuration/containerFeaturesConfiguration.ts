@@ -116,16 +116,12 @@ export function parseMount(str: string): Mount {
 		.reduce((acc, [key, value]) => ({ ...acc, [(normalizedMountKeys[key] || key)]: value }), {}) as Mount;
 }
 
-export type SourceInformation = LocalCacheSourceInformation | GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
+export type SourceInformation = GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
 
 interface BaseSourceInformation {
 	type: string;
 	userFeatureId: string; // Dictates how a supporting tool will locate and download a given feature. See https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 	userFeatureIdWithoutVersion?: string;
-}
-
-export interface LocalCacheSourceInformation extends BaseSourceInformation {
-	type: 'local-cache';
 }
 
 export interface OCISourceInformation extends BaseSourceInformation {
@@ -213,18 +209,6 @@ export interface ContainerFeatureInternalParams {
 	platform: NodeJS.Platform;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
-}
-
-export const multiStageBuildExploration = false;
-
-const isTsnode = path.basename(process.argv[0]) === 'ts-node' || process.argv.indexOf('ts-node/register') !== -1;
-
-export function getContainerFeaturesFolder(_extensionPath: string | { distFolder: string }) {
-	if (isTsnode) {
-		return path.join(require.resolve('vscode-dev-containers/package.json'), '..', 'container-features');
-	}
-	const distFolder = typeof _extensionPath === 'string' ? path.join(_extensionPath, 'dist') : _extensionPath.distFolder;
-	return path.join(distFolder, 'node_modules', 'vscode-dev-containers', 'container-features');
 }
 
 // TODO: Move to node layer.
@@ -467,29 +451,6 @@ async function askGitHubApiForTarballUri(sourceInformation: GithubSourceInformat
 	return undefined;
 }
 
-export async function loadFeaturesJson(jsonBuffer: Buffer, filePath: string, output: Log): Promise<FeatureSet | undefined> {
-	if (jsonBuffer.length === 0) {
-		output.write('Parsed featureSet is empty.', LogLevel.Error);
-		return undefined;
-	}
-
-	const featureSet: FeatureSet = jsonc.parse(jsonBuffer.toString());
-	if (!featureSet?.features || featureSet.features.length === 0) {
-		output.write('Parsed featureSet contains no features.', LogLevel.Error);
-		return undefined;
-	}
-	output.write(`Loaded ${filePath}, which declares ${featureSet.features.length} features and ${(!!featureSet.sourceInformation) ? 'contains' : 'does not contain'} explicit source info.`,
-		LogLevel.Trace);
-
-	return updateFromOldProperties(featureSet);
-}
-
-export async function loadV1FeaturesJsonFromDisk(pathToDirectory: string, output: Log): Promise<FeatureSet | undefined> {
-	const filePath = path.join(pathToDirectory, V1_DEVCONTAINER_FEATURES_FILE_NAME);
-	const jsonBuffer: Buffer = await readLocalFile(filePath);
-	return loadFeaturesJson(jsonBuffer, filePath, output);
-}
-
 function updateFromOldProperties<T extends { features: (Feature & { extensions?: string[]; settings?: object; customizations?: VSCodeCustomizations })[] }>(original: T): T {
 	// https://github.com/microsoft/dev-container-spec/issues/1
 	if (!original.features.find(f => f.extensions || f.settings)) {
@@ -522,7 +483,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 
 // Generate a base featuresConfig object with the set of locally-cached features, 
 // as well as downloading and merging in remote feature definitions.
-export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, getLocalFeaturesFolder: (d: string) => string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
 
 	const workspaceRoot = params.cwd;
@@ -530,15 +491,6 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config, additionalFeatures), output);
 	if (!userFeatures) {
-		return undefined;
-	}
-
-	// load local cache of features;
-	// TODO: Update so that cached features are always version 2
-	const localFeaturesFolder = getLocalFeaturesFolder(params.extensionPath);
-	const locallyCachedFeatureSet = await loadV1FeaturesJsonFromDisk(localFeaturesFolder, output); // TODO: Pass dist folder instead to also work with the devcontainer.json support package.
-	if (!locallyCachedFeatureSet) {
-		output.write('Failed to load locally cached features', LogLevel.Error);
 		return undefined;
 	}
 
@@ -567,7 +519,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	// Fetch features, stage into the appropriate build folder, and read the feature's devcontainer-feature.json
 	output.write('--- Fetching User Features ----', LogLevel.Trace);
-	await fetchFeatures(params, featuresConfig, locallyCachedFeatureSet, dstFolder, localFeaturesFolder, ociCacheDir, lockfile);
+	await fetchFeatures(params, featuresConfig, dstFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, featuresConfig, initLockfile);
@@ -752,11 +704,6 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 	//      (1)  A feature backed by a GitHub Release
 	//			 Syntax:   <repoOwner>/<repoName>/<featureId>[@version]
 
-	// DEPRECATED: This is a legacy feature-set ID
-	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
-		return { type: 'local-cache', manifest: undefined };
-	}
-
 	// Direct tarball reference
 	if (userFeatureId.startsWith('https://')) {
 		return { type: 'direct-tarball', manifest: undefined };
@@ -790,9 +737,6 @@ export function getBackwardCompatibleFeatureId(output: Log, id: string) {
 	deprecatedFeaturesIntoOptions.set('gradle', 'java');
 	deprecatedFeaturesIntoOptions.set('maven', 'java');
 	deprecatedFeaturesIntoOptions.set('jupyterlab', 'python');
-
-	// TODO: add warning logs once we have context on the new location for these Features.
-	// const deprecatedFeatures = ['fish', 'homebrew'];
 
 	const newFeaturePath = 'ghcr.io/devcontainers/features';
 	// Note: Pin the versionBackwardComp to '1' to avoid breaking changes.
@@ -833,29 +777,6 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	}
 
 	const { type, manifest } = await getFeatureIdType(params, userFeature.userFeatureId, lockfile);
-
-	// cached feature
-	// Resolves deprecated features (fish, maven, gradle, homebrew, jupyterlab)
-	if (type === 'local-cache') {
-		output.write(`Cached feature found.`);
-
-		let feat: Feature = {
-			id: userFeature.userFeatureId,
-			name: userFeature.userFeatureId,
-			value: userFeature.options,
-			included: true,
-		};
-
-		let newFeaturesSet: FeatureSet = {
-			sourceInformation: {
-				type: 'local-cache',
-				userFeatureId: originalUserFeatureId
-			},
-			features: [feat],
-		};
-
-		return newFeaturesSet;
-	}
 
 	// remote tar file
 	if (type === 'direct-tarball') {
@@ -1030,16 +951,12 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// throw new Error(`Unsupported feature source type: ${type}`);
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, localFeatures: FeatureSet, dstFolder: string, localFeaturesFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
+async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, dstFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
 	const featureSets = featuresConfig.featureSets;
 	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
 		const featureSet = featureSets[idx];
 		try {
 			if (!featureSet || !featureSet.features || !featureSet.sourceInformation) {
-				continue;
-			}
-
-			if (!localFeatures) {
 				continue;
 			}
 
@@ -1077,18 +994,6 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 				}
 				output.write(`* Fetched feature: ${featureDebugId} version ${feature.version}`);
 
-				continue;
-			}
-
-			if (sourceInfoType === 'local-cache') {
-				// create copy of the local features to set the environment variables for them.
-				await mkdirpLocal(featCachePath);
-				await cpDirectoryLocal(localFeaturesFolder, featCachePath);
-
-				if (!(await applyFeatureConfigToFeature(output, featureSet, feature, featCachePath, undefined))) {
-					const err = `Failed to parse feature '${featureDebugId}'. Please check your devcontainer.json 'features' attribute.`;
-					throw new Error(err);
-				}
 				continue;
 			}
 

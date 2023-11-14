@@ -48,7 +48,7 @@ const assertFeatureIdInvariant = (id: string) => {
 };
 
 describe('validate processFeatureIdentifier', async function () {
-	// const VALID_TYPES = ['local-cache', 'github-repo', 'direct-tarball', 'file-path', 'oci'];
+	// const VALID_TYPES = ['github-repo', 'direct-tarball', 'file-path', 'oci'];
 
 	// In the real implementation, the cwd is passed by the calling function with the value of `--workspace-folder`.
 	// See: https://github.com/devcontainers/cli/blob/45541ba21437bf6c16826762f084ab502157789b/src/spec-node/devContainersSpecCLI.ts#L152-L153

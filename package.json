@@ -18,9 +18,9 @@
 		"node": "^16.13.0 || >=18.0.0"
 	},
 	"scripts": {
-		"compile": "npm-run-all clean-dist definitions compile-dev",
-		"watch": "npm-run-all clean-dist definitions compile-watch",
-		"package": "npm-run-all clean-dist definitions compile-prod store-packagejson patch-packagejson npm-pack restore-packagejson",
+		"compile": "npm-run-all clean-dist compile-dev",
+		"watch": "npm-run-all clean-dist compile-watch",
+		"package": "npm-run-all clean-dist compile-prod store-packagejson patch-packagejson npm-pack restore-packagejson",
 		"store-packagejson": "copyfiles package.json build-tmp/",
 		"patch-packagejson": "node build/patch-packagejson.js",
 		"restore-packagejson": "copyfiles --up 1 build-tmp/package.json .",
@@ -32,10 +32,7 @@
 		"tsc-b": "tsc -b",
 		"tsc-b-w": "tsc -b -w",
 		"precommit": "node build/hygiene.js",
-		"definitions": "npm-run-all definitions-clean definitions-copy",
 		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --max-warnings 0 --ext .ts ./src",
-		"definitions-clean": "rimraf dist/node_modules/vscode-dev-containers",
-		"definitions-copy": "copyfiles \"node_modules/vscode-dev-containers/container-features/{devcontainer-features.json,feature-scripts.env,fish-debian.sh,homebrew-debian.sh,install.sh}\" dist",
 		"npm-pack": "npm pack",
 		"clean": "npm-run-all clean-dist clean-built",
 		"clean-dist": "rimraf dist",
@@ -52,7 +49,6 @@
 		"ThirdPartyNotices.txt",
 		"devcontainer.js",
 		"dist/spec-node/devContainersSpecCLI.js",
-		"dist/node_modules/vscode-dev-containers",
 		"package.json",
 		"scripts/updateUID.Dockerfile"
 	],
@@ -106,7 +102,6 @@
 		"stream-to-pull-stream": "^1.7.3",
 		"tar": "^6.1.13",
 		"text-table": "^0.2.0",
-		"vscode-dev-containers": "https://github.com/microsoft/vscode-dev-containers/releases/download/v0.245.2/vscode-dev-containers-0.245.2.tgz",
 		"vscode-uri": "^3.0.7",
 		"yargs": "~17.7.1"
 	}

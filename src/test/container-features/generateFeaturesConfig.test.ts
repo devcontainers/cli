@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet, getContainerFeaturesFolder, generateContainerEnvs } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
@@ -23,81 +23,6 @@ describe('validate generateFeaturesConfig()', function () {
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
     const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform };
 
-    // Mocha executes with the root of the project as the cwd.
-    const localFeaturesFolder = (_: string) => {
-        return './src/test/container-features/example-v1-features-sets/simple';
-    };
-
-    it('should correctly return a featuresConfig with v1 local features', async function () {
-
-        const version = 'unittest';
-        const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
-        await mkdirpLocal(tmpFolder);
-
-
-        const config: DevContainerConfig = {
-            configFilePath: URI.from({ 'scheme': 'https' }),
-            dockerFile: '.',
-            features: {
-                first: {
-                    'version': 'latest'
-                },
-                second: {
-                    'value': true
-                },
-            },
-        };
-
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, localFeaturesFolder, {});
-        if (!featuresConfig) {
-            assert.fail();
-        }
-
-        assert.strictEqual(featuresConfig?.featureSets.length, 2);
-
-        const first = featuresConfig.featureSets[0].features.find((f) => f.id === 'first');
-        assert.exists(first);
-
-        const second = featuresConfig.featureSets[1].features.find((f) => f.id === 'second');
-        assert.exists(second);
-
-        assert.isObject(first?.value);
-        assert.isObject(second?.value);
-
-        // -- Test containerFeatures.ts helper functions
-
-        // generateContainerEnvs
-        const actualEnvs = featuresConfig.featureSets
-            .map(set => set.features
-                .map(f => generateContainerEnvs(f.containerEnv)))
-                    .flat()
-                    .join('\n');
-        const expectedEnvs = `ENV MYKEYONE="MY RESULT ONE"
-ENV MYKEYTWO="MY RESULT TWO"`;
-        assert.strictEqual(actualEnvs, expectedEnvs);
-
-        // getFeatureLayers
-        const actualLayers = getFeatureLayers(featuresConfig, 'testContainerUser', 'testRemoteUser');
-        const expectedLayers = `RUN \\
-echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand('testContainerUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
-echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand('testRemoteUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
-
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/first_0 /tmp/dev-container-features/first_0
-RUN chmod -R 0755 /tmp/dev-container-features/first_0 \\
-&& cd /tmp/dev-container-features/first_0 \\
-&& chmod +x ./install.sh \\
-&& ./install.sh
-
-COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/second_1 /tmp/dev-container-features/second_1
-RUN chmod -R 0755 /tmp/dev-container-features/second_1 \\
-&& cd /tmp/dev-container-features/second_1 \\
-&& chmod +x ./install.sh \\
-&& ./install.sh
-
-`;
-        assert.strictEqual(actualLayers, expectedLayers);
-    });
-
     it('should correctly return a featuresConfig with v2 local features', async function () {
         const version = 'unittest';
         const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
@@ -120,7 +45,7 @@ RUN chmod -R 0755 /tmp/dev-container-features/second_1 \\
             },
         };
         
-        const featuresConfig = await generateFeaturesConfig({ ...params, cwd: tmpFolder }, tmpFolder, config, localFeaturesFolder, {});
+        const featuresConfig = await generateFeaturesConfig({ ...params, cwd: tmpFolder }, tmpFolder, config, {});
         if (!featuresConfig) {
             assert.fail();
         }
@@ -186,7 +111,7 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
 
         params.skipFeatureAutoMapping = true;
 
-        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, getContainerFeaturesFolder, {});
+        const featuresConfig = await generateFeaturesConfig(params, tmpFolder, config, {});
         if (!featuresConfig) {
             assert.fail();
         }
