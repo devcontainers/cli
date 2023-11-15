@@ -6,10 +6,6 @@
 import * as semver from 'semver';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 
-export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
-export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
-export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
-
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gmi');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+AS\s+(?<label>[^\s]+))?/i;

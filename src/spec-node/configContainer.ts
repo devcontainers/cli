@@ -9,7 +9,7 @@ import * as jsonc from 'jsonc-parser';
 
 import { openDockerfileDevContainer } from './singleContainer';
 import { openDockerComposeDevContainer } from './dockerCompose';
-import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runInitializeCommand, createDocuments, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig, addSubstitution, envListToObj, findContainerAndIdLabels } from './utils';
+import { ResolverResult, DockerResolverParameters, isDockerFileConfig, runInitializeCommand, getWorkspaceConfiguration, BindMountConsistency, uriToFsPath, DevContainerAuthority, isDevContainerAuthority, SubstituteConfig, SubstitutedConfig, addSubstitution, envListToObj, findContainerAndIdLabels } from './utils';
 import { beforeContainerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace, workspaceFromPath, isWorkspacePath } from '../spec-utils/workspaces';
@@ -20,8 +20,8 @@ import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn } from '.
 import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, updateFromOldProperties } from '../spec-configuration/configuration';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
+import { createDocuments } from '../spec-configuration/editableFiles';
 
-export { getWellKnownDevContainerPaths as getPossibleDevContainerPaths } from '../spec-configuration/configurationCommonUtils';
 
 export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	if (configFile && !/\/\.?devcontainer\.json$/.test(configFile.path)) {

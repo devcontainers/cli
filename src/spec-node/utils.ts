@@ -29,9 +29,8 @@ import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-conf
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 
-export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
+export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
-export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
 
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;

@@ -31,12 +31,3 @@ export async function findGitRootFolder(cliHost: FileHost | CLIHost, folderPath:
 		return undefined;
 	}
 }
-
-export interface GitCloneOptions {
-	url: string;
-	tokenEnvVar?: string;
-	branch?: string;
-	recurseSubmodules?: boolean;
-	env?: NodeJS.ProcessEnv;
-	fullClone?: boolean;
-}

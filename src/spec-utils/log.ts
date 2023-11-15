@@ -28,18 +28,8 @@ const logLevelMap = {
 
 type logLevelString = keyof typeof logLevelMap;
 
-const logLevelReverseMap = (Object.keys(logLevelMap) as logLevelString[])
-	.reduce((arr, cur) => {
-		arr[logLevelMap[cur]] = cur;
-		return arr;
-	}, [] as logLevelString[]);
-
 export function mapLogLevel(text: logLevelString) {
 	return logLevelMap[text] || LogLevel.Info;
-}
-
-export function reverseMapLogLevel(level: LogLevel) {
-	return logLevelReverseMap[level] || LogLevel.Info;
 }
 
 export type LogEvent = {
