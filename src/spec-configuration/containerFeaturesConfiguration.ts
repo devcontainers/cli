@@ -22,6 +22,7 @@ import { Lockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
 import { getEntPasswdShellCommand } from '../spec-common/commonUtils';
+import { ContainerError } from '../spec-common/errors';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -703,6 +704,12 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 	//
 	//      (1)  A feature backed by a GitHub Release
 	//			 Syntax:   <repoOwner>/<repoName>/<featureId>[@version]
+
+	// Legacy feature-set ID
+	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
+		output.write(`Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.`, LogLevel.Error);
+		throw new ContainerError({ description: `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.` });
+	}
 
 	// Direct tarball reference
 	if (userFeatureId.startsWith('https://')) {
