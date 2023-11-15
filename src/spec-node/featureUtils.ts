@@ -1,5 +1,5 @@
 import { DevContainerConfig } from '../spec-configuration/configuration';
-import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { FeaturesConfig, generateFeaturesConfig } from '../spec-configuration/containerFeaturesConfiguration';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import { PackageConfiguration } from '../spec-utils/product';
 import { createFeaturesTempFolder, getCacheFolder } from './utils';
@@ -9,5 +9,5 @@ export async function readFeaturesConfig(params: DockerCLIParameters, pkg: Packa
 	const { cwd, env, platform } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
 	const cacheFolder = await getCacheFolder(cliHost);
-	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
+	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, additionalFeatures);
 }

@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { StringDecoder } from 'string_decoder';
-import * as tar from 'tar';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
-import { LogLevel, makeLog, toErrorText } from '../spec-utils/log';
-import { FeaturesConfig, getContainerFeaturesFolder, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, V1_DEVCONTAINER_FEATURES_FILE_NAME, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
+import { LogLevel, makeLog } from '../spec-utils/log';
+import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
@@ -124,15 +122,12 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	// Creates the folder where the working files will be setup.
 	const dstFolder = await createFeaturesTempFolder(params.common);
 
-	// Extracts the local cache of features.
-	await createLocalFeatures(params, dstFolder);
-
 	// Processes the user's configuration.
 	const platform = params.common.cliHost.platform;
 
 	const cacheFolder = await getCacheFolder(params.common.cliHost);
 	const { experimentalLockfile, experimentalFrozenLockfile } = params;
-	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile }, dstFolder, config.config, getContainerFeaturesFolder, additionalFeatures);
+	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, experimentalLockfile, experimentalFrozenLockfile }, dstFolder, config.config, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {
@@ -168,50 +163,6 @@ export function generateContainerEnvsV1(featuresConfig: FeaturesConfig) {
 		}
 	}
 	return result;
-}
-
-async function createLocalFeatures(params: DockerResolverParameters, dstFolder: string)
-{
-	const { common } = params;
-	const { cliHost, output } = common;
-
-	// Name of the local cache folder inside the working directory
-	const localCacheBuildFolderName = 'local-cache';
-
-	const srcFolder = getContainerFeaturesFolder(common.extensionPath);
-	output.write(`local container features stored at: ${srcFolder}`);
-	await cliHost.mkdirp(`${dstFolder}/${localCacheBuildFolderName}`);
-	const create = tar.c({
-		cwd: srcFolder,
-		filter: path => (path !== './Dockerfile' && path !== `./${V1_DEVCONTAINER_FEATURES_FILE_NAME}`),
-	}, ['.']);
-	const createExit = new Promise((resolve, reject) => {
-		create.on('error', reject);
-		create.on('finish', resolve);
-	});
-	const extract = await cliHost.exec({
-		cmd: 'tar',
-		args: [
-			'--no-same-owner',
-			'-x',
-			'-f', '-',
-		],
-		cwd: `${dstFolder}/${localCacheBuildFolderName}`,
-		output,
-	});
-	const stdoutDecoder = new StringDecoder();
-	extract.stdout.on('data', (chunk: Buffer) => {
-		output.write(stdoutDecoder.write(chunk));
-	});
-	const stderrDecoder = new StringDecoder();
-	extract.stderr.on('data', (chunk: Buffer) => {
-		output.write(toErrorText(stderrDecoder.write(chunk)));
-	});
-	create.pipe(extract.stdin);
-	await Promise.all([
-		extract.exit,
-		createExit, // Allow errors to surface.
-	]);
 }
 
 export interface ImageBuildOptions {
