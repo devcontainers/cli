@@ -70,9 +70,6 @@ export function equalPaths(platform: NodeJS.Platform, a: string, b: string) {
 	return a.toLowerCase() === b.toLowerCase();
 }
 
-export const tsnode = path.join(__dirname, '..', '..', 'node_modules', '.bin', 'ts-node');
-export const isTsnode = path.basename(process.argv[0]) === 'ts-node' || process.argv.indexOf('ts-node/register') !== -1;
-
 export async function runCommandNoPty(options: {
 	exec: ExecFunction;
 	cmd: string;

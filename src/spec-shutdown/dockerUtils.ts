@@ -128,20 +128,6 @@ export async function inspectImage(params: DockerCLIParameters | PartialExecPara
 	return (await inspect<ImageDetails>(params, 'image', [id]))[0];
 }
 
-export interface VolumeDetails {
-	Name: string;
-	CreatedAt: string;
-	Labels: Record<string, string> | null;
-}
-
-export async function inspectVolume(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, name: string): Promise<VolumeDetails> {
-	return (await inspect<VolumeDetails>(params, 'volume', [name]))[0];
-}
-
-export async function inspectVolumes(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, names: string[]): Promise<VolumeDetails[]> {
-	return inspect<VolumeDetails>(params, 'volume', names);
-}
-
 async function inspect<T>(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, type: 'container' | 'image' | 'volume', ids: string[]): Promise<T[]> {
 	if (!ids.length) {
 		return [];
@@ -175,26 +161,6 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.toString()
 		.split(/\r?\n/)
 		.filter(s => !!s);
-}
-
-export async function listVolumes(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, labels: string[] = []) {
-	const filterArgs = [];
-	for (const label of labels) {
-		filterArgs.push('--filter', `label=${label}`);
-	}
-	const result = await dockerCLI(params, 'volume', 'ls', '-q', ...filterArgs);
-	return result.stdout
-		.toString()
-		.split(/\r?\n/)
-		.filter(s => !!s);
-}
-
-export async function createVolume(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, name: string, labels: string[]) {
-	const labelArgs: string[] = [];
-	for (const label of labels) {
-		labelArgs.push('--label', label);
-	}
-	await dockerCLI(params, 'volume', 'create', ...labelArgs, name);
 }
 
 export async function getEvents(params: DockerCLIParameters | DockerResolverParameters, filters?: Record<string, string[]>) {
@@ -255,24 +221,6 @@ export async function dockerCLI(params: DockerCLIParameters | PartialExecParamet
 		...partial,
 		args: (partial.args || []).concat(args),
 	});
-}
-
-export async function dockerContext(params: DockerCLIParameters) {
-	try {
-		// 'docker context show' is only available as an addon from the 'compose-cli'. 'docker context inspect' connects to the daemon making it slow. Using 'docker context ls' instead.
-		const { stdout } = await dockerCLI(params, 'context', 'ls', '--format', '{{json .}}');
-		const json = `[${stdout.toString()
-			.trim()
-			.split(/\r?\n/)
-			.join(',')
-			}]`;
-		const contexts = JSON.parse(json) as { Current: boolean; Name: string }[];
-		const current = contexts.find(c => c.Current)?.Name;
-		return current;
-	} catch {
-		// Docker is not installed or Podman does not have contexts.
-		return undefined;
-	}
 }
 
 export async function isPodman(params: DockerCLIParameters | DockerResolverParameters) {

@@ -157,15 +157,6 @@ export interface GithubSourceInformation extends BaseSourceInformation {
 	userFeatureIdWithoutVersion: string;
 }
 
-export interface GithubSourceInformationInput {
-	owner: string;
-	repo: string;
-	ref?: string;
-	sha?: string;
-	tag?: string;
-}
-
-
 export interface FeatureSet {
 	features: Feature[];
 	internalVersion?: string;
@@ -191,13 +182,6 @@ export interface GithubApiReleaseAsset {
 	size: number;
 	download_count: number;
 	updated_at: string;
-}
-
-// Supports the `node` layer by collapsing all the individual features into a single `features` array.
-// Regardless of their origin.
-// Information is lost, but for the node layer we need not care about which set a given feature came from.
-export interface CollapsedFeaturesConfig {
-	allFeatures: Feature[];
 }
 
 export interface ContainerFeatureInternalParams {

@@ -161,21 +161,3 @@ export function createDocuments(fileHost: FileHost, shellServer?: ShellServer): 
 export interface ShellServer {
 	exec(cmd: string, options?: { logOutput?: boolean; stdin?: Buffer }): Promise<{ stdout: string; stderr: string }>;
 }
-
-const editQueues = new Map<string, (() => Promise<void>)[]>();
-
-export async function runEdit(uri: URI, edit: () => Promise<void>) {
-	const uriString = uri.toString();
-	let queue = editQueues.get(uriString);
-	if (!queue) {
-		editQueues.set(uriString, queue = []);
-	}
-	queue.push(edit);
-	if (queue.length === 1) {
-		while (queue.length) {
-			await queue[0]();
-			queue.shift();
-		}
-		editQueues.delete(uriString);
-	}
-}
