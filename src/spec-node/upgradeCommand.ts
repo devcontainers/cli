@@ -166,15 +166,12 @@ async function updateFeatureVersionInConfig(params: { output: Log }, config: Dev
 	let updatedText: string = configText.toString();
 
 	const targetFeatureNoVersion = getFeatureIdWithoutVersion(targetFeature);
-	for (const [userFeatureId, options] of Object.entries(config.features)) {
+	for (const [userFeatureId, _] of Object.entries(config.features)) {
 		if (targetFeatureNoVersion !== getFeatureIdWithoutVersion(userFeatureId)) {
 			continue;
 		}
-
-		// Remove existing Feature and replace with Feature with updated version tag
-		const currentFeaturePath = ['features', userFeatureId];
-		const updatedFeaturePath = ['features', `${targetFeatureNoVersion}:${targetVersion}`];
-		updatedText = upgradeFeatureKeyInConfig(updatedText, currentFeaturePath, updatedFeaturePath, options);
+		updatedText = upgradeFeatureKeyInConfig(updatedText, userFeatureId, `${targetFeatureNoVersion}:${targetVersion}`);
+		break;
 	}
 
 	output.write(updatedText, LogLevel.Trace);
@@ -187,9 +184,9 @@ async function updateFeatureVersionInConfig(params: { output: Log }, config: Dev
 	await writeLocalFile(configPath, updatedText);
 }
 
-function upgradeFeatureKeyInConfig(text: string, currentPropertyPath: string[], updatedPropertyPath: string[], options: string | boolean | Record<string, string | boolean>): string {
-	text = jsonc.applyEdits(text, jsonc.modify(text, currentPropertyPath, undefined, { formattingOptions: {} })); // Remove existing Feature
-	return jsonc.applyEdits(text, jsonc.modify(text, updatedPropertyPath, options, { formattingOptions: {} }));
+function upgradeFeatureKeyInConfig(configText: string, current: string, updated: string) {
+	const featureIdRegex = new RegExp(current, 'g');
+	return configText.replace(featureIdRegex, updated);
 }
 
 async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {

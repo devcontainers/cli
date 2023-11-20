@@ -3,8 +3,10 @@
 	// Comment
 	"features": {
 		"ghcr.io/codspace/versioning/bar:1.0.0": {},
-		"ghcr.io/codspace/versioning/foo:2": {
-			"hello": "world"
+		// Comment
+		"ghcr.io/codspace/versioning/foo:2": { // Comment
+			"hello": "world" // Comment
 		}
+		// Comment
 	}
 }
