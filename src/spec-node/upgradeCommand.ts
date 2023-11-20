@@ -165,26 +165,16 @@ async function updateFeatureVersionInConfig(params: { output: Log }, config: Dev
 	const previousConfigText: string = configText.toString();
 	let updatedText: string = configText.toString();
 
-	// Clear Features object to make editing easier
-	const edits = jsonc.modify(updatedText, ['features'], {}, { formattingOptions: {} });
-	updatedText = jsonc.applyEdits(updatedText, edits);
-
 	const targetFeatureNoVersion = getFeatureIdWithoutVersion(targetFeature);
 	for (const [userFeatureId, options] of Object.entries(config.features)) {
-
-		// Filter to only modify target Feature.
-		// Rewrite non-target Feature back exactly how they were.
 		if (targetFeatureNoVersion !== getFeatureIdWithoutVersion(userFeatureId)) {
-			const propertyPath = ['features', userFeatureId];
-			updatedText = applyEdit(updatedText, propertyPath, options ?? {});
 			continue;
 		}
 
-		const updatedId = `${getFeatureIdWithoutVersion(userFeatureId)}:${targetVersion}`;
-
-		// Update config
-		const propertyPath = ['features', updatedId];
-		updatedText = applyEdit(updatedText, propertyPath, options ?? {});
+		// Remove existing Feature and replace with Feature with updated version tag
+		const currentFeaturePath = ['features', userFeatureId];
+		const updatedFeaturePath = ['features', `${targetFeatureNoVersion}:${targetVersion}`];
+		updatedText = upgradeFeatureKeyInConfig(updatedText, currentFeaturePath, updatedFeaturePath, options);
 	}
 
 	output.write(updatedText, LogLevel.Trace);
@@ -197,9 +187,9 @@ async function updateFeatureVersionInConfig(params: { output: Log }, config: Dev
 	await writeLocalFile(configPath, updatedText);
 }
 
-function applyEdit(text: string, propertyPath: string[], options: string | boolean | Record<string, string | boolean>): string {
-	let edits: jsonc.Edit[] = jsonc.modify(text, propertyPath, options, { formattingOptions: {} });
-	return jsonc.applyEdits(text, edits);
+function upgradeFeatureKeyInConfig(text: string, currentPropertyPath: string[], updatedPropertyPath: string[], options: string | boolean | Record<string, string | boolean>): string {
+	text = jsonc.applyEdits(text, jsonc.modify(text, currentPropertyPath, undefined, { formattingOptions: {} })); // Remove existing Feature
+	return jsonc.applyEdits(text, jsonc.modify(text, updatedPropertyPath, options, { formattingOptions: {} }));
 }
 
 async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {
