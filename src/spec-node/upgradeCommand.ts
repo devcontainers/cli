@@ -1,5 +1,3 @@
-import * as jsonc from 'jsonc-parser';
-
 import { Argv } from 'yargs';
 import { UnpackArgv } from './devContainersSpecCLI';
 import { dockerComposeCLIConfig } from './dockerCompose';
