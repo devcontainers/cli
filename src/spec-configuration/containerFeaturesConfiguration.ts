@@ -18,7 +18,7 @@ import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getRef, getVersionsStrictSorted } from './containerCollectionsOCI';
-import { Lockfile, readLockfile, writeLockfile } from './lockfile';
+import { Lockfile, generateLockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
 import { getEntPasswdShellCommand } from '../spec-common/commonUtils';
@@ -507,7 +507,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, dstFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
-	await writeLockfile(params, config, featuresConfig, initLockfile);
+	await writeLockfile(params, config, await generateLockfile(featuresConfig), initLockfile);
 	return featuresConfig;
 }
 

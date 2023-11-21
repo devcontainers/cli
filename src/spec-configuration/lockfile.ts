@@ -13,20 +13,8 @@ export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, featuresConfig: FeaturesConfig, forceInitLockfile?: boolean, dryRun?: boolean): Promise<string | undefined> {
-	const lockfilePath = getLockfilePath(config);
-	const oldLockfileContent = await readLocalFile(lockfilePath)
-		.catch(err => {
-			if (err?.code !== 'ENOENT') {
-				throw err;
-			}
-		});
-
-	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
-		return;
-	}
-
-	const lockfile: Lockfile = featuresConfig.featureSets
+export async function generateLockfile(featuresConfig: FeaturesConfig): Promise<Lockfile> {
+	return featuresConfig.featureSets
 		.map(f => [f, f.sourceInformation] as const)
 		.filter((tup): tup is [FeatureSet, OCISourceInformation | DirectTarballSourceInformation] => ['oci', 'direct-tarball'].indexOf(tup[1].type) !== -1)
 		.map(([set, source]) => {
@@ -50,13 +38,22 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 		}, {
 			features: {} as Record<string, { version: string; resolved: string; integrity: string }>,
 		});
+}
 
-	const newLockfileContentString = JSON.stringify(lockfile, null, 2);
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, lockfile: Lockfile, forceInitLockfile?: boolean): Promise<string | undefined> {
+	const lockfilePath = getLockfilePath(config);
+	const oldLockfileContent = await readLocalFile(lockfilePath)
+		.catch(err => {
+			if (err?.code !== 'ENOENT') {
+				throw err;
+			}
+		});
 
-	if (dryRun) {
-		return newLockfileContentString;
+	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
+		return;
 	}
 
+	const newLockfileContentString = JSON.stringify(lockfile, null, 2);
 	const newLockfileContent = Buffer.from(newLockfileContentString);
 	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
@@ -73,7 +70,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 export async function readLockfile(config: DevContainerConfig): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
 	try {
 		const content = await readLocalFile(getLockfilePath(config));
-		// If empty file, use as maker to initialize lockfile when build completes.
+		// If empty file, use as marker to initialize lockfile when build completes.
 		if (content.toString().trim() === '') {
 			return { initLockfile: true };
 		}

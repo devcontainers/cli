@@ -1,0 +1,12 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base",
+	// Comment
+	"features": {
+		"ghcr.io/codspace/versioning/bar:1.0.0": {},
+		// Comment
+		"ghcr.io/codspace/versioning/foo:1": { // Comment
+			"hello": "world" // Comment
+		}
+		// Comment
+	}
+}
