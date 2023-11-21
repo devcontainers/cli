@@ -4,6 +4,15 @@ Notable changes.
 
 ## November 2023
 
+### [0.54.0]
+
+- Force deterministic order of `outdated` command (https://github.com/devcontainers/cli/pull/681)
+- Remove vscode-dev-containers dependency (https://github.com/devcontainers/cli/pull/682)
+- Remove additional unused code (https://github.com/devcontainers/cli/commit/2d24543380dfc4d54e76b582536b52226af133c8)
+- Update dependencies including node-pty (https://github.com/devcontainers/cli/pull/685)
+- Update Third-party notices (https://github.com/devcontainers/cli/pull/686)
+- Edit a Feature pinned version via upgrade command behind hidden flag (https://github.com/devcontainers/cli/pull/684)
+
 ### [0.53.0]
 
 - add `--dry-run` to `upgrade` command (https://github.com/devcontainers/cli/pull/679)
