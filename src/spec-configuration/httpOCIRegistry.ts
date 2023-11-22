@@ -95,7 +95,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			const serviceGroup = serviceRegex.exec(wwwAuthenticate);
 			const scopeGroup = scopeRegex.exec(wwwAuthenticate);
 
-			if (!realmGroup || !serviceGroup || !scopeGroup) {
+			if (!realmGroup || !serviceGroup) {
 				output.write(`[httpOci] WWW-Authenticate header is not in expected format. Got:  ${wwwAuthenticate}`, LogLevel.Trace);
 				return;
 			}
@@ -103,7 +103,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			const wwwAuthenticateData = {
 				realm: realmGroup[1],
 				service: serviceGroup[1],
-				scope: scopeGroup[1],
+				scope: scopeGroup ? scopeGroup[1] : '',
 			};
 
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, wwwAuthenticateData);
