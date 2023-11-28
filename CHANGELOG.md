@@ -4,6 +4,10 @@ Notable changes.
 
 ## November 2023
 
+### [0.54.1]
+
+- Fix authentication against Artifactory (https://github.com/devcontainers/cli/pull/692)
+
 ### [0.54.0]
 
 - Force deterministic order of `outdated` command (https://github.com/devcontainers/cli/pull/681)
