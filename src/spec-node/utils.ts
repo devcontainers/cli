@@ -211,8 +211,8 @@ export function isBuildKitImagePolicyError(err: any): boolean {
 	const errCmdOutput = err?.cmdOutput;
 	const errStderr = err?.stderr;
 
-	return (errCmdOutput && typeof errCmdOutput === 'string' && errCmdOutput.includes(imagePolicyErrorString) || errCmdOutput.includes(sourceDeniedString))
-		|| (errStderr && typeof errStderr === 'string' && errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString));
+	return (errCmdOutput && typeof errCmdOutput === 'string' && (errCmdOutput.includes(imagePolicyErrorString) || errCmdOutput.includes(sourceDeniedString)))
+		|| (errStderr && typeof errStderr === 'string' && (errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString)));
 }
 
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
