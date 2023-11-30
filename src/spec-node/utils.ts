@@ -205,9 +205,14 @@ export async function checkDockerSupportForGPU(params: DockerCLIParameters | Doc
 }
 
 export function isBuildKitImagePolicyError(err: any): boolean {
-	const imagePolicyErrorString = 'could not resolve image due to policy';
-	return (err?.cmdOutput && typeof err.cmdOutput === 'string' && err.cmdOutput.indexOf(imagePolicyErrorString) > -1) ||
-		(err?.stderr && typeof err.stderr === 'string' && err.stderr.indexOf(imagePolicyErrorString) > -1);
+	const imagePolicyErrorString = 'could not resolve image due to policy'; // Seen in Buildkit 0.11.0
+	const sourceDeniedString = 'source denied by policy'; // Seen in Buildkit 0.12.0
+
+	const errCmdOutput = err?.cmdOutput;
+	const errStderr = err?.stderr;
+
+	return (errCmdOutput && typeof errCmdOutput === 'string' && (errCmdOutput.includes(imagePolicyErrorString) || errCmdOutput.includes(sourceDeniedString)))
+		|| (errStderr && typeof errStderr === 'string' && (errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString)));
 }
 
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
