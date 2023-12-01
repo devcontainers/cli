@@ -161,7 +161,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
-	const buildKitVersion = options.useBuildKit === 'never' ? null : (await dockerBuildKitVersion({
+	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
 		dockerComposeCLI,

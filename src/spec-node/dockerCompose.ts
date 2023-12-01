@@ -182,7 +182,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	}
 
 	// determine whether we need to extend with features
-	const noBuildKitParams = { ...params, buildKitVersion: null }; // skip BuildKit -> can't set additional build contexts with compose
+	const noBuildKitParams = { ...params, buildKitVersion: undefined }; // skip BuildKit -> can't set additional build contexts with compose
 	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
 
 	let overrideImageName: string | undefined;

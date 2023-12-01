@@ -109,7 +109,7 @@ export interface DockerResolverParameters {
 	additionalMounts: Mount[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
-	buildKitVersion: string | null;
+	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
