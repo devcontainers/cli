@@ -198,20 +198,21 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 	return p;
 }
 
-export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<string | null> {
+export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<{ versionString: string; versionMatch?: string } | undefined> {
 	try {
 		const execParams = {
 			...toExecParameters(params),
 			print: true,
 		};
 		const result = await dockerCLI(execParams, 'buildx', 'version');
-		const versionMatch = result.stdout.toString().match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
+		const versionString = result.stdout.toString();
+		const versionMatch = versionString.match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
 		if (!versionMatch) {
-			return null;
+			return { versionString };
 		}
-		return versionMatch[0];
+		return { versionString, versionMatch: versionMatch[0] };
 	} catch {
-		return null;
+		return undefined;
 	}
 }
 
