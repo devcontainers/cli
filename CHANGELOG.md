@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## December 2023
+
+### [0.54.2]
+- Update string in `isBuildKitImagePolicyError` (https://github.com/devcontainers/cli/pull/694)
+- Mount build context as shared with buildah (https://github.com/devcontainers/cli/pull/548)
+
 ## November 2023
 
 ### [0.54.1]
