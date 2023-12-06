@@ -567,7 +567,7 @@ export async function readDockerComposeConfig(params: DockerCLIParameters, compo
 		}
 		const composeCLI = await params.dockerComposeCLI();
 		if ((parseVersion(composeCLI.version) || [])[0] >= 2) {
-			composeGlobalArgs.push('--profile', '*');
+			composeGlobalArgs.push('--profile', '\\*');
 		}
 		try {
 			const partial = toExecParameters(params, 'dockerComposeCLI' in params ? await params.dockerComposeCLI() : undefined);
