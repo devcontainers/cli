@@ -182,8 +182,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	}
 
 	// determine whether we need to extend with features
-	const noBuildKitParams = { ...params, buildKitVersion: undefined }; // skip BuildKit -> can't set additional build contexts with compose
-	const extendImageBuildInfo = await getExtendImageBuildInfo(noBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
+	const version = parseVersion((await params.dockerComposeCLI()).version);
+	const supportsAdditionalBuildContexts = version && !isEarlierVersion(version, [2, 17, 0]);
+	const optionalBuildKitParams = supportsAdditionalBuildContexts ? params : { ...params, buildKitVersion: undefined };
+	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
 
 	let overrideImageName: string | undefined;
 	let buildOverrideContent = '';
@@ -227,6 +229,13 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 			}
 			for (const buildArg in featureBuildInfo.buildArgs) {
 				buildOverrideContent += `        - ${buildArg}=${featureBuildInfo.buildArgs[buildArg]}\n`;
+			}
+		}
+
+		if (Object.keys(featureBuildInfo.buildKitContexts).length > 0) {
+			buildOverrideContent += '      additional_contexts:\n';
+			for (const buildKitContext in featureBuildInfo.buildKitContexts) {
+				buildOverrideContent += `        - ${buildKitContext}=${featureBuildInfo.buildKitContexts[buildKitContext]}\n`;
 			}
 		}
 	}
