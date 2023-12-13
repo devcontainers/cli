@@ -305,7 +305,8 @@ async function startExistingContainer(params: DockerResolverParameters, labels: 
 	if (start) {
 		const starting = 'Starting container';
 		const start = common.output.start(starting);
-		await dockerCLI(params, 'start', container.Id);
+		const infoParams = { ...toExecParameters(params), output: makeLog(common.output, LogLevel.Info), print: 'continuous' as 'continuous' };
+		await dockerCLI(infoParams, 'start', container.Id);
 		common.output.stop(starting, start);
 		let startedContainer = await findDevContainer(params, labels);
 		if (!startedContainer) {
