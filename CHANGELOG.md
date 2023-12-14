@@ -4,6 +4,10 @@ Notable changes.
 
 ## December 2023
 
+### [0.55.0]
+- Adopt additional_contexts in compose (https://github.com/microsoft/vscode-remote-release/issues/7305)
+- Log `docker start` output (https://github.com/microsoft/vscode-remote-release/issues/5887)
+
 ### [0.54.2]
 - Update string in `isBuildKitImagePolicyError` (https://github.com/devcontainers/cli/pull/694)
 - Mount build context as shared with buildah (https://github.com/devcontainers/cli/pull/548)
