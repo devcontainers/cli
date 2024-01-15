@@ -315,5 +315,15 @@ describe('Dev Containers CLI', function () {
 			const details = JSON.parse((await shellExec(`docker inspect test-subfolder-config`)).stdout)[0] as ImageDetails;
 			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
+
+		it('should apply build options', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.ok(response.imageName);
+			const details = JSON.parse((await shellExec(`docker inspect ${response.imageName}`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
+		});
 	});
 });
