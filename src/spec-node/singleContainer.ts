@@ -243,6 +243,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			args.push('--build-arg', `${key}=${buildArgs[key]}`);
 		}
 	}
+	const buildOptions = config.build?.options;
+	if (buildOptions?.length) {
+		args.push(...buildOptions);
+	}
 	args.push(...additionalBuildArgs);
 	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
 	try {
