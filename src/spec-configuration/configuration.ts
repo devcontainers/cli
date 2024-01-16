@@ -119,6 +119,7 @@ export type DevContainerFromDockerfileConfig = {
 				target?: string;
 				args?: Record<string, string>;
 				cacheFrom?: string | string[];
+				options?: string[];
 			};
 		}
 		|
@@ -129,6 +130,7 @@ export type DevContainerFromDockerfileConfig = {
 				target?: string;
 				args?: Record<string, string>;
 				cacheFrom?: string | string[];
+				options?: string[];
 			};
 		}
 	);
