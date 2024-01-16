@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## January 2024
+
+### [0.56.0]
+- Support additional Docker build options (https://github.com/devcontainers/cli/issues/85)
+
 ## December 2023
 
 ### [0.55.0]
