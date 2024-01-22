@@ -4,6 +4,10 @@ Notable changes.
 
 ## January 2024
 
+### [0.56.1]
+- Add hidden `--omit-syntax-directive` flag (https://github.com/devcontainers/cli/pull/728) to disable writing `#syntax` directives in intermediate Dockerfiles, even if provided by the user.  This is an advanced flag meant to mitigate issues involving user namespace remapping.  This flag will be removed in a future release. See https://github.com/moby/buildkit/issues/4556 for more information.
+- Update dependencies (https://github.com/devcontainers/cli/pull/722)
+
 ### [0.56.0]
 - Support additional Docker build options (https://github.com/devcontainers/cli/issues/85)
 
