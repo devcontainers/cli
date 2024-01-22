@@ -130,7 +130,7 @@ function provisionOptions(y: Argv) {
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
-		'ignore-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Ignore injecting Dockerfile syntax directive into Features extended Dockerfile' },
+		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -200,7 +200,7 @@ async function provision({
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
-	'ignore-syntax-directive': ignoreSyntaxDirective,
+	'omit-syntax-directive': omitSyntaxDirective,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -266,7 +266,7 @@ async function provision({
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
-		ignoreSyntaxDirective,
+		omitSyntaxDirective: omitSyntaxDirective,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -491,7 +491,8 @@ function buildOptions(y: Argv) {
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 	});
 }
 
@@ -529,7 +530,8 @@ async function doBuild({
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'omit-syntax-directive': omitSyntaxDirective,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -576,7 +578,8 @@ async function doBuild({
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
 			experimentalLockfile,
-			experimentalFrozenLockfile
+			experimentalFrozenLockfile,
+			omitSyntaxDirective,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;

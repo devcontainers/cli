@@ -67,7 +67,7 @@ export interface ProvisionOptions {
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
-	ignoreSyntaxDirective?: boolean;
+	omitSyntaxDirective?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -153,7 +153,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 			installCommand: options.dotfiles.installCommand,
 			targetPath: options.dotfiles.targetPath || '~/dotfiles',
 		},
-		ignoreSyntaxDirective: options.ignoreSyntaxDirective,
+		omitSyntaxDirective: options.omitSyntaxDirective,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

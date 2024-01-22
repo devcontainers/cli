@@ -8,7 +8,7 @@ import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injec
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
-import { Log } from '../spec-utils/log';
+import { Log, LogLevel } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
 import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
 import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath, envListToObj } from './utils';
@@ -393,11 +393,16 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 
 export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
 	const { output } = 'output' in params ? params : params.common;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output);
+	const omitSyntaxDirective = 'common' in params ? !!params.common.omitSyntaxDirective : false;
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
+	if (dockerfile.preamble.directives.syntax && omitSyntaxDirective) {
+		output.write(`Omitting syntax directive '${dockerfile.preamble.directives.syntax}' from Dockerfile.`, LogLevel.Trace);
+		delete dockerfile.preamble.directives.syntax;
+	}
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
