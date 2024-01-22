@@ -68,6 +68,7 @@ export interface ResolverParameters {
 	skipPersistingCustomizationsFromFeatures: boolean;
 	omitConfigRemotEnvFromMetadata?: boolean;
 	secretsP?: Promise<Record<string, string>>;
+	omitSyntaxDirective?: boolean;
 }
 
 export interface LifecycleHook {
