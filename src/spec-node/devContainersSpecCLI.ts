@@ -129,7 +129,8 @@ function provisionOptions(y: Argv) {
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
-		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' }
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'ignore-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Ignore injecting Dockerfile syntax directive into Features extended Dockerfile' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -198,7 +199,8 @@ async function provision({
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
-	'experimental-frozen-lockfile': experimentalFrozenLockfile
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'ignore-syntax-directive': ignoreSyntaxDirective,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -264,6 +266,7 @@ async function provision({
 		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
+		ignoreSyntaxDirective,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
