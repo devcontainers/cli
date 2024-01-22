@@ -1,0 +1,24 @@
+{
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1.2.0": {
+      "version": "1.2.0",
+      "resolved": "ghcr.io/devcontainers/features/azure-cli@sha256:cb2832052c03202e321c84389116a3981b5b24b8c6d0532841c46b03500e1415",
+      "integrity": "sha256:cb2832052c03202e321c84389116a3981b5b24b8c6d0532841c46b03500e1415"
+    },
+    "ghcr.io/devcontainers/features/git-lfs@sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c": {
+      "version": "1.0.6",
+      "resolved": "ghcr.io/devcontainers/features/git-lfs@sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c",
+      "integrity": "sha256:24d5802c837b2519b666a8403a9514c7296d769c9607048e9f1e040e7d7e331c"
+    },
+    "ghcr.io/devcontainers/features/git:1.1.0": {
+      "version": "1.1.0",
+      "resolved": "ghcr.io/devcontainers/features/git@sha256:bc4b9ae3f843a35edfea7b9295a0e89958d2ddfe8b2bf327ec1a5f7cf3c5a2fa",
+      "integrity": "sha256:bc4b9ae3f843a35edfea7b9295a0e89958d2ddfe8b2bf327ec1a5f7cf3c5a2fa"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1.0.2": {
+      "version": "1.0.2",
+      "resolved": "ghcr.io/devcontainers/features/github-cli@sha256:0b52d28bcaf2054bf70fd932161f93aae34830031d29747680acdd500e02cc09",
+      "integrity": "sha256:0b52d28bcaf2054bf70fd932161f93aae34830031d29747680acdd500e02cc09"
+    }
+  }
+}

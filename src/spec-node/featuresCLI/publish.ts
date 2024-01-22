@@ -40,7 +40,7 @@ async function featuresPublish({
     const pkg = getPackageConfig();
 
     const cwd = process.cwd();
-    const cliHost = await getCLIHost(cwd, loadNativeModule);
+    const cliHost = await getCLIHost(cwd, loadNativeModule, true);
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
@@ -87,13 +87,20 @@ async function featuresPublish({
         }
 
         const archiveName = getArchiveName(f.id, collectionType);
-        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName);
+
+        // Properties here are available on the manifest without needing to download the full Feature archive.
+        const featureAnnotations = {
+            'dev.containers.metadata': JSON.stringify(f),
+        };
+        output.write(`Feature Annotations: ${JSON.stringify(featureAnnotations)}`, LogLevel.Debug);
+
+        const publishResult = await doPublishCommand(params, f.version, featureRef, outputDir, collectionType, archiveName, featureAnnotations);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);
         }
 
-        const isPublished = (publishResult?.digest && publishResult?.publishedVersions.length > 0);
+        const isPublished = (publishResult?.digest && publishResult?.publishedTags.length > 0);
         let thisResult = isPublished ? {
             ...publishResult,
             version: f.version,
@@ -113,13 +120,13 @@ async function featuresPublish({
                     process.exit(1);
                 }
 
-                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName);
+                const publishResult = await doPublishCommand(params, f.version, legacyFeatureRef, outputDir, collectionType, archiveName, featureAnnotations);
                 if (!publishResult) {
                     output.write(`(!) ERR: Failed to publish '${legacyResource}'`, LogLevel.Error);
                     process.exit(1);
                 }
 
-                if (publishResult?.digest && publishResult?.publishedVersions.length > 0) {
+                if (publishResult?.digest && publishResult?.publishedTags.length > 0) {
                     publishedLegacyIds.push(legacyId);
                 }
             }

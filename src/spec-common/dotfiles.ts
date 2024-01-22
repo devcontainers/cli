@@ -19,20 +19,20 @@ const installCommands = [
 	'script/setup',
 ];
 
-export async function installDotfiles(params: ResolverParameters, properties: ContainerProperties, dockerEnvP: Promise<Record<string, string>>) {
+export async function installDotfiles(params: ResolverParameters, properties: ContainerProperties, dockerEnvP: Promise<Record<string, string>>, secretsP: Promise<Record<string, string>>) {
 	let { repository, installCommand, targetPath } = params.dotfilesConfiguration;
 	if (!repository) {
 		return;
 	}
-	const dockerEnv = await dockerEnvP;
 	if (repository.indexOf(':') === -1 && !/^\.{0,2}\//.test(repository)) {
 		repository = `https://github.com/${repository}.git`;
 	}
 	const shellServer = properties.shellServer;
 	const markerFile = getDotfilesMarkerFile(properties);
-	const env = Object.keys(dockerEnv)
+	const dockerEnvAndSecrets = { ...await dockerEnvP, ...await secretsP };
+	const allEnv = Object.keys(dockerEnvAndSecrets)
 		.filter(key => !(key.startsWith('BASH_FUNC_') && key.endsWith('%%')))
-		.reduce((env, key) => `${env}${key}=${quoteValue(dockerEnv[key])} `, '');
+		.reduce((env, key) => `${env}${key}=${quoteValue(dockerEnvAndSecrets[key])} `, '');
 	try {
 		params.output.event({
 			type: 'progress',
@@ -40,16 +40,33 @@ export async function installDotfiles(params: ResolverParameters, properties: Co
 			status: 'running',
 		});
 		if (installCommand) {
-			await shellServer.exec(`# Clone & install dotfiles
+			await shellServer.exec(`# Clone & install dotfiles via '${installCommand}'
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
-[ -e ${targetPath} ] || ${env}git clone ${repository} ${targetPath} || exit $?
-if [ -x ${installCommand} ]
+[ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
+echo Setting current directory to '${targetPath}'
+cd ${targetPath}
+
+if [ -f "./${installCommand}" ]
 then
-	echo Executing script ${installCommand}
-	cd ${targetPath} && ${env}${installCommand}
+	if [ ! -x "./${installCommand}" ]
+	then
+		echo Setting './${installCommand}' as executable
+		chmod +x "./${installCommand}"
+	fi
+	echo Executing command './${installCommand}'..\n
+	${allEnv}"./${installCommand}"
+elif [ -f "${installCommand}" ]
+then
+	if [ ! -x "${installCommand}" ]
+	then
+		echo Setting '${installCommand}' as executable
+		chmod +x "${installCommand}"
+	fi
+	echo Executing command '${installCommand}'...\n
+	${allEnv}"${installCommand}"
 else
-	echo Error: ${installCommand} not executable
+	echo Could not locate '${installCommand}'...\n
 	exit 126
 fi
 `, { logOutput: 'continuous', logLevel: LogLevel.Info });
@@ -57,7 +74,8 @@ fi
 			await shellServer.exec(`# Clone & install dotfiles
 ${createFileCommand(markerFile)} || (echo dotfiles marker found && exit 1) || exit 0
 command -v git >/dev/null 2>&1 || (echo git not found && exit 1) || exit 0
-[ -e ${targetPath} ] || ${env}git clone ${repository} ${targetPath} || exit $?
+[ -e ${targetPath} ] || ${allEnv}git clone ${repository} ${targetPath} || exit $?
+echo Setting current directory to ${targetPath}
 cd ${targetPath}
 for f in ${installCommands.join(' ')}
 do
@@ -78,14 +96,14 @@ then
 		echo No dotfiles found.
 	fi
 else
-	if [ -x "$installCommand" ]
+	if [ ! -x "$installCommand" ]
 	then
-		echo Executing script '${targetPath}'/"$installCommand"
-		${env}./"$installCommand"
-	else
-		echo Error: '${targetPath}'/"$installCommand" not executable
-		exit 126
+	   echo Setting '${targetPath}'/"$installCommand" as executable
+	   chmod +x "$installCommand"
 	fi
+
+	echo Executing command '${targetPath}'/"$installCommand"...\n
+	${allEnv}./"$installCommand"
 fi
 `, { logOutput: 'continuous', logLevel: LogLevel.Info });
 		}

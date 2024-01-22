@@ -4,7 +4,8 @@
 		"target": "desired-image",
 		"args": { 
 			"VARIANT": "16-bullseye"
-		}
+		},
+		"options": [ "--label", "test_build_options=success" ]
 	},
 	"postCreateCommand": "touch /tmp/postCreateCommand.testmarker",
 	"postStartCommand": "touch /tmp/postStartCommand.testmarker",

@@ -10,7 +10,7 @@ import { URI } from 'vscode-uri';
 import { CLIHostDocuments } from './editableFiles';
 import { FileHost } from '../spec-utils/pfs';
 
-export { FileHost, FileTypeBitmask } from '../spec-utils/pfs';
+export { FileHost } from '../spec-utils/pfs';
 
 const enum CharCode {
 	Slash = 47,

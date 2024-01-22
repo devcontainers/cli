@@ -1,6 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { getCLIHost, loadNativeModule, plainExec, plainPtyExec, runCommand, runCommandNoPty } from '../spec-common/commonUtils';
 import { SubstituteConfig } from '../spec-node/utils';
+import { LogLevel, createPlainLog, makeLog, nullLog } from '../spec-utils/log';
+import { dockerComposeCLIConfig } from '../spec-node/dockerCompose';
+import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 
 export interface BuildKitOption {
     text: string;
@@ -21,6 +29,7 @@ export interface UpResult {
     outcome: string;
     containerId: string;
     composeProjectName: string | undefined;
+    stderr: string;
 }
 
 export interface ExecResult {
@@ -41,25 +50,63 @@ export function shellExec(command: string, options: cp.ExecOptions = {}, suppres
     });
 }
 
-export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string; extraArgs?: string }): Promise<UpResult> {
+export interface BufferExecResult {
+    stdout: Buffer;
+    stderr: Buffer;
+    message? : string;
+    code?: number | null;
+    signal?: string | null;
+}
+
+export async function shellBufferExec(command: string, options: { stdin?: Buffer } = {}): Promise<BufferExecResult> {
+    const exec = await plainExec(undefined);
+    return runCommandNoPty({
+        exec,
+        cmd: '/bin/sh',
+        args: ['-c', command],
+        stdin: options.stdin,
+        output: nullLog,
+    }).then(res => ({ code: 0, ...res }), error => error);
+}
+
+export interface ExecPtyResult {
+    cmdOutput: string;
+    message? : string;
+    code?: number;
+    signal?: number;
+}
+
+export async function shellPtyExec(command: string, options: { stdin?: string } = {}): Promise<ExecPtyResult> {
+    const ptyExec = await plainPtyExec(undefined, loadNativeModule, true);
+    return runCommand({
+        ptyExec,
+        cmd: '/bin/sh',
+        args: ['-c', command],
+        stdin: options.stdin,
+        output: nullLog,
+    }).then(res => ({ code: 0, ...res }), error => error);
+}
+
+export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string; extraArgs?: string; prefix?: string; env?: NodeJS.ProcessEnv }): Promise<UpResult> {
     const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
     const userDataFolderOption = (options?.userDataFolder ?? false) ? ` --user-data-folder=${options?.userDataFolder}` : '';
     const logLevelOption = (options?.logLevel ?? false) ? ` --log-level ${options?.logLevel}` : '';
     const extraArgs = (options?.extraArgs ?? false) ? ` ${options?.extraArgs}` : '';
-    const shellExecOptions = { cwd: options?.cwd };
-    const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}${userDataFolderOption}${extraArgs} ${logLevelOption}`, shellExecOptions);
+    const prefix = (options?.prefix ?? false) ? `${options?.prefix} ` : '';
+    const shellExecOptions = { cwd: options?.cwd, env: options?.env };
+    const res = await shellExec(`${prefix}${cli} up --workspace-folder ${workspaceFolder}${buildkitOption}${userDataFolderOption}${extraArgs} ${logLevelOption}`, shellExecOptions);
     const response = JSON.parse(res.stdout);
     assert.equal(response.outcome, 'success');
     const { outcome, containerId, composeProjectName } = response as UpResult;
     assert.ok(containerId, 'Container id not found.');
-    return { outcome, containerId, composeProjectName };
+    return { outcome, containerId, composeProjectName, stderr: res.stderr };
 }
-export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null }) {
+export async function devContainerDown(options: { containerId?: string | null; composeProjectName?: string | null; doNotThrow?: boolean }) {
     if (options.containerId) {
-        await shellExec(`docker rm -f ${options.containerId}`);
+        await shellExec(`docker rm -f ${options.containerId}`, undefined, undefined, options.doNotThrow);
     }
     if (options.composeProjectName) {
-        await shellExec(`docker compose --project-name ${options.composeProjectName} down`);
+        await shellExec(`docker compose --project-name ${options.composeProjectName} down`, undefined, undefined, options.doNotThrow);
     }
 }
 export async function devContainerStop(options: { containerId?: string | null; composeProjectName?: string | null }) {
@@ -96,3 +143,22 @@ export const testSubstitute: SubstituteConfig = value => {
 	}
 	return value;
 };
+
+export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+export async function createCLIParams(hostPath: string) {
+	const cliHost = await getCLIHost(hostPath, loadNativeModule, true);
+	const dockerComposeCLI = dockerComposeCLIConfig({
+		exec: cliHost.exec,
+		env: cliHost.env,
+		output,
+	}, 'docker', 'docker-compose');
+	const cliParams: DockerCLIParameters = {
+		cliHost,
+		dockerCLI: 'docker',
+		dockerComposeCLI,
+		env: {},
+		output,
+	};
+	return cliParams;
+}

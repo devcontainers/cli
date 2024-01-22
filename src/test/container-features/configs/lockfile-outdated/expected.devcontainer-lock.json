@@ -1,0 +1,14 @@
+{
+  "features": {
+    "ghcr.io/codspace/features/color:1.0.5": {
+      "version": "1.0.5",
+      "resolved": "ghcr.io/codspace/features/color@sha256:a20e55d6a70ad4bfb9eca962693de0982c607f41d732c3ff57ed1d75e9b59f9c",
+      "integrity": "sha256:a20e55d6a70ad4bfb9eca962693de0982c607f41d732c3ff57ed1d75e9b59f9c"
+    },
+    "ghcr.io/codspace/features/flower:1.0.0": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/codspace/features/flower@sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43",
+      "integrity": "sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43"
+    }
+  }
+}

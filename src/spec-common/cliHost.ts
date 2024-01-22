@@ -20,6 +20,7 @@ export type CLIHostType = 'local' | 'wsl' | 'container' | 'ssh';
 export interface CLIHost {
 	type: CLIHostType;
 	platform: NodeJS.Platform;
+	arch: NodeJS.Architecture;
 	exec: ExecFunction;
 	ptyExec: PtyExecFunction;
 	cwd: string;
@@ -53,9 +54,9 @@ export enum FileTypeBitmask {
 	SymbolicLink = 64
 }
 
-export async function getCLIHost(localCwd: string, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<CLIHost> {
+export async function getCLIHost(localCwd: string, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<CLIHost> {
 	const exec = plainExec(localCwd);
-	const ptyExec = await plainPtyExec(localCwd, loadNativeModule);
+	const ptyExec = await plainPtyExec(localCwd, loadNativeModule, allowInheritTTY);
 	return createLocalCLIHostFromExecFunctions(localCwd, exec, ptyExec, connectLocal);
 }
 
@@ -63,6 +64,7 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 	return {
 		type: 'local',
 		platform: process.platform,
+		arch: process.arch,
 		exec,
 		ptyExec,
 		cwd: localCwd,

@@ -47,6 +47,14 @@ const watch = process.argv.indexOf('--watch') !== -1;
 					loader: 'js',
 				};
 			});
+			// Work around https://github.com/TooTallNate/node-pac-proxy-agent/issues/21.
+			build.onLoad({ filter: /node_modules[\/\\]ftp[\/\\]lib[\/\\]connection.js$/ }, async (args) => {
+				const text = await fs.promises.readFile(args.path, 'utf8');
+				return {
+					contents: text.replace(/\bnew Buffer\(/g, 'Buffer.from('),
+					loader: 'js',
+				};
+			});
 		},
 	};
 
@@ -55,10 +63,8 @@ const watch = process.argv.indexOf('--watch') !== -1;
 		bundle: true,
 		sourcemap: true,
 		minify,
-		watch,
 		platform: 'node',
-		target: 'node14.14.0',
-		external: ['vscode-dev-containers'],
+		target: 'node14.17.0',
 		mainFields: ['module', 'main'],
 		outdir: 'dist',
 		plugins: [plugin],
@@ -70,15 +76,18 @@ const watch = process.argv.indexOf('--watch') !== -1;
  *--------------------------------------------------------------------------------------------*/
 `.trimStart()
 		},
-	};
-
-	await esbuild.build({
-		...options,
 		entryPoints: [
 			'./src/spec-node/devContainersSpecCLI.ts',
 		],
 		tsconfig: 'tsconfig.json',
 		outbase: 'src',
-	});
+	};
+
+	if (watch) {
+		(await esbuild.context(options))
+			.watch();
+	} else {
+		await esbuild.build(options);
+	}
 
 })().catch(() => process.exit(1));

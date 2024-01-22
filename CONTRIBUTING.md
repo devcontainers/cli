@@ -29,8 +29,6 @@ The specification repo uses the following [labels](https://github.com/microsoft/
 
 - Create a PR:
 	- Updating the package version in the `package.json`.
-	- Updating the `vscode-dev-containers` version in the `package.json`'s dependencies (if there is an update).
-		- Run `yarn` to update `yarn.lock`.
 	- List notable changes in the `CHANGELOG.md`.
 	- Update ThirdPartyNotices.txt with any new dependencies.
 - After the PR is merged to `main` wait for the CI workflow to succeed (this builds the artifact that will be published). (TBD: Let the `publish-dev-containers` workflow wait for the CI workflow.)

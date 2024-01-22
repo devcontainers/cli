@@ -1,22 +1,22 @@
 import path from 'path';
 import * as semver from 'semver';
 import { Log, LogLevel } from '../../spec-utils/log';
-import { CommonParams, getPublishedVersions, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
+import { CommonParams, getPublishedTags, OCICollectionRef, OCIRef } from '../../spec-configuration/containerCollectionsOCI';
 import { OCICollectionFileName } from './packageCommandImpl';
 import { pushCollectionMetadata, pushOCIFeatureOrTemplate } from '../../spec-configuration/containerCollectionsOCIPush';
 
 let semanticVersions: string[] = [];
-function updateSemanticVersionsList(publishedVersions: string[], version: string, range: string, publishVersion: string) {
+function updateSemanticTagsList(publishedTags: string[], version: string, range: string, publishVersion: string) {
 	// Reference: https://github.com/npm/node-semver#ranges-1
-	const publishedMaxVersion = semver.maxSatisfying(publishedVersions, range);
+	const publishedMaxVersion = semver.maxSatisfying(publishedTags, range);
 	if (publishedMaxVersion === null || semver.compare(version, publishedMaxVersion) === 1) {
 		semanticVersions.push(publishVersion);
 	}
 	return;
 }
 
-export function getSemanticVersions(version: string, publishedVersions: string[], output: Log) {
-	if (publishedVersions.includes(version)) {
+export function getSemanticTags(version: string, tags: string[], output: Log) {
+	if (tags.includes(version)) {
 		output.write(`(!) WARNING: Version ${version} already exists, skipping ${version}...`, LogLevel.Warning);
 		return undefined;
 	}
@@ -31,36 +31,36 @@ export function getSemanticVersions(version: string, publishedVersions: string[]
 
 	// Adds semantic versions depending upon the existings (published) versions
 	// eg. 1.2.3 --> [1, 1.2, 1.2.3, latest]
-	updateSemanticVersionsList(publishedVersions, version, `${parsedVersion.major}.x.x`, `${parsedVersion.major}`);
-	updateSemanticVersionsList(publishedVersions, version, `${parsedVersion.major}.${parsedVersion.minor}.x`, `${parsedVersion.major}.${parsedVersion.minor}`);
+	updateSemanticTagsList(tags, version, `${parsedVersion.major}.x.x`, `${parsedVersion.major}`);
+	updateSemanticTagsList(tags, version, `${parsedVersion.major}.${parsedVersion.minor}.x`, `${parsedVersion.major}.${parsedVersion.minor}`);
 	semanticVersions.push(version);
-	updateSemanticVersionsList(publishedVersions, version, `x.x.x`, 'latest');
+	updateSemanticTagsList(tags, version, `x.x.x`, 'latest');
 
 	return semanticVersions;
 }
 
-export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string, archiveName: string) {
+export async function doPublishCommand(params: CommonParams, version: string, ociRef: OCIRef, outputDir: string, collectionType: string, archiveName: string, featureAnnotations = {}) {
 	const { output } = params;
 
 	output.write(`Fetching published versions...`, LogLevel.Info);
-	const publishedVersions = await getPublishedVersions(params, ociRef);
+	const publishedTags = await getPublishedTags(params, ociRef);
 
-	if (!publishedVersions) {
+	if (!publishedTags) {
 		return;
 	}
 
-	const semanticVersions: string[] | undefined = getSemanticVersions(version, publishedVersions, output);
+	const semanticTags: string[] | undefined = getSemanticTags(version, publishedTags, output);
 
-	if (!!semanticVersions) {
-		output.write(`Publishing versions: ${semanticVersions.toString()}...`, LogLevel.Info);
+	if (!!semanticTags) {
+		output.write(`Publishing tags: ${semanticTags.toString()}...`, LogLevel.Info);
 		const pathToTgz = path.join(outputDir, archiveName);
-		const digest = await pushOCIFeatureOrTemplate(params, ociRef, pathToTgz, semanticVersions, collectionType);
+		const digest = await pushOCIFeatureOrTemplate(params, ociRef, pathToTgz, semanticTags, collectionType, featureAnnotations);
 		if (!digest) {
 			output.write(`(!) ERR: Failed to publish ${collectionType}: '${ociRef.resource}'`, LogLevel.Error);
 			return;
 		}
 		output.write(`Published ${collectionType}: '${ociRef.id}'`, LogLevel.Info);
-		return { publishedVersions: semanticVersions, digest };
+		return { publishedTags: semanticTags, digest };
 	}
 
 	return {}; // Not an error if no versions were published, likely they just already existed and were skipped.

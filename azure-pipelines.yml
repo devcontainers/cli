@@ -6,11 +6,11 @@ trigger:
     include:
       - 'main'
       - 'release/*'
-      - 'spec-main'
-      - 'spec-release/*'
 pr: none
 
 steps:
+- checkout: self
+  persistCredentials: true
 - task: ComponentGovernanceComponentDetection@0
 - task: notice@0
   displayName: 'NOTICE File Generator'
@@ -24,18 +24,19 @@ steps:
       echo "3rd-party notices unchanged."
     else
       echo "3rd-party notices changed."
+      MESSAGE="Auto-update ThirdPartyNotices.txt"
+      if [ "$(git log -1 --pretty=%B | head -n 1)" = "$MESSAGE" ]
+      then
+        echo "Triggered by own commit, not committing."
+        exit 0
+      fi
       cp "$PIPELINE_WORKSPACE/NOTICE.txt/NOTICE.txt" ThirdPartyNotices.txt
       git status
       git add ThirdPartyNotices.txt
       git config --global user.email "chrmarti@microsoft.com"
       git config --global user.name "Christof Marti"
-      git commit -m "Auto-update ThirdPartyNotices.txt"
-      if [ "$(git log -1 --pretty=%B | head -n 1)" != "$(git log HEAD~2..HEAD~1 --pretty=%B | head -n 1)" ]
-      then
-        GIT_ASKPASS=scripts/gitAskPass.sh git push origin HEAD:$(Build.SourceBranch)
-      else
-        echo "Triggered by own commit, not pushing."
-      fi
+      git commit -m "$MESSAGE"
+      git push origin HEAD:$(Build.SourceBranch)
     fi
   env:
     GIT_TOKEN: $(GIT_TOKEN)

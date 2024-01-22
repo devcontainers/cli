@@ -52,6 +52,22 @@ describe('Dev Containers CLI', function () {
 			}
 			assert.equal(success, false, 'expect non-successful call');
 		});
+
+		it('should run with config in subfolder', async () => {
+			const upRes = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json --skip-post-create`);
+			const upResponse = JSON.parse(upRes.stdout);
+			assert.strictEqual(upResponse.outcome, 'success');
+
+			await shellExec(`docker exec ${upResponse.containerId} bash -c '! test -f /subfolderConfigPostCreateCommand.txt'`);
+
+			const runRes = await shellExec(`${cli} run-user-commands --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
+			const runResponse = JSON.parse(runRes.stdout);
+			assert.strictEqual(runResponse.outcome, 'success');
+
+			await shellExec(`docker exec ${upResponse.containerId} test -f /subfolderConfigPostCreateCommand.txt`);
+
+			await shellExec(`docker rm -f ${upResponse.containerId}`);
+		});
 	});
 
 	describe('Command read-configuration', () => {
@@ -101,6 +117,12 @@ describe('Dev Containers CLI', function () {
 			} finally {
 				await shellExec(`docker rm -f ${containerId}`);
 			}
+		});
+
+		it('should read config in subfolder', async () => {
+			const res = await shellExec(`${cli} read-configuration --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.configuration.remoteEnv.SUBFOLDER_CONFIG_REMOTE_ENV, 'true');
 		});
 	});
 });

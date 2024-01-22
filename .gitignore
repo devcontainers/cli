@@ -11,3 +11,6 @@ build-tmp
 .DS_Store
 .env
 output
+*.testMarker
+src/test/container-features/configs/temp_lifecycle-hooks-alternative-order
+test-secrets-temp.json

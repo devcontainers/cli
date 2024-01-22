@@ -1,0 +1,13 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"VARIANT": "16-bullseye"
+		}
+	},
+	"postCreateCommand": "echo \"Val: $TEST\" | sudo tee /postCreateCommand.txt",
+	"remoteEnv": {
+		"TEST": "ENV",
+		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}"
+	}
+}

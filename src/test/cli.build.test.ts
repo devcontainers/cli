@@ -8,6 +8,8 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
+import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { envListToObj } from '../spec-node/utils';
 
 const pkg = require('../../package.json');
 
@@ -207,6 +209,61 @@ describe('Dev Containers CLI', function () {
 			assert.equal(fs.existsSync(outputPath), true);
 		});
 
+		it(`should execute successfully and export buildx cache with container builder`, async () => {
+			const builderName = 'test-container-builder';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/dockerfile-without-features`;
+				const outputPath = `${os.tmpdir()}/test-build-cache`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+
+		it(`should execute successfully and export buildx cache with container builder and image`, async () => {
+			const builderName = 'test-container-builder-image';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				const testFolder = `${__dirname}/configs/image`;
+				const outputPath = `${os.tmpdir()}/test-build-cache-image`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(`${outputPath}/index.json`), true);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+
+		it('should fail with docker-compose and --cache-to not supported', async () => {
+			let success = false;
+			const testFolder = `${__dirname}/configs/compose-image-with-features`;
+			const builderName = 'test-container-builder';
+			const outputPath = `${os.tmpdir()}/test-build-cache`;
+
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /not supported/);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+			assert.equal(success, false, 'expect non-successful call');
+		});
+
 		it(`should execute successfully docker-compose without features with container builder`, async () => {
 			const builderName = 'test-container-builder';
 			try {
@@ -221,6 +278,52 @@ describe('Dev Containers CLI', function () {
 			} finally {
 				await shellExec(`docker buildx rm ${builderName}`);
 			}
+		});
+
+		it('should follow the correct merge logic for containerEnv', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/image-metadata-containerEnv --image-name "test-metadata"`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			const resRun = await shellExec(`docker run -it -d "test-metadata"`);
+			const containerId: string = resRun.stdout.split('\n')[0];
+			assert.ok(containerId, 'Container id not found.');
+
+			const expectedContainerEnv = {
+				'JAVA_HOME': '/usr/lib/jvm/msopenjdk-current',
+				'VAR_WITH_SPACES': 'value with spaces',
+				'VAR_WITH_LOTS_OF_SPACES': '    value with lots of spaces.   ',
+				'VAR_WITH_QUOTES_WE_WANT_TO_KEEP': 'value with "quotes" we want to keep',
+				'VAR_WITH_DOLLAR_SIGN': 'value with $dollar sign',
+				'VAR_WITH_BACK_SLASH': 'value with \\back slash',
+				'ENV_WITH_COMMAND': 'bash -c \'echo -n "Hello, World!"\''
+			};
+
+			for (const [key, value] of Object.entries(expectedContainerEnv)) {
+				const result = await shellExec(`docker exec ${containerId} bash -c 'echo $${key}'`);
+				assert.equal(result.stdout, `${value.trim()}\n`);
+			}
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should build with config in subfolder', async () => {
+			const res = await shellExec(`${cli} build --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json --image-name test-subfolder-config`);
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.outcome, 'success');
+
+			const details = JSON.parse((await shellExec(`docker inspect test-subfolder-config`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
+		});
+
+		it('should apply build options', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.ok(response.imageName);
+			const details = JSON.parse((await shellExec(`docker inspect ${response.imageName}`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
 		});
 	});
 });

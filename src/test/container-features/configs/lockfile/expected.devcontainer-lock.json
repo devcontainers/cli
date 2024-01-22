@@ -1,0 +1,19 @@
+{
+  "features": {
+    "ghcr.io/codspace/features/color:1.0.4": {
+      "version": "1.0.4",
+      "resolved": "ghcr.io/codspace/features/color@sha256:6e9d07c7f488fabc981e7508d8c25eea4b102ebe4b87f9fc6f233efa1d325908",
+      "integrity": "sha256:6e9d07c7f488fabc981e7508d8c25eea4b102ebe4b87f9fc6f233efa1d325908"
+    },
+    "ghcr.io/codspace/features/flower:1.0.0": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/codspace/features/flower@sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43",
+      "integrity": "sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43"
+    },
+    "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
+      "version": "1.0.0",
+      "resolved": "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
+      "integrity": "sha256:9cf3f2a17c1bb2b599b6027cfa975d2fb28234df88ba33ff5e276fa052aac7ae"
+    }
+  }
+}

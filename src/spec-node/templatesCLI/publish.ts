@@ -41,7 +41,7 @@ async function templatesPublish({
     const pkg = getPackageConfig();
 
     const cwd = process.cwd();
-    const cliHost = await getCLIHost(cwd, loadNativeModule);
+    const cliHost = await getCLIHost(cwd, loadNativeModule, true);
     const output = createLog({
         logLevel: mapLogLevel(inputLogLevel),
         logFormat: 'text',
@@ -94,7 +94,7 @@ async function templatesPublish({
             process.exit(1);
         }
 
-        const thisResult = (publishResult?.digest && publishResult?.publishedVersions?.length > 0) ? {
+        const thisResult = (publishResult?.digest && publishResult?.publishedTags?.length > 0) ? {
             ...publishResult,
             version: t.version,
         } : {};

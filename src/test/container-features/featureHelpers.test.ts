@@ -2,11 +2,11 @@ import { assert } from 'chai';
 import * as path from 'path';
 import { DevContainerConfig, DevContainerFeature } from '../../spec-configuration/configuration';
 import { OCIRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { Feature, FeatureSet, getBackwardCompatibleFeatureId, getFeatureInstallWrapperScript, processFeatureIdentifier, updateDeprecatedFeaturesIntoOptions } from '../../spec-configuration/containerFeaturesConfiguration';
 import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures';
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -48,7 +48,7 @@ const assertFeatureIdInvariant = (id: string) => {
 };
 
 describe('validate processFeatureIdentifier', async function () {
-	// const VALID_TYPES = ['local-cache', 'github-repo', 'direct-tarball', 'file-path', 'oci'];
+	// const VALID_TYPES = ['github-repo', 'direct-tarball', 'file-path', 'oci'];
 
 	// In the real implementation, the cwd is passed by the calling function with the value of `--workspace-folder`.
 	// See: https://github.com/devcontainers/cli/blob/45541ba21437bf6c16826762f084ab502157789b/src/spec-node/devContainersSpecCLI.ts#L152-L153
@@ -61,7 +61,7 @@ describe('validate processFeatureIdentifier', async function () {
 		it('should process v1 local-cache', async function () {
 			// Parsed out of a user's devcontainer.json
 			let userFeature: DevContainerFeature = {
-				id: 'docker-in-docker',
+				userFeatureId: 'docker-in-docker',
 				options: {}
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -82,7 +82,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process github-repo (without version)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures/helloworld',
+				userFeatureId: 'octocat/myfeatures/helloworld',
 				options: {},
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -110,7 +110,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process github-repo (with version)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures/helloworld@v0.0.4',
+				userFeatureId: 'octocat/myfeatures/helloworld@v0.0.4',
 				options: {},
 			};
 			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
@@ -139,7 +139,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process direct-tarball (v2 with direct tar download)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
+				userFeatureId: 'https://example.com/some/long/path/devcontainer-feature-ruby.tgz',
 				options: {},
 			};
 
@@ -157,7 +157,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('local-path should parse when provided a relative path with Config file in $WORKSPACE_ROOT/.devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
-				id: './featureA',
+				userFeatureId: './featureA',
 				options: {},
 			};
 
@@ -172,7 +172,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('local-path should parse when provided relative path with config file in $WORKSPACE_ROOT', async function () {
 			const userFeature: DevContainerFeature = {
-				id: './.devcontainer/featureB',
+				userFeatureId: './.devcontainer/featureB',
 				options: {},
 			};
 
@@ -187,7 +187,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should process oci registry (without tag)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'ghcr.io/codspace/features/ruby',
+				userFeatureId: 'ghcr.io/codspace/features/ruby',
 				options: {},
 			};
 
@@ -206,6 +206,8 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: 'latest',
+				digest: undefined,
 				version: 'latest',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
@@ -219,9 +221,45 @@ describe('validate processFeatureIdentifier', async function () {
 			}
 		});
 
+		it('should process oci registry (with a digest)', async function () {
+			const userFeature: DevContainerFeature = {
+				userFeatureId: 'ghcr.io/devcontainers/features/ruby@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				options: {},
+			};
+
+			const featureSet = await processFeatureIdentifier(params, defaultConfigPath, workspaceRoot, userFeature);
+			if (!featureSet) {
+				assert.fail('processFeatureIdentifier returned null');
+			}
+			const featureId = featureSet.features[0].id;
+			assertFeatureIdInvariant(featureId);
+			assert.strictEqual(featureSet?.features[0].id, 'ruby');
+
+			assert.exists(featureSet);
+
+			const expectedFeatureRef: OCIRef = {
+				id: 'ruby',
+				owner: 'devcontainers',
+				namespace: 'devcontainers/features',
+				registry: 'ghcr.io',
+				tag: undefined,
+				digest: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				version: 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a',
+				resource: 'ghcr.io/devcontainers/features/ruby',
+				path: 'devcontainers/features/ruby',
+			};
+
+			if (featureSet.sourceInformation.type === 'oci') {
+				assert.ok(featureSet.sourceInformation.type === 'oci');
+				assert.deepEqual(featureSet.sourceInformation.featureRef, expectedFeatureRef);
+			} else {
+				assert.fail('sourceInformation.type is not oci');
+			}
+		});
+
 		it('should process oci registry (with a tag)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'ghcr.io/codspace/features/ruby:1.0.13',
+				userFeatureId: 'ghcr.io/codspace/features/ruby:1.0.13',
 				options: {},
 			};
 
@@ -240,6 +278,8 @@ describe('validate processFeatureIdentifier', async function () {
 				owner: 'codspace',
 				namespace: 'codspace/features',
 				registry: 'ghcr.io',
+				tag: '1.0.13',
+				digest: undefined,
 				version: '1.0.13',
 				resource: 'ghcr.io/codspace/features/ruby',
 				path: 'codspace/features/ruby',
@@ -257,7 +297,7 @@ describe('validate processFeatureIdentifier', async function () {
 	describe('INVALID processFeatureIdentifier examples', async function () {
 		it('local-path should fail to parse when provided  absolute path and defaultConfigPath with a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
-				id: '/some/long/path/to/helloworld',
+				userFeatureId: '/some/long/path/to/helloworld',
 				options: {},
 			};
 
@@ -269,7 +309,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('local-path should fail to parse when provided an absolute path and defaultConfigPath without a .devcontainer', async function () {
 			const userFeature: DevContainerFeature = {
-				id: '/some/long/path/to/helloworld',
+				userFeatureId: '/some/long/path/to/helloworld',
 				options: {},
 			};
 
@@ -281,7 +321,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('local-path should fail to parse when provided an a relative path breaking out of the .devcontainer folder', async function () {
 			const userFeature: DevContainerFeature = {
-				id: '../featureC',
+				userFeatureId: '../featureC',
 				options: {},
 			};
 
@@ -293,7 +333,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a generic tar with no feature and trailing slash', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'https://example.com/some/long/path/devcontainer-features.tgz/',
+				userFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz/',
 				options: {},
 			};
 
@@ -303,7 +343,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should not parse gitHub without triple slash', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures#helloworld',
+				userFeatureId: 'octocat/myfeatures#helloworld',
 				options: {},
 			};
 
@@ -313,7 +353,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a generic tar with no feature and no trailing slash', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'https://example.com/some/long/path/devcontainer-features.tgz',
+				userFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz',
 				options: {},
 			};
 
@@ -323,7 +363,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a generic tar with a hash but no feature', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'https://example.com/some/long/path/devcontainer-features.tgz#',
+				userFeatureId: 'https://example.com/some/long/path/devcontainer-features.tgz#',
 				options: {},
 			};
 
@@ -333,7 +373,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a marketplace shorthand with only two segments and a hash with no feature', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures#',
+				userFeatureId: 'octocat/myfeatures#',
 				options: {},
 			};
 
@@ -343,7 +383,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a marketplace shorthand with only two segments (no feature)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures',
+				userFeatureId: 'octocat/myfeatures',
 				options: {},
 			};
 
@@ -353,7 +393,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a marketplace shorthand with an invalid feature name (1)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures/@mycoolfeature',
+				userFeatureId: 'octocat/myfeatures/@mycoolfeature',
 				options: {},
 			};
 
@@ -363,7 +403,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a marketplace shorthand with an invalid feature name (2)', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures/MY_$UPER_COOL_FEATURE',
+				userFeatureId: 'octocat/myfeatures/MY_$UPER_COOL_FEATURE',
 				options: {},
 			};
 
@@ -373,7 +413,7 @@ describe('validate processFeatureIdentifier', async function () {
 
 		it('should fail parsing a marketplace shorthand with only two segments, no hash, and with a version', async function () {
 			const userFeature: DevContainerFeature = {
-				id: 'octocat/myfeatures@v0.0.1',
+				userFeatureId: 'octocat/myfeatures@v0.0.1',
 				options: {},
 			};
 
@@ -445,6 +485,69 @@ describe('validate function getBackwardCompatibleFeatureId', () => {
 
         assert.strictEqual(mappedId, expectedId);
     });
+});
+
+describe('validate function updateDeprecatedFeaturesIntoOptions', () => {
+	it('should add feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				userFeatureId: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		if (!updated) {
+			assert.fail('updated is null');
+		}
+
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].userFeatureId, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+	
+	it('should update feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				userFeatureId: 'ghcr.io/devcontainers/features/python:1',
+				options: {}
+			},
+			{
+				userFeatureId: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		if (!updated) {
+			assert.fail('updated is null');
+		}
+
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].userFeatureId, 'ghcr.io/devcontainers/features/python:1');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
+
+	it('should update legacy feature with option', () => {
+		const updated = updateDeprecatedFeaturesIntoOptions([
+			{
+				userFeatureId: 'python',
+				options: {}
+			},
+			{
+				userFeatureId: 'jupyterlab',
+				options: {}
+			}
+		], nullLog);
+		if (!updated) {
+			assert.fail('updated is null');
+		}
+		assert.strictEqual(updated.length, 1);
+		assert.strictEqual(updated[0].userFeatureId, 'python');
+		assert.ok(updated[0].options);
+		assert.strictEqual(typeof updated[0].options, 'object');
+		assert.strictEqual((updated[0].options as Record<string, string | boolean | undefined>)['installJupyterlab'], true);
+	});
 });
 
 describe('validate function getFeatureInstallWrapperScript', () => {
@@ -530,6 +633,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -541,7 +645,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -612,6 +717,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -623,7 +729,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [
@@ -697,6 +804,7 @@ chmod +x ./install.sh
 					path: 'my-org/my-repo/test',
 					resource: 'ghcr.io/my-org/my-repo/test',
 					id: 'test',
+					tag: '1.2.3',
 					version: '1.2.3',
 				},
 				manifest: {
@@ -708,7 +816,8 @@ chmod +x ./install.sh
 						size: 0,
 					},
 					layers: [],
-				}
+				},
+				manifestDigest: '',
 			}
 		};
 		const options = [

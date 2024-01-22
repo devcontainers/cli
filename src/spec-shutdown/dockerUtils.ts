@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters } from '../spec-common/commonUtils';
+import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
 import { Event } from '../spec-utils/event';
+import { escapeRegExCharacters } from '../spec-utils/strings';
 
 export interface ContainerDetails {
 	Id: string;
@@ -63,6 +64,7 @@ export interface PartialExecParameters {
 
 export interface PartialPtyExecParameters {
 	ptyExec: PtyExecFunction;
+	exec: ExecFunction; // for fallback operation
 	cmd: string;
 	args?: string[];
 	env: NodeJS.ProcessEnv;
@@ -126,20 +128,6 @@ export async function inspectImage(params: DockerCLIParameters | PartialExecPara
 	return (await inspect<ImageDetails>(params, 'image', [id]))[0];
 }
 
-export interface VolumeDetails {
-	Name: string;
-	CreatedAt: string;
-	Labels: Record<string, string> | null;
-}
-
-export async function inspectVolume(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, name: string): Promise<VolumeDetails> {
-	return (await inspect<VolumeDetails>(params, 'volume', [name]))[0];
-}
-
-export async function inspectVolumes(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, names: string[]): Promise<VolumeDetails[]> {
-	return inspect<VolumeDetails>(params, 'volume', names);
-}
-
 async function inspect<T>(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, type: 'container' | 'image' | 'volume', ids: string[]): Promise<T[]> {
 	if (!ids.length) {
 		return [];
@@ -173,26 +161,6 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.toString()
 		.split(/\r?\n/)
 		.filter(s => !!s);
-}
-
-export async function listVolumes(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, labels: string[] = []) {
-	const filterArgs = [];
-	for (const label of labels) {
-		filterArgs.push('--filter', `label=${label}`);
-	}
-	const result = await dockerCLI(params, 'volume', 'ls', '-q', ...filterArgs);
-	return result.stdout
-		.toString()
-		.split(/\r?\n/)
-		.filter(s => !!s);
-}
-
-export async function createVolume(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, name: string, labels: string[]) {
-	const labelArgs: string[] = [];
-	for (const label of labels) {
-		labelArgs.push('--label', label);
-	}
-	await dockerCLI(params, 'volume', 'create', ...labelArgs, name);
 }
 
 export async function getEvents(params: DockerCLIParameters | DockerResolverParameters, filters?: Record<string, string[]>) {
@@ -230,20 +198,21 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 	return p;
 }
 
-export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<string | null> {
+export async function dockerBuildKitVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<{ versionString: string; versionMatch?: string } | undefined> {
 	try {
 		const execParams = {
 			...toExecParameters(params),
 			print: true,
 		};
 		const result = await dockerCLI(execParams, 'buildx', 'version');
-		const versionMatch = result.stdout.toString().match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
+		const versionString = result.stdout.toString();
+		const versionMatch = versionString.match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
 		if (!versionMatch) {
-			return null;
+			return { versionString };
 		}
-		return versionMatch[0];
+		return { versionString, versionMatch: versionMatch[0] };
 	} catch {
-		return null;
+		return undefined;
 	}
 }
 
@@ -253,24 +222,6 @@ export async function dockerCLI(params: DockerCLIParameters | PartialExecParamet
 		...partial,
 		args: (partial.args || []).concat(args),
 	});
-}
-
-export async function dockerContext(params: DockerCLIParameters) {
-	try {
-		// 'docker context show' is only available as an addon from the 'compose-cli'. 'docker context inspect' connects to the daemon making it slow. Using 'docker context ls' instead.
-		const { stdout } = await dockerCLI(params, 'context', 'ls', '--format', '{{json .}}');
-		const json = `[${stdout.toString()
-			.trim()
-			.split(/\r?\n/)
-			.join(',')
-			}]`;
-		const contexts = JSON.parse(json) as { Current: boolean; Name: string }[];
-		const current = contexts.find(c => c.Current)?.Name;
-		return current;
-	} catch {
-		// Docker is not installed or Podman does not have contexts.
-		return undefined;
-	}
 }
 
 export async function isPodman(params: DockerCLIParameters | DockerResolverParameters) {
@@ -310,23 +261,27 @@ export async function dockerComposePtyCLI(params: DockerCLIParameters | PartialP
 	});
 }
 
-export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined): ExecFunction {
+export function dockerExecFunction(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, allocatePtyIfPossible = false): ExecFunction {
 	return async function (execParams: ExecParameters): Promise<Exec> {
 		const { exec, cmd, args, env } = toExecParameters(params);
-		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, false);
+		// Spawning without node-pty: `docker exec` only accepts -t if stdin is a TTY. (https://github.com/devcontainers/cli/issues/606)
+		const canAllocatePty = allocatePtyIfPossible && process.stdin.isTTY && execParams.stdio?.[0] === 'inherit';
+		const { argsPrefix, args: execArgs } = toDockerExecArgs(containerName, user, execParams, canAllocatePty);
 		return exec({
 			cmd,
 			args: (args || []).concat(execArgs),
 			env,
+			stdio: execParams.stdio,
 			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
 		});
 	};
 }
 
-export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>): Promise<PtyExecFunction> {
+export async function dockerPtyExecFunction(params: PartialPtyExecParameters | DockerResolverParameters, containerName: string, user: string | undefined, loadNativeModule: <T>(moduleName: string) => Promise<T | undefined>, allowInheritTTY: boolean): Promise<PtyExecFunction> {
 	const pty = await loadNativeModule<typeof ptyType>('node-pty');
 	if (!pty) {
-		throw new Error('Missing node-pty');
+		const plain = dockerExecFunction(params, containerName, user, true);
+		return plainExecAsPtyExec(plain, allowInheritTTY);
 	}
 
 	return async function (execParams: PtyExecParameters): Promise<PtyExec> {
@@ -346,7 +301,7 @@ function replacingDockerExecLog(original: Log, cmd: string, args: string[]) {
 }
 
 function replacingLog(original: Log, search: string, replace: string) {
-	const searchR = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+	const searchR = new RegExp(escapeRegExCharacters(search), 'g');
 	const wrapped = makeLog({
 		...original,
 		get dimensions() {
@@ -407,12 +362,14 @@ export function toExecParameters(params: DockerCLIParameters | PartialExecParame
 export function toPtyExecParameters(params: DockerCLIParameters | PartialPtyExecParameters | DockerResolverParameters, compose?: DockerComposeCLI): PartialPtyExecParameters {
 	return 'dockerEnv' in params ? {
 		ptyExec: params.common.cliHost.ptyExec,
+		exec: params.common.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.dockerEnv,
 		output: params.common.output,
 	} : 'cliHost' in params ? {
 		ptyExec: params.cliHost.ptyExec,
+		exec: params.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
 		args: compose ? compose.args : [],
 		env: params.env,

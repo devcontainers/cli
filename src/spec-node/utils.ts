@@ -11,7 +11,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
-import { ContainerProperties, getContainerProperties, ResolverParameters } from '../spec-common/injectHeadless';
+import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
@@ -25,15 +25,31 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
+import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
+import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 
-export { getConfigFilePath, getDockerfilePath, isDockerFileConfig, resolveConfigFilePath } from '../spec-configuration/configuration';
+export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
-export { CLIHostDocuments, Documents, createDocuments, Edit, fileDocuments, RemoteDocuments } from '../spec-configuration/editableFiles';
 
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
+
+// Generic retry function
+export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
+	const { retryIntervalMilliseconds, maxRetries, output } = options;
+	let lastError: Error | undefined;
+	for (let i = 0; i < maxRetries; i++) {
+		try {
+			return await fn();
+		} catch (err) {
+			lastError = err;
+			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
+		}
+	}
+	throw lastError;
+}
 
 export async function uriToWSLFsPath(uri: URI, cliHost: CLIHost): Promise<string> {
 	if (uri.scheme === 'file' && cliHost.type === 'wsl') {
@@ -93,11 +109,14 @@ export interface DockerResolverParameters {
 	additionalMounts: Mount[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
-	buildKitVersion: string | null;
+	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
+	experimentalLockfile?: boolean;
+	experimentalFrozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
+	buildxCacheTo: string | undefined;
 }
 
 export interface ResolverResult {
@@ -185,6 +204,17 @@ export async function checkDockerSupportForGPU(params: DockerCLIParameters | Doc
 	return runtimeFound;
 }
 
+export function isBuildKitImagePolicyError(err: any): boolean {
+	const imagePolicyErrorString = 'could not resolve image due to policy'; // Seen in Buildkit 0.11.0
+	const sourceDeniedString = 'source denied by policy'; // Seen in Buildkit 0.12.0
+
+	const errCmdOutput = err?.cmdOutput;
+	const errStderr = err?.stderr;
+
+	return (errCmdOutput && typeof errCmdOutput === 'string' && (errCmdOutput.includes(imagePolicyErrorString) || errCmdOutput.includes(sourceDeniedString)))
+		|| (errStderr && typeof errStderr === 'string' && (errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString)));
+}
+
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
@@ -192,14 +222,15 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 		if (!pullImageOnError) {
 			throw err;
 		}
+		const cliHost = 'cliHost' in params ? params.cliHost : params.common.cliHost;
 		const output = 'cliHost' in params ? params.output : params.common.output;
 		try {
-			return await inspectImageInRegistry(output, imageName);
+			return await inspectImageInRegistry(output, { arch: cliHost.arch, os: cliHost.platform }, imageName);
 		} catch (err2) {
 			output.write(`Error fetching image details: ${err2?.message}`);
 		}
 		try {
-			await dockerPtyCLI(params, 'pull', imageName);
+			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
 		} catch (_err) {
 			if (err.stdout) {
 				output.write(err.stdout.toString());
@@ -213,7 +244,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, name: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const params = { output, env: process.env };
 	const ref = getRef(output, resourceAndVersion);
@@ -224,12 +255,29 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
 	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
+
+	let targetDigest: string | undefined = undefined;
 	const manifest = await getManifest(params, manifestUrl, ref, 'application/vnd.docker.distribution.manifest.v2+json');
-	if (!manifest) {
+	if (manifest?.manifestObj.config) { // Checking for config because the above mime type sometimes returns an image index.
+		targetDigest = manifest.manifestObj.config.digest;
+	} else {
+		// If we couldn't fetch the manifest, perhaps the registry supports querying for the 'Image Index'
+		// Spec: https://github.com/opencontainers/image-spec/blob/main/image-index.md
+		const imageIndexEntry = await getImageIndexEntryForPlatform(params, manifestUrl, ref, platformInfo);
+		if (imageIndexEntry) {
+			const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
+			const a = await getManifest(params, manifestUrl, ref);
+			if (a) {
+				targetDigest = a.manifestObj.config.digest;
+			}
+		}
+	}
+
+	if (!targetDigest) {
 		throw new Error(`No manifest found for ${resourceAndVersion}.`);
 	}
 
-	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${manifest.config.digest}`;
+	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${targetDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const httpOptions = {
@@ -245,7 +293,7 @@ export async function inspectImageInRegistry(output: Log, name: string): Promise
 	const blob = res.resBody.toString();
 	const obj = JSON.parse(blob);
 	return {
-		Id: manifest.config.digest,
+		Id: targetDigest,
 		Config: obj.config,
 	};
 }
@@ -343,7 +391,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	const [, user, , group] = /([^:]*)(:(.*))?/.exec(containerUser) as (string | undefined)[];
 	const containerEnv = envListToObj(containerInfo.Config.Env);
 	const remoteExec = dockerExecFunction(params, containerId, containerUser);
-	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule);
+	const remotePtyExec = await dockerPtyExecFunction(params, containerId, containerUser, common.loadNativeModule, common.allowInheritTTY);
 	const remoteExecAsRoot = dockerExecFunction(params, containerId, 'root');
 	return getContainerProperties({
 		params: common,
@@ -371,25 +419,56 @@ export function envListToObj(list: string[] | null | undefined) {
 	}, {} as Record<string, string>);
 }
 
-export async function runUserCommand(params: DockerResolverParameters, command: string | string[] | undefined, onDidInput?: Event<string>) {
-	if (!command) {
+export async function runInitializeCommand(params: DockerResolverParameters, userCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
+	if (!userCommand) {
 		return;
 	}
+
+	let hasCommand = false;
+	if (typeof userCommand === 'string') {
+		hasCommand = userCommand.trim().length > 0;
+	} else if (Array.isArray(userCommand)) {
+		hasCommand = userCommand.length > 0;
+	} else if (typeof userCommand === 'object') {
+		hasCommand = Object.keys(userCommand).length > 0;
+	}
+
+	if (!hasCommand) {
+		return;
+	}
+
 	const { common, dockerEnv } = params;
 	const { cliHost, output } = common;
+	const hookName = 'initializeCommand';
 	const isWindows = cliHost.platform === 'win32';
 	const shell = isWindows ? [cliHost.env.ComSpec || 'cmd.exe', '/c'] : ['/bin/sh', '-c'];
-	const updatedCommand = isWindows && Array.isArray(command) && command.length ?
-		[(command[0] || '').replace(/\//g, '\\'), ...command.slice(1)] :
-		command;
-	const args = typeof updatedCommand === 'string' ? [...shell, updatedCommand] : updatedCommand;
-	if (!args.length) {
-		return;
-	}
-	const postCommandName = 'initializeCommand';
+
 	const infoOutput = makeLog(output, LogLevel.Info);
+
 	try {
-		infoOutput.raw(`\x1b[1mRunning the ${postCommandName} from devcontainer.json...\x1b[0m\r\n\r\n`);
+		// Runs a command.
+		// Useful for the object syntax, where >1 command can be specified to run in parallel.
+		async function runSingleCommand(command: string | string[], name?: string) {
+			const updatedCommand = isWindows && Array.isArray(command) && command.length ?
+				[(command[0] || '').replace(/\//g, '\\'), ...command.slice(1)] :
+				command;
+			const args = typeof updatedCommand === 'string' ? [...shell, updatedCommand] : updatedCommand;
+			if (!args.length) {
+				return;
+			}
+
+			// 'name' is set when parallel execution syntax is used.
+			if (name) {
+				infoOutput.raw(`\x1b[1mRunning '${name}' from ${hookName}...\x1b[0m\r\n\r\n`);
+			} else {
+				infoOutput.raw(`\x1b[1mRunning the ${hookName} from devcontainer.json...\x1b[0m\r\n\r\n`);
+			}
+
+			// If we have a command name then the command is running in parallel and 
+			// we need to hold output until the command is done so that the output
+			// doesn't get interleaved with the output of other commands.
+			const print = name ? 'end' : 'continuous';
+
 		await runCommand({
 			ptyExec: cliHost.ptyExec,
 			cmd: args[0],
@@ -397,18 +476,33 @@ export async function runUserCommand(params: DockerResolverParameters, command: 
 			env: dockerEnv,
 			output: infoOutput,
 			onDidInput,
+			print,
 		});
 		infoOutput.raw('\r\n');
+		}
+
+		let commands;
+		if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
+			commands = [runSingleCommand(userCommand)];
+		} else {
+			commands = Object.keys(userCommand).map(name => {
+				const command = userCommand[name];
+				return runSingleCommand(command, name);
+			});
+		}
+		await Promise.all(commands);
+
 	} catch (err) {
 		if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
-			infoOutput.raw(`\r\n\x1b[1m${postCommandName} interrupted.\x1b[0m\r\n\r\n`);
+			infoOutput.raw(`\r\n\x1b[1m${hookName} interrupted.\x1b[0m\r\n\r\n`);
 		} else {
 			throw new ContainerError({
-				description: `The ${postCommandName} in the devcontainer.json failed.`,
+				description: `The ${hookName} in the devcontainer.json failed.`,
 				originalError: err,
 			});
 		}
 	}
+
 }
 
 export function getFolderImageName(params: ResolverParameters | DockerCLIParameters) {
@@ -419,7 +513,7 @@ export function getFolderImageName(params: ResolverParameters | DockerCLIParamet
 }
 
 export function getFolderHash(fsPath: string): string {
-	return crypto.createHash('md5').update(fsPath).digest('hex');
+	return crypto.createHash('sha256').update(fsPath).digest('hex');
 }
 
 export async function createFeaturesTempFolder(params: { cliHost: CLIHost; package: PackageConfiguration }): Promise<string> {
@@ -441,4 +535,41 @@ export async function getLocalCacheFolder() {
 
 export function getEmptyContextFolder(common: ResolverParameters) {
 	return common.cliHost.path.join(common.persistedFolder, 'empty-folder');
+}
+
+export async function findContainerAndIdLabels(params: DockerResolverParameters | DockerCLIParameters, containerId: string | undefined, providedIdLabels: string[] | undefined, workspaceFolder: string | undefined, configFile: string | undefined, removeContainerWithOldLabels?: boolean | string) {
+	if (providedIdLabels) {
+		return {
+			container: containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, providedIdLabels),
+			idLabels: providedIdLabels,
+		};
+	}
+	let container: ContainerDetails | undefined;
+	if (containerId) {
+		container = await inspectContainer(params, containerId);
+	} else if (workspaceFolder && configFile) {
+		container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`]);
+		if (!container) {
+			// Fall back to old labels.
+			container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`]);
+			if (container) {
+				if (container.Config.Labels?.[configFileLabel]) {
+					// But ignore containers with new labels.
+					container = undefined;
+				} else if (removeContainerWithOldLabels === true || removeContainerWithOldLabels === container.Id) {
+					// Remove container, so it will be rebuilt with new labels.
+					await dockerCLI(params, 'rm', '-f', container.Id);
+					container = undefined;
+				}
+			}
+		}
+	} else {
+		throw new Error(`Either containerId or workspaceFolder and configFile must be provided.`);
+	}
+	return {
+		container,
+		idLabels: !container || container.Config.Labels?.[configFileLabel] ?
+			[`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`] :
+			[`${hostFolderLabel}=${workspaceFolder}`],
+	};
 }

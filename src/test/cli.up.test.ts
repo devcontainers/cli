@@ -7,15 +7,16 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { devContainerDown, devContainerUp, shellExec, UpResult, pathExists } from './testUtils';
+import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUtils';
 
 const pkg = require('../../package.json');
 
 describe('Dev Containers CLI', function () {
-	this.timeout('120s');
+	this.timeout('240s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
+
 
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
@@ -33,14 +34,12 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
-		it('should execute successfully with valid config and dotfiles', async () => {
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature --dotfiles-repository https://github.com/codspace/test-dotfiles`);
+		it('should execute successfully with valid config with a Feature', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-with-git-feature`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
-			const dotfiles = await pathExists(cli, `${__dirname}/configs/image-with-git-feature`, `/tmp/.dotfilesMarker`);
-			assert.ok(dotfiles, 'Dotfiles not found.');
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
@@ -164,6 +163,35 @@ describe('Dev Containers CLI', function () {
 					assert.equal(upResult2?.containerId, upResult1?.containerId);
 				});
 			});
+		});
+
+		it('should follow the correct merge logic for containerEnv', async () => {
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image-metadata-containerEnv`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+
+			const javaHome = await shellExec(`docker exec ${containerId} bash -c 'echo -n $JAVA_HOME'`);
+			assert.equal('/usr/lib/jvm/msopenjdk-current', javaHome.stdout);
+
+			const envWithSpaces = await shellExec(`docker exec ${containerId} bash -c 'echo -n $VAR_WITH_SPACES'`);
+			assert.equal('value with spaces', envWithSpaces.stdout);
+
+			const evalEnvWithCommand = await shellExec(`docker exec ${containerId} bash -c 'eval $ENV_WITH_COMMAND'`);
+			assert.equal('Hello, World!', evalEnvWithCommand.stdout);
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should run with config in subfolder', async () => {
+			const upRes = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
+			const response = JSON.parse(upRes.stdout);
+			assert.strictEqual(response.outcome, 'success');
+
+			await shellExec(`docker exec ${response.containerId} test -f /subfolderConfigPostCreateCommand.txt`);
+
+			await shellExec(`docker rm -f ${response.containerId}`);
 		});
 	});
 });

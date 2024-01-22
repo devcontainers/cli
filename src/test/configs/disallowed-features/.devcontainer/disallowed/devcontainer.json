@@ -1,0 +1,7 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:latest": "latest",
+		"ghcr.io/devcontainers/features/disallowed-feature:latest": "latest"
+	}
+}

@@ -6,36 +6,42 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import yargs, { Argv } from 'yargs';
+import textTable from 'text-table';
 
 import * as jsonc from 'jsonc-parser';
 
-import { createDockerParams, createLog, experimentalImageMetadataDefault, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, createFeaturesTempFolder, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution } from './utils';
+import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
+import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
-import { Log, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
-import { probeRemoteEnv, runPostCreateCommands, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
-import { bailOut, buildNamedImageAndExtend, findDevContainer, hostFolderLabel } from './singleContainer';
+import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
+import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
-import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
+import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
 import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
-import { getCLIHost } from '../spec-common/cliHost';
-import { loadNativeModule } from '../spec-common/commonUtils';
-import { FeaturesConfig, generateFeaturesConfig, getContainerFeaturesFolder } from '../spec-configuration/containerFeaturesConfiguration';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
+import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
+import { loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
-import { featureInfoTagsHandler, featuresInfoTagsOptions } from './featuresCLI/infoTags';
 import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
-import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
+import { getPackageConfig, } from '../spec-utils/product';
+import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
 import { templateApplyHandler, templateApplyOptions } from './templatesCLI/apply';
-import { featuresInfoManifestHandler, featuresInfoManifestOptions } from './featuresCLI/infoManifest';
+import { featuresInfoHandler as featuresInfoHandler, featuresInfoOptions } from './featuresCLI/info';
+import { bailOut, buildNamedImageAndExtend } from './singleContainer';
+import { Event, NodeEventEmitter } from '../spec-utils/event';
+import { ensureNoDisallowedFeatures } from './disallowedFeatures';
+import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
+import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
+import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
+import { readFeaturesConfig } from './featureUtils';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -64,14 +70,14 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
+	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
+	y.command('upgrade', 'Upgrade lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
 		y.command('package <target>', 'Package Features', featuresPackageOptions, featuresPackageHandler);
 		y.command('publish <target>', 'Package and publish Features', featuresPublishOptions, featuresPublishHandler);
-		y.command('info', 'Fetch metadata on published Features', (y: Argv) => {
-			y.command('tags <feature>', 'Fetch tags for a specific Feature', featuresInfoTagsOptions, featureInfoTagsHandler);
-			y.command('manifest <feature>', 'Fetch the manifest for a specific Feature', featuresInfoManifestOptions, featuresInfoManifestHandler);
-		});
+		y.command('info <mode> <feature>', 'Fetch metadata for a published Feature', featuresInfoOptions, featuresInfoHandler);
+		y.command('resolve-dependencies', 'Read and resolve dependency graph from a configuration', featuresResolveDependenciesOptions, featuresResolveDependenciesHandler);
 	});
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
@@ -135,11 +141,15 @@ function provisionOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
+		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
+		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -203,18 +213,27 @@ async function provision({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
+	'secrets-file': secretsFile,
+	'experimental-lockfile': experimentalLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'omit-syntax-directive': omitSyntaxDirective,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
-	const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) : getDefaultIdLabels(workspaceFolder!);
+	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+
+	const cwd = workspaceFolder || process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
+	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 	const options: ProvisionOptions = {
 		dockerPath,
 		dockerComposePath,
@@ -253,20 +272,25 @@ async function provision({
 		},
 		updateRemoteUserUIDDefault,
 		remoteEnv: envListToObj(addRemoteEnvs),
+		secretsP,
 		additionalCacheFroms: addCacheFroms,
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
+		buildxCacheTo: undefined,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
-		experimentalImageMetadata,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
+		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
+		experimentalLockfile,
+		experimentalFrozenLockfile,
+		omitSyntaxDirective: omitSyntaxDirective,
 	};
 
-	const result = await doProvision(options, idLabels);
+	const result = await doProvision(options, providedIdLabels);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
 	console.log(JSON.stringify(result));
 	if (result.outcome === 'success') {
@@ -276,13 +300,13 @@ async function provision({
 	process.exit(exitCode);
 }
 
-async function doProvision(options: ProvisionOptions, idLabels: string[]) {
+async function doProvision(options: ProvisionOptions, providedIdLabels: string[] | undefined) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const result = await launch(options, idLabels, disposables);
+		const result = await launch(options, providedIdLabels, disposables);
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -326,7 +350,7 @@ function setUpOptions(y: Argv) {
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 	})
 		.check(argv => {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
@@ -409,9 +433,9 @@ async function doSetUp({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
 			skipPostAttach: false,
-			experimentalImageMetadata: true,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
 				repository: dotfilesRepository,
@@ -441,10 +465,10 @@ async function doSetUp({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, true, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
-		await setupInContainer(common, containerProperties, mergedConfig);
+		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -473,19 +497,23 @@ function buildOptions(y: Argv) {
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'no-cache': { type: 'boolean', default: false, description: 'Builds the image with `--no-cache`.' },
 		'image-name': { type: 'string', description: 'Image name.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache' },
+		'cache-to': { type: 'string', description: 'A destination of buildx cache' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
+		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
+		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 	});
 }
 
@@ -508,6 +536,7 @@ async function doBuild({
 	'docker-path': dockerPath,
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
+	config: configParam,
 	'log-level': logLevel,
 	'log-format': logFormat,
 	'no-cache': buildNoCache,
@@ -517,10 +546,13 @@ async function doBuild({
 	'platform': buildxPlatform,
 	'push': buildxPush,
 	'output': buildxOutput,
+	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
+	'experimental-lockfile': experimentalLockfile,
+	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'omit-syntax-directive': omitSyntaxDirective,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -528,7 +560,7 @@ async function doBuild({
 	};
 	try {
 		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const configFile: URI | undefined = /* config ? URI.file(path.resolve(process.cwd(), config)) : */ undefined; // TODO
+		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
@@ -561,11 +593,14 @@ async function doBuild({
 			buildxPlatform,
 			buildxPush,
 			buildxOutput,
+			buildxCacheTo,
 			skipFeatureAutoMapping,
 			skipPostAttach: true,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
-			dotfiles: {}
+			dotfiles: {},
+			experimentalLockfile,
+			experimentalFrozenLockfile,
+			omitSyntaxDirective,
 		}, disposables);
 
 		const { common, dockerCLI, dockerComposeCLI } = params;
@@ -586,6 +621,9 @@ async function doBuild({
 		if (buildxOutput && buildxPush) {
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
+
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
@@ -613,6 +651,10 @@ async function doBuild({
 				throw new ContainerError({ description: '--output not supported.' });
 			}
 
+			if (buildxCacheTo) {
+				throw new ContainerError({ description: '--cache-to not supported.' });
+			}
+
 			const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 			const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 			const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, workspaceFolder);
@@ -623,8 +665,6 @@ async function doBuild({
 				composeGlobalArgs.push('--env-file', envFile);
 			}
 			const projectName = await getProjectName(params, workspace, composeFiles);
-
-			const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
 
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 			const services = Object.keys(composeConfig.services || {});
@@ -709,11 +749,11 @@ function runUserCommandsOptions(y: Argv) {
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
-		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProb results' },
+		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -773,11 +813,11 @@ async function doRunUserCommands({
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'skip-post-attach': skipPostAttach,
-	'experimental-image-metadata': experimentalImageMetadata,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'secrets-file': secretsFile,
 }: RunUserCommandsArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -785,11 +825,15 @@ async function doRunUserCommands({
 	};
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
+
+		const cwd = workspaceFolder || process.cwd();
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
+		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -819,9 +863,9 @@ async function doRunUserCommands({
 			buildxPlatform: undefined,
 			buildxPush: false,
 			buildxOutput: undefined,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			skipPostAttach,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {
 				repository: dotfilesRepository,
@@ -829,10 +873,11 @@ async function doRunUserCommands({
 				targetPath: dotfilesTargetPath,
 			},
 			containerSessionDataFolder,
+			secretsP,
 		}, disposables);
 
 		const { common } = params;
-		const { cliHost, output } = common;
+		const { output } = common;
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -849,7 +894,7 @@ async function doRunUserCommands({
 			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
 		};
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
@@ -857,12 +902,12 @@ async function doRunUserCommands({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
-		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
-		const result = await runPostCreateCommands(common, containerProperties, updatedConfig, remoteEnv, stopForPersonalization);
+		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
+		const result = await runLifecycleHooks(common, lifecycleCommandOriginMapFromMetadata(imageMetadata), containerProperties, updatedConfig, remoteEnvP, secretsP, stopForPersonalization);
 		return {
 			outcome: 'success' as 'success',
 			result,
@@ -906,7 +951,6 @@ function readConfigurationOptions(y: Argv) {
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -950,7 +994,6 @@ async function readConfiguration({
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -959,12 +1002,11 @@ async function readConfiguration({
 	let output: Log | undefined;
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const cwd = workspaceFolder || process.cwd();
-		const cliHost = await getCLIHost(cwd, loadNativeModule);
+		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
 		const sessionStart = new Date();
 		const pkg = getPackageConfig();
@@ -1004,24 +1046,24 @@ async function readConfiguration({
 			env: cliHost.env,
 			output
 		};
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
 			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
 		}
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
-		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && (!container || !experimentalImageMetadata));
+		const needsFeaturesConfig = includeFeaturesConfig || (includeMergedConfig && !container);
 		const featuresConfiguration = needsFeaturesConfig ? await readFeaturesConfig(params, pkg, configuration.config, extensionPath, skipFeatureAutoMapping, additionalFeatures) : undefined;
 		let mergedConfig: MergedDevContainerConfig | undefined;
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
 			if (container) {
-				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, experimentalImageMetadata, output).config;
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, output).config;
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
-				const imageBuildInfo = await getImageBuildInfo(params, configuration, experimentalImageMetadata);
+				const imageBuildInfo = await getImageBuildInfo(params, configuration);
 				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
 			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
@@ -1047,11 +1089,102 @@ async function readConfiguration({
 	process.exit(0);
 }
 
-async function readFeaturesConfig(params: DockerCLIParameters, pkg: PackageConfiguration, config: DevContainerConfig, extensionPath: string, skipFeatureAutoMapping: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<FeaturesConfig | undefined> {
-	const { cliHost, output } = params;
-	const { cwd, env, platform } = cliHost;
-	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
-	return generateFeaturesConfig({ extensionPath, cwd, output, env, skipFeatureAutoMapping, platform }, featuresTmpFolder, config, getContainerFeaturesFolder, additionalFeatures);
+function outdatedOptions(y: Argv) {
+	return y.options({
+		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
+		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
+		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
+		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
+		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
+		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
+	});
+}
+
+type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
+
+function outdatedHandler(args: OutdatedArgs) {
+	(async () => outdated(args))().catch(console.error);
+}
+
+async function outdated({
+	// 'user-data-folder': persistedFolder,
+	'workspace-folder': workspaceFolderArg,
+	config: configParam,
+	'output-format': outputFormat,
+	'log-level': logLevel,
+	'log-format': logFormat,
+	'terminal-rows': terminalRows,
+	'terminal-columns': terminalColumns,
+}: OutdatedArgs) {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+	let output: Log | undefined;
+	try {
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
+		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
+		const extensionPath = path.join(__dirname, '..', '..');
+		const sessionStart = new Date();
+		const pkg = getPackageConfig();
+		output = createLog({
+			logLevel: mapLogLevel(logLevel),
+			logFormat,
+			log: text => process.stderr.write(text),
+			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
+		}, pkg, sessionStart, disposables);
+
+		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
+		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+		if (!configs) {
+			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
+		}
+
+		const cacheFolder = await getCacheFolder(cliHost);
+		const params = {
+			extensionPath,
+			cacheFolder,
+			cwd: cliHost.cwd,
+			output,
+			env: cliHost.env,
+			skipFeatureAutoMapping: false,
+			platform: cliHost.platform,
+		};
+
+		const outdated = await loadVersionInfo(params, configs.config.config);
+		await new Promise<void>((resolve, reject) => {
+			let text;
+			if (outputFormat === 'text') {
+				const rows = Object.keys(outdated.features).map(key => {
+					const value = outdated.features[key];
+					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
+						.map(v => v === undefined ? '-' : v);
+				});
+				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
+				text = textTable([
+					header,
+					...rows,
+				]);
+			} else {
+				text = JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined);
+			}
+			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
+		});
+	} catch (err) {
+		if (output) {
+			output.write(err && (err.stack || err.message) || String(err));
+		} else {
+			console.error(err);
+		}
+		await dispose();
+		process.exit(1);
+	}
+	await dispose();
+	process.exit(0);
 }
 
 function execOptions(y: Argv) {
@@ -1074,7 +1207,6 @@ function execOptions(y: Argv) {
 		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
-		'experimental-image-metadata': { type: 'boolean', default: experimentalImageMetadataDefault, hidden: true, description: 'Temporary option for testing.' },
 	})
 		.positional('cmd', {
 			type: 'string',
@@ -1116,8 +1248,9 @@ function execHandler(args: ExecArgs) {
 
 async function exec(args: ExecArgs) {
 	const result = await doExec(args);
-	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	const exitCode = typeof result.code === 'number' && (result.code || !result.signal) ? result.code :
+		typeof result.signal === 'number' && result.signal > 0 ? 128 + result.signal : // 128 + signal number convention: https://tldp.org/LDP/abs/html/exitcodes.html
+		typeof result.signal === 'string' && processSignals[result.signal] ? 128 + processSignals[result.signal]! : 1;
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -1141,17 +1274,17 @@ export async function doExec({
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
-	'experimental-image-metadata': experimentalImageMetadata,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
+	let output: Log | undefined;
+	const isTTY = process.stdin.isTTY && process.stdout.isTTY || logFormat === 'json'; // If stdin or stdout is a pipe, we don't want to use a PTY.
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
-		const idLabels = idLabel ? (Array.isArray(idLabel) ? idLabel as string[] : [idLabel]) :
-			workspaceFolder ? getDefaultIdLabels(workspaceFolder) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -1167,7 +1300,8 @@ export async function doExec({
 			logLevel: mapLogLevel(logLevel),
 			logFormat,
 			log: text => process.stderr.write(text),
-			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
+			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : isTTY ? { columns: process.stdout.columns, rows: process.stdout.rows } : undefined,
+			onDidChangeTerminalDimensions: terminalColumns && terminalRows ? undefined : isTTY ? createStdoutResizeEmitter(disposables) : undefined,
 			defaultUserEnvProbe,
 			removeExistingContainer: false,
 			buildNoCache: false,
@@ -1184,16 +1318,17 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
 			skipPostAttach: false,
-			experimentalImageMetadata,
 			skipPersistingCustomizationsFromFeatures: false,
 			dotfiles: {}
 		}, disposables);
 
 		const { common } = params;
-		const { cliHost, output } = common;
+		const { cliHost } = common;
+		output = common.output;
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -1210,43 +1345,77 @@ export async function doExec({
 			substitute: value => substitute({ platform: cliHost.platform, env: cliHost.env }, value)
 		};
 
-		const container = containerId ? await inspectContainer(params, containerId) : await findDevContainer(params, idLabels!);
+		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, experimentalImageMetadata, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
-		const infoOutput = makeLog(output, LogLevel.Info);
-		await runRemoteCommand({ ...common, output: infoOutput }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, print: 'continuous' });
-
+		await runRemoteCommand({ ...common, output, stdin: process.stdin, ...(logFormat !== 'json' ? { stdout: process.stdout, stderr: process.stderr } : {}) }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, pty: isTTY, print: 'continuous' });
 		return {
-			outcome: 'success' as 'success',
+			code: 0,
 			dispose,
 		};
 
-	} catch (originalError) {
-		const originalStack = originalError?.stack;
-		const err = originalError instanceof ContainerError ? originalError : new ContainerError({
-			description: 'An error occurred running a command in the container.',
-			originalError
-		});
-		if (originalStack) {
-			console.error(originalStack);
+	} catch (err) {
+		if (!err?.code && !err?.signal) {
+			if (output) {
+				output.write(err?.stack || err?.message || String(err), LogLevel.Error);
+			} else {
+				console.error(err?.stack || err?.message || String(err));
+			}
 		}
 		return {
-			outcome: 'error' as 'error',
-			message: err.message,
-			description: err.description,
-			containerId: err.containerId,
+			code: err?.code as number | undefined,
+			signal: err?.signal as string | number | undefined,
 			dispose,
 		};
 	}
 }
 
-function getDefaultIdLabels(workspaceFolder: string) {
-	return [`${hostFolderLabel}=${workspaceFolder}`];
+function createStdoutResizeEmitter(disposables: (() => Promise<unknown> | void)[]): Event<LogDimensions> {
+	const resizeListener = () => {
+		emitter.fire({
+			rows: process.stdout.rows,
+			columns: process.stdout.columns
+		});
+	};
+	const emitter = new NodeEventEmitter<LogDimensions>({
+		on: () => process.stdout.on('resize', resizeListener),
+		off: () => process.stdout.off('resize', resizeListener),
+	});
+	disposables.push(() => emitter.dispose());
+	return emitter.event;
+}
+
+async function readSecretsFromFile(params: { output?: Log; secretsFile?: string; cliHost: CLIHost }) {
+	const { secretsFile, cliHost, output } = params;
+	if (!secretsFile) {
+		return {};
+	}
+
+	try {
+		const fileBuff = await cliHost.readFile(secretsFile);
+		const parseErrors: jsonc.ParseError[] = [];
+		const secrets = jsonc.parse(fileBuff.toString(), parseErrors) as Record<string, string>;
+		if (parseErrors.length) {
+			throw new Error('Invalid json data');
+		}
+
+		return secrets;
+	}
+	catch (e) {
+		if (output) {
+			output.write(`Failed to read/parse secrets from file '${secretsFile}'`, LogLevel.Error);
+		}
+
+		throw new ContainerError({
+			description: 'Failed to read/parse secrets',
+			originalError: e
+		});
+	}
 }

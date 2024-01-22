@@ -1,0 +1,25 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/python",
+	"features": {
+		"ghcr.io/devcontainers/features/python@sha256:675f3c93e52fa4b205827e3aae744905ae67951f70e3ec2611f766304b31f4a2": {
+			"version": "none"
+		},
+		"ghcr.io/codspace/features/python:1": {
+			"version": "none"
+		},
+		"./localFeatureA": {
+			"greeting": "buongiorno"
+		},
+		"./localFeatureB": {
+			"greeting": "buongiorno"
+		},
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
+			"version": "latest"
+		}
+	},
+	"overrideFeatureInstallOrder": [
+		"./localFeatureA",
+		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
+		"ghcr.io/devcontainers/features/python"
+	]
+}
