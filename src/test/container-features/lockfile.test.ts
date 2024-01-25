@@ -145,6 +145,11 @@ describe('Lockfile', function () {
 		assert.ok(response.includes('ghcr.io/devcontainers/features/github-cli'), 'github-cli Feature is missing');
 		assert.ok(response.includes('ghcr.io/devcontainers/features/azure-cli'), 'azure-cli Feature is missing');
 		assert.ok(response.includes('ghcr.io/codspace/versioning/foo'), 'foo Feature is missing');
+
+		// Check that filtered Features are not present
+		assert.ok(!response.includes('mylocalfeature'));
+		assert.ok(!response.includes('terraform'));
+		assert.ok(!response.includes('myfeatures'));
 	});
 
 	it('upgrade command', async () => {
