@@ -111,8 +111,8 @@ describe('fetchTemplate', async function () {
 		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
 		assert.ok(files);
 		// Expected:
-		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt
-		assert.strictEqual(files.length, 6);
+		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt, ./.github/dependabot.yml
+		assert.strictEqual(files.length, 7);
 
 		// Read file modified by templated value
 		const dockerfile = (await readLocalFile(path.join(dest, '.devcontainer', 'Dockerfile'))).toString();
