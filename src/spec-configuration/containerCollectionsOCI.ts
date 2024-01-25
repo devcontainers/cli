@@ -142,6 +142,12 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	// Normalize input by downcasing entire string
 	input = input.toLowerCase();
 
+	// Invalid if first character is a dot
+	if (input.startsWith('.')) {
+		output.write(`Input '${input}' failed validation.  Expected input to not start with '.'`, LogLevel.Error);
+		return;
+	}
+
 	const indexOfLastColon = input.lastIndexOf(':');
 	const indexOfLastAtCharacter = input.lastIndexOf('@');
 
