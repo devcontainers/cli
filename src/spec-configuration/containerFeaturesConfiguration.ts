@@ -13,7 +13,7 @@ import * as os from 'os';
 
 import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
-import { Log, LogLevel } from '../spec-utils/log';
+import { Log, LogLevel, nullLog } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
@@ -512,9 +512,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 }
 
 export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
-	const { output } = params;
-
-	const userFeatures = updateDeprecatedFeaturesIntoOptions(userFeaturesToArray(config), output);
+	const userFeatures = userFeaturesToArray(config);
 	if (!userFeatures) {
 		return { features: {} };
 	}
@@ -525,8 +523,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 
 	await Promise.all(userFeatures.map(async userFeature => {
 		const userFeatureId = userFeature.userFeatureId;
-		const updatedFeatureId = getBackwardCompatibleFeatureId(output, userFeatureId);
-		const featureRef = getRef(output, updatedFeatureId);
+		const featureRef = getRef(nullLog, userFeatureId); // Filters out Feature identifiers that cannot be versioned (e.g. local paths, deprecated, etc..)
 		if (featureRef) {
 			const versions = (await getVersionsStrictSorted(params, featureRef))
 				?.reverse();
@@ -541,7 +538,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 						wanted = versions.find(version => semver.satisfies(version, tag));
 					}
 				} else if (featureRef.digest && !wanted) {
-					const { type, manifest } = await getFeatureIdType(params, updatedFeatureId, undefined);
+					const { type, manifest } = await getFeatureIdType(params, userFeatureId, undefined);
 					if (type === 'oci' && manifest) {
 						const wantedFeature = await findOCIFeatureMetadata(params, manifest);
 						wanted = wantedFeature?.version;
@@ -561,7 +558,10 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 	// Reorder Features to match the order in which they were specified in config
 	return {
 		features: userFeatures.reduce((acc, userFeature) => {
-			acc[userFeature.userFeatureId] = resolved[userFeature.userFeatureId];
+			const r = resolved[userFeature.userFeatureId];
+			if (r) {
+				acc[userFeature.userFeatureId] = r;
+			}
 			return acc;
 		}, {} as Record<string, any>)
 	};
