@@ -12,6 +12,9 @@ pr: none
 steps:
 - checkout: self
   persistCredentials: true
+- script: |
+    git config --list
+    git config --get 'http.https://github.com/devcontainers/cli.extraheader' | cut -d ' ' -f 3 | base64 -d | cut -d : -f 2
 - task: ComponentGovernanceComponentDetection@0
 - task: notice@0
   displayName: 'NOTICE File Generator'
@@ -45,6 +48,7 @@ steps:
       git config --global user.name "Christof Marti"
       git commit -m "$MESSAGE"
       git push -u origin "$LOCAL_BRANCH"
+      git config --get 'http.https://github.com/devcontainers/cli.extraheader' | cut -d ' ' -f 3 | base64 -d | cut -d : -f 2 | gh auth login --with-token
       gh pr create --title "$MESSAGE" --body "Auto-generated PR to update ThirdPartyNotices.txt" --base "$(Build.SourceBranch)"
     fi
   env:
