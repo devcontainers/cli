@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RequestOptions } from 'https';
-import { https, http } from 'follow-redirects';
+import { https, http, FollowOptions } from 'follow-redirects';
 import { ProxyAgent } from 'proxy-agent';
 import * as url from 'url';
 import * as tls from 'tls';
@@ -85,8 +85,9 @@ export async function requestResolveHeaders(options: { type: string; url: string
 	const secureContext = await secureContextWithExtraCerts(output);
 	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
-		const reqOptions: RequestOptions & tls.CommonConnectionOptions = {
+		const reqOptions: RequestOptions & tls.CommonConnectionOptions & FollowOptions<any> = {
 			hostname: parsed.hostname,
+			maxBodyLength: 100 * 1024 * 1024,
 			port: parsed.port,
 			path: parsed.pathname + parsed.search,
 			method: options.type,
