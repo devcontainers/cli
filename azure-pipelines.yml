@@ -12,6 +12,8 @@ pr: none
 steps:
 - checkout: self
   persistCredentials: true
+- script: |
+    git config --list
 - task: ComponentGovernanceComponentDetection@0
 - task: notice@0
   displayName: 'NOTICE File Generator'
