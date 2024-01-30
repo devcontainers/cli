@@ -31,6 +31,7 @@ steps:
         echo "Triggered by own commit, exiting."
         exit 0
       fi
+      echo "GIT_TOKEN: $GIT_TOKEN"
       git config --get 'http.https://github.com/devcontainers/cli.extraheader' | cut -d ' ' -f 3 | base64 -d | cut -d : -f 2 | gh auth login --with-token
       if [ ! -z "$(gh pr list --author "@me" --base "$(Build.SourceBranch)" --jq ".[] | select(.title == \"$MESSAGE\")" --json headRefName,title,url | cat)" ]
       then
