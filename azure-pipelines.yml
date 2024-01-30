@@ -6,6 +6,7 @@ trigger:
     include:
       - 'main'
       - 'release/*'
+      - 'chrmarti/*'
 pr: none
 
 steps:
@@ -27,16 +28,26 @@ steps:
       MESSAGE="Auto-update ThirdPartyNotices.txt"
       if [ "$(git log -1 --pretty=%B | head -n 1)" = "$MESSAGE" ]
       then
-        echo "Triggered by own commit, not committing."
+        echo "Triggered by own commit, exiting."
         exit 0
       fi
+      git config --get 'http.https://github.com/devcontainers/cli.extraheader' | cut -d ' ' -f 3 | base64 -d | cut -d : -f 2 | gh auth login --with-token
+      SOURCE_BRANCH="$(Build.SourceBranch)"
+      PR_LIST="$(gh pr list --base "$SOURCE_BRANCH" --jq ".[] | select(.title == \"$MESSAGE\")" --json headRefName,title,url | cat)"
+      echo "$PR_LIST"
+      if [ ! -z "$PR_LIST" ]
+      then
+        echo "PR exists, exiting."
+        exit 0
+      fi
+      LOCAL_BRANCH="chrmarti/update-third-party-notices-$(date +%s)"
+      git checkout -b "$LOCAL_BRANCH"
       cp "$PIPELINE_WORKSPACE/NOTICE.txt/NOTICE.txt" ThirdPartyNotices.txt
       git status
       git add ThirdPartyNotices.txt
       git config --global user.email "chrmarti@microsoft.com"
       git config --global user.name "Christof Marti"
       git commit -m "$MESSAGE"
-      git push origin HEAD:$(Build.SourceBranch)
+      git push -u origin "$LOCAL_BRANCH"
+      gh pr create --title "$MESSAGE" --body "Auto-generated PR to update ThirdPartyNotices.txt" --base "$SOURCE_BRANCH"
     fi
-  env:
-    GIT_TOKEN: $(GIT_TOKEN)
