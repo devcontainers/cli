@@ -46,5 +46,25 @@ const pkg = require('../../package.json');
 			assert.strictEqual(gid.stdout.trim(), String(4321));
 			await devContainerDown({ containerId });
 		});
+
+		it('should update UID and GID when the platform is linux/amd64', async () => {
+			const testFolder = `${__dirname}/configs/updateUIDamd64`;
+			const containerId = (await devContainerUp(cli, testFolder)).containerId;
+			const uid = await shellExec(`${cli} exec --workspace-folder ${testFolder} id -u`);
+			assert.strictEqual(uid.stdout.trim(), String(process.getuid!()));
+			const gid = await shellExec(`${cli} exec --workspace-folder ${testFolder} id -g`);
+			assert.strictEqual(gid.stdout.trim(), String(process.getgid!()));
+			await devContainerDown({ containerId });
+		});
+
+		it('should update UID and GID when the platform is linux/arm64', async () => {
+			const testFolder = `${__dirname}/configs/updateUIDarm64`;
+			const containerId = (await devContainerUp(cli, testFolder)).containerId;
+			const uid = await shellExec(`${cli} exec --workspace-folder ${testFolder} id -u`);
+			assert.strictEqual(uid.stdout.trim(), String(process.getuid!()));
+			const gid = await shellExec(`${cli} exec --workspace-folder ${testFolder} id -g`);
+			assert.strictEqual(gid.stdout.trim(), String(process.getgid!()));
+			await devContainerDown({ containerId });
+		});
 	});
 });
