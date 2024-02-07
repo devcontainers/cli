@@ -159,6 +159,7 @@ export async function createCLIParams(hostPath: string) {
 		dockerComposeCLI,
 		env: {},
 		output,
+		platformInfo: {os: cliHost.platform, arch: cliHost.arch}
 	};
 	return cliParams;
 }

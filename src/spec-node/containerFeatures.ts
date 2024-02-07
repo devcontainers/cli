@@ -22,7 +22,7 @@ import { ContainerError } from '../spec-common/errors';
 // Environment variables must contain:
 //      - alpha-numeric values, or
 //      - the '_' character, and
-//      - a number cannot be the first character 
+//      - a number cannot be the first character
 export const getSafeId = (str: string) => str
 	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
@@ -344,7 +344,7 @@ function getFeatureEnvVariables(f: Feature) {
 	const values = getFeatureValueObject(f);
 	const idSafe = getSafeId(f.id);
 	const variables = [];
-	
+
 	if(f.internalVersion !== '2')
 	{
 		if (values) {
@@ -365,7 +365,7 @@ function getFeatureEnvVariables(f: Feature) {
 			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
 		}
 		return variables;
-	}	
+	}
 }
 
 export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
@@ -388,6 +388,7 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 		imageName: fixedImageName,
 		remoteUser,
 		imageUser,
+		platform: `${details.Os}/${details.Architecture}`
 	};
 }
 
@@ -399,7 +400,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 	if (!updateDetails) {
 		return imageName;
 	}
-	const { imageName: fixedImageName, remoteUser, imageUser } = updateDetails;
+	const { imageName: fixedImageName, remoteUser, imageUser, platform } = updateDetails;
 
 	const dockerfileName = 'updateUID.Dockerfile';
 	const srcDockerfile = path.join(common.extensionPath, 'scripts', dockerfileName);
@@ -415,6 +416,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'build',
 		'-f', destDockerfile,
 		'-t', fixedImageName,
+		'--platform', platform,
 		'--build-arg', `BASE_IMAGE=${imageName}`,
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,

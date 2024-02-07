@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { CLIHost, runCommandNoPty, runCommand, getLocalUsername } from '../spec-common/commonUtils';
+import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
 import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
@@ -117,6 +117,7 @@ export interface DockerResolverParameters {
 	buildxPush: boolean;
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
+	platformInfo: PlatformInfo;
 }
 
 export interface ResolverResult {
@@ -222,10 +223,9 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 		if (!pullImageOnError) {
 			throw err;
 		}
-		const cliHost = 'cliHost' in params ? params.cliHost : params.common.cliHost;
 		const output = 'cliHost' in params ? params.output : params.common.output;
 		try {
-			return await inspectImageInRegistry(output, { arch: cliHost.arch, os: cliHost.platform }, imageName);
+			return await inspectImageInRegistry(output, params.platformInfo, imageName);
 		} catch (err2) {
 			output.write(`Error fetching image details: ${err2?.message}`);
 		}
@@ -295,6 +295,8 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 	return {
 		Id: targetDigest,
 		Config: obj.config,
+		Os: platformInfo.os,
+		Architecture: platformInfo.arch,
 	};
 }
 
@@ -464,7 +466,7 @@ export async function runInitializeCommand(params: DockerResolverParameters, use
 				infoOutput.raw(`\x1b[1mRunning the ${hookName} from devcontainer.json...\x1b[0m\r\n\r\n`);
 			}
 
-			// If we have a command name then the command is running in parallel and 
+			// If we have a command name then the command is running in parallel and
 			// we need to hold output until the command is done so that the output
 			// doesn't get interleaved with the output of other commands.
 			const print = name ? 'end' : 'continuous';

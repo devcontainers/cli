@@ -41,6 +41,11 @@ export interface ExecFunction {
 	(params: ExecParameters): Promise<Exec>;
 }
 
+export interface PlatformInfo {
+	arch: NodeJS.Architecture;
+	os: NodeJS.Platform;
+}
+
 export interface PtyExec {
 	onData: Event<string>;
 	write?(data: string): void;

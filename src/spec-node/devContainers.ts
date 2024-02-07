@@ -163,12 +163,21 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
+	const platformInfo = (common.buildxPlatform?.split('/') || []).reduce((platformInfo, element, idx) => {
+		switch (idx) {
+			case 0: platformInfo.os = <NodeJS.Platform> element; break;
+			case 1: platformInfo.arch = <NodeJS.Architecture> element; break;
+			default: break;
+		}
+		return platformInfo;
+	}, { os: cliHost.platform, arch: cliHost.arch });
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
 		dockerComposeCLI,
 		env: cliHost.env,
-		output
+		output,
+		platformInfo
 	}));
 	return {
 		common,
@@ -195,6 +204,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
+		platformInfo
 	};
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec } from '../spec-common/commonUtils';
+import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec, PlatformInfo } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
@@ -51,6 +51,7 @@ export interface DockerCLIParameters {
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	env: NodeJS.ProcessEnv;
 	output: Log;
+	platformInfo: PlatformInfo;
 }
 
 export interface PartialExecParameters {
@@ -115,6 +116,8 @@ export async function inspectContainers(params: DockerCLIParameters | PartialExe
 
 export interface ImageDetails {
 	Id: string;
+	Architecture: string;
+	Os: string;
 	Config: {
 		User: string;
 		Env: string[] | null;
