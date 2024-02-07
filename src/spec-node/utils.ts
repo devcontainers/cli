@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
+import { getImageIndexEntryForPlatform, getManifest, getRef, mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 
@@ -295,8 +295,8 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 	return {
 		Id: targetDigest,
 		Config: obj.config,
-		Os: platformInfo.os,
-		Architecture: platformInfo.arch,
+		Os: mapNodeOSToGOOS(platformInfo.os),
+		Architecture: mapNodeArchitectureToGOARCH(platformInfo.arch),
 	};
 }
 
