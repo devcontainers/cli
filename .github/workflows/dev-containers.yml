@@ -69,7 +69,9 @@ jobs:
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - name: Install Dependencies
-      run: yarn install --frozen-lockfile
+      run: |
+        yarn install --frozen-lockfile
+        docker run --privileged --rm tonistiigi/binfmt --install all
     - name: Type-Check
       run: yarn type-check
     - name: Package
