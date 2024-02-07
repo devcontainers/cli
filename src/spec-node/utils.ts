@@ -25,7 +25,7 @@ import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry } from './imageMetadata';
-import { getImageIndexEntryForPlatform, getManifest, getRef, mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 
@@ -244,7 +244,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
 	const params = { output, env: process.env };
 	const ref = getRef(output, resourceAndVersion);
@@ -295,8 +295,8 @@ export async function inspectImageInRegistry(output: Log, platformInfo: { arch: 
 	return {
 		Id: targetDigest,
 		Config: obj.config,
-		Os: mapNodeOSToGOOS(platformInfo.os),
-		Architecture: mapNodeArchitectureToGOARCH(platformInfo.arch),
+		Os: platformInfo.os,
+		Architecture: platformInfo.arch,
 	};
 }
 

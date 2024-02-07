@@ -7,9 +7,10 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 
+import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
-import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
@@ -163,14 +164,10 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
-	const platformInfo = (common.buildxPlatform?.split('/') || []).reduce((platformInfo, element, idx) => {
-		switch (idx) {
-			case 0: platformInfo.os = <NodeJS.Platform> element; break;
-			case 1: platformInfo.arch = <NodeJS.Architecture> element; break;
-			default: break;
-		}
-		return platformInfo;
-	}, { os: cliHost.platform, arch: cliHost.arch });
+	const platformInfo = {
+		os: (<GoOS | undefined> common.buildxPlatform?.slice(0, common.buildxPlatform.indexOf('/'))) || mapNodeOSToGOOS(cliHost.platform),
+		arch: (<GoARCH | undefined> common.buildxPlatform?.slice(common.buildxPlatform.indexOf('/'))) || mapNodeArchitectureToGOARCH(cliHost.arch),
+	};
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,

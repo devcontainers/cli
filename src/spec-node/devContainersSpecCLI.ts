@@ -41,6 +41,7 @@ import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions 
 import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
 import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
 import { readFeaturesConfig } from './featureUtils';
+import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -1012,7 +1013,10 @@ async function readConfiguration({
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
-			platformInfo: { os: cliHost.platform, arch: cliHost.arch }
+			platformInfo: {
+				os: mapNodeOSToGOOS(cliHost.platform),
+				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+			}
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
