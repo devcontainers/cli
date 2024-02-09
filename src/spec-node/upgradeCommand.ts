@@ -18,6 +18,7 @@ import { Lockfile, generateLockfile, getLockfilePath, writeLockfile } from '../s
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
 import { DevContainerConfig } from '../spec-configuration/configuration';
+import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -92,6 +93,10 @@ async function featuresUpgrade({
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
+			platformInfo: {
+				os: mapNodeOSToGOOS(cliHost.platform),
+				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+			}
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
