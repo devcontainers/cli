@@ -1,1 +1,1 @@
-FROM mcr.microsoft.com/vscode/devcontainers/base:0-bullseye
+FROM mcr.microsoft.com/devcontainers/base:1-bookworm

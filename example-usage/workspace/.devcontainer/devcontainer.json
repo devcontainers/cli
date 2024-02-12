@@ -35,7 +35,7 @@
 			"nodeGypDependencies": false
 		},
 		"ghcr.io/devcontainers/features/desktop-lite:1": { },
-		"ghcr.io/devcontainers/features/docker-in-docker:1": { },
+		"ghcr.io/devcontainers/features/docker-in-docker:2": { },
 		// Optional - For tools that require SSH
 		"ghcr.io/devcontainers/features/sshd:1": { }
 	},

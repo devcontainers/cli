@@ -1,5 +1,5 @@
 {
-	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:1-18-bookworm",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/devcontainers/feature-starter/hello:1": {

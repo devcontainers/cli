@@ -2,11 +2,11 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": { 
-			"VARIANT": "16-bullseye"
+			"VARIANT": "18-bookworm"
 		}
 	},
 	"features": {
-		"docker-in-docker": "latest",
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"codspace/myfeatures/helloworld": {
 			"greeting": "howdy"
 		}

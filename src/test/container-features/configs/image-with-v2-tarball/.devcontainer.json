@@ -1,5 +1,5 @@
 {
-	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:1-18-bookworm",
 	"features": {
 		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {}
 	}
