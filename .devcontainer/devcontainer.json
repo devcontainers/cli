@@ -7,7 +7,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": { 
-			"VARIANT": "18-bullseye"
+			"VARIANT": "18-bookworm"
 		}
 	},
 	"mounts": [

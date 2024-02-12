@@ -3,13 +3,17 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspace",
-	// Set *default* container specific settings.json values on container create.
-	"settings": {},
-	// Add the IDs of extensions you want installed when the container is created.
-	"extensions": [
-		"dbaeumer.vscode-eslint",
-		"mongodb.mongodb-vscode"
-	],
+	"customizations": {
+		"vscode": {
+			// Set *default* container specific settings.json values on container create.
+			"settings": {},
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"mongodb.mongodb-vscode"
+			]
+		}
+	},
 	"postCreateCommand": "touch /tmp/postCreateCommand.testmarker",
 	"postStartCommand": "touch /tmp/postStartCommand.testmarker",
 	"postAttachCommand": "touch /tmp/postAttachCommand.testmarker",
@@ -20,7 +24,7 @@
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "node",
 	"features": {
-		"docker-in-docker": "latest",
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"codspace/myfeatures/helloworld": {
 			"greeting": "howdy"
 		}

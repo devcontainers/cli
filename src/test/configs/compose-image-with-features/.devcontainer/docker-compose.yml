@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: mcr.microsoft.com/vscode/devcontainers/javascript-node:0-16-bullseye
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-18-bookworm
     volumes:
       - ..:/workspace:cached
 

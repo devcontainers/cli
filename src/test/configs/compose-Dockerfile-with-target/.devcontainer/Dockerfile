@@ -4,7 +4,7 @@ ARG VARIANT=16-bullseye
 FROM alpine as false-start 
 
 
-FROM mcr.microsoft.com/vscode/devcontainers/javascript-node:0-${VARIANT} as desired-image
+FROM mcr.microsoft.com/devcontainers/javascript-node:1-${VARIANT} as desired-image
 
 # Install MongoDB command line tools if on buster and x86_64 (arm64 not supported)
 ARG MONGO_TOOLS_VERSION=5.0
