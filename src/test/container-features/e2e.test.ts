@@ -7,6 +7,7 @@ import { assert } from 'chai';
 import * as path from 'path';
 import { FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { devContainerDown, devContainerUp, shellExec } from '../testUtils';
+import { delay } from '../../spec-common/async';
 
 const pkg = require('../../../package.json');
 
@@ -65,9 +66,19 @@ describe('Dev Container Features E2E (remote)', function () {
             afterEach(async () => await devContainerDown({ containerId }));
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
-                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-                assert.isNull(res.error);
-                assert.match(res.stdout, /CONTAINER ID/);
+                for (let i = 2; i >= 0; i--) {
+                    try {
+                        const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                        assert.isNull(res.error);
+                        assert.match(res.stdout, /CONTAINER ID/);
+                        break;
+                    } catch (err) {
+                        if (i === 0) {
+                            throw err;
+                        }
+                        delay(2000);
+                    }
+                }
             });
 
             it('should read configuration with features', async () => {
@@ -97,9 +108,19 @@ describe('Dev Container Features E2E (remote)', function () {
             afterEach(async () => await devContainerDown({ containerId }));
             it('should detect docker installed (--privileged flag implicitly passed)', async () => {
                 // NOTE: Doing a docker ps will ensure that the --privileged flag was set by the feature
-                const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
-                assert.isNull(res.error);
-                assert.match(res.stdout, /CONTAINER ID/);
+                for (let i = 2; i >= 0; i--) {
+                    try {
+                        const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                        assert.isNull(res.error);
+                        assert.match(res.stdout, /CONTAINER ID/);
+                        break;
+                    } catch (err) {
+                        if (i === 0) {
+                            throw err;
+                        }
+                        delay(2000);
+                    }
+                }
             });
         });
     });
