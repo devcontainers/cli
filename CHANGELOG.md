@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## February 2024
+
+### [0.56.2]
+- Remove dependency on ip package (https://github.com/devcontainers/cli/pull/750)
+
 ## January 2024
 
 ### [0.56.1]
