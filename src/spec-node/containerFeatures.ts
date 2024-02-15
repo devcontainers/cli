@@ -416,7 +416,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'build',
 		'-f', destDockerfile,
 		'-t', fixedImageName,
-		'--platform', platform,
+		...(platform ? ['--platform', platform] : []),
 		'--build-arg', `BASE_IMAGE=${imageName}`,
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
