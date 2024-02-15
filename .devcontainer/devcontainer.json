@@ -35,6 +35,7 @@
 				"devcontainers/features": {
 					"permissions": {
 						"contents": "write",
+						
 						"workflows": "write"
 					}
 				}
