@@ -371,7 +371,7 @@ function getFeatureEnvVariables(f: Feature) {
 export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
 	const { cliHost } = common;
-	const { updateRemoteUserUID } = mergedConfig;
+	const { updateRemoteUserUID, remoteUserUIDIgnorePattern = '' } = mergedConfig;
 	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof updateRemoteUserUID === 'boolean' ? updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
 		return null;
 	}
@@ -387,6 +387,7 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 	return {
 		imageName: fixedImageName,
 		remoteUser,
+		remoteUserUIDIgnorePattern,
 		imageUser,
 	};
 }
@@ -399,7 +400,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 	if (!updateDetails) {
 		return imageName;
 	}
-	const { imageName: fixedImageName, remoteUser, imageUser } = updateDetails;
+	const { imageName: fixedImageName, remoteUser, remoteUserUIDIgnorePattern, imageUser } = updateDetails;
 
 	const dockerfileName = 'updateUID.Dockerfile';
 	const srcDockerfile = path.join(common.extensionPath, 'scripts', dockerfileName);
@@ -417,6 +418,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'-t', fixedImageName,
 		'--build-arg', `BASE_IMAGE=${imageName}`,
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
+		'--build-arg', `IGNORE_PATTERN=${remoteUserUIDIgnorePattern}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
 		'--build-arg', `NEW_GID=${await cliHost.getgid!()}`,
 		'--build-arg', `IMAGE_USER=${imageUser}`,
