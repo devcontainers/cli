@@ -5,6 +5,7 @@ import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
 import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
+import { generateFeaturesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
@@ -482,6 +483,7 @@ describe('CLI features subcommands', async function () {
 });
 
 describe('test function getSermanticVersions', () => {
+
 	it('should generate correct semantic versions for first publishing', async () => {
 		let version = '1.0.0';
 		let publishedTags: string[] = [];
@@ -675,4 +677,27 @@ describe('test functions getVersionsStrictSorted and getPublishedTags', async ()
 
 	});
 
+});
+
+describe('tests generateFeaturesDocumentation()', async function () {
+	this.timeout('120s');
+
+	const projectFolder = `${__dirname}/example-v2-features-sets/simple/src`;
+
+	after('clean', async () => {
+		await shellExec(`rm ${projectFolder}/**/README.md`);
+	});
+
+	it('tests generate-docs', async function () {
+		await generateFeaturesDocumentation(projectFolder, 'ghcr.io', 'devcontainers/cli', 'devcontainers', 'cli', output);
+
+		const colorDocsExists = await isLocalFile(`${projectFolder}/color/README.md`);
+		assert.isTrue(colorDocsExists);
+
+		const helloDocsExists = await isLocalFile(`${projectFolder}/hello/README.md`);
+		assert.isTrue(helloDocsExists);
+
+		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-feature/README.md`);
+		assert.isFalse(invalidDocsExists);
+	});
 });
