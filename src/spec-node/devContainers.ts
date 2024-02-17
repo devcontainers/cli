@@ -166,7 +166,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}, dockerPath, dockerComposePath);
 	const platformInfo = {
 		os: (<GoOS | undefined> common.buildxPlatform?.slice(0, common.buildxPlatform.indexOf('/'))) || mapNodeOSToGOOS(cliHost.platform),
-		arch: (<GoARCH | undefined> common.buildxPlatform?.slice(common.buildxPlatform.indexOf('/'))) || mapNodeArchitectureToGOARCH(cliHost.arch),
+		arch: (<GoARCH | undefined> common.buildxPlatform?.slice(common.buildxPlatform.indexOf('/') + 1)) || mapNodeArchitectureToGOARCH(cliHost.arch),
 	};
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
