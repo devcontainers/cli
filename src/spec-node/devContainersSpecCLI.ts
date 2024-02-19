@@ -623,8 +623,8 @@ async function doBuild({
 			}
 		} else if ('dockerComposeFile' in config) {
 
-			if (buildxPush) {
-				throw new ContainerError({ description: '--push not supported.' });
+			if (buildxPlatform || buildxPush) {
+				throw new ContainerError({ description: '--platform or --push not supported.' });
 			}
 
 			if (buildxOutput) {
