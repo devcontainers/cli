@@ -388,7 +388,7 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 		imageName: fixedImageName,
 		remoteUser,
 		imageUser,
-		platform: `${details.Os}/${details.Architecture}`
+		platform: [details.Os, details.Architecture, details.Variant].filter(Boolean).join('/')
 	};
 }
 

@@ -92,6 +92,7 @@ interface OCIImageIndexEntry {
 	digest: string;
 	platform: {
 		architecture: string;
+		variant?: string;
 		os: string;
 	};
 }
@@ -355,7 +356,9 @@ export async function getImageIndexEntryForPlatform(params: CommonParams, url: s
 	// Find a manifest for the current architecture and OS.
 	return imageIndex.manifests.find(m => {
 		if (m.platform?.architecture === platformInfo.arch && m.platform?.os === platformInfo.os) {
-			return m;
+			if (!platformInfo.variant || m.platform?.variant === platformInfo.variant) {
+				return m;
+			}
 		}
 		return undefined;
 	});

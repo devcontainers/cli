@@ -296,6 +296,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 		Id: targetDigest,
 		Config: obj.config,
 		Os: platformInfo.os,
+		Variant: platformInfo.variant,
 		Architecture: platformInfo.arch,
 	};
 }

@@ -47,6 +47,7 @@ export type GoARCH = { [ARCH in NodeJS.Architecture]: ARCH extends 'x64' ? 'amd6
 export interface PlatformInfo {
 	os: GoOS;
 	arch: GoARCH;
+	variant?: string;
 }
 
 export interface PtyExec {

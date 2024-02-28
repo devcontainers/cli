@@ -117,6 +117,7 @@ export async function inspectContainers(params: DockerCLIParameters | PartialExe
 export interface ImageDetails {
 	Id: string;
 	Architecture: string;
+	Variant?: string;
 	Os: string;
 	Config: {
 		User: string;
