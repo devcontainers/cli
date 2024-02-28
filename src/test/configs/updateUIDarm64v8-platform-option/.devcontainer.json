@@ -1,0 +1,14 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"options": [
+			"--platform",
+			"linux/arm64/v8"
+		]
+	},
+	"remoteUser": "foo",
+	"runArgs": [
+		"--platform",
+		"linux/arm64/v8"
+	]
+}
