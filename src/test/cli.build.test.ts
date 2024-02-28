@@ -153,33 +153,39 @@ describe('Dev Containers CLI', function () {
 			const testFolder = `${__dirname}/configs/dockerfile-with-features`;
 			const image1 = 'image-1';
 			const image2 = 'image-2';
+			await shellExec(`docker rmi -f ${image1} ${image2}`);
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1} --image-name ${image2}`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			assert.equal(response.imageName[0], image1);
 			assert.equal(response.imageName[1], image2);
+			await shellExec(`docker inspect --type image ${image1} ${image2}`);
 		});
 
 		it('should succeed with multiple --image-name parameters when dockerComposeFile is present', async () => {
 			const testFolder = `${__dirname}/configs/compose-Dockerfile-alpine`;
 			const image1 = 'image-1';
 			const image2 = 'image-2';
+			await shellExec(`docker rmi -f ${image1} ${image2}`);
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1} --image-name ${image2}`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			assert.equal(response.imageName[0], image1);
 			assert.equal(response.imageName[1], image2);
+			await shellExec(`docker inspect --type image ${image1} ${image2}`);
 		});
 
 		it('should succeed with multiple --image-name parameters when image is present', async () => {
 			const testFolder = `${__dirname}/configs/image`;
 			const image1 = 'image-1';
 			const image2 = 'image-2';
+			await shellExec(`docker rmi -f ${image1} ${image2}`);
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1} --image-name ${image2}`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			assert.equal(response.imageName[0], image1);
 			assert.equal(response.imageName[1], image2);
+			await shellExec(`docker inspect --type image ${image1} ${image2}`);
 		});
 
 		it('should fail with --push true and --output', async () => {
