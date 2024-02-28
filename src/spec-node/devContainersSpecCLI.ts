@@ -16,7 +16,7 @@ import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
-import { DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
+import { dockerCLI, DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
 import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
@@ -583,7 +583,7 @@ async function doBuild({
 			omitSyntaxDirective,
 		}, disposables);
 
-		const { common, dockerCLI, dockerComposeCLI } = params;
+		const { common, dockerComposeCLI } = params;
 		const { cliHost, env, output } = common;
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : workspace
@@ -602,7 +602,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -614,9 +614,6 @@ async function doBuild({
 			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames);
 
 			if (imageNames) {
-				if (!buildxPush && !buildxOutput) {
-					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
-				}
 				imageNameResult = imageNames;
 			} else {
 				imageNameResult = updatedImageName;
@@ -660,7 +657,12 @@ async function doBuild({
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
 
 			if (imageNames) {
-				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', originalImageName, imageName)));
+				// Future improvement: Compose 2.6.0 (released 2022-05-30) added `tags` to the compose file.
+				if (params.isTTY) {
+					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', originalImageName, imageName)));
+				} else {
+					await Promise.all(imageNames.map(imageName => dockerCLI(params, 'tag', originalImageName, imageName)));
+				}
 				imageNameResult = imageNames;
 			} else {
 				imageNameResult = originalImageName;
@@ -672,10 +674,9 @@ async function doBuild({
 			}
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, additionalFeatures, false);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], additionalFeatures, false);
 
 			if (imageNames) {
-				await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', updatedImageName[0], imageName)));
 				imageNameResult = imageNames;
 			} else {
 				imageNameResult = updatedImageName;
