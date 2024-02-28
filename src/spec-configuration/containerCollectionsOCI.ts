@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { requestEnsureAuthenticated } from './httpOCIRegistry';
+import { GoARCH, GoOS, PlatformInfo } from '../spec-common/commonUtils';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
@@ -91,6 +92,7 @@ interface OCIImageIndexEntry {
 	digest: string;
 	platform: {
 		architecture: string;
+		variant?: string;
 		os: string;
 	};
 }
@@ -116,7 +118,7 @@ const regexForVersionOrDigest = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
-export function mapNodeArchitectureToGOARCH(arch: NodeJS.Architecture): string {
+export function mapNodeArchitectureToGOARCH(arch: NodeJS.Architecture): GoARCH {
 	switch (arch) {
 		case 'x64':
 			return 'amd64';
@@ -127,7 +129,7 @@ export function mapNodeArchitectureToGOARCH(arch: NodeJS.Architecture): string {
 
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
-export function mapNodeOSToGOOS(os: NodeJS.Platform): string {
+export function mapNodeOSToGOOS(os: NodeJS.Platform): GoOS {
 	switch (os) {
 		case 'win32':
 			return 'windows';
@@ -272,13 +274,13 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
-	// Simple mechanism to avoid making a DNS request for 
+	// Simple mechanism to avoid making a DNS request for
 	// something that is not a domain name.
 	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
 		return;
 	}
 
-	// TODO: Always use the manifest digest (the canonical digest) 
+	// TODO: Always use the manifest digest (the canonical digest)
 	//       instead of the `ref.version` by referencing some lock file (if available).
 	let reference = ref.version;
 	if (manifestDigest) {
@@ -338,7 +340,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 }
 
 // https://github.com/opencontainers/image-spec/blob/main/manifest.md
-export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: { arch: NodeJS.Architecture; os: NodeJS.Platform }, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
+export async function getImageIndexEntryForPlatform(params: CommonParams, url: string, ref: OCIRef | OCICollectionRef, platformInfo: PlatformInfo, mimeType?: string): Promise<OCIImageIndexEntry | undefined> {
 	const { output } = params;
 	const response = await getJsonWithMimeType<OCIImageIndex>(params, url, ref, mimeType || 'application/vnd.oci.image.index.v1+json');
 	if (!response) {
@@ -351,15 +353,12 @@ export async function getImageIndexEntryForPlatform(params: CommonParams, url: s
 		return undefined;
 	}
 
-	const ociFriendlyPlatformInfo = {
-		arch: mapNodeArchitectureToGOARCH(platformInfo.arch),
-		os: mapNodeOSToGOOS(platformInfo.os),
-	};
-
 	// Find a manifest for the current architecture and OS.
 	return imageIndex.manifests.find(m => {
-		if (m.platform?.architecture === ociFriendlyPlatformInfo.arch && m.platform?.os === ociFriendlyPlatformInfo.os) {
-			return m;
+		if (m.platform?.architecture === platformInfo.arch && m.platform?.os === platformInfo.os) {
+			if (!platformInfo.variant || m.platform?.variant === platformInfo.variant) {
+				return m;
+			}
 		}
 		return undefined;
 	});

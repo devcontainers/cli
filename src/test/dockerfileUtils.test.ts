@@ -161,7 +161,9 @@ FROM ubuntu:latest as dev
                 },
                 Entrypoint: null,
                 Cmd: null
-            }
+            },
+						Os: 'linux',
+						Architecture: 'amd64'
         };
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
@@ -187,7 +189,9 @@ USER dockerfileUserB
                 Labels: null,
                 Entrypoint: null,
                 Cmd: null
-            }
+            },
+						Os: 'linux',
+						Architecture: 'amd64'
         };
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
@@ -282,7 +286,7 @@ FROM \${cloud:+mcr.microsoft.com/}azure-cli:latest
             const image = findBaseImage(extracted, {}, undefined);
             assert.strictEqual(image, 'azure-cli:latest');
         });
-        
+
         it('Negative variable expression with value specified', async () => {
             const dockerfile = `
 ARG cloud
@@ -295,7 +299,7 @@ FROM \${cloud:-mcr.microsoft.com/}azure-cli:latest
             }, undefined);
             assert.strictEqual(image, 'ghcr.io/azure-cli:latest');
         });
-        
+
         it('Negative variable expression with no value specified', async () => {
             const dockerfile = `
 ARG cloud
@@ -620,7 +624,7 @@ user D
         const stage = extracted.stages[0];
         assert.strictEqual(stage.from.image, 'E');
         assert.strictEqual(stage.instructions.length, 3);
-        
+
         const env = stage.instructions[0];
         assert.strictEqual(env.instruction, 'ENV');
         assert.strictEqual(env.name, 'A');

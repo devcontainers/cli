@@ -9,6 +9,7 @@ import { SubstituteConfig } from '../spec-node/utils';
 import { LogLevel, createPlainLog, makeLog, nullLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from '../spec-node/dockerCompose';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
+import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
 
 export interface BuildKitOption {
     text: string;
@@ -159,6 +160,10 @@ export async function createCLIParams(hostPath: string) {
 		dockerComposeCLI,
 		env: {},
 		output,
-	};
+		platformInfo: {
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		}
+};
 	return cliParams;
 }

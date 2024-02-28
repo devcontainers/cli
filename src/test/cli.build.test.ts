@@ -199,14 +199,17 @@ describe('Dev Containers CLI', function () {
 		it('file ${os.tmpdir()}/output.tar should exist when using --output type=oci,dest=${os.tmpdir()/output.tar', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const outputPath = `${os.tmpdir()}/output.tar`;
-			await shellExec('docker buildx create --name ocitest');
-			await shellExec('docker buildx use ocitest');
-			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output 'type=oci,dest=${outputPath}'`);
-			await shellExec('docker buildx use default');
-			await shellExec('docker buildx rm ocitest');
-			const response = JSON.parse(res.stdout);
-			assert.equal(response.outcome, 'success');
-			assert.equal(fs.existsSync(outputPath), true);
+			try {
+				await shellExec('docker buildx create --name ocitest');
+				await shellExec('docker buildx use ocitest');
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --output 'type=oci,dest=${outputPath}'`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				assert.equal(fs.existsSync(outputPath), true);
+			} finally {
+				await shellExec('docker buildx use default');
+				await shellExec('docker buildx rm ocitest');
+			}
 		});
 
 		it(`should execute successfully and export buildx cache with container builder`, async () => {

@@ -41,6 +41,15 @@ export interface ExecFunction {
 	(params: ExecParameters): Promise<Exec>;
 }
 
+export type GoOS = { [OS in NodeJS.Platform]: OS extends 'win32' ? 'windows' : OS; }[NodeJS.Platform];
+export type GoARCH = { [ARCH in NodeJS.Architecture]: ARCH extends 'x64' ? 'amd64' : ARCH; }[NodeJS.Architecture];
+
+export interface PlatformInfo {
+	os: GoOS;
+	arch: GoARCH;
+	variant?: string;
+}
+
 export interface PtyExec {
 	onData: Event<string>;
 	write?(data: string): void;

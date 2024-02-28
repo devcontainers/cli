@@ -41,6 +41,7 @@ import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions 
 import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
 import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
 import { readFeaturesConfig } from './featureUtils';
+import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -601,7 +602,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -1011,7 +1012,11 @@ async function readConfiguration({
 			dockerCLI,
 			dockerComposeCLI,
 			env: cliHost.env,
-			output
+			output,
+			platformInfo: {
+				os: mapNodeOSToGOOS(cliHost.platform),
+				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+			}
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {

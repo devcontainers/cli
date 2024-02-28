@@ -26,7 +26,7 @@ const serviceLabel = 'com.docker.compose.service';
 export async function openDockerComposeDevContainer(params: DockerResolverParameters, workspace: Workspace, config: SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common, dockerCLI, dockerComposeCLI } = params;
 	const { cliHost, env, output } = common;
-	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output };
+	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
 	return _openDockerComposeDevContainer(params, buildParams, workspace, config, getRemoteWorkspaceFolder(config.config), idLabels, additionalFeatures);
 }
 
@@ -150,7 +150,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const { cliHost, env, output } = common;
 	const { config } = configWithRaw;
 
-	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output };
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output, platformInfo: params.platformInfo };
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
 	const composeService = composeConfig.services[config.service];
 
@@ -406,7 +406,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		// Note: As a fallback, persistedFolder is set to the build's tmpDir() directory
 		const additionalLabels = labels ? idLabels.concat(Object.keys(labels).map(key => `${key}=${labels[key]}`)) : idLabels;
 		const overrideFilePath = await writeFeaturesComposeOverrideFile(updatedImageName, currentImageName, mergedConfig, config, versionPrefix, imageDetails, service, additionalLabels, params.additionalMounts, persistedFolder, featuresStartOverrideFilePrefix, buildCLIHost, params, output);
-    
+
 		if (overrideFilePath) {
 			// Add file path to override file as parameter
 			composeGlobalArgs.push('-f', overrideFilePath);
@@ -714,7 +714,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 
 /**
  * Convert mount command arguments to Docker Compose volume
- * @param mount 
+ * @param mount
  * @returns mount command representation for Docker compose
  */
 function convertMountToVolume(mount: Mount): string {
@@ -731,7 +731,7 @@ function convertMountToVolume(mount: Mount): string {
 
 /**
  * Convert mount command arguments to volume top-level element
- * @param mount 
+ * @param mount
  * @returns mount object representation as volumes top-level element
  */
 function convertMountToVolumeTopLevelElement(mount: Mount): string {
