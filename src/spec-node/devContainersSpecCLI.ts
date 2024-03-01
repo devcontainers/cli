@@ -24,7 +24,7 @@ import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
-import { loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
+import { loadImageVersionInfo, loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
@@ -1127,22 +1127,82 @@ async function outdated({
 			platform: cliHost.platform,
 		};
 
-		const outdated = await loadVersionInfo(params, configs.config.config);
+		const outdatedFeatures = await loadVersionInfo(params, configs.config.config);
+
+		const outputParams = { output, env: process.env };
+		const dockerParams = await createDockerParams({
+			containerDataFolder: undefined,
+			containerSystemDataFolder: undefined,
+			workspaceFolder,
+			mountWorkspaceGitRoot: false,
+			configFile,
+			logLevel: mapLogLevel(logLevel),
+			logFormat,
+			log: text => process.stderr.write(text),
+			terminalDimensions: /* terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : */ undefined, // TODO
+			defaultUserEnvProbe: 'loginInteractiveShell',
+			removeExistingContainer: false,
+			buildNoCache: false,
+			expectExistingContainer: false,
+			postCreateEnabled: false,
+			skipNonBlocking: false,
+			prebuild: false,
+			persistedFolder: undefined,
+			additionalMounts: [],
+			updateRemoteUserUIDDefault: 'never',
+			additionalCacheFroms: [],
+			useBuildKit: 'never',
+			buildxPlatform: undefined,
+			buildxPush: false,
+			buildxOutput: undefined,
+			buildxCacheTo: undefined,
+			skipFeatureAutoMapping: false,
+			skipPostAttach: false,
+			skipPersistingCustomizationsFromFeatures: false,
+			dotfiles: {
+				repository: undefined,
+				installCommand: undefined,
+				targetPath: undefined
+			},
+			dockerPath: undefined,
+			dockerComposePath: undefined,
+			overrideConfigFile: undefined,
+			remoteEnv: {}
+		}, disposables);
+
+		const outdatedImages = await loadImageVersionInfo(outputParams, configs.config.config, cliHost, dockerParams);
+
 		await new Promise<void>((resolve, reject) => {
-			let text;
+			let text = '';
 			if (outputFormat === 'text') {
-				const rows = Object.keys(outdated.features).map(key => {
-					const value = outdated.features[key];
+				const rows = Object.keys(outdatedFeatures.features).map(key => {
+					const value = outdatedFeatures.features[key];
 					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
 						.map(v => v === undefined ? '-' : v);
 				});
-				const header = ['Feature', 'Current', 'Wanted', 'Latest'];
-				text = textTable([
-					header,
-					...rows,
-				]);
+
+				if (rows.length !== 0) {
+					const featureHeader = ['Feature', 'Current', 'Wanted', 'Latest'];
+					text = textTable([
+						featureHeader,
+						...rows,
+					]);
+				}
+
+				if (outdatedImages !== undefined && outdatedImages.image !== undefined) {
+					const imageHeader = ['Image', 'Current', 'Latest'];
+					const image = outdatedImages.image;
+
+					if (image.current !== undefined && image.wanted !== undefined && image.current !== image.wanted) {
+						text += '\n\n';
+						text += textTable([
+							imageHeader,
+							[image.name, image.current, image.wanted],
+						]);
+					}
+				}
 			} else {
-				text = JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined);
+				text = JSON.stringify({ ...outdatedFeatures, ...outdatedImages }, undefined, process.stdout.isTTY ? '  ' : undefined);
 			}
 			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
 		});

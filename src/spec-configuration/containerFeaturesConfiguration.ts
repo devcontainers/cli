@@ -10,8 +10,9 @@ import * as tar from 'tar';
 import * as crypto from 'crypto';
 import * as semver from 'semver';
 import * as os from 'os';
+import * as fs from 'fs';
 
-import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
+import { DevContainerConfig, DevContainerFeature, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, VSCodeCustomizations, getDockerComposeFilePaths, getDockerfilePath } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
 import { Log, LogLevel, nullLog } from '../spec-utils/log';
 import { request } from '../spec-utils/httpRequest';
@@ -21,8 +22,12 @@ import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getRef, getVersio
 import { Lockfile, generateLockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
-import { getEntPasswdShellCommand } from '../spec-common/commonUtils';
+import { CLIHost, getEntPasswdShellCommand } from '../spec-common/commonUtils';
 import { ContainerError } from '../spec-common/errors';
+import { extractDockerfile, findBaseImage } from '../spec-node/dockerfileUtils';
+import { DockerResolverParameters } from '../spec-node/utils';
+import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
+import { getBuildInfoForService, readDockerComposeConfig } from '../spec-node/dockerCompose';
 
 // v1
 const V1_ASSET_NAME = 'devcontainer-features.tgz';
@@ -509,6 +514,155 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await logFeatureAdvisories(params, featuresConfig);
 	await writeLockfile(params, config, await generateLockfile(featuresConfig), initLockfile);
 	return featuresConfig;
+}
+
+/*
+	image: mcr.microsoft.com/devcontainers/python:0.204-3.11-buster
+	imageName: mcr.microsoft.com/devcontainers/python
+	tag: 0.204-3.11-buster
+	version: 0.204
+	tagSuffix: 3.11-buster
+*/
+async function findImageVersionInfo(params: CommonParams, image: string) {
+	const { output } = params;
+	const [imageName, tag] = image.split(':');
+
+	if (tag === undefined) {
+		output.write(`Skipping image '${imageName}' as it does not have a tag`, LogLevel.Trace);
+		return { image: {} };
+	}
+
+	const [version, ...tagSuffixParts] = tag.split('-');
+	const tagSuffix = tagSuffixParts.join('-');
+
+	if (!imageName.startsWith('mcr.microsoft.com/devcontainers/') && !imageName.startsWith('mcr.microsoft.com/vscode/devcontainers/')) {
+		output.write(`Skipping image '${imageName}' as it is not an image hosted from devcontainer/images`, LogLevel.Trace);
+		return { image: {} };
+	}
+
+	const specialImages = ['base', 'cpp', 'universal'];
+	const imageType = imageName.split('/').pop() || '';
+	if (tag.startsWith('dev-') || (!specialImages.includes(imageType) && (!tag.includes('-') || !/\d/.test(tagSuffix))) || (specialImages.includes(imageType) && !/^\d/.test(tag))) {
+		output.write(`Skipping image '${imageName}' as it does not pin to a semantic version`, LogLevel.Trace);
+		return { image: {} };
+	}
+
+	try {
+		const subName = imageName.replace('mcr.microsoft.com/', '');
+		const url = `https://mcr.microsoft.com/v2/${subName}/tags/list`;
+		const options = { type: 'GET', url, headers: {} };
+		const data = JSON.parse((await request(options, output)).toString());
+
+		const latestVersion: string = data.tags
+			.filter((v: string) => v.endsWith(tagSuffix) && semver.valid(v.split('-')[0]))
+			.map((v: string) => v.split('-')[0])
+			.sort(semver.compare)
+			.pop();
+
+		if (latestVersion) {
+			const wantedVersion = latestVersion.split('.').slice(0, version.split('.').length).join('.');
+			const wantedTag = tagSuffix ? `${wantedVersion}-${tagSuffix}` : wantedVersion;
+			return { image: { name: imageName, current: tag, wanted: wantedTag } };
+		} else {
+			output.write(`Failed to find maximum satisfying latest version for image '${image}'`, LogLevel.Error);
+		}
+	} catch (e) {
+		output.write(`Failed to parse published versions: ${e}`, LogLevel.Error);
+	}
+
+	return { image: {} };
+}
+
+// const image = config.image;
+// const image = "mcr.microsoft.com/devcontainers/python:0-3.9";
+// const image = "mcr.microsoft.com/devcontainers/python:0-3.9-buster";
+// const image = "mcr.microsoft.com/devcontainers/python:0.203-3.9";
+// const image = "mcr.microsoft.com/devcontainers/python:0.203.10-3.9";
+// const image = "mcr.microsoft.com/devcontainers/python:0.204-3.11-buster";
+// const image = "mcr.microsoft.com/devcontainers/python:3";
+// const image = "mcr.microsoft.com/devcontainers/python:3.9";
+// const image = "mcr.microsoft.com/devcontainers/python:3.9-buster";
+// const image = "mcr.microsoft.com/devcontainers/python:dev";
+// const image = "mcr.microsoft.com/devcontainers/python:latest";
+
+// const image = "mcr.microsoft.com/devcontainers/base:0";
+// const image = "mcr.microsoft.com/devcontainers/base:0-buster";
+// const image = "mcr.microsoft.com/devcontainers/base:0.202-debian-10";
+// const image = "mcr.microsoft.com/devcontainers/base:0.202.10-debian-10";
+// const image = "mcr.microsoft.com/devcontainers/base:0.203.0-ubuntu-20.04";
+// const image = "mcr.microsoft.com/devcontainers/base:ubuntu";
+// const image = "mcr.microsoft.com/devcontainers/base:ubuntu-20.04";
+
+// const image = "mcr.microsoft.com/devcontainers/cpp:0.206.6";
+// const image = "mcr.microsoft.com/devcontainers/cpp:0.205";
+// const image = "mcr.microsoft.com/devcontainers/cpp:0";
+// const image = "mcr.microsoft.com/devcontainers/cpp:latest";
+
+// const image = "mcr.microsoft.com/devcontainers/javascript-node:1.0.0-16";
+// const image = "mcr.microsoft.com/devcontainers/javascript-node:14";
+
+// const image = "mcr.microsoft.com/devcontainers/jekyll:3.3-bookworm";
+
+// const image = "mcr.microsoft.com/vscode/devcontainers/universal:0";
+// const image = "mcr.microsoft.com/vscode/devcontainers/universal:0.18.0-linux";
+export async function loadImageVersionInfo(params: CommonParams, config: DevContainerConfig, cliHost: CLIHost, dockerParams: DockerResolverParameters) {
+	const { output } = params;
+	if ('image' in config && config.image !== undefined) {
+		return findImageVersionInfo(params, config.image);
+
+	} else if ('build' in config && config.build !== undefined && 'dockerfile' in config.build) {
+		const dockerfileUri = getDockerfilePath(cliHost, config as DevContainerFromDockerfileConfig);
+		const dockerfilePath = await uriToFsPath(dockerfileUri, cliHost.platform);
+		const dockerfileText = (await cliHost.readFile(dockerfilePath)).toString();
+		const dockerfile = extractDockerfile(dockerfileText);
+
+		if ('build' in config && config.build?.args !== undefined) {
+			const image = findBaseImage(dockerfile, config.build.args, undefined);
+			if (image === undefined) {
+				return { image: {} };
+			}
+
+			return findImageVersionInfo(params, image);
+		}
+	} else if ('dockerComposeFile' in config) {
+		const { dockerCLI, dockerComposeCLI } = dockerParams;
+		const { output } = params;
+		const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, cliHost.cwd);
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env: cliHost.env, output, platformInfo: dockerParams.platformInfo };
+		const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
+		const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
+		const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
+
+		const services = Object.keys(composeConfig.services || {});
+		if (services.indexOf(config.service) === -1) {
+			output.write('Service not found in Docker Compose configuration');
+			return { image: {} };
+		}
+
+		const composeService = composeConfig.services[config.service];
+		if (composeService.image) {
+			return findImageVersionInfo(params, composeService.image);
+		} else {
+			const serviceInfo = getBuildInfoForService(composeService, cliHost.path, composeFiles);
+			if (serviceInfo.build) {
+				const { context, dockerfilePath } = serviceInfo.build;
+				const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
+				const dockerfileText = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+				const dockerfile = extractDockerfile(dockerfileText);
+
+				if (composeService.build?.args !== undefined) {
+					const image = findBaseImage(dockerfile, composeService.build?.args, undefined);
+					if (image === undefined) {
+						return { image: {} };
+					}
+
+					return findImageVersionInfo(params, image);
+				}
+			}
+		}
+	}
+
+	return { image: {} };
 }
 
 export async function loadVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
@@ -1115,7 +1269,7 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 
 		// No 'metadataFile' to look for.
 		if (!metadataFile) {
-		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+			await cleanupIterationFetchAndMerge(tempTarballPath, output);
 			return { computedDigest, metadata: undefined };
 		}
 
