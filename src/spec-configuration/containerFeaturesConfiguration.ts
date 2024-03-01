@@ -523,7 +523,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	version: 0.204
 	tagSuffix: 3.11-buster
 */
-async function findImageVersionInfo(params: CommonParams, image: string) {
+async function findImageVersionInfo(params: CommonParams, image: string, path: string) {
 	const { output } = params;
 	const [imageName, tag] = image.split(':');
 
@@ -562,7 +562,7 @@ async function findImageVersionInfo(params: CommonParams, image: string) {
 		if (latestVersion) {
 			const wantedVersion = latestVersion.split('.').slice(0, version.split('.').length).join('.');
 			const wantedTag = tagSuffix ? `${wantedVersion}-${tagSuffix}` : wantedVersion;
-			return { image: { name: imageName, current: tag, wanted: wantedTag } };
+			return { image: { name: imageName, current: tag, wanted: wantedTag, path } };
 		} else {
 			output.write(`Failed to find maximum satisfying latest version for image '${image}'`, LogLevel.Error);
 		}
@@ -606,9 +606,8 @@ async function findImageVersionInfo(params: CommonParams, image: string) {
 // const image = "mcr.microsoft.com/vscode/devcontainers/universal:0";
 // const image = "mcr.microsoft.com/vscode/devcontainers/universal:0.18.0-linux";
 export async function loadImageVersionInfo(params: CommonParams, config: DevContainerConfig, cliHost: CLIHost, dockerParams: DockerResolverParameters) {
-	const { output } = params;
 	if ('image' in config && config.image !== undefined) {
-		return findImageVersionInfo(params, config.image);
+		return findImageVersionInfo(params, config.image, config.configFilePath?.path || '');
 
 	} else if ('build' in config && config.build !== undefined && 'dockerfile' in config.build) {
 		const dockerfileUri = getDockerfilePath(cliHost, config as DevContainerFromDockerfileConfig);
@@ -622,7 +621,7 @@ export async function loadImageVersionInfo(params: CommonParams, config: DevCont
 				return { image: {} };
 			}
 
-			return findImageVersionInfo(params, image);
+			return findImageVersionInfo(params, image, dockerfilePath);
 		}
 	} else if ('dockerComposeFile' in config) {
 		const { dockerCLI, dockerComposeCLI } = dockerParams;
@@ -641,7 +640,7 @@ export async function loadImageVersionInfo(params: CommonParams, config: DevCont
 
 		const composeService = composeConfig.services[config.service];
 		if (composeService.image) {
-			return findImageVersionInfo(params, composeService.image);
+			return findImageVersionInfo(params, composeService.image, composeFiles[0]);
 		} else {
 			const serviceInfo = getBuildInfoForService(composeService, cliHost.path, composeFiles);
 			if (serviceInfo.build) {
@@ -656,7 +655,7 @@ export async function loadImageVersionInfo(params: CommonParams, config: DevCont
 						return { image: {} };
 					}
 
-					return findImageVersionInfo(params, image);
+					return findImageVersionInfo(params, image, resolvedDockerfilePath);
 				}
 			}
 		}
