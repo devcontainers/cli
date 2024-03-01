@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## March 2024
+
+### [0.57.0]
+- Fix crash updating UID/GID when the image's platform is different from the native CPU arch (https://github.com/devcontainers/cli/pull/746)
+- Add tags with build command (https://github.com/devcontainers/ci/issues/271)
+
 ## February 2024
 
 ### [0.56.2]
