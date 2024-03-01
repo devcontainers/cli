@@ -5,8 +5,6 @@
 
 import * as path from 'path';
 import yargs, { Argv } from 'yargs';
-import textTable from 'text-table';
-
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
@@ -24,7 +22,6 @@ import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
-import { loadImageVersionInfo, loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
@@ -38,10 +35,10 @@ import { bailOut, buildNamedImageAndExtend } from './singleContainer';
 import { Event, NodeEventEmitter } from '../spec-utils/event';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { featuresResolveDependenciesHandler, featuresResolveDependenciesOptions } from './featuresCLI/resolveDependencies';
-import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeaturesOCI';
 import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
 import { readFeaturesConfig } from './featureUtils';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { outdatedHandler, outdatedOptions } from './collectionCommonUtils/outdated';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -1047,164 +1044,6 @@ async function readConfiguration({
 				featuresConfiguration,
 				mergedConfiguration: mergedConfig,
 			}) + '\n', err => err ? reject(err) : resolve());
-		});
-	} catch (err) {
-		if (output) {
-			output.write(err && (err.stack || err.message) || String(err));
-		} else {
-			console.error(err);
-		}
-		await dispose();
-		process.exit(1);
-	}
-	await dispose();
-	process.exit(0);
-}
-
-function outdatedOptions(y: Argv) {
-	return y.options({
-		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
-		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
-		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
-		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
-		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
-		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
-		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
-	});
-}
-
-type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
-
-function outdatedHandler(args: OutdatedArgs) {
-	(async () => outdated(args))().catch(console.error);
-}
-
-async function outdated({
-	// 'user-data-folder': persistedFolder,
-	'workspace-folder': workspaceFolderArg,
-	config: configParam,
-	'output-format': outputFormat,
-	'log-level': logLevel,
-	'log-format': logFormat,
-	'terminal-rows': terminalRows,
-	'terminal-columns': terminalColumns,
-}: OutdatedArgs) {
-	const disposables: (() => Promise<unknown> | undefined)[] = [];
-	const dispose = async () => {
-		await Promise.all(disposables.map(d => d()));
-	};
-	let output: Log | undefined;
-	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
-		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
-		const extensionPath = path.join(__dirname, '..', '..');
-		const sessionStart = new Date();
-		const pkg = getPackageConfig();
-		output = createLog({
-			logLevel: mapLogLevel(logLevel),
-			logFormat,
-			log: text => process.stderr.write(text),
-			terminalDimensions: terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : undefined,
-		}, pkg, sessionStart, disposables);
-
-		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
-		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
-		if (!configs) {
-			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
-		}
-
-		const cacheFolder = await getCacheFolder(cliHost);
-		const params = {
-			extensionPath,
-			cacheFolder,
-			cwd: cliHost.cwd,
-			output,
-			env: cliHost.env,
-			skipFeatureAutoMapping: false,
-			platform: cliHost.platform,
-		};
-
-		const outdatedFeatures = await loadVersionInfo(params, configs.config.config);
-
-		const outputParams = { output, env: process.env };
-		const dockerParams = await createDockerParams({
-			containerDataFolder: undefined,
-			containerSystemDataFolder: undefined,
-			workspaceFolder,
-			mountWorkspaceGitRoot: false,
-			configFile,
-			logLevel: mapLogLevel(logLevel),
-			logFormat,
-			log: text => process.stderr.write(text),
-			terminalDimensions: /* terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : */ undefined, // TODO
-			defaultUserEnvProbe: 'loginInteractiveShell',
-			removeExistingContainer: false,
-			buildNoCache: false,
-			expectExistingContainer: false,
-			postCreateEnabled: false,
-			skipNonBlocking: false,
-			prebuild: false,
-			persistedFolder: undefined,
-			additionalMounts: [],
-			updateRemoteUserUIDDefault: 'never',
-			additionalCacheFroms: [],
-			useBuildKit: 'never',
-			buildxPlatform: undefined,
-			buildxPush: false,
-			buildxOutput: undefined,
-			buildxCacheTo: undefined,
-			skipFeatureAutoMapping: false,
-			skipPostAttach: false,
-			skipPersistingCustomizationsFromFeatures: false,
-			dotfiles: {
-				repository: undefined,
-				installCommand: undefined,
-				targetPath: undefined
-			},
-			dockerPath: undefined,
-			dockerComposePath: undefined,
-			overrideConfigFile: undefined,
-			remoteEnv: {}
-		}, disposables);
-
-		const outdatedImages = await loadImageVersionInfo(outputParams, configs.config.config, cliHost, dockerParams);
-
-		await new Promise<void>((resolve, reject) => {
-			let text = '';
-			if (outputFormat === 'text') {
-				const rows = Object.keys(outdatedFeatures.features).map(key => {
-					const value = outdatedFeatures.features[key];
-					return [ getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest ]
-						.map(v => v === undefined ? '-' : v);
-				});
-
-				if (rows.length !== 0) {
-					const featureHeader = ['Feature', 'Current', 'Wanted', 'Latest'];
-					text = textTable([
-						featureHeader,
-						...rows,
-					]);
-				}
-
-				if (outdatedImages !== undefined && outdatedImages.image !== undefined) {
-					const imageHeader = ['Image', 'Current', 'Latest'];
-					const image = outdatedImages.image;
-
-					if (image.current !== undefined && image.wanted !== undefined && image.current !== image.wanted) {
-						text += '\n\n';
-						text += textTable([
-							imageHeader,
-							[image.name, image.current, image.wanted],
-						]);
-					}
-				}
-			} else {
-				text = JSON.stringify({ ...outdatedFeatures, ...outdatedImages }, undefined, process.stdout.isTTY ? '  ' : undefined);
-			}
-			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
 		if (output) {
