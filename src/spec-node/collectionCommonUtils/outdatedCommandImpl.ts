@@ -2,6 +2,7 @@ import * as jsonc from 'jsonc-parser';
 import * as os from 'os';
 import * as path from 'path';
 import * as semver from 'semver';
+import * as crypto from 'crypto';
 
 import { Log, LogLevel, mapLogLevel, nullLog } from '../../spec-utils/log';
 import { OutdatedArgs } from './outdated';
