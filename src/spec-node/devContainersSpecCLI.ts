@@ -8,7 +8,7 @@ import yargs, { Argv } from 'yargs';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder } from './utils';
+import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
