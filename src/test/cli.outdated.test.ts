@@ -22,7 +22,7 @@ describe('Outdated', function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
-	it('outdated command with json output', async () => {
+	it('json output', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
@@ -58,15 +58,26 @@ describe('Outdated', function () {
 		assert.strictEqual(foo.wantedMajor, '0');
 		assert.strictEqual(foo.latest, '2.11.1');
 		assert.strictEqual(foo.latestMajor, '2');
+
+		assert.equal(Object.keys(response.images).length, 1);
+		const baseImage = response.images['mcr.microsoft.com/devcontainers/base:0-ubuntu-20.04'];
+		assert.ok(baseImage);
+		assert.strictEqual(baseImage.name, 'mcr.microsoft.com/devcontainers/base');
+		assert.strictEqual(baseImage.current, '0-ubuntu-20.04');
+		assert.notStrictEqual(baseImage.wanted, baseImage.version);
+		assert.ok((parseInt(baseImage.wantedVersion) > parseInt(baseImage.version)), `semver.gt(${baseImage.wantedVersion}, ${baseImage.version}) is false`);
+		assert.strictEqual(baseImage.currentImageValue, 'mcr.microsoft.com/devcontainers/base:0-ubuntu-20.04');
+		assert.notStrictEqual(baseImage.newImageValue, baseImage.currentImageValue);
+		assert.strictEqual(baseImage.newImageValue, `mcr.microsoft.com/devcontainers/base:${baseImage.wantedVersion}-ubuntu-20.04`);
 	});
 
-	it('outdated command with text output', async () => {
+	it('text output', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format text`);
 		const response = res.stdout;
 		// Count number of lines of output
-		assert.strictEqual(response.split('\n').length, 7); // 5 valid Features + header + empty line
+		assert.strictEqual(response.split('\n').length, 10); // 5 valid Features + header + empty line + image
 
 		// Check that the header is present
 		assert.ok(response.includes('Current'), 'Current column is missing');
@@ -85,5 +96,84 @@ describe('Outdated', function () {
 		assert.ok(!response.includes('mylocalfeature'));
 		assert.ok(!response.includes('terraform'));
 		assert.ok(!response.includes('myfeatures'));
+
+		// Check that the image is present
+		assert.ok(response.includes('mcr.microsoft.com/devcontainers/base'), 'Image is missing');
+		assert.ok(response.includes('0-ubuntu-20.04'), 'Image version is missing');
+	});
+
+	it('dockerfile', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-features');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+		assert.equal(Object.keys(response.images).length, 0);
+	});
+
+	it('dockerfile-with-variant-multi-stage', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-target');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+
+		assert.equal(Object.keys(response.images).length, 2);
+
+		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:0.204.10-${VARIANT}'];
+		assert.ok(typeScript);
+		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
+		assert.strictEqual(typeScript.current, '0.204.10-18-bookworm');
+		assert.notStrictEqual(typeScript.wanted, typeScript.version);
+		assert.ok(semver.gt(typeScript.wantedVersion, typeScript.version), `semver.gt(${typeScript.wantedVersion}, ${typeScript.version}) is false`);
+		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:0.204.10-${VARIANT}');
+		assert.notStrictEqual(typeScript.newImageValue, typeScript.currentImageValue);
+		assert.strictEqual(typeScript.newImageValue, `mcr.microsoft.com/devcontainers/typescript-node:${typeScript.wantedVersion}-\${VARIANT}`);
+
+		const alpine = response.images['mcr.microsoft.com/devcontainers/base:0.207.2-alpine3.18'];
+		assert.ok(alpine);
+		assert.strictEqual(alpine.name, 'mcr.microsoft.com/devcontainers/base');
+		assert.strictEqual(alpine.current, '0.207.2-alpine3.18');
+		assert.notStrictEqual(alpine.wanted, alpine.version);
+		assert.ok(semver.gt(alpine.wantedVersion, alpine.version), `semver.gt(${alpine.wantedVersion}, ${alpine.version}) is false`);
+		assert.strictEqual(alpine.currentImageValue, 'mcr.microsoft.com/devcontainers/base:0.207.2-alpine3.18');
+		assert.notStrictEqual(alpine.newImageValue, alpine.currentImageValue);
+		assert.strictEqual(alpine.newImageValue, `mcr.microsoft.com/devcontainers/base:${alpine.wantedVersion}-alpine3.18`);
+	});
+
+	it('dockercompose-image', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/compose-image-with-features');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+
+		assert.equal(Object.keys(response.images).length, 1);
+
+		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster'];
+		assert.ok(javascript);
+		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
+		assert.strictEqual(javascript.current, '0.204-18-buster');
+		assert.notStrictEqual(javascript.wanted, javascript.version);
+		assert.ok((parseFloat(javascript.wantedVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.wantedVersion}, ${javascript.version}) is false`);
+		assert.strictEqual(javascript.currentImageValue, 'mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster');
+		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
+		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-18-buster`);
+	});
+
+	it('dockercompose-dockerfile', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/compose-Dockerfile-with-features');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+
+		assert.equal(Object.keys(response.images).length, 1);
+
+		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}'];
+		assert.ok(javascript);
+		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
+		assert.strictEqual(javascript.current, '0-16-bullseye');
+		assert.notStrictEqual(javascript.wanted, javascript.version);
+		assert.ok((parseFloat(javascript.wantedVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.wantedVersion}, ${javascript.version}) is false`);
+		assert.strictEqual(javascript.currentImageValue, 'mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}');
+		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
+		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-\${VARIANT}`);
 	});
 });

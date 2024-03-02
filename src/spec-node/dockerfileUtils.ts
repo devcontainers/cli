@@ -119,6 +119,55 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 	return undefined;
 }
 
+export function findImage(image: string, dockerfile: Dockerfile, buildArgs: Record<string, string>) {
+	const resolvedImage = replaceVariablesInImage(dockerfile, buildArgs, image);
+	return resolvedImage;
+}
+
+function replaceVariablesInImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, str: string) {
+	return [...str.matchAll(argumentExpression)]
+		.map(match => {
+			const variable = match.groups!.variable;
+			const isVarExp = match.groups!.isVarExp ? true : false;
+			let value = findValueInImage(dockerfile, buildArgs, variable) || '';
+			if (isVarExp) {
+				// Handle replacing variable expressions (${var:+word}) if they exist
+				const option = match.groups!.option;
+				const word = match.groups!.word;
+				const isSet = value !== '';
+				value = getExpressionValue(option, isSet, word, value);
+			}
+
+			return {
+				begin: match.index!,
+				end: match.index! + match[0].length,
+				value,
+			};
+		}).reverse()
+		.reduce((str, { begin, end, value }) => str.substring(0, begin) + value + str.substring(end), str);
+}
+
+function findValueInImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, variable: string) {
+	if (buildArgs !== undefined && variable in buildArgs) {
+		return buildArgs[variable];
+	}
+
+	for (let s = 0; s < dockerfile.stages.length; s++) {
+		const stage = dockerfile.stages[s];
+		const i = findLastIndex(stage.instructions, i => i.name === variable && (i.instruction === 'ENV' || i.instruction === 'ARG'));
+		if (i !== -1) {
+			return stage.instructions[i].value;
+		}
+	}
+
+	const index = findLastIndex(dockerfile.preamble.instructions, i => i.name === variable && (i.instruction === 'ENV' || i.instruction === 'ARG'));
+	if (index !== -1) {
+		return dockerfile.preamble.instructions[index].value;
+	}
+
+	return undefined;
+}
+
 function extractDirectives(preambleStr: string) {
 	const map: Record<string, string> = {};
 	for (const line of preambleStr.split(/\r?\n/)) {

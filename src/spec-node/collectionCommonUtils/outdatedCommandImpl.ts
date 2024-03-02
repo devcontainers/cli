@@ -23,7 +23,7 @@ import { CommonParams, ManifestContainer, getRef, getVersionsStrictSorted } from
 import { DockerCLIParameters } from '../../spec-shutdown/dockerUtils';
 import { request } from '../../spec-utils/httpRequest';
 import { readDockerComposeConfig, getBuildInfoForService } from '../dockerCompose';
-import { extractDockerfile, findBaseImage } from '../dockerfileUtils';
+import { extractDockerfile, findImage } from '../dockerfileUtils';
 import { ContainerFeatureInternalParams, userFeaturesToArray, getFeatureIdType, DEVCONTAINER_FEATURE_FILE_NAME, Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
 
@@ -122,31 +122,33 @@ export async function outdated({
 		await new Promise<void>((resolve, reject) => {
 			let text = '';
 			if (outputFormat === 'text') {
-				const rows = Object.keys(outdatedFeatures.features).map(key => {
+				const featureRows = Object.keys(outdatedFeatures.features).map(key => {
 					const value = outdatedFeatures.features[key];
 					return [getFeatureIdWithoutVersion(key), value.current, value.wanted, value.latest]
 						.map(v => v === undefined ? '-' : v);
 				});
 
-				if (rows.length !== 0) {
+				if (featureRows.length !== 0) {
 					const featureHeader = ['Feature', 'Current', 'Wanted', 'Latest'];
 					text = textTable([
 						featureHeader,
-						...rows,
+						...featureRows,
 					]);
 				}
 
-				if (outdatedImages !== undefined && outdatedImages.image !== undefined) {
-					const imageHeader = ['Image', 'Current', 'Latest'];
-					const image = outdatedImages.image;
+				const imageRows = Object.keys(outdatedImages.images).map(key => {
+					const value = outdatedImages.images[key];
+					return [value.name, value.current, value.wanted]
+						.map(v => v === undefined ? '-' : v);
+				});
 
-					if (image.current !== undefined && image.wanted !== undefined && image.current !== image.wanted) {
-						text += '\n\n';
-						text += textTable([
-							imageHeader,
-							[image.name, image.current, image.wanted],
-						]);
-					}
+				if (imageRows.length !== 0) {
+					const imageHeader = ['Image', 'Current', 'Latest'];
+					text += '\n\n';
+					text += textTable([
+						imageHeader,
+						...imageRows,
+					]);
 				}
 			} else {
 				text = JSON.stringify({ ...outdatedFeatures, ...outdatedImages }, undefined, process.stdout.isTTY ? '  ' : undefined);
@@ -179,7 +181,7 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 
 	if (tag === undefined) {
 		output.write(`Skipping image '${imageName}' as it does not have a tag`, LogLevel.Trace);
-		return { image: {} };
+		return undefined;
 	}
 
 	const [version, ...tagSuffixParts] = tag.split('-');
@@ -187,14 +189,14 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 
 	if (!imageName.startsWith('mcr.microsoft.com/devcontainers/') && !imageName.startsWith('mcr.microsoft.com/vscode/devcontainers/')) {
 		output.write(`Skipping image '${imageName}' as it is not an image hosted from devcontainer/images`, LogLevel.Trace);
-		return { image: {} };
+		return undefined;
 	}
 
 	const specialImages = ['base', 'cpp', 'universal'];
 	const imageType = imageName.split('/').pop() || '';
 	if (tag.startsWith('dev-') || (!specialImages.includes(imageType) && (!tag.includes('-') || !/\d/.test(tagSuffix))) || (specialImages.includes(imageType) && !/^\d/.test(tag))) {
 		output.write(`Skipping image '${imageName}' as it does not pin to a semantic version`, LogLevel.Trace);
-		return { image: {} };
+		return undefined;
 	}
 
 	try {
@@ -215,7 +217,7 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 
 			if (wantedTag === tag) {
 				output.write(`Image '${imageName}' is already at the latest version '${tag}'`, LogLevel.Trace);
-				return { image: {} };
+				return undefined;
 			}
 
 			let newImageValue = `${imageName}:${wantedTag}`;
@@ -227,7 +229,16 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 				newImageValue = `${imageName}:${wantedVersion}-${currentTagSuffix}`;
 			}
 
-			return { image: { name: imageName, current: tag, wanted: wantedTag, currentImageValue, newImageValue, path } };
+			return {
+				name: imageName,
+				version,
+				wantedVersion,
+				current: tag,
+				wanted: wantedTag,
+				currentImageValue,
+				newImageValue,
+				path,
+			};
 		} else {
 			output.write(`Failed to find maximum satisfying latest version for image '${image}'`, LogLevel.Error);
 		}
@@ -235,7 +246,7 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 		output.write(`Failed to parse published versions: ${e}`, LogLevel.Error);
 	}
 
-	return { image: {} };
+	return undefined;
 }
 
 // const image = config.image;
@@ -272,21 +283,50 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 // const image = "mcr.microsoft.com/vscode/devcontainers/universal:0.18.0-linux";
 async function loadImageVersionInfo(params: CommonParams, config: DevContainerConfig, cliHost: CLIHost, dockerParams: DockerResolverParameters) {
 	if ('image' in config && config.image !== undefined) {
-		return findImageVersionInfo(params, config.image, config.configFilePath?.path || '', config.image);
-
+		const imageInfo = await findImageVersionInfo(params, config.image, config.configFilePath?.path || '', config.image);
+		if (imageInfo !== undefined && imageInfo.name !== undefined) {
+			return {
+				images: {
+					[imageInfo.currentImageValue]: {
+						...imageInfo
+					}
+				}
+			};
+		} else {
+			return { images: {} };
+		}
 	} else if ('build' in config && config.build !== undefined && 'dockerfile' in config.build) {
 		const dockerfileUri = getDockerfilePath(cliHost, config as DevContainerFromDockerfileConfig);
 		const dockerfilePath = await uriToFsPath(dockerfileUri, cliHost.platform);
 		const dockerfileText = (await cliHost.readFile(dockerfilePath)).toString();
 		const dockerfile = extractDockerfile(dockerfileText);
 
-		if ('build' in config && config.build?.args !== undefined) {
-			const image = findBaseImage(dockerfile, config.build.args, undefined);
-			if (image === undefined) {
-				return { image: {} };
-			}
+		const resolvedImageInfo: Record<string, any> = {};
+		for (let i = 0; i < dockerfile.stages.length; i++) {
+			const stage = dockerfile.stages[i];
+			if ('build' in config && config.build?.args !== undefined) {
+				const currentImage = stage.from.image;
+				const image = findImage(currentImage, dockerfile, config.build.args);
+				if (image === undefined) {
+					continue;
+				}
 
-			return findImageVersionInfo(params, image, dockerfilePath, dockerfile.stages[0].from.image);
+				let imageInfo = await findImageVersionInfo(params, image, dockerfilePath, currentImage);
+
+				if (imageInfo !== undefined) {
+					resolvedImageInfo[currentImage] = imageInfo;
+				}
+			}
+		}
+
+		if (resolvedImageInfo && Object.keys(resolvedImageInfo).length > 0) {
+			return {
+				images: {
+					...resolvedImageInfo
+				}
+			};
+		} else {
+			return { images: {} };
 		}
 	} else if ('dockerComposeFile' in config) {
 		const { dockerCLI, dockerComposeCLI } = dockerParams;
@@ -300,33 +340,55 @@ async function loadImageVersionInfo(params: CommonParams, config: DevContainerCo
 		const services = Object.keys(composeConfig.services || {});
 		if (services.indexOf(config.service) === -1) {
 			output.write('Service not found in Docker Compose configuration');
-			return { image: {} };
+			return { images: {} };
 		}
 
-		const composeService = composeConfig.services[config.service];
-		if (composeService.image) {
-			return findImageVersionInfo(params, composeService.image, composeFiles[0], composeService.image);
-		} else {
-			const serviceInfo = getBuildInfoForService(composeService, cliHost.path, composeFiles);
-			if (serviceInfo.build) {
-				const { context, dockerfilePath } = serviceInfo.build;
-				const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
-				const dockerfileText = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-				const dockerfile = extractDockerfile(dockerfileText);
-
-				if (composeService.build?.args !== undefined) {
-					const image = findBaseImage(dockerfile, composeService.build?.args, undefined);
-					if (image === undefined) {
-						return { image: {} };
-					}
-
-					return findImageVersionInfo(params, image, resolvedDockerfilePath, dockerfile.stages[0].from.image);
+		const resolvedImageInfo: Record<string, any> = {};
+		for (let s = 0; s < services.length; s++) {
+			const composeService = composeConfig.services[services[s]];
+			if (composeService.image) {
+				const imageInfo = await findImageVersionInfo(params, composeService.image, composeFiles[0], composeService.image);
+				if (imageInfo !== undefined) {
+					resolvedImageInfo[composeService.image] = imageInfo;
 				}
+			} else {
+				const serviceInfo = getBuildInfoForService(composeService, cliHost.path, composeFiles);
+				if (serviceInfo.build) {
+					const { context, dockerfilePath } = serviceInfo.build;
+					const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
+					const dockerfileText = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+					const dockerfile = extractDockerfile(dockerfileText);
+
+					for (let i = 0; i < dockerfile.stages.length; i++) {
+						const stage = dockerfile.stages[i];
+						const currentImage = stage.from.image;
+						const image = findImage(currentImage, dockerfile, composeService.build?.args);
+						if (image === undefined) {
+							continue;
+						}
+
+						let imageInfo = await findImageVersionInfo(params, image, dockerfilePath, currentImage);
+
+						if (imageInfo !== undefined) {
+							resolvedImageInfo[currentImage] = imageInfo;
+						}
+					}
+				}
+			}
+
+			if (resolvedImageInfo && Object.keys(resolvedImageInfo).length > 0) {
+				return {
+					images: {
+						...resolvedImageInfo
+					}
+				};
+			} else {
+				return { images: {} };
 			}
 		}
 	}
 
-	return { image: {} };
+	return { images: {} };
 }
 
 export async function loadFeatureVersionInfo(params: ContainerFeatureInternalParams, config: DevContainerConfig) {
