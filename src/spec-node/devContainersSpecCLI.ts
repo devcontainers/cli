@@ -149,7 +149,7 @@ function provisionOptions(y: Argv) {
 				throw new Error('Unmatched argument format: mount must match type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]');
 			}
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
-			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
+			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			return true;
@@ -334,7 +334,7 @@ function setUpOptions(y: Argv) {
 	})
 		.check(argv => {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
-			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
+			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			return true;
@@ -742,7 +742,7 @@ function runUserCommandsOptions(y: Argv) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
-			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
+			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
@@ -1197,7 +1197,7 @@ function execOptions(y: Argv) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
-			if (remoteEnvs?.some(remoteEnv => !/.+=.+/.test(remoteEnv))) {
+			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
