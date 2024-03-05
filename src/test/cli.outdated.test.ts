@@ -61,6 +61,7 @@ describe('Outdated', function () {
 
 		const baseImage = response.images['mcr.microsoft.com/devcontainers/base:0-ubuntu-20.04'];
 		assert.ok(baseImage);
+		assert.ok(baseImage.path.includes('.devcontainer.json'));
 		assert.strictEqual(baseImage.name, 'mcr.microsoft.com/devcontainers/base');
 		assert.strictEqual(baseImage.current, '0-ubuntu-20.04');
 		assert.notStrictEqual(baseImage.wanted, baseImage.version);
@@ -116,6 +117,7 @@ describe('Outdated', function () {
 		const response = JSON.parse(res.stdout);
 
 		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}'];
+		assert.ok(typeScript.path.includes('Dockerfile'));
 		assert.ok(typeScript);
 		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
 		assert.strictEqual(typeScript.current, '1.0.5-18-bookworm');
@@ -127,6 +129,7 @@ describe('Outdated', function () {
 
 		const alpine = response.images['mcr.microsoft.com/devcontainers/base:0.207.2-alpine3.18'];
 		assert.ok(alpine);
+		assert.ok(alpine.path.includes('Dockerfile'));
 		assert.strictEqual(alpine.name, 'mcr.microsoft.com/devcontainers/base');
 		assert.strictEqual(alpine.current, '0.207.2-alpine3.18');
 		assert.notStrictEqual(alpine.wanted, alpine.version);
@@ -144,6 +147,7 @@ describe('Outdated', function () {
 
 		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster'];
 		assert.ok(javascript);
+		assert.ok(javascript.path.includes('docker-compose.yml'));
 		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
 		assert.strictEqual(javascript.current, '0.204-18-buster');
 		assert.notStrictEqual(javascript.wanted, javascript.version);
@@ -161,6 +165,7 @@ describe('Outdated', function () {
 
 		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}'];
 		assert.ok(javascript);
+		assert.ok(javascript.path.includes('Dockerfile'));
 		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
 		assert.strictEqual(javascript.current, '0-16-bullseye');
 		assert.notStrictEqual(javascript.wanted, javascript.version);
@@ -178,6 +183,7 @@ describe('Outdated', function () {
 
 		const base = response.images['mcr.microsoft.com/vscode/devcontainers/base:0'];
 		assert.ok(base);
+		assert.ok(base.path.includes('.devcontainer.json'));
 		assert.strictEqual(base.name, 'mcr.microsoft.com/vscode/devcontainers/base');
 		assert.strictEqual(base.current, '0');
 		assert.notStrictEqual(base.wanted, base.version);
