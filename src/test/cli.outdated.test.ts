@@ -169,4 +169,21 @@ describe('Outdated', function () {
 		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
 		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-\${VARIANT}`);
 	});
+
+	it('major-version-no-variant', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/image-with-git-feature');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const response = JSON.parse(res.stdout);
+
+		const base = response.images['mcr.microsoft.com/vscode/devcontainers/base:0'];
+		assert.ok(base);
+		assert.strictEqual(base.name, 'mcr.microsoft.com/vscode/devcontainers/base');
+		assert.strictEqual(base.current, '0');
+		assert.notStrictEqual(base.wanted, base.version);
+		assert.ok((parseFloat(base.wantedVersion) > parseFloat(base.version)), `semver.gt(${base.wantedVersion}, ${base.version}) is false`);
+		assert.strictEqual(base.currentImageValue, 'mcr.microsoft.com/vscode/devcontainers/base:0');
+		assert.notStrictEqual(base.newImageValue, base.currentImageValue);
+		assert.strictEqual(base.newImageValue, `mcr.microsoft.com/vscode/devcontainers/base:${base.wantedVersion}`);
+	});
 });

@@ -1,5 +1,5 @@
 {
-	"image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-16-bullseye",
+	"image": "mcr.microsoft.com/vscode/devcontainers/base:0",
 	"features": {
 		"ghcr.io/devcontainers/features/git": {}
 	},
