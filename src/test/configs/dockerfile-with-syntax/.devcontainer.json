@@ -1,9 +1,6 @@
 {
 	"build": {
-		"dockerfile": "Dockerfile",
-		"args": { 
-			"VARIANT": "18-bookworm"
-		}
+		"dockerfile": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
