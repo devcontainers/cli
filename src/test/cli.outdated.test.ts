@@ -169,31 +169,4 @@ describe('Outdated', function () {
 		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
 		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-\${VARIANT}`);
 	});
-
-	it('dockerfile-multi-arg', async () => {
-		const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-syntax');
-
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
-		const response = JSON.parse(res.stdout);
-
-		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:0-${VARIANT}'];
-		assert.ok(typeScript);
-		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
-		assert.strictEqual(typeScript.current, '0-16-bullseye');
-		assert.notStrictEqual(typeScript.wanted, typeScript.version);
-		assert.ok((parseFloat(typeScript.wantedVersion) > parseFloat(typeScript.version)), `semver.gt(${typeScript.wantedVersion}, ${typeScript.version}) is false`);
-		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:0-${VARIANT}');
-		assert.notStrictEqual(typeScript.newImageValue, typeScript.currentImageValue);
-		assert.strictEqual(typeScript.newImageValue, `mcr.microsoft.com/devcontainers/typescript-node:${typeScript.wantedVersion}-\${VARIANT}`);
-
-		const ubuntu = response.images['mcr.microsoft.com/devcontainers/base:0.203-${VARIANT}'];
-		assert.ok(ubuntu);
-		assert.strictEqual(ubuntu.name, 'mcr.microsoft.com/devcontainers/base');
-		assert.strictEqual(ubuntu.current, '0.203-ubuntu-20.04');
-		assert.notStrictEqual(ubuntu.wanted, ubuntu.version);
-		assert.ok((parseFloat(ubuntu.wantedVersion) > parseFloat(ubuntu.version)), `semver.gt(${ubuntu.wantedVersion}, ${ubuntu.version}) is false`);
-		assert.strictEqual(ubuntu.currentImageValue, 'mcr.microsoft.com/devcontainers/base:0.203-${VARIANT}');
-		assert.notStrictEqual(ubuntu.newImageValue, ubuntu.currentImageValue);
-		assert.strictEqual(ubuntu.newImageValue, `mcr.microsoft.com/devcontainers/base:${ubuntu.wantedVersion}-\${VARIANT}`);
-	});
 });

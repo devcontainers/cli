@@ -212,7 +212,6 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 			.pop();
 
 		if (latestVersion) {
-
 			if (semver.valid(version) && semver.valid(latestVersion) && semver.gt(version, latestVersion)) {
 				output.write(`Image '${imageName}' is at a higher version than the latest version '${latestVersion}'`, LogLevel.Trace);
 				return undefined;
