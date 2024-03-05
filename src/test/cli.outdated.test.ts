@@ -118,13 +118,13 @@ describe('Outdated', function () {
 
 		assert.equal(Object.keys(response.images).length, 2);
 
-		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:0.204.10-${VARIANT}'];
+		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}'];
 		assert.ok(typeScript);
 		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
-		assert.strictEqual(typeScript.current, '0.204.10-18-bookworm');
+		assert.strictEqual(typeScript.current, '1.0.5-18-bookworm');
 		assert.notStrictEqual(typeScript.wanted, typeScript.version);
 		assert.ok(semver.gt(typeScript.wantedVersion, typeScript.version), `semver.gt(${typeScript.wantedVersion}, ${typeScript.version}) is false`);
-		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:0.204.10-${VARIANT}');
+		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}');
 		assert.notStrictEqual(typeScript.newImageValue, typeScript.currentImageValue);
 		assert.strictEqual(typeScript.newImageValue, `mcr.microsoft.com/devcontainers/typescript-node:${typeScript.wantedVersion}-\${VARIANT}`);
 
