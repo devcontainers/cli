@@ -31,7 +31,7 @@ export async function openDockerComposeDevContainer(params: DockerResolverParame
 }
 
 async function _openDockerComposeDevContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, workspace: Workspace, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, remoteWorkspaceFolder: string, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common } = params;
+	const { common, policyConstraints } = params;
 	const { cliHost: buildCLIHost } = buildParams;
 	const { config } = configWithRaw;
 
@@ -69,7 +69,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		}
 
 		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
-		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata);
+		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata, policyConstraints);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
 		const {
@@ -327,7 +327,7 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 	};
 }
 async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
-	const { common } = params;
+	const { common, policyConstraints } = params;
 	const { persistedFolder, output } = common;
 	const { cliHost: buildCLIHost } = buildParams;
 	const { config } = configWithRaw;
@@ -398,7 +398,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
 		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
-		const mergedConfig = mergeConfiguration(config, imageMetadata.config);
+		const mergedConfig = mergeConfiguration(config, imageMetadata.config, policyConstraints);
 		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, mergedConfig, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.

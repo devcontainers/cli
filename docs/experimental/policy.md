@@ -8,9 +8,10 @@ Inspired by: https://docs.docker.com/build/building/variables/#experimental_buil
 #### Usage
 
 ```bash
+$EXPERIMENTAL_DEV_CONTAINER_POLICY=/path/to/policy.jsonc
 devcontainer up \
       --workspace-folder . \
-	  --policy /home/codespace/policy.jsonc
+	  --policy $EXPERIMENTAL_DEV_CONTAINER_POLICY
 ```
 
 #### Example policy file
@@ -19,8 +20,7 @@ devcontainer up \
 [
 	// Replaces 'privileged' with --cap-add=ALL
 	{
-		"type": "run_flags",
-		"selector": "privileged", 
+		"selector": "privileged",
 		"value": "true", // If the value of 'privileged' is 'true', then replace with the transformation
 		"action": "transform",
 		"transformation": {
@@ -32,7 +32,6 @@ devcontainer up \
 	},
 	// Fail to build any configurations with the 'userns' flag set (or inherited through metadata, etc...)
 	{
-		"type": "run_flags",
 		"selector": "userns",
 		"value": "host",
 		"action": "deny" 

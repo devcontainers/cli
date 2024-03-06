@@ -446,7 +446,7 @@ async function doSetUp({
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
@@ -878,7 +878,7 @@ async function doRunUserCommands({
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
@@ -1039,7 +1039,7 @@ async function readConfiguration({
 				const imageBuildInfo = await getImageBuildInfo(params, configuration);
 				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
-			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
+			mergedConfig = mergeConfiguration(configuration.config, imageMetadata, undefined);
 		}
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
@@ -1317,7 +1317,7 @@ export async function doExec({
 			bailOut(common.output, 'Dev container not found.');
 		}
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);
