@@ -1,0 +1,14 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile",
+		"options": [
+			"--platform",
+			"linux/amd64"
+		]
+	},
+	"remoteUser": "foo",
+	"runArgs": [
+		"--platform",
+		"linux/amd64"
+	]
+}

@@ -70,6 +70,18 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					assert.equal(res.signal, undefined);
 					assert.match(res.cmdOutput, /BARhiBAR/);
 				});
+				it('should pass along --remote-env', async () => {
+					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} --remote-env FOO=BAR --remote-env BAZ= printenv`);
+					assert.strictEqual(res.code, 0);
+					assert.equal(res.signal, undefined);
+					const stdout = res.stdout.toString();
+					const env = stdout
+						.split('\n')
+						.map(l => l.split('='))
+						.reduce((m, [k, v]) => { m[k] = v; return m; }, {} as { [key: string]: string });
+					assert.strictEqual(env.FOO, 'BAR');
+					assert.strictEqual(env.BAZ, '');
+				});
 			});
 			describe(`with valid (image) config containing features [${text}]`, () => {
 				let containerId: string | null = null;

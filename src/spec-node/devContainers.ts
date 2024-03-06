@@ -7,9 +7,10 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 
+import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
-import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
@@ -163,12 +164,40 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output: common.output,
 	}, dockerPath, dockerComposePath);
+
+	const platformInfo = (() => {
+		if (common.buildxPlatform) {
+			const slash1 = common.buildxPlatform.indexOf('/');
+			const slash2 = common.buildxPlatform.indexOf('/', slash1 + 1);
+			// `--platform linux/amd64/v3` `--platform linux/arm64/v8`
+			if (slash2 !== -1) {
+				return {
+					os: <GoOS> common.buildxPlatform.slice(0, slash1),
+					arch: <GoARCH> common.buildxPlatform.slice(slash1 + 1, slash2),
+					variant: common.buildxPlatform.slice(slash2 + 1),
+				};
+			}
+			// `--platform linux/amd64` and `--platform linux/arm64`
+			return {
+				os: <GoOS> common.buildxPlatform.slice(0, slash1),
+				arch: <GoARCH> common.buildxPlatform.slice(slash1 + 1),
+			};
+		} else {
+			// `--platform` omitted
+			return {
+				os: mapNodeOSToGOOS(cliHost.platform),
+				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+			};
+		}
+	})();
+
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
 		dockerComposeCLI,
 		env: cliHost.env,
-		output
+		output,
+		platformInfo
 	}));
 	return {
 		common,
@@ -195,6 +224,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
+		platformInfo
 	};
 }
 
