@@ -176,7 +176,7 @@ describe('Outdated', function () {
 	});
 
 	it('major-version-no-variant', async () => {
-		const workspaceFolder = path.join(__dirname, 'configs/image-with-git-feature');
+		const workspaceFolder = path.join(__dirname, 'configs/image-with-features');
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
 		const response = JSON.parse(res.stdout);
