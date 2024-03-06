@@ -425,7 +425,8 @@ export function envListToObj(list: string[] | null | undefined) {
 }
 
 export async function runInitializeCommand(params: DockerResolverParameters, inputUserCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
-	const userCommand = applyConstraintsToLifecycleHook(inputUserCommand, (await params.policyConstraintsP));
+	const { common, dockerEnv } = params;
+	const userCommand = applyConstraintsToLifecycleHook(common, inputUserCommand, (await params.policyConstraintsP));
 	if (!userCommand) {
 		return;
 	}
@@ -443,7 +444,6 @@ export async function runInitializeCommand(params: DockerResolverParameters, inp
 		return;
 	}
 
-	const { common, dockerEnv } = params;
 	const { cliHost, output } = common;
 	const hookName = 'initializeCommand';
 	const isWindows = cliHost.platform === 'win32';

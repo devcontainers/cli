@@ -37,6 +37,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 
 	const policyConstraints = await policyConstraintsP;
 	const config = applyConstraintsToComposeConfig(
+		common,
 		configWithRaw.config,
 		policyConstraints,
 	);
@@ -73,6 +74,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
 		const imageMetadata = applyConstraintsToMetadataEntries(
+			common,
 			getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config,
 			policyConstraints,
 		);

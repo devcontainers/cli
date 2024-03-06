@@ -14,6 +14,9 @@ import { ContainerError } from '../spec-common/errors';
 
 export type PolicyConstraints = Constraint[];
 
+const readPolicyFileError = 'Failed to parse policy constraints file';
+const errorPrefix = 'Policy violation';
+
 export interface Constraint {
 	action: 'filter' | 'deny';    	// | 'transformation';
 	selector: string; 				// TODO: Define interface for selector
@@ -31,49 +34,59 @@ export async function readPolicyConstraintsFromFile(params: { output?: Log; poli
 		const parseErrors: jsonc.ParseError[] = [];
 		const policyConstraints = jsonc.parse(fileBuff.toString(), parseErrors) as PolicyConstraints;
 		if (parseErrors.length) {
-			throw new Error('Invalid json data');
+			// Log errors
+			if (output) {
+				parseErrors.forEach(e => {
+					output.write(`(${e.offset}) ${e.error}`, LogLevel.Error);
+				});
+			}
+			throw new Error(`Invalid json data`);
 		}
+
+		// Validate that the top-level item is an array
+		if (!Array.isArray(policyConstraints)) {
+			throw new Error(`Policy constraints file must be an array of constraint objects`);
+		}
+
 		return policyConstraints;
 	}
 	catch (e) {
-		if (output) {
-			output.write(`Failed to parse policy constraints file from '${policyFile}'`, LogLevel.Error);
-		}
-
 		throw new ContainerError({
-			description: 'Failed to parse policy constraints file',
+			description: readPolicyFileError,
 			originalError: e
 		});
 	}
 }
 
-export function applyConstraintsToMetadataEntries(metadata: ImageMetadataEntry[], constraints: PolicyConstraints | undefined) {
+export function applyConstraintsToMetadataEntries(params: { output: Log }, metadata: ImageMetadataEntry[], constraints: PolicyConstraints | undefined) {
 	if (!constraints) {
 		return metadata;
 	}
-	return metadata.map(entry => apply<ImageMetadataEntry>(entry, constraints));
+	return metadata.map(entry => apply<ImageMetadataEntry>(params, entry, constraints));
 }
 
-export function applyConstraintsToSingleContainerConfig(config: DevContainerFromImageConfig | DevContainerFromDockerfileConfig, constraints: PolicyConstraints | undefined) {
+export function applyConstraintsToSingleContainerConfig(params: { output: Log }, config: DevContainerFromImageConfig | DevContainerFromDockerfileConfig, constraints: PolicyConstraints | undefined) {
 	if (!constraints) {
 		return config;
 	}
-	const configApplied = apply(config, constraints);
+	const configApplied = apply(params, config, constraints);
 	return {
 		...configApplied,
-		runArgs: applyConstraintsToRunArgs(configApplied.runArgs, constraints)
+		runArgs: applyConstraintsToRunArgs(params, configApplied.runArgs, constraints)
 	};
 }
 
-export function applyConstraintsToComposeConfig(config: DevContainerFromDockerComposeConfig, constraints: PolicyConstraints | undefined) {
+export function applyConstraintsToComposeConfig(params: { output: Log }, config: DevContainerFromDockerComposeConfig, constraints: PolicyConstraints | undefined) {
 	if (!constraints) {
 		return config;
 	}
-	return apply(config, constraints);
+	return apply(params, config, constraints);
 }
 
 // Currently used for 'initializeCommand' only
-export function applyConstraintsToLifecycleHook(userCommand: LifecycleCommand | undefined, constraints: PolicyConstraints | undefined) {
+export function applyConstraintsToLifecycleHook(params: { output: Log }, userCommand: LifecycleCommand | undefined, constraints: PolicyConstraints | undefined) {
+	const { output } = params;
+
 	if (!userCommand || !constraints) {
 		return userCommand;
 	}
@@ -84,13 +97,16 @@ export function applyConstraintsToLifecycleHook(userCommand: LifecycleCommand | 
 				throwPolicyError('initializeCommand', userCommand);
 			case 'filter':
 				return undefined;
+			default:
+				output.write(`Unrecognized action for policy constraint: ${constraint.action}`, LogLevel.Warning);
 		}
 	}
 
 	return userCommand;
 }
 
-function applyConstraintsToRunArgs(runArgs: string[] | undefined, constraints: PolicyConstraints | undefined) {
+function applyConstraintsToRunArgs(params: { output: Log }, runArgs: string[] | undefined, constraints: PolicyConstraints | undefined) {
+	const { output } = params;
 	if (!constraints || !runArgs) {
 		return runArgs;
 	}
@@ -106,20 +122,26 @@ function applyConstraintsToRunArgs(runArgs: string[] | undefined, constraints: P
 				case 'deny':
 					throwPolicyError(selector, value);
 				case 'filter':
+					// Skip this flag and value
 					break;
 				default:
-					// Approved!
-					approvedRunArgs.push(flag);
-					if (value) {
-						approvedRunArgs.push(value);
-					}
+					output.write(`Unrecognized action for policy constraint: '${constraint.action}'. Assuming filter behavior.`, LogLevel.Warning);
+			}
+		} else {
+			// Not matching a constraint, default approve
+			approvedRunArgs.push(flag);
+			if (value) {
+				approvedRunArgs.push(value);
 			}
 		}
 	}
+
+	output.write(`Approved runArgs: ${approvedRunArgs}`, LogLevel.Trace);
 	return approvedRunArgs;
 }
 
-function apply<T extends {}>(obj: T, constraints: PolicyConstraints): T {
+function apply<T extends {}>(params: { output: Log }, obj: T, constraints: PolicyConstraints): T {
+	const { output } = params;
 	if (!constraints) {
 		return obj;
 	}
@@ -127,19 +149,29 @@ function apply<T extends {}>(obj: T, constraints: PolicyConstraints): T {
 	const result = { ...obj };
 	for (const constraint of constraints) {
 		const { action, selector } = constraint;
+
+		if (!selector) {
+			output.write(`Missing selector on constraint. Skipping...`, LogLevel.Warning);
+			continue;
+		}
+
 		if (!(selector in result) || !(result[selector as keyof typeof result])) {
 			continue;
 		}
+
 		switch (action) {
 			case 'deny':
 				throwPolicyError(selector);
 			case 'filter':
 				delete (result as any)[selector];
+				break;
+			default:
+				output.write(`Unrecognized constraint action '${action}'.  Skipping...`, LogLevel.Warning);
 		}
 	}
 	return result;
 }
 
 function throwPolicyError(selector: string, value?: any) {
-	throw new Error(`Policy violation: Property '${selector}' ${value ? `with value '${value}'` : ''} is not permitted.`);
+	throw new Error(`${errorPrefix}: Property '${selector}'${value ? ` with value '${value}'` : ''} is not permitted.`);
 }

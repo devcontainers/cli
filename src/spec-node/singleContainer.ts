@@ -22,6 +22,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 	const { common, policyConstraintsP } = params;
 	const policyConstraints = await policyConstraintsP;
 	const config = applyConstraintsToSingleContainerConfig(
+		common,
 		configWithRaw.config,
 		policyConstraints,
 	);
@@ -45,6 +46,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// };
 			await startExistingContainer(params, idLabels, container);
 			imageMetadata = applyConstraintsToMetadataEntries(
+				common,
 				getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config,
 				policyConstraints,
 			);
@@ -52,6 +54,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
 			imageMetadata = applyConstraintsToMetadataEntries(
+				common,
 				res.imageMetadata.config,
 				policyConstraints,
 			);
