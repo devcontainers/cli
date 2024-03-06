@@ -19,6 +19,7 @@ import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
 import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
+import { PolicyConstraints } from './policy';
 
 
 export interface ProvisionOptions {
@@ -69,6 +70,7 @@ export interface ProvisionOptions {
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
+	policyConstraintsP?: Promise<PolicyConstraints | undefined>;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -224,7 +226,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPush: common.buildxPush,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
-		platformInfo
+		platformInfo,
+		policyConstraintsP: options.policyConstraintsP,
 	};
 }
 

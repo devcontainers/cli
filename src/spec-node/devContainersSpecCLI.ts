@@ -42,6 +42,7 @@ import { getFeatureIdWithoutVersion } from '../spec-configuration/containerFeatu
 import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand';
 import { readFeaturesConfig } from './featureUtils';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { readPolicyConstraintsFromFile } from './policy';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -132,6 +133,7 @@ function provisionOptions(y: Argv) {
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
+		'experimental-policy-file': { type: 'string', hidden: true, description: 'Path to a policy file (NOTE: Functionality is experimental and likely to change)' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -202,6 +204,7 @@ async function provision({
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'experimental-policy-file': policyFile,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -213,6 +216,7 @@ async function provision({
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+	const policyConstraintsP = readPolicyConstraintsFromFile({ policyFile, cliHost });
 
 	const options: ProvisionOptions = {
 		dockerPath,
@@ -268,6 +272,7 @@ async function provision({
 		experimentalLockfile,
 		experimentalFrozenLockfile,
 		omitSyntaxDirective: omitSyntaxDirective,
+		policyConstraintsP,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -446,7 +451,7 @@ async function doSetUp({
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);  // TODO: Handle policy constraints here
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
@@ -878,7 +883,7 @@ async function doRunUserCommands({
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnvP = probeRemoteEnv(common, containerProperties, updatedConfig);
@@ -1039,7 +1044,7 @@ async function readConfiguration({
 				const imageBuildInfo = await getImageBuildInfo(params, configuration);
 				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
 			}
-			mergedConfig = mergeConfiguration(configuration.config, imageMetadata, undefined);
+			mergedConfig = mergeConfiguration(configuration.config, imageMetadata); // TODO: Handle policy constraints here
 		}
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
@@ -1317,7 +1322,7 @@ export async function doExec({
 			bailOut(common.output, 'Dev container not found.');
 		}
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata, undefined);
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
 		const remoteEnv = probeRemoteEnv(common, containerProperties, updatedConfig);

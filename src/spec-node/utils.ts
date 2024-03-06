@@ -28,7 +28,7 @@ import { ImageMetadataEntry } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
-import { PolicyConstraints } from './policy';
+import { applyConstraintsToLifecycleHook, PolicyConstraints } from './policy';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -119,7 +119,7 @@ export interface DockerResolverParameters {
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;
-	policyConstraints: PolicyConstraints;
+	policyConstraintsP?: Promise<PolicyConstraints | undefined>;
 }
 
 export interface ResolverResult {
@@ -424,7 +424,8 @@ export function envListToObj(list: string[] | null | undefined) {
 	}, {} as Record<string, string>);
 }
 
-export async function runInitializeCommand(params: DockerResolverParameters, userCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
+export async function runInitializeCommand(params: DockerResolverParameters, inputUserCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
+	const userCommand = applyConstraintsToLifecycleHook(inputUserCommand, (await params.policyConstraintsP));
 	if (!userCommand) {
 		return;
 	}

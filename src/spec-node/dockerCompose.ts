@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { applyConstraintsToComposeConfig, applyConstraintsToMetadataEntries } from './policy';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -31,10 +32,14 @@ export async function openDockerComposeDevContainer(params: DockerResolverParame
 }
 
 async function _openDockerComposeDevContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, workspace: Workspace, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, remoteWorkspaceFolder: string, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common, policyConstraints } = params;
+	const { common, policyConstraintsP } = params;
 	const { cliHost: buildCLIHost } = buildParams;
-	const { config } = configWithRaw;
 
+	const policyConstraints = await policyConstraintsP;
+	const config = applyConstraintsToComposeConfig(
+		configWithRaw.config,
+		policyConstraints,
+	);
 	let container: ContainerDetails | undefined;
 	let containerProperties: ContainerProperties | undefined;
 	try {
@@ -67,9 +72,11 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			// 	const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => labels, getContainerFeaturesFolder);
 			// 	collapsedFeaturesConfig = collapseFeaturesConfig(featuresConfig);
 		}
-
-		const imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
-		const mergedConfig = mergeConfiguration(configWithRaw.config, imageMetadata, policyConstraints);
+		const imageMetadata = applyConstraintsToMetadataEntries(
+			getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config,
+			policyConstraints,
+		);
+		const mergedConfig = mergeConfiguration(config, imageMetadata);
 		containerProperties = await createContainerProperties(params, container.Id, remoteWorkspaceFolder, mergedConfig.remoteUser);
 
 		const {
@@ -327,7 +334,7 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 	};
 }
 async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
-	const { common, policyConstraints } = params;
+	const { common } = params;
 	const { persistedFolder, output } = common;
 	const { cliHost: buildCLIHost } = buildParams;
 	const { config } = configWithRaw;
@@ -398,7 +405,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 		const currentImageName = overrideImageName || originalImageName;
 		let cache: Promise<ImageDetails> | undefined;
 		const imageDetails = () => cache || (cache = inspectDockerImage(params, currentImageName, true));
-		const mergedConfig = mergeConfiguration(config, imageMetadata.config, policyConstraints);
+		const mergedConfig = mergeConfiguration(config, imageMetadata.config); // TODO: Handle policy constraints here!
 		const updatedImageName = noBuild ? currentImageName : await updateRemoteUserUID(params, mergedConfig, currentImageName, imageDetails, service.user);
 
 		// Save override docker-compose file to disk.

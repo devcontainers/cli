@@ -11,7 +11,6 @@ import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shu
 import { Log, LogLevel } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
 import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
-import { PolicyConstraints, applyConstraintsToMergedConfig } from './policy';
 import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath, envListToObj } from './utils';
 
 const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
@@ -154,7 +153,7 @@ function mergeLifecycleHooks(metadata: ImageMetadataEntry[], hook: (keyof Schema
 	return collected;
 }
 
-export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[], policyConstraints: PolicyConstraints | undefined): MergedDevContainerConfig {
+export function mergeConfiguration(config: DevContainerConfig, imageMetadata: ImageMetadataEntry[]): MergedDevContainerConfig {
 	const customizations = imageMetadata.reduce((obj, entry) => {
 		for (const key in entry.customizations) {
 			if (key in obj) {
@@ -196,7 +195,7 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		updateRemoteUserUID: reversed.find(entry => typeof entry.updateRemoteUserUID === 'boolean')?.updateRemoteUserUID,
 		hostRequirements: mergeHostRequirements(imageMetadata),
 	};
-	return applyConstraintsToMergedConfig(policyConstraints, merged);
+	return merged;
 }
 
 function mergeForwardPorts(imageMetadata: ImageMetadataEntry[]): (number | string)[] | undefined {

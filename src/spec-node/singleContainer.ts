@@ -13,14 +13,18 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
-import { applyConstraintsToRunArgs } from './policy';
+import { applyConstraintsToMetadataEntries, applyConstraintsToSingleContainerConfig } from './policy';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
 
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common, policyConstraints } = params;
-	const { config } = configWithRaw;
+	const { common, policyConstraintsP } = params;
+	const policyConstraints = await policyConstraintsP;
+	const config = applyConstraintsToSingleContainerConfig(
+		configWithRaw.config,
+		policyConstraints,
+	);
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
 
 	let container: ContainerDetails | undefined;
@@ -40,13 +44,18 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
-			mergedConfig = mergeConfiguration(config, imageMetadata, policyConstraints);
+			imageMetadata = applyConstraintsToMetadataEntries(
+				getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config,
+				policyConstraints,
+			);
+			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
-			imageMetadata = res.imageMetadata.config;
-			mergedConfig = mergeConfiguration(config, imageMetadata, policyConstraints);
-			config.runArgs = applyConstraintsToRunArgs(config.runArgs, policyConstraints);
+			imageMetadata = applyConstraintsToMetadataEntries(
+				res.imageMetadata.config,
+				policyConstraints,
+			);
+			mergedConfig = mergeConfiguration(config, imageMetadata);
 			const { containerUser } = mergedConfig;
 			const updatedImageName = await updateRemoteUserUID(params, mergedConfig, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
 
