@@ -9,14 +9,95 @@ import { ImageMetadataEntry } from '../spec-node/imageMetadata';
 import { nullLog } from '../spec-utils/log';
 import { DevContainerFromDockerComposeConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
+import path from 'path';
+import { shellExec } from './testUtils';
 
-// const pkg = require('../../package.json');
+const pkg = require('../../package.json');
 
 describe('Policy Constraints', function () {
+	this.timeout('180s');
 
+	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const cli = `npx --prefix ${tmp} devcontainer`;
+
+	before('Install', async () => {
+		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await shellExec(`mkdir -p ${tmp}`);
+		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+	});
 
 	describe('CLI', function () {
-		it('policy followed', async function () {
+		it('filter policy', async function () {
+			let containerId: string | undefined = undefined;
+			const testFolder = `${__dirname}/configs/policy-single-container`;
+			const policyFile = `${testFolder}/policyFilter.json`;
+
+			after(async () => {
+				if (containerId) {
+					await shellExec(`docker rm -f ${containerId}`);
+				}
+			});
+
+			// Collect a baseline without the policy file
+			{
+				const res = await shellExec(`${cli} up --workspace-folder ${testFolder}`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				containerId = response.containerId;
+				assert.ok(containerId, 'Container id not found.');
+
+				const dockerRunLine = res.stderr.split('\n').find(line => line.includes('docker run'));
+				console.log(dockerRunLine);
+				assert.ok(dockerRunLine, 'Docker run command not found.');
+
+				// Check initializeComand
+				assert.ok(res.stderr.includes('Running the initializeCommand from devcontainer.json...'));
+				// Check postCreateCommand
+				assert.ok(res.stderr.includes('Running the postCreateCommand from devcontainer.json...'));
+				// Check flags in 'docker run'
+				assert.ok(dockerRunLine.includes('--security-opt seccomp=unconfined'));
+				assert.ok(dockerRunLine.includes('--cap-add SYS_ADMIN'));
+				assert.ok(dockerRunLine.includes('--userns host'));
+
+				// Clean up the container
+				await shellExec(`docker rm -f ${containerId}`);
+				containerId = undefined;
+			}
+
+			// Now apply the policy file and ensure the constraints are followed
+			{
+				const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --experimental-policy-file ${policyFile}`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				containerId = response.containerId;
+				assert.ok(containerId, 'Container id not found.');
+
+				const dockerRunLine = res.stderr.split('\n').find(line => line.includes('docker run'));
+				console.log(dockerRunLine);
+				assert.ok(dockerRunLine, 'Docker run command not found.');
+
+				// Check initializeComand
+				assert.ok(!res.stderr.includes('Running the initializeCommand from devcontainer.json...')); // Should be filtered from user devcontainer.json
+				// Check postCreateCommand
+				assert.ok(res.stderr.includes('Running the postCreateCommand from devcontainer.json...')); // No restriction
+				// Check flags in 'docker run'
+				assert.ok(!dockerRunLine.includes('--security-opt seccomp=unconfined')); // Should be filtered from inherited Feature (from img metadata)
+				assert.ok(dockerRunLine.includes('--cap-add SYS_ADMIN')); // No restriction
+				assert.ok(!dockerRunLine.includes('--userns host')); // Should be filtered from runArgs
+
+				await shellExec(`docker rm -f ${containerId}`);
+				containerId = undefined;
+			}
+		});
+
+		it('deny policy', async function () {
+			const testFolder = `${__dirname}/configs/policy-single-container`;
+			const policyFile = `${testFolder}/policyDeny.json`;
+
+			const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --experimental-policy-file ${policyFile}`, undefined, undefined, true);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+			assert.strictEqual(response.message, 'Policy violation: Property \'initializeCommand\' with value \'echo \'initializing\'\' is not permitted.');
 		});
 	});
 
