@@ -22,12 +22,13 @@ describe('Outdated', function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
-	it('json output', async () => {
+	it('json output: only-features', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-features --output-format json`);
 		const response = JSON.parse(res.stdout);
 
+		assert.equal(response['images'], undefined);
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
 		assert.ok(git);
 		assert.strictEqual(git.current, '1.0.4');
@@ -58,7 +59,15 @@ describe('Outdated', function () {
 		assert.strictEqual(foo.wantedMajor, '0');
 		assert.strictEqual(foo.latest, '2.11.1');
 		assert.strictEqual(foo.latestMajor, '2');
+	});
 
+	it('json output: only-images', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
+
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
+		const response = JSON.parse(res.stdout);
+
+		assert.equal(response['features'], undefined);
 		const baseImage = response.images['mcr.microsoft.com/devcontainers/base:0-ubuntu-20.04'];
 		assert.ok(baseImage);
 		assert.ok(baseImage.path.includes('.devcontainer.json'));
@@ -102,10 +111,19 @@ describe('Outdated', function () {
 		assert.ok(response.includes('0-ubuntu-20.04'), 'Image version is missing');
 	});
 
+	it('both --only-images --only-features', async () => {
+		try {
+			const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-features');
+			await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-features --only-images --output-format json`);
+		} catch (error) {
+			assert.ok(error.stdout.includes('Only one of --only-features or --only-images can be specified'));
+		}
+	});
+
 	it('dockerfile', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-features');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 		assert.equal(Object.keys(response.images).length, 0);
 	});
@@ -113,9 +131,10 @@ describe('Outdated', function () {
 	it('dockerfile-with-variant-multi-stage', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/dockerfile-with-target');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 
+		assert.equal(response['features'], undefined);
 		const typeScript = response.images['mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}'];
 		assert.ok(typeScript.path.includes('Dockerfile'));
 		assert.ok(typeScript);
@@ -142,9 +161,10 @@ describe('Outdated', function () {
 	it('dockercompose-image', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/compose-image-with-features');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder}  --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 
+		assert.equal(response['features'], undefined);
 		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster'];
 		assert.ok(javascript);
 		assert.ok(javascript.path.includes('docker-compose.yml'));
@@ -160,9 +180,10 @@ describe('Outdated', function () {
 	it('dockercompose-dockerfile', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/compose-Dockerfile-with-features');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 
+		assert.equal(response['features'], undefined);
 		const javascript = response.images['mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}'];
 		assert.ok(javascript);
 		assert.ok(javascript.path.includes('Dockerfile'));
@@ -178,9 +199,10 @@ describe('Outdated', function () {
 	it('major-version-no-variant', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/image-with-features');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 
+		assert.equal(response['features'], undefined);
 		const base = response.images['mcr.microsoft.com/vscode/devcontainers/base:0'];
 		assert.ok(base);
 		assert.ok(base.path.includes('.devcontainer.json'));

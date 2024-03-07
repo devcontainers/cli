@@ -67,7 +67,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
-	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
+	y.command('outdated', 'Show current and available versions for Features and images', outdatedOptions, outdatedHandler);
 	y.command('upgrade', 'Upgrade lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
 		y.command('test [target]', 'Test Features', featuresTestOptions, featuresTestHandler);
