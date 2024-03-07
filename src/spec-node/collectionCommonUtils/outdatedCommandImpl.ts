@@ -27,6 +27,36 @@ import { extractDockerfile, findImage } from '../dockerfileUtils';
 import { ContainerFeatureInternalParams, userFeaturesToArray, getFeatureIdType, DEVCONTAINER_FEATURE_FILE_NAME, Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
 
+export interface OutdatedFeatures {
+	'features': {
+		[key: string]: {
+			'current': string;
+			'wanted': string;
+			'latest': string;
+		};
+	};
+}
+
+export interface OutdatedImages {
+	'images': {
+		[key: string]: {
+			'name': string;
+			'version': string;
+			'wantedVersion': string;
+			'current': string;
+			'wanted': string;
+			'currentImageValue': string;
+			'newImageValue': string;
+			'path': string;
+		};
+	};
+}
+
+export interface OutdatedResult {
+	'features': OutdatedFeatures;
+	'images': OutdatedImages;
+}
+
 export async function outdated({
 	// 'user-data-folder': persistedFolder,
 	'workspace-folder': workspaceFolderArg,
@@ -40,7 +70,7 @@ export async function outdated({
 	'terminal-columns': terminalColumns,
 }: OutdatedArgs) {		
 	if (onlyImages && onlyFeatures) {
-		throw new ContainerError({ description: `Cannot specify both --only-features and --only-images.` });
+		throw new ContainerError({ description: `Cannot specify both --only-features and --only-images. new` });
 	}
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -69,8 +99,8 @@ export async function outdated({
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
 
-		let outdatedFeatures: { features: { [key: string]: any } };
-		let outdatedImages: { images: { [key: string]: any } };
+		let outdatedFeatures: OutdatedFeatures;
+		let outdatedImages: OutdatedImages;
 
 		if (onlyFeatures || !(onlyImages || onlyFeatures)) {
 			const cacheFolder = await getCacheFolder(cliHost);

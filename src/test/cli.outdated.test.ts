@@ -161,7 +161,7 @@ describe('Outdated', function () {
 	it('dockercompose-image', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/compose-image-with-features');
 
-		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder}  --only-images --output-format json`);
+		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --only-images --output-format json`);
 		const response = JSON.parse(res.stdout);
 
 		assert.equal(response['features'], undefined);
