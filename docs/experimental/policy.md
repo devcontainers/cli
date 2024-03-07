@@ -31,10 +31,16 @@ devcontainer up \
 		}
 	},
 	// Fail to build any configurations with the 'userns' flag set (or inherited through metadata, etc...)
+	// This would need to be set through `runArgs` since there's no dev container property for this
 	{
 		"selector": "userns",
 		"value": "host",
 		"action": "deny" 
+	},
+	// Fail to build any configurations that have an 'initializeCommand'
+	{
+		"selector": "initializeCommand",
+		"action": "deny"
 	}
 ]
 ```

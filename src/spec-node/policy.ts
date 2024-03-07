@@ -62,7 +62,8 @@ export function applyConstraintsToMetadataEntries(params: { output: Log }, metad
 	if (!constraints) {
 		return metadata;
 	}
-	return metadata.map(entry => apply<ImageMetadataEntry>(params, entry, constraints));
+	const copy = metadata.slice();
+	return copy.map(entry => apply<ImageMetadataEntry>(params, entry, constraints));
 }
 
 export function applyConstraintsToSingleContainerConfig(params: { output: Log }, config: DevContainerFromImageConfig | DevContainerFromDockerfileConfig, constraints: PolicyConstraints | undefined) {
