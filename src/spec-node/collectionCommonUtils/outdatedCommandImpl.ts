@@ -23,7 +23,7 @@ import { CommonParams, ManifestContainer, getRef, getVersionsStrictSorted } from
 import { DockerCLIParameters } from '../../spec-shutdown/dockerUtils';
 import { request } from '../../spec-utils/httpRequest';
 import { readDockerComposeConfig, getBuildInfoForService } from '../dockerCompose';
-import { extractDockerfile, findImage } from '../dockerfileUtils';
+import { extractDockerfile, findBaseImages } from '../dockerfileUtils';
 import { ContainerFeatureInternalParams, userFeaturesToArray, getFeatureIdType, DEVCONTAINER_FEATURE_FILE_NAME, Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
 
@@ -70,7 +70,7 @@ export async function outdated({
 	'terminal-columns': terminalColumns,
 }: OutdatedArgs) {		
 	if (onlyImages && onlyFeatures) {
-		throw new ContainerError({ description: `Cannot specify both --only-features and --only-images. new` });
+		throw new ContainerError({ description: `Cannot specify both --only-features and --only-images.` });
 	}
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -324,19 +324,14 @@ async function loadImageVersionInfo(params: CommonParams, config: DevContainerCo
 		const dockerfile = extractDockerfile(dockerfileText);
 
 		const resolvedImageInfo: Record<string, any> = {};
-		for (let i = 0; i < dockerfile.stages.length; i++) {
-			const stage = dockerfile.stages[i];
-			const currentImage = stage.from.image;
-			const previousStage = (i !== 0) ? dockerfile.stages[i - 1] : undefined;
-			const image = findImage(currentImage, dockerfile, config.build.args || {}, previousStage);
-			if (image === undefined) {
-				continue;
-			}
+		const images = findBaseImages(dockerfile, config.build.args || {});
+		for (const currentImage in images) {
+			if (images.hasOwnProperty(currentImage)) {
+				let imageInfo = await findImageVersionInfo(params, images[currentImage], dockerfilePath, currentImage);
 
-			let imageInfo = await findImageVersionInfo(params, image, dockerfilePath, currentImage);
-
-			if (imageInfo !== undefined) {
-				resolvedImageInfo[currentImage] = imageInfo;
+				if (imageInfo !== undefined) {
+					resolvedImageInfo[currentImage] = imageInfo;
+				}
 			}
 		}
 
@@ -380,19 +375,14 @@ async function loadImageVersionInfo(params: CommonParams, config: DevContainerCo
 					const dockerfileText = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 					const dockerfile = extractDockerfile(dockerfileText);
 
-					for (let i = 0; i < dockerfile.stages.length; i++) {
-						const stage = dockerfile.stages[i];
-						const currentImage = stage.from.image;
-						const previousStage = (i !== 0) ? dockerfile.stages[i - 1] : undefined;
-						const image = findImage(currentImage, dockerfile, composeService.build?.args, previousStage);
-						if (image === undefined) {
-							continue;
-						}
+					const images = findBaseImages(dockerfile, composeService.build?.args || {});
+					for (const currentImage in images) {
+						if (images.hasOwnProperty(currentImage)) {
+							let imageInfo = await findImageVersionInfo(params, images[currentImage], resolvedDockerfilePath, currentImage);
 
-						let imageInfo = await findImageVersionInfo(params, image, resolvedDockerfilePath, currentImage);
-
-						if (imageInfo !== undefined) {
-							resolvedImageInfo[currentImage] = imageInfo;
+							if (imageInfo !== undefined) {
+								resolvedImageInfo[currentImage] = imageInfo;
+							}
 						}
 					}
 				}

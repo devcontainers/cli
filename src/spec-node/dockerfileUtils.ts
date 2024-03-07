@@ -119,53 +119,18 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 	return undefined;
 }
 
-export function findImage(image: string, dockerfile: Dockerfile, buildArgs: Record<string, string>, previousStage: Stage | undefined) {
-	const resolvedImage = replaceVariablesInImage(dockerfile, buildArgs, image, previousStage);
-	return resolvedImage;
-}
-
-function replaceVariablesInImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, str: string, previousStage: Stage | undefined) {
-	return [...str.matchAll(argumentExpression)]
-		.map(match => {
-			const variable = match.groups!.variable;
-			const isVarExp = match.groups!.isVarExp ? true : false;
-			let value = findValueInImage(dockerfile, buildArgs, variable, previousStage) || '';
-			if (isVarExp) {
-				// Handle replacing variable expressions (${var:+word}) if they exist
-				const option = match.groups!.option;
-				const word = match.groups!.word;
-				const isSet = value !== '';
-				value = getExpressionValue(option, isSet, word, value);
-			}
-
-			return {
-				begin: match.index!,
-				end: match.index! + match[0].length,
-				value,
-			};
-		}).reverse()
-		.reduce((str, { begin, end, value }) => str.substring(0, begin) + value + str.substring(end), str);
-}
-
-function findValueInImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, variable: string, previousStage: Stage | undefined) {
-	if (buildArgs !== undefined && variable in buildArgs) {
-		return buildArgs[variable];
-	}
-
-	if (previousStage !== undefined) {
-		const i = findLastIndex(previousStage.instructions, i => i.name === variable && (i.instruction === 'ENV' || i.instruction === 'ARG'));
-		if (i !== -1) {
-			return previousStage.instructions[i].value;
+export function findBaseImages(dockerfile: Dockerfile, buildArgs: Record<string, string>) {
+	const resolvedBaseImages = {} as Record<string, string>;
+	for (let i = 0; i < dockerfile.stages.length; i++) {
+		const stage = dockerfile.stages[i];
+		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const nextStage = dockerfile.stagesByLabel[image];
+		if (!nextStage) {
+			resolvedBaseImages[stage.from.image] = image;
 		}
 	}
-
-	const index = findLastIndex(dockerfile.preamble.instructions, i => i.name === variable && (i.instruction === 'ENV' || i.instruction === 'ARG'));
-	if (index !== -1) {
-		return dockerfile.preamble.instructions[index].value;
-	}
-
-	return undefined;
-}
+	return resolvedBaseImages;
+}  
 
 function extractDirectives(preambleStr: string) {
 	const map: Record<string, string> = {};
