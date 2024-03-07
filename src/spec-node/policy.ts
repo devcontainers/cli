@@ -112,10 +112,11 @@ function applyConstraintsToRunArgs(params: { output: Log }, runArgs: string[] | 
 		return runArgs;
 	}
 
+	const copy = runArgs.slice();
 	const approvedRunArgs: string[] = [];
-	while (runArgs.length) {
-		const flag = runArgs.shift()!;
-		const value = runArgs[0] && !runArgs[0].startsWith('-') ? runArgs.shift()! : undefined;
+	while (copy.length) {
+		const flag = copy.shift()!;
+		const value = copy[0] && !copy[0].startsWith('-') ? copy.shift()! : undefined;
 		const selector = flag.startsWith('--') ? flag.slice(2) : flag.slice(1);
 		const constraint = constraints.find(c => c.selector === selector);
 		if (constraint) {
@@ -137,7 +138,6 @@ function applyConstraintsToRunArgs(params: { output: Log }, runArgs: string[] | 
 		}
 	}
 
-	output.write(`Approved runArgs: ${approvedRunArgs}`, LogLevel.Trace);
 	return approvedRunArgs;
 }
 
@@ -147,7 +147,7 @@ function apply<T extends {}>(params: { output: Log }, obj: T, constraints: Polic
 		return obj;
 	}
 
-	const result = { ...obj };
+	const result = { ...obj }; // Shallow copy
 	for (const constraint of constraints) {
 		const { action, selector } = constraint;
 
