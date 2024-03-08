@@ -73,11 +73,11 @@ describe('Outdated', function () {
 		assert.ok(baseImage.path.includes('.devcontainer.json'));
 		assert.strictEqual(baseImage.name, 'mcr.microsoft.com/devcontainers/base');
 		assert.strictEqual(baseImage.current, '0-ubuntu-20.04');
-		assert.notStrictEqual(baseImage.wanted, baseImage.version);
-		assert.ok((parseInt(baseImage.wantedVersion) > parseInt(baseImage.version)), `semver.gt(${baseImage.wantedVersion}, ${baseImage.version}) is false`);
+		assert.notStrictEqual(baseImage.latest, baseImage.version);
+		assert.ok((parseInt(baseImage.latestVersion) > parseInt(baseImage.version)), `semver.gt(${baseImage.latestVersion}, ${baseImage.version}) is false`);
 		assert.strictEqual(baseImage.currentImageValue, 'mcr.microsoft.com/devcontainers/base:0-ubuntu-20.04');
 		assert.notStrictEqual(baseImage.newImageValue, baseImage.currentImageValue);
-		assert.strictEqual(baseImage.newImageValue, `mcr.microsoft.com/devcontainers/base:${baseImage.wantedVersion}-ubuntu-20.04`);
+		assert.strictEqual(baseImage.newImageValue, `mcr.microsoft.com/devcontainers/base:${baseImage.latestVersion}-ubuntu-20.04`);
 	});
 
 	it('text output', async () => {
@@ -140,22 +140,22 @@ describe('Outdated', function () {
 		assert.ok(typeScript);
 		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
 		assert.strictEqual(typeScript.current, '1.0.5-18-bookworm');
-		assert.notStrictEqual(typeScript.wanted, typeScript.version);
-		assert.ok(semver.gt(typeScript.wantedVersion, typeScript.version), `semver.gt(${typeScript.wantedVersion}, ${typeScript.version}) is false`);
+		assert.notStrictEqual(typeScript.latest, typeScript.version);
+		assert.ok(semver.gt(typeScript.latestVersion, typeScript.version), `semver.gt(${typeScript.latestVersion}, ${typeScript.version}) is false`);
 		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}');
 		assert.notStrictEqual(typeScript.newImageValue, typeScript.currentImageValue);
-		assert.strictEqual(typeScript.newImageValue, `mcr.microsoft.com/devcontainers/typescript-node:${typeScript.wantedVersion}-\${VARIANT}`);
+		assert.strictEqual(typeScript.newImageValue, `mcr.microsoft.com/devcontainers/typescript-node:${typeScript.latestVersion}-\${VARIANT}`);
 
 		const alpine = response.images['mcr.microsoft.com/devcontainers/base:0.207.2-alpine3.18'];
 		assert.ok(alpine);
 		assert.ok(alpine.path.includes('Dockerfile'));
 		assert.strictEqual(alpine.name, 'mcr.microsoft.com/devcontainers/base');
 		assert.strictEqual(alpine.current, '0.207.2-alpine3.18');
-		assert.notStrictEqual(alpine.wanted, alpine.version);
-		assert.ok(semver.gt(alpine.wantedVersion, alpine.version), `semver.gt(${alpine.wantedVersion}, ${alpine.version}) is false`);
+		assert.notStrictEqual(alpine.latest, alpine.version);
+		assert.ok(semver.gt(alpine.latestVersion, alpine.version), `semver.gt(${alpine.latestVersion}, ${alpine.version}) is false`);
 		assert.strictEqual(alpine.currentImageValue, 'mcr.microsoft.com/devcontainers/base:0.207.2-alpine3.18');
 		assert.notStrictEqual(alpine.newImageValue, alpine.currentImageValue);
-		assert.strictEqual(alpine.newImageValue, `mcr.microsoft.com/devcontainers/base:${alpine.wantedVersion}-alpine3.18`);
+		assert.strictEqual(alpine.newImageValue, `mcr.microsoft.com/devcontainers/base:${alpine.latestVersion}-alpine3.18`);
 	});
 
 	it('dockercompose-image', async () => {
@@ -170,11 +170,11 @@ describe('Outdated', function () {
 		assert.ok(javascript.path.includes('docker-compose.yml'));
 		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
 		assert.strictEqual(javascript.current, '0.204-18-buster');
-		assert.notStrictEqual(javascript.wanted, javascript.version);
-		assert.ok((parseFloat(javascript.wantedVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.wantedVersion}, ${javascript.version}) is false`);
+		assert.notStrictEqual(javascript.latest, javascript.version);
+		assert.ok((parseFloat(javascript.latestVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.latestVersion}, ${javascript.version}) is false`);
 		assert.strictEqual(javascript.currentImageValue, 'mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster');
 		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
-		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-18-buster`);
+		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.latestVersion}-18-buster`);
 	});
 
 	it('dockercompose-dockerfile', async () => {
@@ -189,11 +189,11 @@ describe('Outdated', function () {
 		assert.ok(javascript.path.includes('Dockerfile'));
 		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
 		assert.strictEqual(javascript.current, '0-16-bullseye');
-		assert.notStrictEqual(javascript.wanted, javascript.version);
-		assert.ok((parseFloat(javascript.wantedVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.wantedVersion}, ${javascript.version}) is false`);
+		assert.notStrictEqual(javascript.latest, javascript.version);
+		assert.ok((parseFloat(javascript.latestVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.latestVersion}, ${javascript.version}) is false`);
 		assert.strictEqual(javascript.currentImageValue, 'mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}');
 		assert.notStrictEqual(javascript.newImageValue, javascript.currentImageValue);
-		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.wantedVersion}-\${VARIANT}`);
+		assert.strictEqual(javascript.newImageValue, `mcr.microsoft.com/devcontainers/javascript-node:${javascript.latestVersion}-\${VARIANT}`);
 	});
 
 	it('major-version-no-variant', async () => {
@@ -208,10 +208,10 @@ describe('Outdated', function () {
 		assert.ok(base.path.includes('.devcontainer.json'));
 		assert.strictEqual(base.name, 'mcr.microsoft.com/vscode/devcontainers/base');
 		assert.strictEqual(base.current, '0');
-		assert.notStrictEqual(base.wanted, base.version);
-		assert.ok((parseFloat(base.wantedVersion) > parseFloat(base.version)), `semver.gt(${base.wantedVersion}, ${base.version}) is false`);
+		assert.notStrictEqual(base.latest, base.version);
+		assert.ok((parseFloat(base.latestVersion) > parseFloat(base.version)), `semver.gt(${base.latestVersion}, ${base.version}) is false`);
 		assert.strictEqual(base.currentImageValue, 'mcr.microsoft.com/vscode/devcontainers/base:0');
 		assert.notStrictEqual(base.newImageValue, base.currentImageValue);
-		assert.strictEqual(base.newImageValue, `mcr.microsoft.com/vscode/devcontainers/base:${base.wantedVersion}`);
+		assert.strictEqual(base.newImageValue, `mcr.microsoft.com/vscode/devcontainers/base:${base.latestVersion}`);
 	});
 });

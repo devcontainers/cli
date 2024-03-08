@@ -16,13 +16,13 @@ import { fetchOCIFeature, getFeatureIdWithoutVersion, tryGetOCIFeatureSet } from
 import { getPackageConfig } from '../../spec-utils/product';
 import { workspaceFromPath } from '../../spec-utils/workspaces';
 import { readDevContainerConfigFile } from '../configContainer';
-import { createLog, createDockerParams } from '../devContainers';
-import { uriToFsPath, getCacheFolder, DockerResolverParameters, getDockerfilePath } from '../utils';
+import { createLog } from '../devContainers';
+import { uriToFsPath, getCacheFolder, getDockerfilePath } from '../utils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../../spec-configuration/configuration';
-import { CommonParams, ManifestContainer, getRef, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
+import { CommonParams, ManifestContainer, getRef, getVersionsStrictSorted, mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../../spec-configuration/containerCollectionsOCI';
 import { DockerCLIParameters } from '../../spec-shutdown/dockerUtils';
 import { request } from '../../spec-utils/httpRequest';
-import { readDockerComposeConfig, getBuildInfoForService } from '../dockerCompose';
+import { readDockerComposeConfig, getBuildInfoForService, dockerComposeCLIConfig } from '../dockerCompose';
 import { extractDockerfile, findBaseImages } from '../dockerfileUtils';
 import { ContainerFeatureInternalParams, userFeaturesToArray, getFeatureIdType, DEVCONTAINER_FEATURE_FILE_NAME, Feature } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
@@ -33,6 +33,8 @@ export interface OutdatedFeatures {
 			'current': string;
 			'wanted': string;
 			'latest': string;
+			'wantedMajor': string;
+			'latestMajor': string;
 		};
 	};
 }
@@ -42,9 +44,9 @@ export interface OutdatedImages {
 		[key: string]: {
 			'name': string;
 			'version': string;
-			'wantedVersion': string;
+			'latestVersion': string;
 			'current': string;
-			'wanted': string;
+			'latest': string;
 			'currentImageValue': string;
 			'newImageValue': string;
 			'path': string;
@@ -118,45 +120,23 @@ export async function outdated({
 
 		if (onlyImages || !(onlyImages || onlyFeatures)) {
 			const outputParams = { output, env: process.env };
-			const dockerParams = await createDockerParams({
-				containerDataFolder: undefined,
-				containerSystemDataFolder: undefined,
-				workspaceFolder,
-				mountWorkspaceGitRoot: false,
-				configFile,
-				logLevel: mapLogLevel(logLevel),
-				logFormat,
-				log: text => process.stderr.write(text),
-				terminalDimensions: /* terminalColumns && terminalRows ? { columns: terminalColumns, rows: terminalRows } : */ undefined, // TODO
-				defaultUserEnvProbe: 'loginInteractiveShell',
-				removeExistingContainer: false,
-				buildNoCache: false,
-				expectExistingContainer: false,
-				postCreateEnabled: false,
-				skipNonBlocking: false,
-				prebuild: false,
-				persistedFolder: undefined,
-				additionalMounts: [],
-				updateRemoteUserUIDDefault: 'never',
-				additionalCacheFroms: [],
-				useBuildKit: 'never',
-				buildxPlatform: undefined,
-				buildxPush: false,
-				buildxOutput: undefined,
-				buildxCacheTo: undefined,
-				skipFeatureAutoMapping: false,
-				skipPostAttach: false,
-				skipPersistingCustomizationsFromFeatures: false,
-				dotfiles: {
-					repository: undefined,
-					installCommand: undefined,
-					targetPath: undefined
-				},
-				dockerPath: undefined,
-				dockerComposePath: undefined,
-				overrideConfigFile: undefined,
-				remoteEnv: {}
-			}, disposables);
+			const dockerCLI = 'docker';
+			const dockerComposeCLI = dockerComposeCLIConfig({
+				exec: cliHost.exec,
+				env: cliHost.env,
+				output,
+			}, dockerCLI, 'docker-compose');
+			const dockerParams: DockerCLIParameters = {
+				cliHost,
+				dockerCLI,
+				dockerComposeCLI,
+				env: cliHost.env,
+				output,
+				platformInfo: {
+					os: mapNodeOSToGOOS(cliHost.platform),
+					arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+				}
+			};
 
 			outdatedImages = await loadImageVersionInfo(outputParams, configs.config.config, cliHost, dockerParams);
 		}
@@ -183,7 +163,7 @@ export async function outdated({
 				if (onlyImages || !(onlyImages || onlyFeatures)) {
 					const imageRows = Object.keys(outdatedImages.images).map(key => {
 						const value = outdatedImages.images[key];
-						return [value.name, value.current, value.wanted]
+						return [value.name, value.current, value.latest]
 							.map(v => v === undefined ? '-' : v);
 					});
 
@@ -251,23 +231,20 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 		const options = { type: 'GET', url, headers: {} };
 		const data = JSON.parse((await request(options, output)).toString());
 
-		const latestVersion: string = data.tags
+		const latestSemVersion: string = data.tags
 			.filter((v: string) => v.endsWith(tagSuffix) && semver.valid(v.split('-')[0]))
 			.map((v: string) => v.split('-')[0])
 			.sort(semver.compare)
 			.pop();
 
-		if (latestVersion) {
-			if (semver.valid(version) && semver.valid(latestVersion) && semver.gt(version, latestVersion)) {
-				output.write(`Image '${imageName}' is at a higher version than the latest version '${latestVersion}'`, LogLevel.Trace);
-				return undefined;
-			} else if (parseFloat(version) > parseFloat(latestVersion)) {
-				output.write(`Image '${imageName}' is at a higher version than the latest version '${latestVersion}'`, LogLevel.Trace);
+		if (latestSemVersion) {
+			if ((semver.valid(version) && semver.valid(latestSemVersion) && semver.gt(version, latestSemVersion)) || (parseFloat(version) > parseFloat(latestSemVersion))) {
+				output.write(`Image '${imageName}' is at a higher version than the latest version '${latestSemVersion}'`, LogLevel.Trace);
 				return undefined;
 			}
 
-			const wantedVersion = latestVersion.split('.').slice(0, version.split('.').length).join('.');
-			const wantedTag = tagSuffix ? `${wantedVersion}-${tagSuffix}` : wantedVersion;
+			const latestVersion = latestSemVersion.split('.').slice(0, version.split('.').length).join('.');
+			const wantedTag = tagSuffix ? `${latestVersion}-${tagSuffix}` : latestVersion;
 
 			if (wantedTag === tag) {
 				output.write(`Image '${imageName}' is already at the latest version '${tag}'`, LogLevel.Trace);
@@ -280,15 +257,15 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 			const currentImageTag = currentImageValue.split(':')[1];
 			if (currentImageTag !== tag) {
 				const currentTagSuffix = currentImageTag.split('-').slice(1).join('-');
-				newImageValue = `${imageName}:${wantedVersion}-${currentTagSuffix}`;
+				newImageValue = `${imageName}:${latestVersion}-${currentTagSuffix}`;
 			}
 
 			return {
 				name: imageName,
 				version,
-				wantedVersion,
+				latestVersion,
 				current: tag,
-				wanted: wantedTag,
+				latest: wantedTag,
 				currentImageValue,
 				newImageValue,
 				path,
@@ -303,7 +280,7 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 	return undefined;
 }
 
-async function loadImageVersionInfo(params: CommonParams, config: DevContainerConfig, cliHost: CLIHost, dockerParams: DockerResolverParameters) {
+async function loadImageVersionInfo(params: CommonParams, config: DevContainerConfig, cliHost: CLIHost, dockerParams: DockerCLIParameters) {
 	if ('image' in config && config.image !== undefined) {
 		const imageInfo = await findImageVersionInfo(params, config.image, config.configFilePath?.path || '', config.image);
 		if (imageInfo !== undefined && imageInfo.name !== undefined) {
@@ -326,12 +303,10 @@ async function loadImageVersionInfo(params: CommonParams, config: DevContainerCo
 		const resolvedImageInfo: Record<string, any> = {};
 		const images = findBaseImages(dockerfile, config.build.args || {});
 		for (const currentImage in images) {
-			if (images.hasOwnProperty(currentImage)) {
-				let imageInfo = await findImageVersionInfo(params, images[currentImage], dockerfilePath, currentImage);
+			let imageInfo = await findImageVersionInfo(params, images[currentImage], dockerfilePath, currentImage);
 
-				if (imageInfo !== undefined) {
-					resolvedImageInfo[currentImage] = imageInfo;
-				}
+			if (imageInfo !== undefined) {
+				resolvedImageInfo[currentImage] = imageInfo;
 			}
 		}
 
@@ -377,12 +352,10 @@ async function loadImageVersionInfo(params: CommonParams, config: DevContainerCo
 
 					const images = findBaseImages(dockerfile, composeService.build?.args || {});
 					for (const currentImage in images) {
-						if (images.hasOwnProperty(currentImage)) {
-							let imageInfo = await findImageVersionInfo(params, images[currentImage], resolvedDockerfilePath, currentImage);
+						let imageInfo = await findImageVersionInfo(params, images[currentImage], resolvedDockerfilePath, currentImage);
 
-							if (imageInfo !== undefined) {
-								resolvedImageInfo[currentImage] = imageInfo;
-							}
+						if (imageInfo !== undefined) {
+							resolvedImageInfo[currentImage] = imageInfo;
 						}
 					}
 				}
