@@ -70,7 +70,7 @@ export interface ProvisionOptions {
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
-	policyConstraintsP?: Promise<PolicyConstraints | undefined>;
+	policyConstraints?: PolicyConstraints;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -227,7 +227,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
 		platformInfo,
-		policyConstraintsP: options.policyConstraintsP,
+		policyConstraints: options.policyConstraints,
 	};
 }
 

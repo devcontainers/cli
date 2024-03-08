@@ -216,7 +216,7 @@ async function provision({
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 	const secretsP = readSecretsFromFile({ secretsFile, cliHost });
-	const policyConstraintsP = readPolicyConstraintsFromFile({ policyFile, cliHost });
+	const policyConstraints = await readPolicyConstraintsFromFile({ policyFile, cliHost });
 
 	const options: ProvisionOptions = {
 		dockerPath,
@@ -272,7 +272,7 @@ async function provision({
 		experimentalLockfile,
 		experimentalFrozenLockfile,
 		omitSyntaxDirective: omitSyntaxDirective,
-		policyConstraintsP,
+		policyConstraints,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -450,8 +450,8 @@ async function doSetUp({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
-		const mergedConfig = mergeConfiguration(config.config, imageMetadata);  // TODO: Handle policy constraints here
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output, undefined).config;
+		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
@@ -656,7 +656,7 @@ async function doBuild({
 
 			const versionPrefix = await readVersionPrefix(cliHost, composeFiles);
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, false, addCacheFroms);
+			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, undefined, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, false, addCacheFroms);
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -863,7 +863,7 @@ async function doRunUserCommands({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -882,7 +882,7 @@ async function doRunUserCommands({
 		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
 
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output, undefined).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);
@@ -931,6 +931,7 @@ function readConfigurationOptions(y: Argv) {
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'experimental-policy-file': { type: 'string', hidden: true, description: 'Path to a policy file (NOTE: Functionality is experimental and likely to change)' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -968,6 +969,7 @@ async function readConfiguration({
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'experimental-policy-file': policyFile,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -992,11 +994,12 @@ async function readConfiguration({
 		}, pkg, sessionStart, disposables);
 
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
+		const policyConstraints = await readPolicyConstraintsFromFile({ policyFile, cliHost });
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, output, policyConstraints, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1037,14 +1040,14 @@ async function readConfiguration({
 		if (includeMergedConfig) {
 			let imageMetadata: ImageMetadataEntry[];
 			if (container) {
-				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, output).config;
+				imageMetadata = getImageMetadataFromContainer(container, configuration, featuresConfiguration, idLabels, output, policyConstraints).config;
 				const substitute2: SubstituteConfig = config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config);
 				imageMetadata = imageMetadata.map(substitute2);
 			} else {
-				const imageBuildInfo = await getImageBuildInfo(params, configuration);
-				imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, configuration, featuresConfiguration).config;
+				const imageBuildInfo = await getImageBuildInfo(params, configuration, policyConstraints);
+				imageMetadata = getDevcontainerMetadata({ output }, imageBuildInfo.metadata, configuration, featuresConfiguration, policyConstraints).config;
 			}
-			mergedConfig = mergeConfiguration(configuration.config, imageMetadata); // TODO: Handle policy constraints here
+			mergedConfig = mergeConfiguration(configuration.config, imageMetadata);
 		}
 		await new Promise<void>((resolve, reject) => {
 			process.stdout.write(JSON.stringify({
@@ -1117,7 +1120,7 @@ async function outdated({
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output, undefined) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1306,7 +1309,7 @@ export async function doExec({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1321,7 +1324,7 @@ export async function doExec({
 		if (!container) {
 			bailOut(common.output, 'Dev container not found.');
 		}
-		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output).config;
+		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, idLabels, output, undefined).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
 		const updatedConfig = containerSubstitute(cliHost.platform, config.config.configFilePath, containerProperties.env, mergedConfig);

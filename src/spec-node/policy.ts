@@ -5,8 +5,7 @@
 
 import * as jsonc from 'jsonc-parser';
 
-import { LifecycleCommand } from '../spec-common/injectHeadless';
-import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
+import { DevContainerConfig, } from '../spec-configuration/configuration';
 import { ImageMetadataEntry } from './imageMetadata';
 import { CLIHost } from '../spec-common/cliHost';
 import { Log, LogLevel } from '../spec-utils/log';
@@ -66,45 +65,18 @@ export function applyConstraintsToMetadataEntries(params: { output: Log }, metad
 	return copy.map(entry => apply<ImageMetadataEntry>(params, entry, constraints));
 }
 
-export function applyConstraintsToSingleContainerConfig(params: { output: Log }, config: DevContainerFromImageConfig | DevContainerFromDockerfileConfig, constraints: PolicyConstraints | undefined) {
+export function applyConstraintsToConfig(params: { output: Log }, config: DevContainerConfig, constraints: PolicyConstraints | undefined) {
 	if (!constraints) {
 		return config;
 	}
 	const configApplied = apply(params, config, constraints);
-	return {
-		...configApplied,
-		runArgs: applyConstraintsToRunArgs(params, configApplied.runArgs, constraints)
-	};
-}
-
-export function applyConstraintsToComposeConfig(params: { output: Log }, config: DevContainerFromDockerComposeConfig, constraints: PolicyConstraints | undefined) {
-	if (!constraints) {
-		return config;
-	}
-	return apply(params, config, constraints);
-}
-
-// Currently used for 'initializeCommand' only
-export function applyConstraintsToLifecycleHook(params: { output: Log }, userCommand: LifecycleCommand | undefined, constraints: PolicyConstraints | undefined) {
-	const { output } = params;
-
-	if (!userCommand || !constraints) {
-		return userCommand;
-	}
-	const constraint = constraints.find(c => c.selector === 'initializeCommand');
-	if (constraint) {
-		switch (constraint.action) {
-			case 'deny':
-				throwPolicyError('initializeCommand', userCommand);
-			case 'filter':
-				return undefined;
-			default:
-				output.write(`Unrecognized action for policy constraint: ${constraint.action}`, LogLevel.Warning);
-		}
+	if ('runArgs' in configApplied) {
+		configApplied.runArgs = applyConstraintsToRunArgs(params, configApplied.runArgs, constraints);
 	}
 
-	return userCommand;
+	return configApplied;
 }
+
 
 function applyConstraintsToRunArgs(params: { output: Log }, runArgs: string[] | undefined, constraints: PolicyConstraints | undefined) {
 	const { output } = params;

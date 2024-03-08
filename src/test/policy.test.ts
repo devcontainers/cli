@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { PolicyConstraints, applyConstraintsToComposeConfig, applyConstraintsToMetadataEntries, applyConstraintsToSingleContainerConfig } from '../spec-node/policy';
+import { PolicyConstraints, applyConstraintsToConfig, applyConstraintsToMetadataEntries } from '../spec-node/policy';
 import { ImageMetadataEntry } from '../spec-node/imageMetadata';
 import { nullLog } from '../spec-utils/log';
 import { DevContainerFromDockerComposeConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
@@ -97,7 +97,7 @@ describe('Policy Constraints', function () {
 			const res = await shellExec(`${cli} up --workspace-folder ${testFolder} --experimental-policy-file ${policyFile}`, undefined, undefined, true);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'error');
-			assert.strictEqual(response.message, 'Policy violation: Property \'initializeCommand\' with value \'echo \'initializing\'\' is not permitted.');
+			assert.strictEqual(response.message, 'Policy violation: Property \'initializeCommand\' is not permitted.');
 		});
 	});
 
@@ -259,7 +259,7 @@ describe('Policy Constraints', function () {
 				},
 			];
 
-			const result = applyConstraintsToSingleContainerConfig({ output: nullLog }, singleContainerConfig1, policy);
+			const result = applyConstraintsToConfig({ output: nullLog }, singleContainerConfig1, policy);
 			const expected: DevContainerFromImageConfig = {
 				image: 'mcr.microsoft.com/devcontainers/universal',
 				runArgs: ['--foo', '--cap-add', 'SYS_ADMIN'],
@@ -299,7 +299,7 @@ describe('Policy Constraints', function () {
 				},
 			];
 
-			assert.throws(() => applyConstraintsToSingleContainerConfig({ output: nullLog }, singleContainerConfig1, policy));
+			assert.throws(() => applyConstraintsToConfig({ output: nullLog }, singleContainerConfig1, policy));
 		});
 
 		it('correctly filters a compose config', async function () {
@@ -318,7 +318,7 @@ describe('Policy Constraints', function () {
 				},
 			];
 
-			const result = applyConstraintsToComposeConfig({ output: nullLog }, composeConfig1, policy);
+			const result = applyConstraintsToConfig({ output: nullLog }, composeConfig1, policy);
 			const expected: DevContainerFromDockerComposeConfig = {
 				dockerComposeFile: 'docker-compose.yml',
 				service: 'service1',
@@ -371,7 +371,7 @@ describe('Policy Constraints', function () {
 				},
 			];
 
-			assert.throws(() => applyConstraintsToComposeConfig({ output: nullLog }, composeConfig1, policy));
+			assert.throws(() => applyConstraintsToConfig({ output: nullLog }, composeConfig1, policy));
 		});
 	});
 });

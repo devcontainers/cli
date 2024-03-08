@@ -13,19 +13,13 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
-import { applyConstraintsToMetadataEntries, applyConstraintsToSingleContainerConfig } from './policy';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
 
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common, policyConstraintsP } = params;
-	const policyConstraints = await policyConstraintsP;
-	const config = applyConstraintsToSingleContainerConfig(
-		common,
-		configWithRaw.config,
-		policyConstraints,
-	);
+	const { common, policyConstraints } = params;
+	const { config } = configWithRaw;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
 
 	let container: ContainerDetails | undefined;
@@ -45,19 +39,11 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			imageMetadata = applyConstraintsToMetadataEntries(
-				common,
-				getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config,
-				policyConstraints,
-			);
+			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output, policyConstraints).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
-			imageMetadata = applyConstraintsToMetadataEntries(
-				common,
-				res.imageMetadata.config,
-				policyConstraints,
-			);
+			imageMetadata = res.imageMetadata.config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 			const { containerUser } = mergedConfig;
 			const updatedImageName = await updateRemoteUserUID(params, mergedConfig, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
@@ -144,6 +130,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 }
 
 async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+	const { policyConstraints } = buildParams;
 	const { cliHost, output } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -168,7 +155,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, policyConstraints, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
 	let finalDockerfilePath = dockerfilePath;
@@ -283,7 +270,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	return {
 		updatedImageName: baseImageNames,
-		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
+		imageMetadata: getDevcontainerMetadata(buildParams.common, imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig, policyConstraints),
 		imageDetails
 	};
 }

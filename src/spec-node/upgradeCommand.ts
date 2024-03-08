@@ -19,6 +19,7 @@ import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { PolicyConstraints } from './policy';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -101,7 +102,7 @@ async function featuresUpgrade({
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		let config = await getConfig(configPath, cliHost, workspace, output, configFile);
+		let config = await getConfig(configPath, cliHost, workspace, output, configFile, undefined);
 		const cacheFolder = await getCacheFolder(cliHost);
 		const params = {
 			extensionPath,
@@ -118,7 +119,7 @@ async function featuresUpgrade({
 			// Update Feature version tag in devcontainer.json
 			await updateFeatureVersionInConfig(params, config, config.configFilePath!.fsPath, feature, targetVersion);
 			// Re-read config for subsequent lockfile generation
-			config = await getConfig(configPath, cliHost, workspace, output, configFile);
+			config = await getConfig(configPath, cliHost, workspace, output, configFile, undefined);
 		}
 
 		const featuresConfig = await readFeaturesConfig(dockerParams, pkg, config, extensionPath, false, {});
@@ -192,8 +193,8 @@ function upgradeFeatureKeyInConfig(configText: string, current: string, updated:
 	return configText.replace(featureIdRegex, updated);
 }
 
-async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {
-	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined, policy: PolicyConstraints | undefined): Promise<DevContainerConfig> {
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output, policy) || undefined;
 	if (!configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 	}
