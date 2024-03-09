@@ -255,17 +255,19 @@ async function findImageVersionInfo(params: CommonParams, image: string, path: s
 
 			// Useful when image tag is set with build args (eg. VARIANT)
 			const currentImageTag = currentImageValue.split(':')[1];
+			let latestTag = wantedTag;
 			if (currentImageTag !== tag) {
 				const currentTagSuffix = currentImageTag.split('-').slice(1).join('-');
-				newImageValue = `${imageName}:${latestVersion}-${currentTagSuffix}`;
+				latestTag = `${latestVersion}-${currentTagSuffix}`;
+				newImageValue = `${imageName}:${latestTag}`;
 			}
 
 			return {
 				name: imageName,
 				version,
 				latestVersion,
-				current: tag,
-				latest: wantedTag,
+				current: currentImageTag,
+				latest: latestTag,
 				currentImageValue,
 				newImageValue,
 				path,

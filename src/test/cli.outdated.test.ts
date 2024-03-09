@@ -139,7 +139,7 @@ describe('Outdated', function () {
 		assert.ok(typeScript.path.includes('Dockerfile'));
 		assert.ok(typeScript);
 		assert.strictEqual(typeScript.name, 'mcr.microsoft.com/devcontainers/typescript-node');
-		assert.strictEqual(typeScript.current, '1.0.5-18-bookworm');
+		assert.strictEqual(typeScript.current, '1.0.5-${VARIANT}');
 		assert.notStrictEqual(typeScript.latest, typeScript.version);
 		assert.ok(semver.gt(typeScript.latestVersion, typeScript.version), `semver.gt(${typeScript.latestVersion}, ${typeScript.version}) is false`);
 		assert.strictEqual(typeScript.currentImageValue, 'mcr.microsoft.com/devcontainers/typescript-node:1.0.5-${VARIANT}');
@@ -188,7 +188,7 @@ describe('Outdated', function () {
 		assert.ok(javascript);
 		assert.ok(javascript.path.includes('Dockerfile'));
 		assert.strictEqual(javascript.name, 'mcr.microsoft.com/devcontainers/javascript-node');
-		assert.strictEqual(javascript.current, '0-16-bullseye');
+		assert.strictEqual(javascript.current, '0-${VARIANT}');
 		assert.notStrictEqual(javascript.latest, javascript.version);
 		assert.ok((parseFloat(javascript.latestVersion) > parseFloat(javascript.version)), `semver.gt(${javascript.latestVersion}, ${javascript.version}) is false`);
 		assert.strictEqual(javascript.currentImageValue, 'mcr.microsoft.com/devcontainers/javascript-node:0-${VARIANT}');
