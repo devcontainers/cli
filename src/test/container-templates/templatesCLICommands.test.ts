@@ -8,6 +8,7 @@ import { Template } from '../../spec-configuration/containerTemplatesConfigurati
 import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
+import { generateTemplatesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
 
 export const output = makeLog(createPlainLog(text => process.stderr.write(text), () => LogLevel.Trace));
 
@@ -168,5 +169,31 @@ describe('tests packageTemplates()', async function () {
 		assert.isNotEmpty(alpineProperties);
 		assert.equal(alpineProperties?.type, 'image');
 		assert.equal(alpineProperties?.fileCount, 2);
+	});
+});
+
+describe('tests generateTemplateDocumentation()', async function () {
+	this.timeout('120s');
+
+	const projectFolder = `${__dirname}/example-templates-sets/simple/src`;
+
+	after('clean', async () => {
+		await shellExec(`rm ${projectFolder}/**/README.md`);
+	});
+
+	it('tests generate-docs', async function () {
+		await generateTemplatesDocumentation(projectFolder, 'devcontainers', 'cli', output);
+
+		const alpineDocsExists = await isLocalFile(`${projectFolder}/alpine/README.md`);
+		assert.isTrue(alpineDocsExists);
+
+		const cppDocsExists = await isLocalFile(`${projectFolder}/cpp/README.md`);
+		assert.isTrue(cppDocsExists);
+
+		const nodeMongoDocsExists = await isLocalFile(`${projectFolder}/node-mongo/README.md`);
+		assert.isTrue(nodeMongoDocsExists);
+
+		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-template/README.md`);
+		assert.isFalse(invalidDocsExists);
 	});
 });
