@@ -289,27 +289,24 @@ function collectOrUndefined<T, K extends keyof T>(entries: T[], property: K): No
 }
 
 export function getDevcontainerMetadata(params: { output: Log }, baseImageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig | undefined, policy: PolicyConstraints | undefined, omitPropertyOverride: string[] = [], omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = []): SubstitutedConfig<ImageMetadataEntry[]> {
-	const { output } = params;
 	const effectivePickFeatureProperties = pickFeatureProperties.filter(property => !omitPropertyOverride.includes(property));
 	const effectivePickDevcontainerProperties = pickConfigProperties.filter(property => !omitDevcontainerPropertyOverride.includes(property));
-
-	const featureRaw = applyConstraintsToMetadataEntries({ output },
-		featuresConfig?.featureSets.map(featureSet =>
+	const featureRaw = featuresConfig?.featureSets.map(featureSet =>
 			featureSet.features.map(feature => ({
 				id: featureSet.sourceInformation.userFeatureId,
 				...pick(feature, effectivePickFeatureProperties),
-			}))).flat() || [], policy);
-
+			}))).flat() || [];
 	const raw = [
 		...baseImageMetadata.raw,
 		...featureRaw,
 		pick(devContainerConfig.raw, effectivePickDevcontainerProperties),
 	].filter(config => Object.keys(config).length);
+	const featureRawAfterPolicyConstraints = applyConstraintsToMetadataEntries(params, featureRaw, policy);
 
 	return {
 		config: [
 			...baseImageMetadata.config,
-			...featureRaw.map(devContainerConfig.substitute),
+			...featureRawAfterPolicyConstraints.map(devContainerConfig.substitute),
 			pick(devContainerConfig.config, effectivePickDevcontainerProperties),
 		].filter(config => Object.keys(config).length),
 		raw,
@@ -448,9 +445,10 @@ export function getImageMetadata(imageDetails: ImageDetails, substitute: Substit
 }
 
 function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails, substitute: SubstituteConfig, output: Log, policy: PolicyConstraints | undefined): SubstitutedConfig<ImageMetadataEntry[]> {
-	const raw = applyConstraintsToMetadataEntries({ output }, internalGetImageMetadata0(imageDetails, output), policy);
+	const raw = internalGetImageMetadata0(imageDetails, output);
+	const rawWithConstraints = applyConstraintsToMetadataEntries({ output }, raw, policy);
 	return {
-		config: raw.map(substitute),
+		config: rawWithConstraints.map(substitute),
 		raw,
 		substitute,
 	};

@@ -87,12 +87,11 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		return undefined;
 	}
 	const raw = jsonc.parse(content) as DevContainerConfig | undefined;
-	const updated = raw && updateFromOldProperties(raw);
-	if (!updated || typeof updated !== 'object' || Array.isArray(updated)) {
+	const rawUpdated = raw && updateFromOldProperties(raw);
+	if (!rawUpdated || typeof rawUpdated !== 'object' || Array.isArray(rawUpdated)) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
 	}
-	const updatedWithPolicyApplied = applyConstraintsToConfig({ output }, updated, policy);
-	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updatedWithPolicyApplied, mountWorkspaceGitRoot, output, consistency);
+	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, rawUpdated, mountWorkspaceGitRoot, output, consistency);
 	const substitute0: SubstituteConfig = value => substitute({
 		platform: cliHost.platform,
 		localWorkspaceFolder: workspace?.rootFolderPath,
@@ -100,7 +99,8 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		configFile,
 		env: cliHost.env,
 	}, value);
-	const config: DevContainerConfig = substitute0(updatedWithPolicyApplied);
+	const rawUpdatedWithPolicyConstraints = applyConstraintsToConfig({output}, rawUpdated, policy);
+	const config: DevContainerConfig = substitute0(rawUpdatedWithPolicyConstraints);
 	if (typeof config.workspaceFolder === 'string') {
 		workspaceConfig.workspaceFolder = config.workspaceFolder;
 	}
@@ -111,7 +111,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 	return {
 		config: {
 			config,
-			raw: updatedWithPolicyApplied,
+			raw: rawUpdated,
 			substitute: substitute0,
 		},
 		workspaceConfig,
