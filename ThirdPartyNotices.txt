@@ -513,7 +513,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---------------------------------------------------------
 
-semver 7.5.4 - ISC
+semver 7.6.0 - ISC
 https://github.com/npm/node-semver#readme
 
 Copyright Isaac Z. Schlueter
@@ -1167,7 +1167,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-follow-redirects 1.15.4 - MIT
+follow-redirects 1.15.6 - MIT
 https://github.com/follow-redirects/follow-redirects
 
 Copyright 2014-present Olivier Lalonde <olalonde@gmail.com> , James Talmage <james@talmage.io> , Ruben Verborgh
