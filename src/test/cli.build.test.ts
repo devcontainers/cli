@@ -223,7 +223,7 @@ describe('Dev Containers CLI', function () {
 			try {
 				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
 
-				const testFolder = `${__dirname}/configs/dockerfile-without-features`;
+				const testFolder = `${__dirname}/configs/dockerfile-with-features`;
 				const outputPath = `${os.tmpdir()}/test-build-cache`;
 				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
 				console.log(res.stdout);
@@ -240,7 +240,7 @@ describe('Dev Containers CLI', function () {
 			try {
 				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
 
-				const testFolder = `${__dirname}/configs/image`;
+				const testFolder = `${__dirname}/configs/image-with-features`;
 				const outputPath = `${os.tmpdir()}/test-build-cache-image`;
 				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --cache-to=type=local,dest=${outputPath}`);
 				console.log(res.stdout);
