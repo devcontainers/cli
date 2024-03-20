@@ -7,7 +7,7 @@
 	},
 	"features": {
 		"terraform": "latest",
-		"ghcr.io/devcontainers/features/docker-in-docker@sha256:e32e8937c87345ff7a937d22cacb7f395d41deffde9943291ef3cc0ac91a8ac6": {},
+		"ghcr.io/devcontainers/features/docker-in-docker@sha256:440bdb81cf8af43f3e922450d33db9775c1097340557a5b7b6fe705bc758c5ef": {},
 		"node": "16"
 	}
 }
