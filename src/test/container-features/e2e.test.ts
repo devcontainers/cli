@@ -69,10 +69,12 @@ describe('Dev Container Features E2E (remote)', function () {
                 for (let i = 2; i >= 0; i--) {
                     try {
                         const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                        await shellExec(`${cli} exec --workspace-folder ${testFolder} ps ax`);
                         assert.isNull(res.error);
                         assert.match(res.stdout, /CONTAINER ID/);
                         break;
                     } catch (err) {
+                        await shellExec(`${cli} exec --workspace-folder ${testFolder} ps ax`);
                         if (i === 0) {
                             throw err;
                         }
@@ -111,10 +113,12 @@ describe('Dev Container Features E2E (remote)', function () {
                 for (let i = 2; i >= 0; i--) {
                     try {
                         const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} docker ps`);
+                        await shellExec(`${cli} exec --workspace-folder ${testFolder} ps ax`);
                         assert.isNull(res.error);
                         assert.match(res.stdout, /CONTAINER ID/);
                         break;
                     } catch (err) {
+                        await shellExec(`${cli} exec --workspace-folder ${testFolder} ps ax`);
                         if (i === 0) {
                             throw err;
                         }
