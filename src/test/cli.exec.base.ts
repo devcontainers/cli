@@ -96,7 +96,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				it('should have access to installed features (hello)', async () => {
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
 					assert.strictEqual(res.error, null);
-					assert.match(res.stdout, /howdy, node/);
+					assert.match(res.stdout, /howdy, vscode/);
 				});
 			});
 			describe(`with valid (Dockerfile) config containing features [${text}]`, () => {
