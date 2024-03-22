@@ -33,7 +33,7 @@ jobs:
         echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
         echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
     - name: Download TGZ
-      uses: dawidd6/action-download-artifact@6f8f427fb41886a66b82ea11a5a15d1454c79415
+      uses: dawidd6/action-download-artifact@09f2f74827fd3a8607589e5ad7f9398816f540fe
       with:
         workflow: dev-containers.yml
         workflow_conclusion: success
