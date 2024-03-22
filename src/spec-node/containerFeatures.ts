@@ -29,10 +29,10 @@ export const getSafeId = (str: string) => str
 	.toUpperCase();
 
 export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
-	const { common } = params;
+	const { common, policyConstraints } = params;
 	const { cliHost, output } = common;
 
-	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute);
+	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute, policyConstraints);
 	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
 	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return
@@ -45,7 +45,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		}
 		return {
 			updatedImageName: [imageName],
-			imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, extendImageDetails?.featuresConfig),
+			imageMetadata: getDevcontainerMetadata(common, imageBuildInfo.metadata, config, extendImageDetails?.featuresConfig, policyConstraints),
 			imageDetails: async () => imageBuildInfo.imageDetails,
 			labels: extendImageDetails?.labels,
 		};
@@ -120,12 +120,13 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	}
 	return {
 		updatedImageName: [ updatedImageName ],
-		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
+		imageMetadata: getDevcontainerMetadata(common, imageBuildInfo.metadata, config, featuresConfig, policyConstraints),
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
 }
 
 export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean): Promise<{ featureBuildInfo?: ImageBuildOptions; featuresConfig?: FeaturesConfig; labels?: Record<string, string> } | undefined> {
+	const { policyConstraints } = params;
 
 	// Creates the folder where the working files will be setup.
 	const dstFolder = await createFeaturesTempFolder(params.common);
@@ -140,7 +141,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {
 				labels: {
-					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(imageBuildInfo.metadata, config, undefined, [], getOmitDevcontainerPropertyOverride(params.common)).raw),
+					[imageMetadataLabel]: JSON.stringify(getDevcontainerMetadata(params.common, imageBuildInfo.metadata, config, undefined, policyConstraints, [], getOmitDevcontainerPropertyOverride(params.common)).raw),
 				}
 			};
 		}
@@ -183,12 +184,13 @@ export interface ImageBuildOptions {
 }
 
 function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
+	const { policyConstraints } = params;
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	return {
 		dstFolder,
 		dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
-${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
+${getDevcontainerMetadataLabel(getDevcontainerMetadata(params.common, imageBuildInfo.metadata, config, { featureSets: [] }, policyConstraints, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
 		overrideTarget: 'dev_containers_target_stage',
 		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
@@ -210,7 +212,7 @@ function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEn
 }
 
 async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
-	const { common } = params;
+	const { common, policyConstraints } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
 
@@ -231,7 +233,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const isBuildah = !!params.buildKitVersion?.versionString.toLowerCase().includes('buildah');
 
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
-	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
+	const imageMetadata = getDevcontainerMetadata(common, imageBuildInfo.metadata, devContainerConfig, featuresConfig, policyConstraints, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
 	const builtinVariables = [
 		`_CONTAINER_USER=${containerUser}`,

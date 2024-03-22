@@ -1,0 +1,14 @@
+[
+	{
+		"action": "filter",
+		"selector": "initializeCommand"
+	},
+	{
+		"action": "filter",
+		"selector": "securityOpt"
+	},
+	{
+		"action": "filter",
+		"selector": "userns"
+	}
+]

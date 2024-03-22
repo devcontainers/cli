@@ -1,0 +1,16 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/go@sha256:31301a00830271959b58fbdb144c1f0d91d91ba527b90c0951d912fe939c1d48",
+	"initializeCommand": "echo 'initializing'",
+	"runArgs": [
+		"--userns",
+		"host",
+		"--cap-add",
+		"SYS_ADMIN"
+	],
+	"postCreateCommand": "echo 'postCreate'",
+	"containerEnv": {
+		"FOO": "privileged",
+		"BAR": "initializeCommand",
+		"BAZ": "userns"
+	}
+}

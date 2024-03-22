@@ -18,7 +18,7 @@ export const hostFolderLabel = 'devcontainer.local_folder'; // used to label con
 export const configFileLabel = 'devcontainer.config_file';
 
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common } = params;
+	const { common, policyConstraints } = params;
 	const { config } = configWithRaw;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
 
@@ -39,7 +39,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// 	})());
 			// };
 			await startExistingContainer(params, idLabels, container);
-			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
+			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output, policyConstraints).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 		} else {
 			const res = await buildNamedImageAndExtend(params, configWithRaw, additionalFeatures, true);
@@ -130,6 +130,7 @@ export async function buildNamedImageAndExtend(params: DockerResolverParameters,
 }
 
 async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+	const { policyConstraints } = buildParams;
 	const { cliHost, output } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -154,7 +155,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		}
 	}
 
-	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
+	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, policyConstraints, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
 	let finalDockerfilePath = dockerfilePath;
@@ -269,7 +270,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 
 	return {
 		updatedImageName: baseImageNames,
-		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
+		imageMetadata: getDevcontainerMetadata(buildParams.common, imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig, policyConstraints),
 		imageDetails
 	};
 }
