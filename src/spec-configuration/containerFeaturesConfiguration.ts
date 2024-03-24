@@ -291,6 +291,7 @@ function escapeQuotesForShell(input: string) {
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, isBuildah = false, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features') {
 
+	const useSELinuxLabel = process.platform === 'linux' && isBuildah;
 	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
 echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand(containerUser)} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
@@ -312,7 +313,7 @@ RUN chmod -R 0755 ${dest} \\
 
 `;
 		} else {
-			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder}${isBuildah ? ',z' : ''} \\
+			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder}${useSELinuxLabel ? ',z' : ''} \\
     cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
@@ -340,7 +341,7 @@ RUN chmod -R 0755 ${dest} \\
 `;
 			} else {
 				result += `
-RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId}${isBuildah ? ',z' : ''} \\
+RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId}${useSELinuxLabel ? ',z' : ''} \\
     cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
