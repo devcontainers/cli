@@ -85,6 +85,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		if (params.buildxCacheTo) {
 			args.push('--cache-to', params.buildxCacheTo);
 		}
+		if (!params.buildNoCache) {
+			params.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		}
 
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
