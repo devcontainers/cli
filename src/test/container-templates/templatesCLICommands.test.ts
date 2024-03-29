@@ -8,7 +8,7 @@ import { Template } from '../../spec-configuration/containerTemplatesConfigurati
 import { PackageCommandInput } from '../../spec-node/collectionCommonUtils/package';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
-import { generateTemplatesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
+import { generateDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
 
 export const output = makeLog(createPlainLog(text => process.stderr.write(text), () => LogLevel.Trace));
 
@@ -172,17 +172,29 @@ describe('tests packageTemplates()', async function () {
 	});
 });
 
-describe('tests generateTemplateDocumentation()', async function () {
+describe('tests generateTemplateDocumentation(isSingle = false)', async function () {
 	this.timeout('120s');
 
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const projectFolder = `${__dirname}/example-templates-sets/simple/src`;
 
 	after('clean', async () => {
-		await shellExec(`rm ${projectFolder}/**/README.md`);
+		await shellExec(`rm ${projectFolder}/**/README.md || true`);
 	});
 
-	it('tests generate-docs', async function () {
-		await generateTemplatesDocumentation(projectFolder, 'devcontainers', 'cli', output);
+	it('should generate docs for the templates collection', async function () {
+		await shellExec(`rm ${projectFolder}/**/README.md || true`);
+
+		await generateDocumentation({
+			cliHost: cliHost,
+			targetFolder: projectFolder,
+			gitHubOwner: 'devcontainers',
+			gitHubRepo: 'cli',
+			output: output,
+			isSingle: false,
+			disposables: [],
+		}, 'template');
 
 		const alpineDocsExists = await isLocalFile(`${projectFolder}/alpine/README.md`);
 		assert.isTrue(alpineDocsExists);
@@ -195,5 +207,34 @@ describe('tests generateTemplateDocumentation()', async function () {
 
 		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-template/README.md`);
 		assert.isFalse(invalidDocsExists);
+	});
+});
+
+describe('tests generateTemplateDocumentation(isSingle = true)', async function () {
+	this.timeout('120s');
+
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
+	const projectFolder = `${__dirname}/example-templates-sets/simple/src/alpine`;
+
+	after('clean', async () => {
+		await shellExec(`rm ${projectFolder}/README.md || true`);
+	});
+
+	it('should generate docs for the template', async function () {
+		await shellExec(`rm ${projectFolder}/README.md || true`);
+
+		await generateDocumentation({
+			cliHost: cliHost,
+			targetFolder: projectFolder,
+			gitHubOwner: 'devcontainers',
+			gitHubRepo: 'cli',
+			output: output,
+			isSingle: true,
+			disposables: [],
+		}, 'template');
+
+		const alpineDocsExists = await isLocalFile(`${projectFolder}/README.md`);
+		assert.isTrue(alpineDocsExists);
 	});
 });
