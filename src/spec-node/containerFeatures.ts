@@ -82,7 +82,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
 			}
 		}
-		if (params.buildxCacheTo) {
+		if (params.buildxCacheTo && !params.buildNoCache) {
 			args.push('--cache-to', params.buildxCacheTo);
 		}
 
@@ -94,6 +94,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		args.push(
 			'build',
 		);
+	}
+	if (params.buildNoCache) {
+		args.push('--no-cache');
 	}
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
