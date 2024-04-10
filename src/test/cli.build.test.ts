@@ -10,6 +10,7 @@ import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { envListToObj } from '../spec-node/utils';
+import * as crypto from 'crypto';
 
 const pkg = require('../../package.json');
 
@@ -61,6 +62,62 @@ describe('Dev Containers CLI', function () {
 				console.log(res.stdout);
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
+			});
+		});
+
+		describe('caching', () => {
+			let buildCommandRerunLog = '';
+			let buildWithoutCacheLog = '';
+			this.beforeEach(() => {
+				buildCommandRerunLog = `${os.tmpdir()}/${crypto.randomUUID()}`;
+				buildWithoutCacheLog = `${os.tmpdir()}/${crypto.randomUUID()}`;
+				console.log(`rerun log: ${buildCommandRerunLog}`);
+				console.log(`no cache log: ${buildWithoutCacheLog}`);
+			});
+
+			this.afterEach(() => {
+				for (const file in [buildCommandRerunLog, buildWithoutCacheLog]) {
+					if (fs.existsSync(file)) {
+						// fs.unlinkSync(file);
+					}
+				}
+			});
+
+			it('should not use docker cache for features when `--no-cache` flag is passed', async () => {
+				// Arrange
+				const testFolder = `${__dirname}/configs/image-with-features`;
+				const buildCommand = `${cli} build --workspace-folder ${testFolder}`;
+				const buildWithoutCacheCommand = `${buildCommand} --no-cache`;
+				const expectedFeatures = [
+					'ghcr.io/devcontainers/feature-starter/hello',
+					'ghcr.io/devcontainers/features/docker-in-docker'
+				];
+
+				// Act
+				await shellExec(`${buildCommand}`); // initial run of command
+				await shellExec(`${buildCommand} > ${buildCommandRerunLog} 2>&1`); // rerun command using cache
+				await shellExec(`${buildWithoutCacheCommand} > ${buildWithoutCacheLog} 2>&1`); // rerun command without cache
+
+				// Assert
+				const buildCommandRerunLogContents = fs.readFileSync(buildCommandRerunLog, 'utf8');
+				const buildWithoutCacheCommandLogContents = fs.readFileSync(buildWithoutCacheLog, 'utf8');
+
+				for (const logContent in [buildCommandRerunLogContents, buildWithoutCacheCommandLogContents]) {
+					assert.notEqual(logContent, null);
+					assert.notEqual(logContent, undefined);
+					assert.notEqual(logContent, '');
+				}
+
+				function countInstances(subject: string, search: string) {
+					return subject.split(search).length - 1;
+				}
+
+				for (const expectedFeature of expectedFeatures) {
+					const featureNameInstanceCountInRerunOfBuildCommandLogs = countInstances(buildCommandRerunLogContents, expectedFeature);
+					const featureNameInstanceCountInBuildWithNoCache = countInstances(buildWithoutCacheCommandLogContents, expectedFeature);
+					assert.equal(featureNameInstanceCountInRerunOfBuildCommandLogs, 1, 'because a cached build prints features being installed in the image once at the start of the build when they are being resolved');
+					assert.equal(featureNameInstanceCountInBuildWithNoCache, 2, 'because a non-cached build prints the features being installed in the image twice. Once at the start of the build when resolving the image, then again when installing the features in the image.');
+				}
 			});
 		});
 
