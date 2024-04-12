@@ -10,7 +10,6 @@ import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { envListToObj } from '../spec-node/utils';
-import * as crypto from 'crypto';
 
 const pkg = require('../../package.json');
 
@@ -68,6 +67,11 @@ describe('Dev Containers CLI', function () {
 		it.only('should not use docker cache for features when `--no-cache` flag is passed', async () => {
 			// Arrange
 			const testFolder = `${__dirname}/configs/image-with-features`;
+			const devContainerJson = `${testFolder}/.devcontainer.json`;
+
+			const devContainerFileContents = JSON.parse(fs.readFileSync(devContainerJson, 'utf8'));
+			const baseImage = devContainerFileContents.image;
+
 			const originalImageName = 'feature-cache-test-original-image';
 			const cachedImageName = 'feature-cache-test-rerun-image';
 			const nonCachedImageName = 'feature-cache-test-no-cache-image';
@@ -77,26 +81,54 @@ describe('Dev Containers CLI', function () {
 			const cachedBuildCommand = `${commandBase} --image-name ${cachedImageName}`;
 			const buildWithoutCacheCommand = `${commandBase} --image-name ${nonCachedImageName} --no-cache`;
 
+			function arrayStartsWithArray(subject: string[], startsWith: string[]) {
+				if (subject.length < startsWith.length) {
+					return false;
+				}
+				for (let i = 0; i < startsWith.length; i++) {
+					if (subject[i] !== startsWith[i]) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+			function haveCommonEntries(arr1: string[], arr2: string[]) {
+				return arr1.every(item => arr2.includes(item));
+			}
+
 			// Act
+			await shellExec(`docker pull ${baseImage}`); // pull base image so we can inspect it later
 			await shellExec(buildCommand);
 			await shellExec(cachedBuildCommand);
 			await shellExec(buildWithoutCacheCommand);
 
 			// Assert
+			const baseImageInspectCommandResult = await shellExec(`docker inspect ${baseImage}`);
 			const originalImageInspectCommandResult = await shellExec(`docker inspect ${originalImageName}`);
 			const cachedImageInspectCommandResult = await shellExec(`docker inspect ${cachedImageName}`);
 			const noCacheImageInspectCommandResult = await shellExec(`docker inspect ${nonCachedImageName}`);
 
+			const baseImageDetails = JSON.parse(baseImageInspectCommandResult.stdout);
 			const originalImageDetails = JSON.parse(originalImageInspectCommandResult.stdout);
 			const cachedImageDetails = JSON.parse(cachedImageInspectCommandResult.stdout);
 			const noCacheImageDetails = JSON.parse(noCacheImageInspectCommandResult.stdout);
 
+			const baseImageLayers: string[] = baseImageDetails[0].RootFS.Layers;
 			const originalImageLayers: string[] = originalImageDetails[0].RootFS.Layers;
 			const cachedImageLayers: string[] = cachedImageDetails[0].RootFS.Layers;
 			const nonCachedImageLayers: string[] = noCacheImageDetails[0].RootFS.Layers;
 
-			assert.deepEqual(originalImageLayers, cachedImageLayers, 'because they were built csequentially and should have used caching');
-			assert.notDeepEqual(cachedImageLayers, nonCachedImageLayers, 'because we passed the --no-cache argument disabling caching');
+			assert.equal(arrayStartsWithArray(originalImageLayers, baseImageLayers), true, 'because the image is made up of feature layers on top of the base image');
+			assert.equal(arrayStartsWithArray(cachedImageLayers, baseImageLayers), true, 'because the image is made up of feature layers on top of the base image');
+			assert.equal(arrayStartsWithArray(nonCachedImageLayers, baseImageLayers), true, 'because the image is made up of feature layers on top of the base image');
+
+			const originalImageWithoutBaseImageLayers = originalImageLayers.slice(baseImageLayers.length);
+			const cachedImageWithoutBaseImageLayers = cachedImageLayers.slice(baseImageLayers.length);
+			const nonCachedImageWithoutBaseImageLayers = nonCachedImageLayers.slice(baseImageLayers.length);
+
+			assert.deepEqual(originalImageWithoutBaseImageLayers, cachedImageWithoutBaseImageLayers, 'because they are the same image built sequentially therefore the second should have used caching');
+			assert.equal(haveCommonEntries(cachedImageWithoutBaseImageLayers, nonCachedImageWithoutBaseImageLayers), false, 'because we passed the --no-cache argument which disables the use of the cache, therefore the non-base image layers should have nothin in common');
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {
