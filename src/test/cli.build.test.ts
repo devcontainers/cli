@@ -64,7 +64,7 @@ describe('Dev Containers CLI', function () {
 			});
 		});
 
-		it.only('should not use docker cache for features when `--no-cache` flag is passed', async () => {
+		it('should not use docker cache for features when `--no-cache` flag is passed', async () => {
 			// Arrange
 			const testFolder = `${__dirname}/configs/image-with-features`;
 			const devContainerJson = `${testFolder}/.devcontainer.json`;
