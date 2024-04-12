@@ -65,60 +65,38 @@ describe('Dev Containers CLI', function () {
 			});
 		});
 
-		describe('caching', () => {
-			let buildCommandRerunLog = '';
-			let buildWithoutCacheLog = '';
-			this.beforeEach(() => {
-				buildCommandRerunLog = `${os.tmpdir()}/${crypto.randomUUID()}`;
-				buildWithoutCacheLog = `${os.tmpdir()}/${crypto.randomUUID()}`;
-				console.log(`rerun log: ${buildCommandRerunLog}`);
-				console.log(`no cache log: ${buildWithoutCacheLog}`);
-			});
+		it.only('should not use docker cache for features when `--no-cache` flag is passed', async () => {
+			// Arrange
+			const testFolder = `${__dirname}/configs/image-with-features`;
+			const originalImageName = 'feature-cache-test-original-image';
+			const cachedImageName = 'feature-cache-test-rerun-image';
+			const nonCachedImageName = 'feature-cache-test-no-cache-image';
 
-			this.afterEach(() => {
-				for (const file in [buildCommandRerunLog, buildWithoutCacheLog]) {
-					if (fs.existsSync(file)) {
-						// fs.unlinkSync(file);
-					}
-				}
-			});
+			const commandBase = `${cli} build --workspace-folder ${testFolder}`;
+			const buildCommand = `${commandBase} --image-name ${originalImageName}`;
+			const cachedBuildCommand = `${commandBase} --image-name ${cachedImageName}`;
+			const buildWithoutCacheCommand = `${commandBase} --image-name ${nonCachedImageName} --no-cache`;
 
-			it('should not use docker cache for features when `--no-cache` flag is passed', async () => {
-				// Arrange
-				const testFolder = `${__dirname}/configs/image-with-features`;
-				const buildCommand = `${cli} build --workspace-folder ${testFolder}`;
-				const buildWithoutCacheCommand = `${buildCommand} --no-cache`;
-				const expectedFeatures = [
-					'ghcr.io/devcontainers/feature-starter/hello',
-					'ghcr.io/devcontainers/features/docker-in-docker'
-				];
+			// Act
+			await shellExec(buildCommand); // initial run of command
+			await shellExec(cachedBuildCommand); // rerun command using cache
+			await shellExec(buildWithoutCacheCommand); // rerun command without cache
 
-				// Act
-				await shellExec(`${buildCommand}`); // initial run of command
-				await shellExec(`${buildCommand} > ${buildCommandRerunLog} 2>&1`); // rerun command using cache
-				await shellExec(`${buildWithoutCacheCommand} > ${buildWithoutCacheLog} 2>&1`); // rerun command without cache
+			// Assert
+			const originalImageInspectCommandResult = await shellExec(`docker inspect ${originalImageName}`);
+			const cachedImageInspectCommandResult = await shellExec(`docker inspect ${cachedImageName}`);
+			const noCacheImageInspectCommandResult = await shellExec(`docker inspect ${nonCachedImageName}`);
 
-				// Assert
-				const buildCommandRerunLogContents = fs.readFileSync(buildCommandRerunLog, 'utf8');
-				const buildWithoutCacheCommandLogContents = fs.readFileSync(buildWithoutCacheLog, 'utf8');
+			const originalImageDetails = JSON.parse(originalImageInspectCommandResult.stdout);
+			const cachedImageDetails = JSON.parse(cachedImageInspectCommandResult.stdout);
+			const noCacheImageDetails = JSON.parse(noCacheImageInspectCommandResult.stdout);
 
-				for (const logContent in [buildCommandRerunLogContents, buildWithoutCacheCommandLogContents]) {
-					assert.notEqual(logContent, null);
-					assert.notEqual(logContent, undefined);
-					assert.notEqual(logContent, '');
-				}
+			const originalImageLayers: string[] = originalImageDetails[0].RootFS.Layers;
+			const cachedImageLayers: string[] = cachedImageDetails[0].RootFS.Layers;
+			const nonCachedImageLayers: string[] = noCacheImageDetails[0].RootFS.Layers;
 
-				function countInstances(subject: string, search: string) {
-					return subject.split(search).length - 1;
-				}
-
-				for (const expectedFeature of expectedFeatures) {
-					const featureNameInstanceCountInRerunOfBuildCommandLogs = countInstances(buildCommandRerunLogContents, expectedFeature);
-					const featureNameInstanceCountInBuildWithNoCache = countInstances(buildWithoutCacheCommandLogContents, expectedFeature);
-					assert.equal(featureNameInstanceCountInRerunOfBuildCommandLogs, 1, 'because a cached build prints features being installed in the image once at the start of the build when they are being resolved');
-					assert.equal(featureNameInstanceCountInBuildWithNoCache, 2, 'because a non-cached build prints the features being installed in the image twice. Once at the start of the build when resolving the image, then again when installing the features in the image.');
-				}
-			});
+			assert.deepEqual(originalImageLayers, cachedImageLayers);
+			assert.notDeepEqual(cachedImageLayers, nonCachedImageLayers);
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {
