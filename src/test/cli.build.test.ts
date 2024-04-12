@@ -78,9 +78,9 @@ describe('Dev Containers CLI', function () {
 			const buildWithoutCacheCommand = `${commandBase} --image-name ${nonCachedImageName} --no-cache`;
 
 			// Act
-			await shellExec(buildCommand); // initial run of command
-			await shellExec(cachedBuildCommand); // rerun command using cache
-			await shellExec(buildWithoutCacheCommand); // rerun command without cache
+			await shellExec(buildCommand);
+			await shellExec(cachedBuildCommand);
+			await shellExec(buildWithoutCacheCommand);
 
 			// Assert
 			const originalImageInspectCommandResult = await shellExec(`docker inspect ${originalImageName}`);
@@ -95,8 +95,8 @@ describe('Dev Containers CLI', function () {
 			const cachedImageLayers: string[] = cachedImageDetails[0].RootFS.Layers;
 			const nonCachedImageLayers: string[] = noCacheImageDetails[0].RootFS.Layers;
 
-			assert.deepEqual(originalImageLayers, cachedImageLayers);
-			assert.notDeepEqual(cachedImageLayers, nonCachedImageLayers);
+			assert.deepEqual(originalImageLayers, cachedImageLayers, 'because they were built csequentially and should have used caching');
+			assert.notDeepEqual(cachedImageLayers, nonCachedImageLayers, 'because we passed the --no-cache argument disabling caching');
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {
