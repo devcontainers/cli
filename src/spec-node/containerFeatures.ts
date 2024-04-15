@@ -98,6 +98,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 			'build',
 		);
 	}
+	if (params.buildNoCache) {
+		args.push('--no-cache');
+	}
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 	}
