@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -483,7 +484,7 @@ async function writeFeaturesComposeOverrideFile(
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
 
-		const fileName = `${overrideFilePrefix}-${Date.now()}.yml`;
+		const fileName = `${overrideFilePrefix}-${Date.now()}-${randomUUID()}.yml`;
 		const composeFolder = buildCLIHost.path.join(overrideFilePath, 'docker-compose');
 		const composeOverrideFile = buildCLIHost.path.join(composeFolder, fileName);
 		output.write(`Writing ${fileName} to ${composeFolder}`);
