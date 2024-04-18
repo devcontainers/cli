@@ -28,6 +28,7 @@ import { ImageMetadataEntry } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
+import { PolicyConstraints } from './policy';
 
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
@@ -119,6 +120,7 @@ export interface DockerResolverParameters {
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;
+	policyConstraints?: PolicyConstraints;
 }
 
 export interface ResolverResult {
@@ -424,6 +426,7 @@ export function envListToObj(list: string[] | null | undefined) {
 }
 
 export async function runInitializeCommand(params: DockerResolverParameters, userCommand: LifecycleCommand | undefined, onDidInput?: Event<string>) {
+	const { common, dockerEnv } = params;
 	if (!userCommand) {
 		return;
 	}
@@ -441,7 +444,6 @@ export async function runInitializeCommand(params: DockerResolverParameters, use
 		return;
 	}
 
-	const { common, dockerEnv } = params;
 	const { cliHost, output } = common;
 	const hookName = 'initializeCommand';
 	const isWindows = cliHost.platform === 'win32';

@@ -21,6 +21,7 @@ import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFr
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import { createDocuments } from '../spec-configuration/editableFiles';
+import { PolicyConstraints, applyConstraintsToConfig } from './policy';
 
 
 export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
@@ -36,7 +37,7 @@ export async function resolve(params: DockerResolverParameters, configFile: URI 
 }
 
 async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common, workspaceMountConsistencyDefault } = params;
+	const { common, workspaceMountConsistencyDefault, policyConstraints } = params;
 	const { cliHost, output } = common;
 
 	const cwd = cliHost.cwd; // Can be inside WSL.
@@ -46,7 +47,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 		? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 			|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 		: overrideConfigFile;
-	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, workspaceMountConsistencyDefault, overrideConfigFile) || undefined;
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, policyConstraints, workspaceMountConsistencyDefault, overrideConfigFile) || undefined;
 	if (!configs) {
 		if (configPath || workspace) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configPath || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
@@ -79,18 +80,18 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	return result;
 }
 
-export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, output: Log, policy: PolicyConstraints | undefined, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
 	const documents = createDocuments(cliHost);
 	const content = await documents.readDocument(overrideConfigFile ?? configFile);
 	if (!content) {
 		return undefined;
 	}
 	const raw = jsonc.parse(content) as DevContainerConfig | undefined;
-	const updated = raw && updateFromOldProperties(raw);
-	if (!updated || typeof updated !== 'object' || Array.isArray(updated)) {
+	const rawUpdated = raw && updateFromOldProperties(raw);
+	if (!rawUpdated || typeof rawUpdated !== 'object' || Array.isArray(rawUpdated)) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
 	}
-	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, output, consistency);
+	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, rawUpdated, mountWorkspaceGitRoot, output, consistency);
 	const substitute0: SubstituteConfig = value => substitute({
 		platform: cliHost.platform,
 		localWorkspaceFolder: workspace?.rootFolderPath,
@@ -98,7 +99,8 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		configFile,
 		env: cliHost.env,
 	}, value);
-	const config: DevContainerConfig = substitute0(updated);
+	const rawUpdatedWithPolicyConstraints = applyConstraintsToConfig({output}, rawUpdated, policy);
+	const config: DevContainerConfig = substitute0(rawUpdatedWithPolicyConstraints);
 	if (typeof config.workspaceFolder === 'string') {
 		workspaceConfig.workspaceFolder = config.workspaceFolder;
 	}
@@ -109,7 +111,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 	return {
 		config: {
 			config,
-			raw: updated,
+			raw: rawUpdated,
 			substitute: substitute0,
 		},
 		workspaceConfig,

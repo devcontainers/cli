@@ -47,7 +47,7 @@ describe('Image Metadata', function () {
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect image-metadata-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog, undefined);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -86,7 +86,7 @@ describe('Image Metadata', function () {
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog, undefined);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -108,7 +108,7 @@ describe('Image Metadata', function () {
 				const response = JSON.parse(res.stdout);
 				assert.strictEqual(response.outcome, 'success');
 				const details = JSON.parse((await shellExec(`docker inspect skip-persisting-test`)).stdout)[0] as ImageDetails;
-				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog);
+				const { config: metadata, raw } = getImageMetadata(details, testSubstitute, nullLog, []);
 				assert.strictEqual(metadata.length, 3);
 				assert.strictEqual(metadata[0].id, 'baseFeature-substituted');
 				assert.strictEqual(metadata[1].id, './localFeatureA-substituted');
@@ -226,7 +226,7 @@ describe('Image Metadata', function () {
 
 	describe('Utils', () => {
 		it('should collect metadata from devcontainer.json and features', () => {
-			const { config: metadata, raw } = getDevcontainerMetadata(configWithRaw([]), configWithRaw({
+			const { config: metadata, raw } = getDevcontainerMetadata({ output: nullLog }, configWithRaw([]), configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
@@ -237,7 +237,7 @@ describe('Image Metadata', function () {
 					included: true,
 					consecutiveId: 'someFeature_0',
 				}
-			]));
+			]), undefined);
 			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'ghcr.io/my-org/my-repo/someFeature:1-substituted');
 			assert.strictEqual(metadata[1].remoteUser, 'testUser');
@@ -248,7 +248,7 @@ describe('Image Metadata', function () {
 
 		it('should omit specified props from devcontainer.json', () => {
 			const omitDevcontainerPropertyOverride: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = ['remoteEnv'];
-			const { config: metadata, raw } = getDevcontainerMetadata(configWithRaw([]), configWithRaw({
+			const { config: metadata, raw } = getDevcontainerMetadata({ output: nullLog }, configWithRaw([]), configWithRaw({
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testUser',
@@ -256,6 +256,7 @@ describe('Image Metadata', function () {
 					DEVCONTENV: 'value',
 				}
 			}),
+				undefined,
 				undefined,
 				[],
 				omitDevcontainerPropertyOverride);
@@ -307,7 +308,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog, []);
 			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
@@ -335,7 +336,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog, []);
 			assert.strictEqual(metadata.length, 2);
 			assert.strictEqual(metadata[0].id, 'testId-substituted');
 			assert.strictEqual(metadata[0].remoteUser, 'testMetadataUser');
@@ -368,7 +369,7 @@ describe('Image Metadata', function () {
 					FOO: 'baz',
 					BAR: 'foo',
 				},
-			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog);
+			}), undefined, ['testIdLabel=testIdLabelValue'], nullLog, []);
 			assert.strictEqual(metadata.length, 2);
 			assert.deepStrictEqual(metadata[0].remoteEnv, {
 				FOO: 'bar',
@@ -392,7 +393,7 @@ describe('Image Metadata', function () {
 				configFilePath: URI.parse('file:///devcontainer.json'),
 				image: 'image',
 				remoteUser: 'testConfigUser',
-			}), undefined, [], nullLog);
+			}), undefined, [], nullLog, []);
 			assert.strictEqual(metadata.length, 1);
 			assert.strictEqual(metadata[0].id, undefined);
 			assert.strictEqual(metadata[0].remoteUser, 'testConfigUser');
@@ -402,7 +403,7 @@ describe('Image Metadata', function () {
 		});
 
 		it('should create label for Dockerfile', () => {
-			const label = getDevcontainerMetadataLabel(getDevcontainerMetadata(configWithRaw([
+			const label = getDevcontainerMetadataLabel(getDevcontainerMetadata({ output: nullLog }, configWithRaw([
 				{
 					id: 'baseFeature',
 				}
@@ -417,7 +418,7 @@ describe('Image Metadata', function () {
 					included: true,
 					consecutiveId: 'someFeature_0',
 				}
-			])));
+			]), undefined));
 			const expected = [
 				{
 					id: 'baseFeature',
