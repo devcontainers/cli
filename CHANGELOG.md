@@ -2,6 +2,14 @@
 
 Notable changes.
 
+## April 2024
+
+### [0.59.0]
+- Propagate --cache-from to buildx build. (https://github.com/devcontainers/cli/pull/638)
+- Disable cache on feature build when `--build-no-cache` is passed. (https://github.com/devcontainers/cli/pull/790)
+- Qualify local image for Podman. (https://github.com/microsoft/vscode-remote-release/issues/9748)
+- Stop races docker-compose.devcontainer.containerFeatures file. (https://github.com/devcontainers/cli/issues/801)
+
 ## March 2024
 
 ### [0.58.0]
