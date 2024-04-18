@@ -431,7 +431,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'-f', destDockerfile,
 		'-t', fixedImageName,
 		...(platform ? ['--platform', platform] : []),
-		'--build-arg', `BASE_IMAGE=${imageName}`,
+		'--build-arg', `BASE_IMAGE=${params.isPodman ? 'localhost/' : ''}${imageName}`, // Podman: https://github.com/microsoft/vscode-remote-release/issues/9748
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
 		'--build-arg', `NEW_GID=${await cliHost.getgid!()}`,
