@@ -4,6 +4,9 @@ Notable changes.
 
 ## April 2024
 
+### [0.59.1]
+- Check if image name has registry host. (https://github.com/microsoft/vscode-remote-release/issues/9748)
+
 ### [0.59.0]
 - Propagate --cache-from to buildx build. (https://github.com/devcontainers/cli/pull/638)
 - Disable cache on feature build when `--build-no-cache` is passed. (https://github.com/devcontainers/cli/pull/790)
