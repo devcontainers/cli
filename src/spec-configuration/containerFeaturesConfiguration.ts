@@ -293,15 +293,21 @@ export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: 
 
 	const useSELinuxLabel = process.platform === 'linux' && isBuildah;
 	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
-	let result = `RUN \\
+	const tempUserHome = `RUN \\
 echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand(containerUser)} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
 echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand(remoteUser)} | cut -d: -f6)" >> ${builtinsEnvFile}
 
 `;
 
+	// placeholder empty string to concatenate the feature layers
+	let result = '';
+
 	// Features version 1
 	const folders = (featuresConfig.featureSets || []).filter(y => y.internalVersion !== '2').map(x => x.features[0].consecutiveId);
 	folders.forEach(folder => {
+		// calculate container user home and remote user home before feature installation
+		result += tempUserHome;
+
 		const source = path.posix.join(contentSourceRootPath, folder!);
 		const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, folder!);
 		if (!useBuildKitBuildContexts) {
@@ -327,6 +333,9 @@ RUN chmod -R 0755 ${dest} \\
 	// Features version 2
 	featuresConfig.featureSets.filter(y => y.internalVersion === '2').forEach(featureSet => {
 		featureSet.features.forEach(feature => {
+			// recalculate container user home and remote user home if feature modifies it
+			result += tempUserHome;
+
 			result += generateContainerEnvs(feature.containerEnv);
 			const source = path.posix.join(contentSourceRootPath, feature.consecutiveId!);
 			const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, feature.consecutiveId!);
