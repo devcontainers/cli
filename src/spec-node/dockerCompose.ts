@@ -632,6 +632,10 @@ export async function findComposeContainer(params: DockerCLIParameters | DockerR
 	return list && list[0];
 }
 
+function pathToConcatenated(p: string): string {
+	return p.split(path.sep).join('');
+}
+
 export async function getProjectName(params: DockerCLIParameters | DockerResolverParameters, workspace: Workspace, composeFiles: string[]) {
 	const { cliHost } = 'cliHost' in params ? params : params.common;
 	const newProjectName = await useNewProjectName(params);
@@ -655,10 +659,11 @@ export async function getProjectName(params: DockerCLIParameters | DockerResolve
 	}
 	const configDir = workspace.configFolderPath;
 	const workingDir = composeFiles[0] ? cliHost.path.dirname(composeFiles[0]) : cliHost.cwd; // From https://github.com/docker/compose/blob/79557e3d3ab67c3697641d9af91866d7e400cfeb/compose/config/config.py#L290
+
 	if (equalPaths(cliHost.platform, workingDir, cliHost.path.join(configDir, '.devcontainer'))) {
-		return toProjectName(`${cliHost.path.basename(configDir)}_devcontainer`, newProjectName);
+		return toProjectName(`${pathToConcatenated(configDir)}_devcontainer`, newProjectName);
 	}
-	return toProjectName(cliHost.path.basename(workingDir), newProjectName);
+	return toProjectName(pathToConcatenated(workingDir), newProjectName);
 }
 
 function toProjectName(basename: string, newProjectName: boolean) {
