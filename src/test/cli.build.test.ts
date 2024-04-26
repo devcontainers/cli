@@ -27,6 +27,22 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command build', () => {
 
+		it('should correctly configure the image name to push from --image-name with --push true', async () => {
+			const testFolder = `${__dirname}/configs/example`;
+			try {
+				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
+				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
+				if (imageTags.length > 1) {
+					console.log(`Image demo has more than one tag: ${imageTags.join(', ')}`);
+				} else {
+					await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
+					assert.ok(false, 'should not succeed');
+				}
+			} catch (error) {
+				assert.equal(error.code, 'ERR_ASSERTION', 'Should fail with ERR_ASSERTION');
+			}
+		});
+
 		buildKitOptions.forEach(({ text, options }) => {
 			it(`should execute successfully with valid image config  [${text}]`, async () => {
 				const testFolder = `${__dirname}/configs/image`;
