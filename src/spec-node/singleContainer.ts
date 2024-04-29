@@ -202,6 +202,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxCacheTo) {
 			args.push('--cache-to', buildParams.buildxCacheTo);
 		}
+		if (buildParams.buildxCacheFrom) {
+			args.push('--cache-from', buildParams.buildxCacheFrom);
+		}
+
 		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 	} else {
 		args.push('build');
