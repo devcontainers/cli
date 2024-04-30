@@ -88,6 +88,7 @@ function getFeaturesConfig(featureId: string, featureConfigVersion: string, feat
 					featureRef: getRef(output, `${featureId}:${featureConfigVersion}`)!,
 					manifest: {
 						schemaVersion: 1,
+						artifactType: '',
 						mediaType: '',
 						config: {
 							digest: '',

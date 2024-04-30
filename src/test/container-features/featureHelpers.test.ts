@@ -638,6 +638,7 @@ chmod +x ./install.sh
 				},
 				manifest: {
 					schemaVersion: 1,
+					artifactType: '',
 					mediaType: '',
 					config: {
 						digest: '',
@@ -722,6 +723,7 @@ chmod +x ./install.sh
 				},
 				manifest: {
 					schemaVersion: 1,
+					artifactType: '',
 					mediaType: '',
 					config: {
 						digest: '',
@@ -809,6 +811,7 @@ chmod +x ./install.sh
 				},
 				manifest: {
 					schemaVersion: 1,
+					artifactType: '',
 					mediaType: '',
 					config: {
 						digest: '',
