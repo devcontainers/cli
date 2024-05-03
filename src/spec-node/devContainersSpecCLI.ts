@@ -645,9 +645,9 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			const projectName = await getProjectName(params, workspace, composeFiles);
-
+			
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
+			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});
 			if (services.indexOf(config.service) === -1) {
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
