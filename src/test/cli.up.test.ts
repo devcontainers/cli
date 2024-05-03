@@ -97,7 +97,7 @@ describe('Dev Containers CLI', function () {
 			const testFolder = `${__dirname}/configs/compose-with-name`;
 			before(async () => {
 				// build and start the container
-				upResult = await devContainerUp(cli, testFolder);
+				upResult = await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: `--docker-compose-path trigger-compose-v2` });
 			});
 			after(async () => await devContainerDown({ composeProjectName: upResult?.composeProjectName }));
 			it('should succeed', () => {
