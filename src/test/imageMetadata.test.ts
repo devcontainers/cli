@@ -563,7 +563,6 @@ function getFeaturesConfig(features: Feature[]): FeaturesConfig {
 				},
 				manifest: {
 					schemaVersion: 1,
-					artifactType: '',
 					mediaType: '',
 					config: {
 						digest: '',

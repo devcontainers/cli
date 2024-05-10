@@ -13,14 +13,6 @@ export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
 export const DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE = 'application/vnd.devcontainers.collection.layer.v1+json';
 
-// Empty Descriptor specified in OCI Image Specification.
-// Following Spec: https://github.com/opencontainers/image-spec/blob/v1.1.0/manifest.md#guidance-for-an-empty-descriptor
-export const OCI_EMPTY_DESCRIPTOR = {
-	mediaType: 'application/vnd.oci.empty.v1+json',
-	digest: 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a',
-	size: 2,
-	dataBytes: Buffer.from('{}')
-};
 
 export interface CommonParams {
 	env: NodeJS.ProcessEnv;
@@ -68,7 +60,6 @@ export interface OCILayer {
 export interface OCIManifest {
 	digest?: string;
 	schemaVersion: number;
-	artifactType?: string;
 	mediaType: string;
 	config: {
 		digest: string;
@@ -304,13 +295,10 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 		return;
 	}
 
-	// If the config layer is an empty descriptor, the media type of the manifest must be defined in the artifactType.
-	// Specification: https://github.com/opencontainers/image-spec/blob/8f3820ccf8f65db8744e626df17fe8a64462aece/manifest.md#guidelines-for-artifact-usage
 	const { manifestObj } = manifestContainer;
-	const manifestMediaType = manifestObj.config.mediaType === OCI_EMPTY_DESCRIPTOR.mediaType ? manifestObj.artifactType : manifestObj.config.mediaType;
 
-	if (manifestMediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
-		output.write(`(!) Unexpected manifest media type: ${manifestMediaType}`, LogLevel.Error);
+	if (manifestObj.config.mediaType !== DEVCONTAINER_MANIFEST_MEDIATYPE) {
+		output.write(`(!) Unexpected manifest media type: ${manifestObj.config.mediaType}`, LogLevel.Error);
 		return undefined;
 	}
 

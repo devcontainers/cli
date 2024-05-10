@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import { delay } from '../spec-common/async';
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile } from '../spec-utils/pfs';
-import { OCI_EMPTY_DESCRIPTOR, DEVCONTAINER_MANIFEST_MEDIATYPE, DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams, ManifestContainer } from './containerCollectionsOCI';
+import { DEVCONTAINER_COLLECTION_LAYER_MEDIATYPE, DEVCONTAINER_TAR_LAYER_MEDIATYPE, fetchOCIManifestIfExists, OCICollectionRef, OCILayer, OCIManifest, OCIRef, CommonParams, ManifestContainer } from './containerCollectionsOCI';
 import { requestEnsureAuthenticated } from './httpOCIRegistry';
 
 // (!) Entrypoint function to push a single feature/template to a registry.
@@ -44,8 +44,8 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 		{
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
+			contents: Buffer.alloc(0),
 			size: manifest.manifestObj.config.size,
-			contents: OCI_EMPTY_DESCRIPTOR.dataBytes,
 		},
 		{
 			name: 'tgzLayer',
@@ -119,7 +119,7 @@ export async function pushCollectionMetadata(params: CommonParams, collectionRef
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
 			size: manifest.manifestObj.config.size,
-			contents: OCI_EMPTY_DESCRIPTOR.dataBytes,
+			contents: Buffer.alloc(0),
 		},
 		{
 			name: 'collectionLayer',
@@ -383,16 +383,15 @@ export async function calculateManifestAndContentDigest(output: Log, ociRef: OCI
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
 	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'
-	// {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.devcontainers","config":{"mediaType":"application/vnd.oci.empty.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}
+	// {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}
 
 	let manifest: OCIManifest = {
 		schemaVersion: 2,
 		mediaType: 'application/vnd.oci.image.manifest.v1+json',
-		artifactType: DEVCONTAINER_MANIFEST_MEDIATYPE,
 		config: {
-			mediaType: OCI_EMPTY_DESCRIPTOR.mediaType,
-			digest: OCI_EMPTY_DESCRIPTOR.digest,
-			size: OCI_EMPTY_DESCRIPTOR.size,
+			mediaType: 'application/vnd.devcontainers',
+			digest: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // A zero byte digest for the devcontainer mediaType.
+			size: 0
 		},
 		layers: [
 			dataLayer
