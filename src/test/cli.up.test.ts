@@ -92,6 +92,19 @@ describe('Dev Containers CLI', function () {
 				assert.equal(upResult!.outcome, 'success');
 			});
 		});
+		describe('for docker-compose with image without features with custom project name', () => {
+			let upResult: UpResult | null = null;
+			const testFolder = `${__dirname}/configs/compose-with-name`;
+			before(async () => {
+				// build and start the container
+				upResult = await devContainerUp(cli, testFolder, { 'logLevel': 'trace', extraArgs: `--docker-compose-path trigger-compose-v2` });
+			});
+			after(async () => await devContainerDown({ composeProjectName: upResult?.composeProjectName }));
+			it('should succeed', () => {
+				assert.equal(upResult!.outcome, 'success');
+				assert.equal(upResult!.composeProjectName, 'custom-project-name');
+			});
+		});
 
 		// Additional tests to verify the handling of persisted files
 		describe('for docker-compose with Dockerfile with features', () => {
