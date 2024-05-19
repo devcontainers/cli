@@ -1,7 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
-import { Log, LogLevel } from '../../spec-utils/log';
+import { LogLevel } from '../../spec-utils/log';
+import { GenerateDocsCollectionType, GenerateDocsCommandInput } from './generateDocs';
+import { isLocalFile, isLocalFolder, readLocalDir } from '../../spec-utils/pfs';
 
 const FEATURES_README_TEMPLATE = `
 # #{Name}
@@ -39,49 +41,42 @@ const TEMPLATE_README_TEMPLATE = `
 _Note: This file was auto-generated from the [devcontainer-template.json](#{RepoUrl}).  Add additional notes to a \`NOTES.md\`._
 `;
 
-export async function generateFeaturesDocumentation(
-    basePath: string,
-    ociRegistry: string,
-    namespace: string,
-    gitHubOwner: string,
-    gitHubRepo: string,
-    output: Log
-) {
-    await _generateDocumentation(output, basePath, FEATURES_README_TEMPLATE,
-        'devcontainer-feature.json', ociRegistry, namespace, gitHubOwner, gitHubRepo);
-}
+const README_TEMPLATES = {
+    'feature': FEATURES_README_TEMPLATE,
+    'template': TEMPLATE_README_TEMPLATE,
+};
 
-export async function generateTemplatesDocumentation(
-    basePath: string,
-    gitHubOwner: string,
-    gitHubRepo: string,
-    output: Log
-) {
-    await _generateDocumentation(output, basePath, TEMPLATE_README_TEMPLATE,
-        'devcontainer-template.json', '', '', gitHubOwner, gitHubRepo);
-}
+export async function generateDocumentation(args: GenerateDocsCommandInput, collectionType: GenerateDocsCollectionType) {
 
-async function _generateDocumentation(
-    output: Log,
-    basePath: string,
-    readmeTemplate: string,
-    metadataFile: string,
-    ociRegistry: string = '',
-    namespace: string = '',
-    gitHubOwner: string = '',
-    gitHubRepo: string = ''
-) {
-    const directories = fs.readdirSync(basePath);
+    const {
+        targetFolder: basePath,
+        registry,
+        namespace,
+        gitHubOwner,
+        gitHubRepo,
+        output,
+        isSingle,
+    } = args;
+
+    const readmeTemplate = README_TEMPLATES[collectionType];
+
+    const directories = isSingle ? ['.'] : await readLocalDir(basePath);
+
+
+    const metadataFile = `devcontainer-${collectionType}.json`;
 
     await Promise.all(
         directories.map(async (f: string) => {
-            if (!f.startsWith('.')) {
-                const readmePath = path.join(basePath, f, 'README.md');
-                output.write(`Generating ${readmePath}...`, LogLevel.Info);
+            if (f.startsWith('..')) {
+                return;
+            }
 
-                const jsonPath = path.join(basePath, f, metadataFile);
+            const readmePath = path.join(basePath, f, 'README.md');
+            output.write(`Generating ${readmePath}...`, LogLevel.Info);
 
-                if (!fs.existsSync(jsonPath)) {
+            const jsonPath = path.join(basePath, f, metadataFile);
+
+            if (!(await isLocalFile(jsonPath))) {
                     output.write(`(!) Warning: ${metadataFile} not found at path '${jsonPath}'. Skipping...`, LogLevel.Warning);
                     return;
                 }
@@ -176,8 +171,8 @@ async function _generateDocumentation(
                     .replace('#{Notes}', generateNotesMarkdown())
                     .replace('#{RepoUrl}', urlToConfig)
                     // Features Only
-                    .replace('#{Registry}', ociRegistry)
-                    .replace('#{Namespace}', namespace)
+                    .replace('#{Registry}', registry || '')
+                    .replace('#{Namespace}', namespace || '')
                     .replace('#{Version}', version)
                     .replace('#{Customizations}', extensions);
 
@@ -191,8 +186,36 @@ async function _generateDocumentation(
                 }
 
                 // Write new readme
-                fs.writeFileSync(readmePath, newReadme);
-            }
+            fs.writeFileSync(readmePath, newReadme);
         })
     );
+}
+
+export async function prepGenerateDocsCommand(args: GenerateDocsCommandInput, collectionType: GenerateDocsCollectionType): Promise<GenerateDocsCommandInput> {
+    const { cliHost, targetFolder, registry, namespace, gitHubOwner, gitHubRepo, output, disposables } = args;
+
+    const targetFolderResolved = cliHost.path.resolve(targetFolder);
+    if (!(await isLocalFolder(targetFolderResolved))) {
+        throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
+    }
+
+    // Detect if we're dealing with a collection or a single feature/template
+    const isValidFolder = await isLocalFolder(cliHost.path.join(targetFolderResolved));
+    const isSingle = await isLocalFile(cliHost.path.join(targetFolderResolved, `devcontainer-${collectionType}.json`));
+
+    if (!isValidFolder) {
+        throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
+    }
+
+    return {
+        cliHost,
+        targetFolder: targetFolderResolved,
+        registry,
+        namespace,
+        gitHubOwner,
+        gitHubRepo,
+        output,
+        disposables,
+        isSingle
+    };
 }
