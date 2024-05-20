@@ -33,9 +33,7 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
 				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
 				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
-				if (imageTags.length === 1) {
-					assert.ok(false, 'should not succeed');
-				}
+				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1'); 
 			} catch (error) {
 				assert.equal(error.code, 'ERR_ASSERTION', 'Should fail with ERR_ASSERTION');
 			}
