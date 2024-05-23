@@ -1,0 +1,10 @@
+version: '3.8'
+
+name: custom-project-name
+
+services:
+  app:
+    image: ubuntu:latest
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity

@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## May 2024
+
+### [0.60.0]
+- Support project name attribute. (https://github.com/microsoft/vscode-remote-release/issues/512)
+
 ## April 2024
 
 ### [0.59.1]

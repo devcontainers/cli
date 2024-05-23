@@ -123,6 +123,7 @@ function provisionOptions(y: Argv) {
 		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
+		'cache-to': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
@@ -193,6 +194,7 @@ async function provision({
 	mount,
 	'remote-env': addRemoteEnv,
 	'cache-from': addCacheFrom,
+	'cache-to': addCacheTo,
 	'buildkit': buildkit,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
@@ -262,7 +264,7 @@ async function provision({
 		buildxPlatform: undefined,
 		buildxPush: false,
 		buildxOutput: undefined,
-		buildxCacheTo: undefined,
+		buildxCacheTo: addCacheTo,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
@@ -645,9 +647,9 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			const projectName = await getProjectName(params, workspace, composeFiles);
-
+			
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
+			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});
 			if (services.indexOf(config.service) === -1) {
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
