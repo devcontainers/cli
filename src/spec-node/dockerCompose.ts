@@ -653,8 +653,18 @@ export async function getProjectName(params: DockerCLIParameters | DockerResolve
 			throw err;
 		}
 	}
-	if (composeConfig?.name) {
-		return toProjectName(composeConfig.name, newProjectName);
+	for (let i = composeFiles.length - 1; i >= 0; i--) {
+		try {
+			const fragment = yaml.load((await cliHost.readFile(composeFiles[i])).toString()) || {} as any;
+			if (fragment.name) {
+				return toProjectName(fragment.name, newProjectName);
+			}
+		} catch (error) {
+			// fallback when parsing fails due to custom yaml tags (e.g., !reset)
+			if (composeConfig?.name && composeConfig.name !== 'devcontainer') {
+				return toProjectName(composeConfig.name, newProjectName);
+			}
+		}
 	}
 	const configDir = workspace.configFolderPath;
 	const workingDir = composeFiles[0] ? cliHost.path.dirname(composeFiles[0]) : cliHost.cwd; // From https://github.com/docker/compose/blob/79557e3d3ab67c3697641d9af91866d7e400cfeb/compose/config/config.py#L290

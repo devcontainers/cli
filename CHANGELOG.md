@@ -4,6 +4,9 @@ Notable changes.
 
 ## May 2024
 
+### [0.62.0]
+- Fix support for project name attribute. (https://github.com/devcontainers/cli/issues/831)
+
 ### [0.61.0]
 - Use --depth 1 to make dotfiles install process faster (https://github.com/devcontainers/cli/pull/830)
 - Enable --cache-to and --cache-from in devcontainer up (https://github.com/devcontainers/cli/pull/813)
