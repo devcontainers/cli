@@ -1,0 +1,11 @@
+version: '3.8'
+
+name: custom-project-name-custom-yaml
+
+services:
+  app:
+    image: ubuntu:latest
+    ports: !reset []
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
