@@ -305,7 +305,10 @@ registry`;
 });
 
 //  NOTE: 
-//  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
+//  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1.0.10
+//  TODO:
+//  This test does not take into account the changes in #815.
+//  Therefore, this test needs to be changed to depend on the feature that was pushed after the #815 change was merged.
 describe('Test OCI Push Helper Functions', function () {
 	this.timeout('10s');
 	it('Generates the correct tgz manifest layer', async () => {
@@ -341,14 +344,14 @@ describe('Test OCI Push Helper Functions', function () {
 		const { contentDigest, manifestBuffer } = manifestContainer;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
-		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestBuffer.toString());
+		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestBuffer.toString());
 
 		// This is the canonical digest of the manifest
-		assert.strictEqual('sha256:92612b601337f2aa01bba176a13991b03b156c3edf2c18d3d9776e73ccc273a4', contentDigest);
+		assert.strictEqual('sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
-		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:92612b601337f2aa01bba176a13991b03b156c3edf2c18d3d9776e73ccc273a4');
+		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
 		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
 	});
 
@@ -362,7 +365,7 @@ describe('Test OCI Push Helper Functions', function () {
 		const tarLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5');
 		assert.isTrue(tarLayerBlobExists);
 
-		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
+		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
 		assert.isTrue(configLayerBlobExists);
 
 		const randomStringDoesNotExist = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3');
