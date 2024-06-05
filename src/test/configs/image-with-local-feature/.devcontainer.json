@@ -1,0 +1,6 @@
+{
+	"image": "ubuntu:latest",
+	"features": {
+		"myfeature": {}
+	}
+}
