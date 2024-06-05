@@ -40,6 +40,11 @@ export async function ensureNoDisallowedFeatures(params: DockerCLIParameters, co
 	const documentationURL = d.disallowedFeatureEntry.documentationURL;
 	throw new ContainerError({
 		description: `Cannot use the '${d.configFeatureId}' Feature since it was reported to be problematic. Please remove this Feature from your configuration and rebuild any dev container using it before continuing.${stopped ? ' The existing dev container was stopped.' : ''}${documentationURL ? ` See ${documentationURL} to learn more.` : ''}`,
+		data: {
+			disallowedFeatureId: d.configFeatureId,
+			didStopContainer: stopped,
+			learnMoreUrl: documentationURL,
+		},
 	});
 }
 
