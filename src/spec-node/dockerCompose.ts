@@ -82,6 +82,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 			params: common,
 			properties: containerProperties,
 			config,
+			mergedConfig,
 			resolvedAuthority: {
 				extensionHostEnv,
 			},

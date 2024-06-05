@@ -69,6 +69,8 @@ export interface ProvisionOptions {
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
+	includeConfig?: boolean;
+	includeMergedConfig?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -81,10 +83,12 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {
-		containerId: dockerContainerId!,
+		containerId: dockerContainerId,
 		composeProjectName,
 		remoteUser: result.properties.user,
 		remoteWorkspaceFolder: result.properties.remoteWorkspaceFolder,
+		configuration: options.includeConfig ? result.config : undefined,
+		mergedConfiguration: options.includeMergedConfig ? result.mergedConfig : undefined,
 		finishBackgroundTasks: async () => {
 			try {
 				await finishBackgroundTasks(result.params.backgroundTasks);

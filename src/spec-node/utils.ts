@@ -24,7 +24,7 @@ import { StringDecoder } from 'string_decoder';
 import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
-import { ImageMetadataEntry } from './imageMetadata';
+import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
@@ -124,12 +124,13 @@ export interface DockerResolverParameters {
 export interface ResolverResult {
 	params: ResolverParameters;
 	properties: ContainerProperties;
-	config: DevContainerConfig | undefined;
+	config: DevContainerConfig;
+	mergedConfig: MergedDevContainerConfig;
 	resolvedAuthority: { extensionHostEnv?: { [key: string]: string | null } };
 	tunnelInformation: { environmentTunnels?: { remoteAddress: { port: number; host: string }; localAddress: string }[] };
 	isTrusted?: boolean;
-	dockerParams: DockerResolverParameters | undefined;
-	dockerContainerId: string | undefined;
+	dockerParams: DockerResolverParameters;
+	dockerContainerId: string;
 	composeProjectName?: string;
 }
 
