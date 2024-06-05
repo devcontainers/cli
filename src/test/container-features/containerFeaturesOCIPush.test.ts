@@ -305,26 +305,26 @@ registry`;
 });
 
 //  NOTE: 
-//  Test depends on https://github.com/codspace/features/pkgs/container/features%2Fgo/29819216?tag=1
+//  Test depends on https://github.com/orgs/codspace/packages/container/non-empty-config-layer%2Fcolor/225254837?tag=1.0.0
 describe('Test OCI Push Helper Functions', function () {
 	this.timeout('10s');
 	it('Generates the correct tgz manifest layer', async () => {
 
-		const dataBytes = fs.readFileSync(`${testAssetsDir}/go.tgz`);
+		const dataBytes = fs.readFileSync(`${testAssetsDir}/devcontainer-feature-color.tgz`);
 
-		const featureRef = getRef(output, 'ghcr.io/devcontainers/features/go');
+		const featureRef = getRef(output, 'ghcr.io/codspace/non-empty-config-layer/color');
 		if (!featureRef) {
 			assert.fail();
 		}
 
 		// Calculate the tgz layer and digest
-		const res = await calculateDataLayer(output, dataBytes, 'go.tgz', DEVCONTAINER_TAR_LAYER_MEDIATYPE);
+		const res = await calculateDataLayer(output, dataBytes, 'devcontainer-feature-color.tgz', DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 		const expected = {
-			digest: 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5',
+			digest: 'sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1',
 			mediaType: 'application/vnd.devcontainers.layer.v1+tar',
-			size: 15872,
+			size: 3584,
 			annotations: {
-				'org.opencontainers.image.title': 'go.tgz'
+				'org.opencontainers.image.title': 'devcontainer-feature-color.tgz'
 			}
 		};
 
@@ -334,35 +334,39 @@ describe('Test OCI Push Helper Functions', function () {
 		assert.deepEqual(res, expected);
 
 		// Generate entire manifest to be able to calculate content digest
-		const manifestContainer = await calculateManifestAndContentDigest(output, featureRef, res, undefined);
+		const annotations = {
+			'dev.containers.metadata': '{\"id\":\"color\",\"version\":\"1.0.0\",\"name\":\"A feature to remind you of your favorite color\",\"options\":{\"favorite\":{\"type\":\"string\",\"enum\":[\"red\",\"gold\",\"green\"],\"default\":\"red\",\"description\":\"Choose your favorite color.\"}}}',
+			'com.github.package.type': 'devcontainer_feature'
+		};
+		const manifestContainer = await calculateManifestAndContentDigest(output, featureRef, res, annotations);
 		if (!manifestContainer) {
 			assert.fail();
 		}
 		const { contentDigest, manifestBuffer } = manifestContainer;
 
 		// 'Expected' is taken from intermediate value in oras reference implementation, before hash calculation
-		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}', manifestBuffer.toString());
+		assert.strictEqual('{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1","size":3584,"annotations":{"org.opencontainers.image.title":"devcontainer-feature-color.tgz"}}],"annotations":{"dev.containers.metadata":"{\\"id\\":\\"color\\",\\"version\\":\\"1.0.0\\",\\"name\\":\\"A feature to remind you of your favorite color\\",\\"options\\":{\\"favorite\\":{\\"type\\":\\"string\\",\\"enum\\":[\\"red\\",\\"gold\\",\\"green\\"],\\"default\\":\\"red\\",\\"description\\":\\"Choose your favorite color.\\"}}}","com.github.package.type":"devcontainer_feature"}}', manifestBuffer.toString());
 
 		// This is the canonical digest of the manifest
-		assert.strictEqual('sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3', contentDigest);
+		assert.strictEqual('sha256:dd328c25cc7382aaf4e9ee10104425d9a2561b47fe238407f6c0f77b3f8409fc', contentDigest);
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
-		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/features/go', 'sha256:9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3');
-		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'go.tgz');
+		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/non-empty-config-layer/color', 'sha256:dd328c25cc7382aaf4e9ee10104425d9a2561b47fe238407f6c0f77b3f8409fc');
+		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'devcontainer-feature-color.tgz');
 	});
 
 	it('Can check whether a blob exists', async () => {
-		const ociFeatureRef = getRef(output, 'ghcr.io/codspace/features/go:1');
+		const ociFeatureRef = getRef(output, 'ghcr.io/codspace/non-empty-config-layer/color:1.0.0');
 		if (!ociFeatureRef) {
 			assert.fail('getRef() for the Feature should not be undefined');
 		}
 
 
-		const tarLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5');
+		const tarLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1');
 		assert.isTrue(tarLayerBlobExists);
 
-		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
 		assert.isTrue(configLayerBlobExists);
 
 		const randomStringDoesNotExist = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3');
