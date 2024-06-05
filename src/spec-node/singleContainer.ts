@@ -106,6 +106,7 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 		params: common,
 		properties: containerProperties,
 		config,
+		mergedConfig,
 		resolvedAuthority: {
 			extensionHostEnv,
 		},

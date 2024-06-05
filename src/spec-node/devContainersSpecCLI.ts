@@ -137,6 +137,8 @@ function provisionOptions(y: Argv) {
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
+		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
+		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -208,6 +210,8 @@ async function provision({
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'include-configuration': includeConfig,
+	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -270,10 +274,12 @@ async function provision({
 		skipPostAttach,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
-		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
+		omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
-		omitSyntaxDirective: omitSyntaxDirective,
+		omitSyntaxDirective,
+		includeConfig,
+		includeMergedConfig,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -337,6 +343,8 @@ function setUpOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
+		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
 	})
 		.check(argv => {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
@@ -380,6 +388,8 @@ async function doSetUp({
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'include-configuration': includeConfig,
+	'include-merged-configuration': includeMergedConfig,
 }: SetUpArgs) {
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -457,6 +467,8 @@ async function doSetUp({
 		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
+			configuration: includeConfig ? config.config : undefined,
+			mergedConfiguration: includeMergedConfig ? mergedConfig : undefined,
 			dispose,
 		};
 	} catch (originalError) {
