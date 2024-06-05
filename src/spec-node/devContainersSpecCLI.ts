@@ -318,6 +318,9 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 			message: err.message,
 			description: err.description,
 			containerId: err.containerId,
+			disallowedFeatureId: err.data.disallowedFeatureId,
+			didStopContainer: err.data.didStopContainer,
+			learnMoreUrl: err.data.learnMoreUrl,
 			dispose,
 		};
 	}
