@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## June 2024
+
+### [0.63.0]
+- Surface additional information in `devcontainer up`. (https://github.com/devcontainers/cli/pull/836)
+
 ## May 2024
 
 ### [0.62.0]
