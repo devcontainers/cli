@@ -6,6 +6,7 @@ Notable changes.
 
 ### [0.63.0]
 - Surface additional information in `devcontainer up`. (https://github.com/devcontainers/cli/pull/836)
+- Changes the config layer of the Feature manifest to a empty descriptor (https://github.com/devcontainers/cli/pull/815)
 
 ## May 2024
 
