@@ -34,7 +34,7 @@ describe('Dev Containers CLI', function () {
 			} catch (error) {
 				const res = JSON.parse(error.stdout);
 				assert.equal(res.outcome, 'error');
-				assert.match(res.message, /forgot to prepend '.\/'/);
+				assert.match(res.message, /prepend your Feature name with/);
 			}
 		});
 

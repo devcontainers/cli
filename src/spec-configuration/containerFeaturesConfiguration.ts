@@ -698,8 +698,11 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 
 	// Legacy feature-set ID
 	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
-		output.write(`Legacy feature '${userFeatureId}' forgot to prepend './' at the begining of the feature. Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for replacements.`, LogLevel.Error);
-		throw new ContainerError({ description: `Legacy feature '${userFeatureId}' forgot to prepend './' at the begining of the feature. Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for replacements.` });
+		output.write(`Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements. \n
+		If you were hoping to use local Features, remember to prepend your Feature name with "./". Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for more information.`, LogLevel.Error);
+		throw new ContainerError({
+			description: `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements. \n
+		If you were hoping to use local Features, remember to prepend your Feature name with "./". Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for more information.` });
 	}
 
 	// Direct tarball reference
