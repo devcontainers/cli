@@ -654,16 +654,20 @@ export async function getProjectName(params: DockerCLIParameters | DockerResolve
 			throw err;
 		}
 	}
-	for (let i = composeFiles.length - 1; i >= 0; i--) {
-		try {
-			const fragment = yaml.load((await cliHost.readFile(composeFiles[i])).toString()) || {} as any;
-			if (fragment.name) {
-				return toProjectName(fragment.name, newProjectName);
-			}
-		} catch (error) {
-			// fallback when parsing fails due to custom yaml tags (e.g., !reset)
-			if (composeConfig?.name && composeConfig.name !== 'devcontainer') {
-				return toProjectName(composeConfig.name, newProjectName);
+	if (composeConfig?.name) {
+		if (composeConfig.name !== 'devcontainer') {
+			return toProjectName(composeConfig.name, newProjectName);
+		}
+		// Check if 'devcontainer' is from a compose file or just the default.
+		for (let i = composeFiles.length - 1; i >= 0; i--) {
+			try {
+				const fragment = yaml.load((await cliHost.readFile(composeFiles[i])).toString()) || {} as any;
+				if (fragment.name) {
+					// Use composeConfig.name ('devcontainer') because fragment.name could include environment variables.
+					return toProjectName(composeConfig.name, newProjectName);
+				}
+			} catch (error) {
+				// Ignore when parsing fails due to custom yaml tags (e.g., !reset)
 			}
 		}
 	}
