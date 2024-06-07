@@ -4,6 +4,9 @@ Notable changes.
 
 ## June 2024
 
+### [0.64.0]
+- Fix project name with env variable. (https://github.com/devcontainers/cli/issues/839)
+
 ### [0.63.0]
 - Surface additional information in `devcontainer up`. (https://github.com/devcontainers/cli/pull/836)
 - Changes the config layer of the Feature manifest to a empty descriptor (https://github.com/devcontainers/cli/pull/815)
