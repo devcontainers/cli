@@ -686,8 +686,6 @@ export function updateDeprecatedFeaturesIntoOptions(userFeatures: DevContainerFe
 
 export async function getFeatureIdType(params: CommonParams, userFeatureId: string, lockfile: Lockfile | undefined) {
 	const { output } = params;
-	const error_message = `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.
-	If you were hoping to use local Features, remember to prepend your Feature name with "./". Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for more information.`;
 	// See the specification for valid feature identifiers:
 	//   > https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-features.md#referencing-a-feature
 	//
@@ -700,9 +698,11 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 
 	// Legacy feature-set ID
 	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
-		output.write(error_message, LogLevel.Error);
+		const errorMessage = `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.
+If you were hoping to use local Features, remember to prepend your Feature name with "./". Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for more information.`;
+		output.write(errorMessage, LogLevel.Error);
 		throw new ContainerError({
-			description: error_message
+			description: errorMessage
 		});
 	}
 
