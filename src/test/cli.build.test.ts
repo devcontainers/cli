@@ -27,6 +27,17 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command build', () => {
 
+		it('should fail to build with correct error message for local feature', async () => {
+			const testFolder = `${__dirname}/configs/image-with-local-feature`;
+			try {
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
+			} catch (error) {
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /prepend your Feature name with/);
+			}
+		});
+
 		it('should correctly configure the image name to push from --image-name with --push true', async () => {
 			const testFolder = `${__dirname}/configs/example`;
 			try {
