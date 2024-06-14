@@ -30,11 +30,23 @@
                 "-r",
                 "ts-node/register",
                 "--exit",
-                "src/test/*.test.ts"
+                "src/test/cli.build.test.ts"
             ],
             "env": {
                 "TS_NODE_PROJECT": "src/test/tsconfig.json"
             },
+            "console": "integratedTerminal",
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Help",
+            "program": "${workspaceFolder}/src/spec-node/devContainersSpecCLI.ts",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "build",
+                "--help"
+            ],
             "console": "integratedTerminal",
         }
     ]

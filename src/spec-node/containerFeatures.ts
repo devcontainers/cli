@@ -28,7 +28,7 @@ export const getSafeId = (str: string) => str
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
 
-export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
+export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], imageLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
 	const { common } = params;
 	const { cliHost, output } = common;
 
@@ -113,6 +113,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		'--target', featureBuildInfo.overrideTarget,
 		'-f', dockerfilePath,
 		...additionalImageNames.length > 0 ? additionalImageNames.map(name => ['-t', name]).flat() : ['-t', updatedImageName],
+		...imageLabels.length > 0 ? imageLabels.map(name => ['-t', name]).flat() : ['-t', imageLabels],
 		emptyTempDir
 	);
 

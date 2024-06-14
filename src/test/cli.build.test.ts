@@ -41,7 +41,7 @@ describe('Dev Containers CLI', function () {
 		it('should correctly configure the image name to push from --image-name with --push true', async () => {
 			const testFolder = `${__dirname}/configs/example`;
 			try {
-				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
+				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1 --label "name=prathamesh"`);
 				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
 				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
 				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1'); 

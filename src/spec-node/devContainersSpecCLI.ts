@@ -267,6 +267,7 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
+		buildxLabel: undefined,
 		buildxOutput: undefined,
 		buildxCacheTo: addCacheTo,
 		additionalFeatures,
@@ -431,6 +432,7 @@ async function doSetUp({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxLabel: undefined,
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
@@ -508,6 +510,7 @@ function buildOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'label': { type: 'string', description: 'Provide key and value for the metadata of the container. (<key1>=<value1> <key2>=<value2> )' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
@@ -546,6 +549,7 @@ async function doBuild({
 	'buildkit': buildkit,
 	'platform': buildxPlatform,
 	'push': buildxPush,
+	'label': buildxLabel,
 	'output': buildxOutput,
 	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
@@ -593,6 +597,7 @@ async function doBuild({
 			useBuildKit: buildkit,
 			buildxPlatform,
 			buildxPush,
+			buildxLabel,
 			buildxOutput,
 			buildxCacheTo,
 			skipFeatureAutoMapping,
@@ -629,10 +634,13 @@ async function doBuild({
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
+		// Support multiple use of `--label`
+		const imageLabels = (buildxLabel && (Array.isArray(buildxLabel) ? buildxLabel : [buildxLabel]) as string[]) || undefined;
+
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames, imageLabels);
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -695,7 +703,7 @@ async function doBuild({
 			}
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], additionalFeatures, false);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], imageLabels || [], additionalFeatures, false);
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -858,6 +866,7 @@ async function doRunUserCommands({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxLabel: undefined,
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
@@ -1306,6 +1315,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			buildxLabel: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,
