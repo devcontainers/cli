@@ -510,7 +510,7 @@ function buildOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
-		'label': { type: 'string', description: 'Provide key and value for the metadata of the container. (<key1>=<value1> <key2>=<value2> )' },
+		'label': { type: 'string', description: 'Provide key and value configuration that adds metadata to an image' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
