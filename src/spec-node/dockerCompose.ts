@@ -716,16 +716,16 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 				}
 				stdout = (await dockerComposeCLI({
 					...params,
-					cmd: dockerCLICmd,
-				}, 'compose', 'version', '--short')).stdout;
+					cmd: "docker-compose",
+				}, 'version', '--short')).stdout;
 				v2 = true;
 			}
 			const version = stdout.toString().trim();
 			params.output.write(`Docker Compose version: ${version}`);
 			return {
 				version,
-				cmd: v2 ? dockerCLICmd : dockerComposeCLICmd,
-				args: v2 ? ['compose'] : [],
+				cmd: v2 ? "docker-compose" : dockerComposeCLICmd,
+				args: v2 ? [] : ['compose'],
 			};
 		})());
 	};
