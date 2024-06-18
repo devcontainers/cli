@@ -167,7 +167,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		exec: cliHost.exec,
 		env: cliHost.env,
 		output: common.output,
-	}, dockerPath, dockerComposePath);
+	}, dockerComposePath);
 
 	const platformInfo = (() => {
 		if (common.buildxPlatform) {
