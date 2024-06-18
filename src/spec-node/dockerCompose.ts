@@ -699,7 +699,7 @@ async function useNewProjectName(params: DockerCLIParameters | DockerResolverPar
 	}
 }
 
-export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'>, dockerCLICmd: string, dockerComposeCLICmd: string) {
+export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'>, dockerComposeCLICmd: string) {
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
