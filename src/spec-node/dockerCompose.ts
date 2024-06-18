@@ -699,12 +699,13 @@ async function useNewProjectName(params: DockerCLIParameters | DockerResolverPar
 	}
 }
 
-export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'>, dockerComposeCLICmd: string) {
+export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'>, dockerCLICmd: string, dockerComposeCLICmd: string) {
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
 			let v2 = false;
 			let stdout: Buffer;
+			dockerCLICmd='docker-compose';
 			try {
 				stdout = (await dockerComposeCLI({
 					...params,
@@ -716,7 +717,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 				}
 				stdout = (await dockerComposeCLI({
 					...params,
-					cmd: 'docker-compose',
+					cmd: dockerCLICmd,
 				}, 'version', '--short')).stdout;
 				v2 = true;
 			}
@@ -724,7 +725,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 			params.output.write(`Docker Compose version: ${version}`);
 			return {
 				version,
-				cmd: v2 ? 'docker-compose' : dockerComposeCLICmd,
+				cmd: v2 ? dockerCLICmd : dockerComposeCLICmd,
 				args: v2 ? [] : ['compose'],
 			};
 		})());
