@@ -86,7 +86,7 @@ async function featuresUpgrade({
 			exec: cliHost.exec,
 			env: cliHost.env,
 			output,
-		}, dockerPath, dockerComposePath);
+		}, dockerComposePath);
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,

@@ -1028,7 +1028,7 @@ async function readConfiguration({
 			exec: cliHost.exec,
 			env: cliHost.env,
 			output,
-		}, dockerCLI, dockerComposePath || 'docker-compose');
+		}, dockerComposePath || 'docker-compose');
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI,
