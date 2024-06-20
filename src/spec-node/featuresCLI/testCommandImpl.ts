@@ -550,7 +550,7 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	const options: ProvisionOptions = {
 		...staticProvisionParams,
 		workspaceFolder,
-		buildxLabel: '',
+		additionalLabels: [],
 		logLevel: common.getLogLevel(),
 		mountWorkspaceGitRoot: true,
 		remoteEnv: common.remoteEnv,
@@ -626,7 +626,7 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 	const { logLevel, quiet, disposables } = args;
 	return await createDockerParams({
 		workspaceFolder,
-		buildxLabel: undefined,
+		additionalLabels: [],
 		dockerPath: undefined,
 		dockerComposePath: undefined,
 		containerDataFolder: undefined,
