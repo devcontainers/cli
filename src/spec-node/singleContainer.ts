@@ -119,16 +119,15 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config && config.image ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[], imageLabels?: string[]): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string> }> {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[]): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string> }> {
 	const { config } = configWithRaw;
 	const imageNames = argImageNames ?? [getDefaultName(config, params)];
-	const imagelabel = imageLabels;
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
 		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false, additionalFeatures);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, configWithRaw, imageNames[0], argImageNames || [], imagelabel || [], additionalFeatures, canAddLabelsToContainer);
+	return await extendImage(params, configWithRaw, imageNames[0], argImageNames || [], additionalFeatures, canAddLabelsToContainer);
 }
 
 async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {

@@ -267,7 +267,7 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
-		buildxLabel: undefined,
+		additionalLabels: [],
 		buildxOutput: undefined,
 		buildxCacheTo: addCacheTo,
 		additionalFeatures,
@@ -432,7 +432,7 @@ async function doSetUp({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
-			buildxLabel: undefined,
+			additionalLabels: [],
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
@@ -597,7 +597,7 @@ async function doBuild({
 			useBuildKit: buildkit,
 			buildxPlatform,
 			buildxPush,
-			buildxLabel,
+			additionalLabels: [],
 			buildxOutput,
 			buildxCacheTo,
 			skipFeatureAutoMapping,
@@ -635,12 +635,12 @@ async function doBuild({
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
 		// Support multiple use of `--label`
-		const imageLabels = (buildxLabel && (Array.isArray(buildxLabel) ? buildxLabel : [buildxLabel]) as string[]) || undefined;
+		params.additionalLabels = (buildxLabel && (Array.isArray(buildxLabel) ? buildxLabel : [buildxLabel]) as string[]) || [];
 
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames, imageLabels);
+			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames);
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -703,7 +703,7 @@ async function doBuild({
 			}
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], imageLabels || [], additionalFeatures, false);
+			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], additionalFeatures, false);
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -866,7 +866,7 @@ async function doRunUserCommands({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
-			buildxLabel: undefined,
+			additionalLabels: [],
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
@@ -1315,7 +1315,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
-			buildxLabel: undefined,
+			additionalLabels: [],
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,

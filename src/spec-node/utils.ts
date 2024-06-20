@@ -116,7 +116,7 @@ export interface DockerResolverParameters {
 	experimentalFrozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	buildxLabel: string | undefined;
+	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;

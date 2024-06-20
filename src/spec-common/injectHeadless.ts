@@ -60,7 +60,6 @@ export interface ResolverParameters {
 	remoteEnv: Record<string, string>;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
-	buildxLabel: string | undefined;
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	skipFeatureAutoMapping: boolean;
