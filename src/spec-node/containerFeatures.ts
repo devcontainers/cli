@@ -113,6 +113,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		'--target', featureBuildInfo.overrideTarget,
 		'-f', dockerfilePath,
 		...additionalImageNames.length > 0 ? additionalImageNames.map(name => ['-t', name]).flat() : ['-t', updatedImageName],
+		...params.additionalLabels.length > 0 ? params.additionalLabels.map(label => ['--label', label]).flat() : [],
 		emptyTempDir
 	);
 

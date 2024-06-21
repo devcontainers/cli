@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
@@ -227,6 +228,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		experimentalFrozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
+		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
 		platformInfo
