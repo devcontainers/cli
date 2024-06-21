@@ -703,30 +703,26 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
-			let v2 = false;
+			let v2 = true;
 			let stdout: Buffer;
-			dockerCLICmd='docker-compose';
 			try {
+				stdout = (await dockerComposeCLI({
+					...params,
+					cmd: dockerCLICmd,
+				}, 'compose', 'version', '--short')).stdout;
+				v2 = true;
+			} catch (err) {
 				stdout = (await dockerComposeCLI({
 					...params,
 					cmd: dockerComposeCLICmd,
 				}, 'version', '--short')).stdout;
-			} catch (err) {
-				if (err?.code !== 'ENOENT') {
-					throw err;
-				}
-				stdout = (await dockerComposeCLI({
-					...params,
-					cmd: dockerCLICmd,
-				}, 'version', '--short')).stdout;
-				v2 = true;
 			}
 			const version = stdout.toString().trim();
 			params.output.write(`Docker Compose version: ${version}`);
 			return {
 				version,
 				cmd: v2 ? dockerCLICmd : dockerComposeCLICmd,
-				args: v2 ? [] : ['compose'],
+				args: v2 ? ['compose'] : [],
 			};
 		})());
 	};
