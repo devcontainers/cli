@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: mcr.microsoft.com/devcontainers/javascript-node:1-18-bookworm
+    image: mcr.microsoft.com/devcontainers/javascript-node:0.204-18-buster
     volumes:
       - ..:/workspace:cached
 
