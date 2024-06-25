@@ -4,6 +4,11 @@ Notable changes.
 
 ## June 2024
 
+### [0.65.0]
+- Fix confusing error message with local feature. (https://github.com/devcontainers/cli/issues/834)
+- Add `--label` parameter to `devcontainer build` command. (https://github.com/devcontainers/cli/issues/837)
+- Prefer Docker Compose v2 over v1. (https://github.com/devcontainers/cli/issues/826)
+
 ### [0.64.0]
 - Fix project name with env variable. (https://github.com/devcontainers/cli/issues/839)
 
