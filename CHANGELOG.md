@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## July 2024
+
+### [0.66.0]
+- Wait for result to be written to stdout. (https://github.com/microsoft/vscode-remote-release/issues/10029)
+
 ## June 2024
 
 ### [0.65.0]
