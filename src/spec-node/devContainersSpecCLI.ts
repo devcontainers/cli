@@ -285,7 +285,9 @@ async function provision({
 
 	const result = await doProvision(options, providedIdLabels);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	if (result.outcome === 'success') {
 		await result.finishBackgroundTasks();
 	}
@@ -368,7 +370,9 @@ function setUpHandler(args: SetUpArgs) {
 async function setUp(args: SetUpArgs) {
 	const result = await doSetUp(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -530,7 +534,9 @@ function buildHandler(args: BuildArgs) {
 async function build(args: BuildArgs) {
 	const result = await doBuild(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -789,7 +795,9 @@ function runUserCommandsHandler(args: RunUserCommandsArgs) {
 async function runUserCommands(args: RunUserCommandsArgs) {
 	const result = await doRunUserCommands(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
