@@ -26,9 +26,11 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command up', () => {
 		it('should execute successfully with valid config', async () => {
-			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image`);
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --include-configuration --include-merged-configuration`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
+			assert.equal(response.configuration?.remoteEnv?.TEST_RE, 'TEST_VALUE3');
+			assert.equal(response.mergedConfiguration?.remoteEnv?.TEST_RE, 'TEST_VALUE3');
 			const containerId: string = response.containerId;
 			assert.ok(containerId, 'Container id not found.');
 			await shellExec(`docker rm -f ${containerId}`);

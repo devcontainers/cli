@@ -11,7 +11,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
-import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
+import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
@@ -125,7 +125,7 @@ export interface DockerResolverParameters {
 export interface ResolverResult {
 	params: ResolverParameters;
 	properties: ContainerProperties;
-	config: DevContainerConfig;
+	config: CommonDevContainerConfig;
 	mergedConfig: MergedDevContainerConfig;
 	resolvedAuthority: { extensionHostEnv?: { [key: string]: string | null } };
 	tunnelInformation: { environmentTunnels?: { remoteAddress: { port: number; host: string }; localAddress: string }[] };
