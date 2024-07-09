@@ -100,13 +100,15 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 	const { common } = params;
 	const {
 		remoteEnv: extensionHostEnv,
-	} = await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
+		updatedConfig,
+		updatedMergedConfig,
+	} = await setupInContainer(common, containerProperties, config, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 
 	return {
 		params: common,
 		properties: containerProperties,
-		config,
-		mergedConfig,
+		config: updatedConfig,
+		mergedConfig: updatedMergedConfig,
 		resolvedAuthority: {
 			extensionHostEnv,
 		},

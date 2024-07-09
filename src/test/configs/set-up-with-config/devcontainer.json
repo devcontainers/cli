@@ -1,3 +1,6 @@
 {
-	"postAttachCommand": "touch /postAttachCommand.txt"
+	"postAttachCommand": "touch /postAttachCommand.txt",
+	"remoteEnv": {
+		"TEST_RE": "${containerEnv:TEST_CE}"
+	}
 }

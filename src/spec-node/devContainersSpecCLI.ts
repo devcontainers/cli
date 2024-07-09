@@ -467,17 +467,16 @@ async function doSetUp({
 			bailOut(common.output, 'Dev container not found.');
 		}
 
-		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
-		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
+		const config = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
-		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
+		const res = await setupInContainer(common, containerProperties, config.config, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
-			configuration: includeConfig ? config.config : undefined,
-			mergedConfiguration: includeMergedConfig ? mergedConfig : undefined,
+			configuration: includeConfig ? res.updatedConfig : undefined,
+			mergedConfiguration: includeMergedConfig ? res.updatedMergedConfig : undefined,
 			dispose,
 		};
 	} catch (originalError) {

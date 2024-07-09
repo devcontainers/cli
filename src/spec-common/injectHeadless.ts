@@ -323,18 +323,21 @@ export function getSystemVarFolder(params: ResolverParameters): string {
 	return params.containerSystemDataFolder || '/var/devcontainer';
 }
 
-export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonMergedDevContainerConfig, lifecycleCommandOriginMap: LifecycleHooksInstallMap) {
+export async function setupInContainer(params: ResolverParameters, containerProperties: ContainerProperties, config: CommonDevContainerConfig, mergedConfig: CommonMergedDevContainerConfig, lifecycleCommandOriginMap: LifecycleHooksInstallMap) {
 	await patchEtcEnvironment(params, containerProperties);
 	await patchEtcProfile(params, containerProperties);
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
 	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
-	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedConfig) : Promise.resolve({});
+	const updatedMergedConfig = containerSubstitute(params.cliHost.platform, mergedConfig.configFilePath, containerProperties.env, mergedConfig);
+	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedMergedConfig) : Promise.resolve({});
 	const secretsP = params.secretsP || Promise.resolve({});
 	if (params.lifecycleHook.enabled) {
-		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedConfig, remoteEnv, secretsP, false);
+		await runLifecycleHooks(params, lifecycleCommandOriginMap, containerProperties, updatedMergedConfig, remoteEnv, secretsP, false);
 	}
 	return {
 		remoteEnv: params.computeExtensionHostEnv ? await remoteEnv : {},
+		updatedConfig,
+		updatedMergedConfig,
 	};
 }
 
