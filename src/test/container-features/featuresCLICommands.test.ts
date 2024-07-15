@@ -5,7 +5,9 @@ import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
 import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
-import { generateFeaturesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
+import { generateDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
+import { getCLIHost } from '../../spec-common/cliHost';
+import { loadNativeModule } from '../../spec-common/commonUtils';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
 const pkg = require('../../../package.json');
@@ -679,17 +681,31 @@ describe('test functions getVersionsStrictSorted and getPublishedTags', async ()
 
 });
 
-describe('tests generateFeaturesDocumentation()', async function () {
+describe('tests generateFeaturesDocumentation(isSingle = false)', async function () {
 	this.timeout('120s');
 
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const projectFolder = `${__dirname}/example-v2-features-sets/simple/src`;
 
 	after('clean', async () => {
-		await shellExec(`rm ${projectFolder}/**/README.md`);
+		await shellExec(`rm ${projectFolder}/**/README.md || true`);
 	});
 
-	it('tests generate-docs', async function () {
-		await generateFeaturesDocumentation(projectFolder, 'ghcr.io', 'devcontainers/cli', 'devcontainers', 'cli', output);
+	it('should generate docs for the features collection', async function () {
+		await shellExec(`rm ${projectFolder}/**/README.md || true`);
+
+		await generateDocumentation({
+			cliHost: cliHost,
+			targetFolder: projectFolder,
+			registry: 'ghcr.io',
+			namespace: 'devcontainers/cli',
+			gitHubOwner: 'devcontainers',
+			gitHubRepo: 'cli',
+			output: output,
+			isSingle: false,
+			disposables: [],
+		}, 'feature');
 
 		const colorDocsExists = await isLocalFile(`${projectFolder}/color/README.md`);
 		assert.isTrue(colorDocsExists);
@@ -699,5 +715,36 @@ describe('tests generateFeaturesDocumentation()', async function () {
 
 		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-feature/README.md`);
 		assert.isFalse(invalidDocsExists);
+	});
+});
+
+describe('tests generateFeaturesDocumentation(isSingle = true)', async function () {
+	this.timeout('120s');
+
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
+	const projectFolder = `${__dirname}/example-v2-features-sets/simple/src/color`;
+
+	after('clean', async () => {
+		await shellExec(`rm ${projectFolder}/README.md || true`);
+	});
+
+	it('should generate docs for the single feature', async function () {
+		await shellExec(`rm ${projectFolder}/README.md || true`);
+
+		await generateDocumentation({
+			cliHost: cliHost,
+			targetFolder: projectFolder,
+			registry: 'ghcr.io',
+			namespace: 'devcontainers/cli',
+			gitHubOwner: 'devcontainers',
+			gitHubRepo: 'cli',
+			output: output,
+			isSingle: true,
+			disposables: [],
+		}, 'feature');
+
+		const colorDocsExists = await isLocalFile(`${projectFolder}/README.md`);
+		assert.isTrue(colorDocsExists);
 	});
 });

@@ -1,22 +1,18 @@
 import { Argv } from 'yargs';
 import { UnpackArgv } from '../devContainersSpecCLI';
-import { generateTemplatesDocumentation } from '../collectionCommonUtils/generateDocsCommandImpl';
+import { generateDocumentation, prepGenerateDocsCommand } from '../collectionCommonUtils/generateDocsCommandImpl';
 import { createLog } from '../devContainers';
 import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
+import { GenerateDocsCommandInput, GenerateDocsOptions } from '../collectionCommonUtils/generateDocs';
+import { getCLIHost } from '../../spec-common/cliHost';
+import { loadNativeModule } from '../../spec-common/commonUtils';
+import { isLocalFolder } from '../../spec-utils/pfs';
 
-// -- 'templates generate-docs' command
+const collectionType = 'template';
+
 export function templatesGenerateDocsOptions(y: Argv) {
-	return y
-		.options({
-			'project-folder': { type: 'string', alias: 'p', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders. This is likely the git root of the project.' },
-			'github-owner': { type: 'string', default: '', description: `GitHub owner for docs.` },
-			'github-repo': { type: 'string', default: '', description: `GitHub repo for docs.` },
-			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' }
-		})
-		.check(_argv => {
-			return true;
-		});
+	return GenerateDocsOptions(y, collectionType);
 }
 
 export type TemplatesGenerateDocsArgs = UnpackArgv<ReturnType<typeof templatesGenerateDocsOptions>>;
@@ -26,7 +22,7 @@ export function templatesGenerateDocsHandler(args: TemplatesGenerateDocsArgs) {
 }
 
 export async function templatesGenerateDocs({
-	'project-folder': collectionFolder,
+	'target': targetFolder,
 	'github-owner': gitHubOwner,
 	'github-repo': gitHubRepo,
 	'log-level': inputLogLevel,
@@ -38,6 +34,8 @@ export async function templatesGenerateDocs({
 
 	const pkg = getPackageConfig();
 
+	const cwd = process.cwd();
+	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const output = createLog({
 		logLevel: mapLogLevel(inputLogLevel),
 		logFormat: 'text',
@@ -45,9 +43,25 @@ export async function templatesGenerateDocs({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-	await generateTemplatesDocumentation(collectionFolder, gitHubOwner, gitHubRepo, output);
+	const targetFolderResolved = cliHost.path.resolve(targetFolder);
+	if (!(await isLocalFolder(targetFolderResolved))) {
+		throw new Error(`Target folder '${targetFolderResolved}' does not exist`);
+	}
 
-	// Cleanup
+
+	const args: GenerateDocsCommandInput = {
+		cliHost,
+		targetFolder,
+		gitHubOwner,
+		gitHubRepo,
+		output,
+		disposables,
+	};
+
+	const preparedArgs = await prepGenerateDocsCommand(args, collectionType);
+
+	await generateDocumentation(preparedArgs, collectionType);
+
 	await dispose();
 	process.exit();
 }
