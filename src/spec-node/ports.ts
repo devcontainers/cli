@@ -1,24 +1,13 @@
-import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
+import { DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 
-function getStaticPorts (ports: number | string | (number | string)[] | undefined): string[]{
+function normalizePorts(ports: number | string | (number | string)[] | undefined): string[]{
 	ports = ports ?? [];
 	ports = typeof ports === 'number' || typeof ports === 'string'? [ports] : ports;
-	return ports.map((port) => typeof port === 'number'? `127.0.0.1:${port}:${port}`: port);
+	return ports.map((port) => typeof port === 'number' ? `127.0.0.1:${port}:${port}`: port);
 }
 
-function appPorts (config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): string[]{
-	return getStaticPorts(config.appPort);
-}
-
-function hasAppPorts(obj: unknown):obj is (DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
-	return (obj as DevContainerFromDockerfileConfig | DevContainerFromImageConfig).appPort !== undefined;	
-}
-export function applyStaticPorts (config: DevContainerConfig): string[] {
-	let  staticPorts: string[] = [];
-	staticPorts = staticPorts.concat(...getStaticPorts(config.forwardPorts));
-	if(hasAppPorts(config)){
-		staticPorts = staticPorts.concat(...appPorts(config));
-	}
-	return (<string[]>[]).concat(...staticPorts.map((port) => ['-p', port]));
+export function getStaticPorts(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): string[] {
+	const staticPorts = normalizePorts(config.forwardPorts).concat(normalizePorts(config.appPort));
+	return staticPorts.flatMap((port) => ['-p', port]);
 }
 
