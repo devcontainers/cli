@@ -13,7 +13,7 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
-import { getStaticPorts } from './ports';
+import { getStaticPortsArgs } from './ports';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -349,7 +349,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
-	const exposed = getStaticPorts(config);
+	const exposed = getStaticPortsArgs(config);
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
