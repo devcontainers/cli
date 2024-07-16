@@ -6,7 +6,6 @@ function normalizePorts(ports: number | string | (number | string)[] | undefined
 	return ports.map((port) => typeof port === 'number' ? `127.0.0.1:${port}:${port}`: port);
 }
 
-export function getStaticPortsArgs(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): string[] {
-	const staticPorts = normalizePorts(config.forwardPorts).concat(normalizePorts(config.appPort));
-	return staticPorts.flatMap((port) => ['-p', port]);
+export function getStaticPorts(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): string[] {
+	return normalizePorts(config.forwardPorts).concat(normalizePorts(config.appPort));
 }
