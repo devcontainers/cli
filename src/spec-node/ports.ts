@@ -10,4 +10,3 @@ export function getStaticPorts(config: DevContainerFromDockerfileConfig | DevCon
 	const staticPorts = normalizePorts(config.forwardPorts).concat(normalizePorts(config.appPort));
 	return staticPorts.flatMap((port) => ['-p', port]);
 }
-
