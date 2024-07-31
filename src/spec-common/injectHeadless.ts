@@ -509,18 +509,7 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 				if (name) {
 					infoOutput.raw(`\x1b[1mRunning ${name} from ${userCommandOrigin}...\x1b[0m\r\n${cmdOutput}\r\n`);
 				}
-
-				infoOutput.event({
-					type: 'progress',
-					name: progressName,
-					status: 'succeeded',
-				});
 			} catch (err) {
-				infoOutput.event({
-					type: 'progress',
-					name: progressName,
-					status: 'failed',
-				});
 				if (err?.cmdOutput) {
 					infoOutput.raw(`\r\n\x1b[1m${err.cmdOutput}\x1b[0m\r\n\r\n`);
 				}
@@ -540,16 +529,29 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 
 		infoOutput.raw(`\x1b[1mRunning the ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n\r\n`);
 
-		let commands;
-		if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
-			commands = [runSingleCommand(userCommand)];
-		} else {
-			commands = Object.keys(userCommand).map(name => {
-				const command = userCommand[name];
-				return runSingleCommand(command, name);
+		try {
+			let commands;
+			if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
+				commands = [runSingleCommand(userCommand)];
+			} else {
+				commands = Object.keys(userCommand).map(name => {
+					const command = userCommand[name];
+					return runSingleCommand(command, name);
+				});
+			}
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'succeeded',
+			});
+			await Promise.all(commands);
+		} catch {
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'failed',
 			});
 		}
-		await Promise.all(commands);
 	}
 }
 
