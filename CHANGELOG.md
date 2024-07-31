@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## August 2024
+
+### [0.67.0]
+- Fix containerEnv substitution. (https://github.com/microsoft/vscode-remote-release/issues/10033)
+
 ## July 2024
 
 ### [0.66.0]
