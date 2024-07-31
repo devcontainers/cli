@@ -25,6 +25,13 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command up', () => {
+		it('should succeed (dockerfile) with supported --error for poetry', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} up --workspace-folder ${testFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+		});
+
 		it('should execute successfully with valid config', async () => {
 			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --include-configuration --include-merged-configuration`);
 			const response = JSON.parse(res.stdout);
