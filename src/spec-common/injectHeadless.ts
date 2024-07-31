@@ -489,14 +489,6 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 		}, LogLevel.Info);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		async function runSingleCommand(postCommand: string | string[], name?: string) {
-			const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'running',
-				stepDetail: progressDetail
-			});
-
 			// If we have a command name then the command is running in parallel and 
 			// we need to hold output until the command is done so that the output
 			// doesn't get interleaved with the output of other commands.
@@ -507,20 +499,20 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 
 				// 'name' is set when parallel execution syntax is used.
 				if (name) {
-					infoOutput.raw(`\x1b[1mRunning ${name} from ${userCommandOrigin}...\x1b[0m\r\n${cmdOutput}\r\n`);
+					infoOutput.raw(`\x1b[1mRunning ${name} of ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n${cmdOutput}\r\n`);
 				}
 			} catch (err) {
-				if (err?.cmdOutput) {
+				if (printMode === 'off' && err?.cmdOutput) {
 					infoOutput.raw(`\r\n\x1b[1m${err.cmdOutput}\x1b[0m\r\n\r\n`);
 				}
 				if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
-					infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
+					infoOutput.raw(`\r\n\x1b[1m${name ? `${name} of ${lifecycleHookName}` : lifecycleHookName} from ${userCommandOrigin} interrupted.\x1b[0m\r\n\r\n`);
 				} else {
 					if (err?.code) {
-						infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
+						infoOutput.write(toErrorText(`${name ? `${name} of ${lifecycleHookName}` : lifecycleHookName} from ${userCommandOrigin} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
 					}
 					throw new ContainerError({
-						description: `The ${lifecycleHookName} in the ${userCommandOrigin} failed.`,
+						description: `${name ? `${name} of ${lifecycleHookName}` : lifecycleHookName} from ${userCommandOrigin} failed.`,
 						originalError: err
 					});
 				}
@@ -539,12 +531,21 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 					return runSingleCommand(command, name);
 				});
 			}
+
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'running',
+				stepDetail: commands.join(' ')
+			});
+
+			await Promise.all(commands);
+
 			infoOutput.event({
 				type: 'progress',
 				name: progressName,
 				status: 'succeeded',
 			});
-			await Promise.all(commands);
 		} catch {
 			infoOutput.event({
 				type: 'progress',
