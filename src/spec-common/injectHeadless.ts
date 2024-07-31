@@ -538,9 +538,6 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 			if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
 				infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
 			} else {
-				if (err.cmdOutput) {
-					infoOutput.write(toErrorText(`${err.cmdOutput}`));
-				}
 				if (err?.code) {
 					infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
 				}
@@ -647,7 +644,7 @@ export async function runRemoteCommand(params: { output: Log; onDidInput?: Event
 	}
 	if (exit.code || exit.signal) {
 		return Promise.reject({
-			message: `Command failed: ${cmd.join(' ')}`,
+			message: `Command failed: ${cmd.join(' ')}\r\n\r\n${cmdOutput}`,
 			cmdOutput,
 			code: exit.code,
 			signal: exit.signal,
