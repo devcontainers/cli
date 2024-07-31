@@ -489,6 +489,13 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 		}, LogLevel.Info);
 		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
 		async function runSingleCommand(postCommand: string | string[], name?: string) {
+			const progressDetails = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'running',
+				stepDetail: progressDetails
+			});
 			// If we have a command name then the command is running in parallel and 
 			// we need to hold output until the command is done so that the output
 			// doesn't get interleaved with the output of other commands.
@@ -531,13 +538,6 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 					return runSingleCommand(command, name);
 				});
 			}
-
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'running',
-				stepDetail: commands.join(' ')
-			});
 
 			await Promise.all(commands);
 
