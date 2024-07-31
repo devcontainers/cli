@@ -8,14 +8,7 @@
 		"options": [ "--label", "test_build_options=success" ]
 	},
 	"postCreateCommand": "touch /tmp/postCreateCommand.testmarker",
-	"postStartCommand": {
-		"poetry setup": [
-			"/bin/bash",
-			"-i",
-			"-c",
-			"python3 -m venv $HOME/.local && source $HOME/.local/bin/activate && poetry install"
-		]
-	},
+	"postStartCommand": "touch /tmp/postStartCommand.testmarker",
 	"postAttachCommand": "touch /tmp/postAttachCommand.testmarker",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},

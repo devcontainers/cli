@@ -538,9 +538,7 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 			if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
 				infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
 			} else {
-				if (err.code === 127) {
-					infoOutput.write(toErrorText(`${err.cmdOutput}`));
-				}
+				infoOutput.write(toErrorText(`${err.cmdOutput}`));
 				if (err?.code) {
 					infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
 				}
