@@ -539,7 +539,7 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 				infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
 			} else {
 				if (err.code === 127) {
-					infoOutput.write(toErrorText(`${err.cmdOutput}`))
+					infoOutput.write(toErrorText(`${err.cmdOutput}`));
 				}
 				if (err?.code) {
 					infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
