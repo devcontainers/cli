@@ -3,7 +3,7 @@
 {
 	"image": "mcr.microsoft.com/devcontainers/base:latest",
 	"features": {
-		"ghcr.io/devcontainers/features/go:1": {
+		"ghcr.io/devcontainers/features/python:1": {
 			"version": "latest"
 		}
 	},
