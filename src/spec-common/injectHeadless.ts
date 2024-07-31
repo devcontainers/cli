@@ -487,22 +487,22 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 			},
 			onDidChangeDimensions: lifecycleHook.output.onDidChangeDimensions,
 		}, LogLevel.Info);
-		try {
-			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
-			async function runSingleCommand(postCommand: string | string[], name?: string) {
-				const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
-				infoOutput.event({
-					type: 'progress',
-					name: progressName,
-					status: 'running',
-					stepDetail: progressDetail
-				});
+		const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
+		async function runSingleCommand(postCommand: string | string[], name?: string) {
+			const progressDetail = typeof postCommand === 'string' ? postCommand : postCommand.join(' ');
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'running',
+				stepDetail: progressDetail
+			});
 
-				// If we have a command name then the command is running in parallel and 
-				// we need to hold output until the command is done so that the output
-				// doesn't get interleaved with the output of other commands.
-				const printMode = name ? 'off' : 'continuous';
-				const env = { ...(await remoteEnv), ...(await secrets) };
+			// If we have a command name then the command is running in parallel and 
+			// we need to hold output until the command is done so that the output
+			// doesn't get interleaved with the output of other commands.
+			const printMode = name ? 'off' : 'continuous';
+			const env = { ...(await remoteEnv), ...(await secrets) };
+			try {
 				const { cmdOutput } = await runRemoteCommand({ ...lifecycleHook, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: env, pty: true, print: printMode });
 
 				// 'name' is set when parallel execution syntax is used.
@@ -515,38 +515,41 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 					name: progressName,
 					status: 'succeeded',
 				});
-			}
-
-			infoOutput.raw(`\x1b[1mRunning the ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n\r\n`);
-
-			let commands;
-			if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
-				commands = [runSingleCommand(userCommand)];
-			} else {
-				commands = Object.keys(userCommand).map(name => {
-					const command = userCommand[name];
-					return runSingleCommand(command, name);
+			} catch (err) {
+				infoOutput.event({
+					type: 'progress',
+					name: progressName,
+					status: 'failed',
 				});
-			}
-			await Promise.all(commands);
-		} catch (err) {
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'failed',
-			});
-			if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
-				infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
-			} else {
-				if (err?.code) {
-					infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
+				if (err?.cmdOutput) {
+					infoOutput.raw(`\r\n\x1b[1m${err.cmdOutput}\x1b[0m\r\n\r\n`);
 				}
-				throw new ContainerError({
-					description: `The ${lifecycleHookName} in the ${userCommandOrigin} failed.`,
-					originalError: err
-				});
+				if (err && (err.code === 130 || err.signal === 2)) { // SIGINT seen on darwin as code === 130, would also make sense as signal === 2.
+					infoOutput.raw(`\r\n\x1b[1m${lifecycleHookName} interrupted.\x1b[0m\r\n\r\n`);
+				} else {
+					if (err?.code) {
+						infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
+					}
+					throw new ContainerError({
+						description: `The ${lifecycleHookName} in the ${userCommandOrigin} failed.`,
+						originalError: err
+					});
+				}
 			}
 		}
+
+		infoOutput.raw(`\x1b[1mRunning the ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n\r\n`);
+
+		let commands;
+		if (typeof userCommand === 'string' || Array.isArray(userCommand)) {
+			commands = [runSingleCommand(userCommand)];
+		} else {
+			commands = Object.keys(userCommand).map(name => {
+				const command = userCommand[name];
+				return runSingleCommand(command, name);
+			});
+		}
+		await Promise.all(commands);
 	}
 }
 
@@ -644,7 +647,7 @@ export async function runRemoteCommand(params: { output: Log; onDidInput?: Event
 	}
 	if (exit.code || exit.signal) {
 		return Promise.reject({
-			message: `Command failed: ${cmd.join(' ')}\r\n\r\n${cmdOutput}`,
+			message: `Command failed: ${cmd.join(' ')}`,
 			cmdOutput,
 			code: exit.code,
 			signal: exit.signal,
