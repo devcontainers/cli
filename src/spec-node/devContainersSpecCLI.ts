@@ -44,6 +44,7 @@ import { readFeaturesConfig } from './featureUtils';
 import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './featuresCLI/generateDocs';
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -85,6 +86,7 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('templates', 'Templates commands', (y: Argv) => {
 		y.command('apply', 'Apply a template to the project', templateApplyOptions, templateApplyHandler);
 		y.command('publish <target>', 'Package and publish templates', templatesPublishOptions, templatesPublishHandler);
+		y.command('metadata <templateId>', 'Fetch a published Template\'s metadata', templateMetadataOptions, templateMetadataHandler);
 		y.command('generate-docs', 'Generate documentation', templatesGenerateDocsOptions, templatesGenerateDocsHandler);
 	});
 	y.command(restArgs ? ['exec', '*'] : ['exec <cmd> [args..]'], 'Execute a command on a running dev container', execOptions, execHandler);
