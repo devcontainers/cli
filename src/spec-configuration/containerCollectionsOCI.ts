@@ -543,22 +543,35 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		await mkdirpLocal(destCachePath);
 		await writeLocalFile(tempTarballPath, resBody);
 
+		output.write(`Filtering out the following paths from the blob: '${ignoredFilesDuringExtraction.join(', ')}`, LogLevel.Trace);
 		const files: string[] = [];
 		await tar.x(
 			{
 				file: tempTarballPath,
 				cwd: destCachePath,
-				filter: (path: string, stat: tar.FileStat) => {
-					// Skip files that are in the ignore list
-					if (ignoredFilesDuringExtraction.some(f => path.indexOf(f) !== -1)) {
-						// Skip.
-						output.write(`Skipping file '${path}' during blob extraction`, LogLevel.Trace);
+				filter: (tPath: string, stat: tar.FileStat) => {
+					output.write(`Testing '${tPath}'(${stat.type})`, LogLevel.Trace);
+					// Skip files or folders that are in the ignore list
+					// Contents of ignoredFilesDuringExtraction should be resolved relative to the root of the tarball.
+					// Examples:
+					//    - 'devcontainer-template.json' (single file at the root)
+					//    - '.github/' 					 (entire folder at the root)
+					//    - 'my-project/index.ts' 		 (file in a subfolder)
+					if (ignoredFilesDuringExtraction.some(ignoredFileOrFolder => {
+						const fileOrFolder =
+							tPath.replace(/\\/g, '/')
+								.replace(/^\.\//, '');
+						const ignored =
+							ignoredFileOrFolder.replace(/\\/g, '/')
+								.replace(/^\.\//, '');
+						return ignored.endsWith('/') ? fileOrFolder.startsWith(ignored) : fileOrFolder === ignored;
+					})) {
+						output.write(`   ** Ignoring '${tPath}' during blob extraction`, LogLevel.Trace);
 						return false;
 					}
 					// Keep track of all files extracted, in case the caller is interested.
-					output.write(`${path} : ${stat.type}`, LogLevel.Trace);
 					if ((stat.type.toString() === 'File')) {
-						files.push(path);
+						files.push(tPath);
 					}
 					return true;
 				}
@@ -576,8 +589,8 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 			{
 				file: tempTarballPath,
 				cwd: ociCacheDir,
-				filter: (path: string, _: tar.FileStat) => {
-					return path === `./${metadataFile}`;
+				filter: (tPath: string, _: tar.FileStat) => {
+					return tPath === `./${metadataFile}`;
 				}
 			});
 		const pathToMetadataFile = path.join(ociCacheDir, metadataFile);
