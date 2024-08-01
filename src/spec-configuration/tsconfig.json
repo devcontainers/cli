@@ -6,6 +6,9 @@
 		},
 		{
 			"path": "../spec-utils"
+		},
+		{
+			"path": "../spec-shutdown"
 		}
 	]
 }

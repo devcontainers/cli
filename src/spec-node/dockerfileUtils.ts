@@ -119,6 +119,19 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 	return undefined;
 }
 
+export function findBaseImages(dockerfile: Dockerfile, buildArgs: Record<string, string>) {
+	const resolvedBaseImages = {} as Record<string, string>;
+	for (let i = 0; i < dockerfile.stages.length; i++) {
+		const stage = dockerfile.stages[i];
+		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const nextStage = dockerfile.stagesByLabel[image];
+		if (!nextStage) {
+			resolvedBaseImages[stage.from.image] = image;
+		}
+	}
+	return resolvedBaseImages;
+}  
+
 function extractDirectives(preambleStr: string) {
 	const map: Record<string, string> = {};
 	for (const line of preambleStr.split(/\r?\n/)) {
