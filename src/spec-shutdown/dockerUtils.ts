@@ -75,6 +75,7 @@ export interface PartialPtyExecParameters {
 
 interface DockerResolverParameters {
 	dockerCLI: string;
+	isPodman: boolean;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	common: {
@@ -167,7 +168,7 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.filter(s => !!s);
 }
 
-export async function getEvents(params: DockerCLIParameters | DockerResolverParameters, filters?: Record<string, string[]>) {
+export async function getEvents(params: DockerResolverParameters, filters?: Record<string, string[]>) {
 	const { exec, cmd, args, env, output } = toExecParameters(params);
 	const filterArgs = [];
 	for (const filter in filters) {
@@ -175,7 +176,7 @@ export async function getEvents(params: DockerCLIParameters | DockerResolverPara
 			filterArgs.push('--filter', `${filter}=${value}`);
 		}
 	}
-	const format = await isPodman(params) ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
+	const format = params.isPodman ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
 	const combinedArgs = (args || []).concat(['events', '--format', format, ...filterArgs]);
 
 	const p = await exec({
@@ -228,11 +229,7 @@ export async function dockerCLI(params: DockerCLIParameters | PartialExecParamet
 	});
 }
 
-export async function isPodman(params: DockerCLIParameters | DockerResolverParameters) {
-	const cliHost = 'cliHost' in params ? params.cliHost : params.common.cliHost;
-	if (cliHost.platform !== 'linux') {
-		return false;
-	}
+export async function isPodman(params: PartialExecParameters) {
 	try {
 		const { stdout } = await dockerCLI(params, '-v');
 		return stdout.toString().toLowerCase().indexOf('podman') !== -1;

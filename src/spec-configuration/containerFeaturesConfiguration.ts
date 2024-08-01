@@ -698,8 +698,12 @@ export async function getFeatureIdType(params: CommonParams, userFeatureId: stri
 
 	// Legacy feature-set ID
 	if (!userFeatureId.includes('/') && !userFeatureId.includes('\\')) {
-		output.write(`Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.`, LogLevel.Error);
-		throw new ContainerError({ description: `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.` });
+		const errorMessage = `Legacy feature '${userFeatureId}' not supported. Please check https://containers.dev/features for replacements.
+If you were hoping to use local Features, remember to prepend your Feature name with "./". Please check https://containers.dev/implementors/features-distribution/#addendum-locally-referenced for more information.`;
+		output.write(errorMessage, LogLevel.Error);
+		throw new ContainerError({
+			description: errorMessage
+		});
 	}
 
 	// Direct tarball reference

@@ -123,6 +123,7 @@ function provisionOptions(y: Argv) {
 		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
+		'cache-to': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
@@ -136,6 +137,8 @@ function provisionOptions(y: Argv) {
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
+		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
+		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
 	})
 		.check(argv => {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
@@ -193,6 +196,7 @@ async function provision({
 	mount,
 	'remote-env': addRemoteEnv,
 	'cache-from': addCacheFrom,
+	'cache-to': addCacheTo,
 	'buildkit': buildkit,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
@@ -206,6 +210,8 @@ async function provision({
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'include-configuration': includeConfig,
+	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -261,22 +267,27 @@ async function provision({
 		useBuildKit: buildkit,
 		buildxPlatform: undefined,
 		buildxPush: false,
+		additionalLabels: [],
 		buildxOutput: undefined,
-		buildxCacheTo: undefined,
+		buildxCacheTo: addCacheTo,
 		additionalFeatures,
 		skipFeatureAutoMapping,
 		skipPostAttach,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
-		omitConfigRemotEnvFromMetadata: omitConfigRemotEnvFromMetadata,
+		omitConfigRemotEnvFromMetadata,
 		experimentalLockfile,
 		experimentalFrozenLockfile,
-		omitSyntaxDirective: omitSyntaxDirective,
+		omitSyntaxDirective,
+		includeConfig,
+		includeMergedConfig,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	if (result.outcome === 'success') {
 		await result.finishBackgroundTasks();
 	}
@@ -310,6 +321,9 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 			message: err.message,
 			description: err.description,
 			containerId: err.containerId,
+			disallowedFeatureId: err.data.disallowedFeatureId,
+			didStopContainer: err.data.didStopContainer,
+			learnMoreUrl: err.data.learnMoreUrl,
 			dispose,
 		};
 	}
@@ -335,6 +349,8 @@ function setUpOptions(y: Argv) {
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
 		'dotfiles-target-path': { type: 'string', default: '~/dotfiles', description: 'The path to clone the dotfiles repository to. Defaults to `~/dotfiles`.' },
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
+		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
+		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
 	})
 		.check(argv => {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
@@ -354,7 +370,9 @@ function setUpHandler(args: SetUpArgs) {
 async function setUp(args: SetUpArgs) {
 	const result = await doSetUp(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -378,6 +396,8 @@ async function doSetUp({
 	'dotfiles-install-command': dotfilesInstallCommand,
 	'dotfiles-target-path': dotfilesTargetPath,
 	'container-session-data-folder': containerSessionDataFolder,
+	'include-configuration': includeConfig,
+	'include-merged-configuration': includeMergedConfig,
 }: SetUpArgs) {
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -416,6 +436,7 @@ async function doSetUp({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			additionalLabels: [],
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping: false,
@@ -446,15 +467,16 @@ async function doSetUp({
 			bailOut(common.output, 'Dev container not found.');
 		}
 
-		const config1 = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
-		const config = addSubstitution(config1, config => containerSubstitute(cliHost.platform, config1.config.configFilePath, envListToObj(container.Config.Env), config));
+		const config = addSubstitution(config0, config => beforeContainerSubstitute(undefined, config));
 
 		const imageMetadata = getImageMetadataFromContainer(container, config, undefined, undefined, output).config;
 		const mergedConfig = mergeConfiguration(config.config, imageMetadata);
 		const containerProperties = await createContainerProperties(params, container.Id, configs?.workspaceConfig.workspaceFolder, mergedConfig.remoteUser);
-		await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
+		const res = await setupInContainer(common, containerProperties, config.config, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 		return {
 			outcome: 'success' as 'success',
+			configuration: includeConfig ? res.updatedConfig : undefined,
+			mergedConfiguration: includeMergedConfig ? res.updatedMergedConfig : undefined,
 			dispose,
 		};
 	} catch (originalError) {
@@ -491,6 +513,7 @@ function buildOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'platform': { type: 'string', description: 'Set target platforms.' },
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
+		'label': { type: 'string', description: 'Provide key and value configuration that adds metadata to an image' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
@@ -510,7 +533,9 @@ function buildHandler(args: BuildArgs) {
 async function build(args: BuildArgs) {
 	const result = await doBuild(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -529,6 +554,7 @@ async function doBuild({
 	'buildkit': buildkit,
 	'platform': buildxPlatform,
 	'push': buildxPush,
+	'label': buildxLabel,
 	'output': buildxOutput,
 	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
@@ -576,6 +602,7 @@ async function doBuild({
 			useBuildKit: buildkit,
 			buildxPlatform,
 			buildxPush,
+			additionalLabels: [],
 			buildxOutput,
 			buildxCacheTo,
 			skipFeatureAutoMapping,
@@ -612,6 +639,9 @@ async function doBuild({
 		// Support multiple use of `--image-name`
 		const imageNames = (argImageName && (Array.isArray(argImageName) ? argImageName : [argImageName]) as string[]) || undefined;
 
+		// Support multiple use of `--label`
+		params.additionalLabels = (buildxLabel && (Array.isArray(buildxLabel) ? buildxLabel : [buildxLabel]) as string[]) || [];
+
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
@@ -645,9 +675,9 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			const projectName = await getProjectName(params, workspace, composeFiles);
-
+			
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
+			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});
 			if (services.indexOf(config.service) === -1) {
 				throw new Error(`Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`);
@@ -764,7 +794,9 @@ function runUserCommandsHandler(args: RunUserCommandsArgs) {
 async function runUserCommands(args: RunUserCommandsArgs) {
 	const result = await doRunUserCommands(args);
 	const exitCode = result.outcome === 'error' ? 1 : 0;
-	console.log(JSON.stringify(result));
+	await new Promise<void>((resolve, reject) => {
+		process.stdout.write(JSON.stringify(result) + '\n', err => err ? reject(err) : resolve());
+	});
 	await result.dispose();
 	process.exit(exitCode);
 }
@@ -841,6 +873,7 @@ async function doRunUserCommands({
 			useBuildKit: 'auto',
 			buildxPlatform: undefined,
 			buildxPush: false,
+			additionalLabels: [],
 			buildxOutput: undefined,
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
@@ -1289,6 +1322,7 @@ export async function doExec({
 			omitLoggerHeader: true,
 			buildxPlatform: undefined,
 			buildxPush: false,
+			additionalLabels: [],
 			buildxCacheTo: undefined,
 			skipFeatureAutoMapping,
 			buildxOutput: undefined,

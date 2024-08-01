@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
@@ -42,7 +43,8 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		const composeFiles = await getDockerComposeFilePaths(buildCLIHost, config, buildCLIHost.env, buildCLIHost.cwd);
 		const cwdEnvFile = buildCLIHost.path.join(buildCLIHost.cwd, '.env');
 		const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await buildCLIHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
-		const projectName = await getProjectName(buildParams, workspace, composeFiles);
+		const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
+		const projectName = await getProjectName(buildParams, workspace, composeFiles, composeConfig);
 		const containerId = await findComposeContainer(params, projectName, config.service);
 		if (params.expectExistingContainer && !containerId) {
 			throw new ContainerError({ description: 'The expected container does not exist.' });
@@ -59,7 +61,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 
 		// let collapsedFeaturesConfig: CollapsedFeaturesConfig | undefined;
 		if (!container || container.State.Status !== 'running') {
-			const res = await startContainer(params, buildParams, configWithRaw, projectName, composeFiles, envFile, container, idLabels, additionalFeatures);
+			const res = await startContainer(params, buildParams, configWithRaw, projectName, composeFiles, envFile, composeConfig, container, idLabels, additionalFeatures);
 			container = await inspectContainer(params, res.containerId);
 			// 	collapsedFeaturesConfig = res.collapsedFeaturesConfig;
 			// } else {
@@ -74,12 +76,15 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 
 		const {
 			remoteEnv: extensionHostEnv,
-		} = await setupInContainer(common, containerProperties, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
+			updatedConfig,
+			updatedMergedConfig,
+		} = await setupInContainer(common, containerProperties, config, mergedConfig, lifecycleCommandOriginMapFromMetadata(imageMetadata));
 
 		return {
 			params: common,
 			properties: containerProperties,
-			config,
+			config: updatedConfig,
+			mergedConfig: updatedMergedConfig,
 			resolvedAuthority: {
 				extensionHostEnv,
 			},
@@ -326,7 +331,8 @@ async function checkForPersistedFile(cliHost: CLIHost, output: Log, files: strin
 		foundLabel: false
 	};
 }
-async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, composeFiles: string[], envFile: string | undefined, container: ContainerDetails | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+
+async function startContainer(params: DockerResolverParameters, buildParams: DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, composeFiles: string[], envFile: string | undefined, composeConfig: any, container: ContainerDetails | undefined, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { common } = params;
 	const { persistedFolder, output } = common;
 	const { cliHost: buildCLIHost } = buildParams;
@@ -336,15 +342,13 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 	common.progress(ResolverProgress.StartingContainer);
 
-	const localComposeFiles = composeFiles;
 	// If dockerComposeFile is an array, add -f <file> in order. https://docs.docker.com/compose/extends/#multiple-compose-files
-	const composeGlobalArgs = ([] as string[]).concat(...localComposeFiles.map(composeFile => ['-f', composeFile]));
+	const composeGlobalArgs = ([] as string[]).concat(...composeFiles.map(composeFile => ['-f', composeFile]));
 	if (envFile) {
 		composeGlobalArgs.push('--env-file', envFile);
 	}
 
 	const infoOutput = makeLog(buildParams.output, LogLevel.Info);
-	const composeConfig = await readDockerComposeConfig(buildParams, localComposeFiles, envFile);
 	const services = Object.keys(composeConfig.services || {});
 	if (services.indexOf(config.service) === -1) {
 		throw new ContainerError({ description: `Service '${config.service}' configured in devcontainer.json not found in Docker Compose configuration.`, data: { fileWithError: composeFiles[0] } });
@@ -390,9 +394,9 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 	if (!container || !didRestoreFromPersistedShare) {
 		const noBuild = !!container; //if we have an existing container, just recreate override files but skip the build
 
-		const versionPrefix = await readVersionPrefix(buildCLIHost, localComposeFiles);
+		const versionPrefix = await readVersionPrefix(buildCLIHost, composeFiles);
 		const infoParams = { ...params, common: { ...params.common, output: infoOutput } };
-		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName, labels } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, localComposeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, versionPrefix, additionalFeatures, true, params.additionalCacheFroms, noBuild);
+		const { imageMetadata, additionalComposeOverrideFiles, overrideImageName, labels } = await buildAndExtendDockerCompose(configWithRaw, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, config.runServices ?? [], params.buildNoCache ?? false, persistedFolder, featuresBuildOverrideFilePrefix, versionPrefix, additionalFeatures, true, params.additionalCacheFroms, noBuild);
 		additionalComposeOverrideFiles.forEach(overrideFilePath => composeGlobalArgs.push('-f', overrideFilePath));
 
 		const currentImageName = overrideImageName || originalImageName;
@@ -438,7 +442,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 			description = err.cmdOutput;
 		}
 
-		throw new ContainerError({ description, originalError: err, data: { fileWithError: localComposeFiles[0] } });
+		throw new ContainerError({ description, originalError: err, data: { fileWithError: composeFiles[0] } });
 	}
 
 	await started;
@@ -483,7 +487,7 @@ async function writeFeaturesComposeOverrideFile(
 	if (overrideFileHasContents) {
 		output.write(`Docker Compose override file for creating container:\n${composeOverrideContent}`);
 
-		const fileName = `${overrideFilePrefix}-${Date.now()}.yml`;
+		const fileName = `${overrideFilePrefix}-${Date.now()}-${randomUUID()}.yml`;
 		const composeFolder = buildCLIHost.path.join(overrideFilePath, 'docker-compose');
 		const composeOverrideFile = buildCLIHost.path.join(composeFolder, fileName);
 		output.write(`Writing ${fileName} to ${composeFolder}`);
@@ -631,7 +635,7 @@ export async function findComposeContainer(params: DockerCLIParameters | DockerR
 	return list && list[0];
 }
 
-export async function getProjectName(params: DockerCLIParameters | DockerResolverParameters, workspace: Workspace, composeFiles: string[]) {
+export async function getProjectName(params: DockerCLIParameters | DockerResolverParameters, workspace: Workspace, composeFiles: string[], composeConfig: any) {
 	const { cliHost } = 'cliHost' in params ? params : params.common;
 	const newProjectName = await useNewProjectName(params);
 	const envName = toProjectName(cliHost.env.COMPOSE_PROJECT_NAME || '', newProjectName);
@@ -650,6 +654,23 @@ export async function getProjectName(params: DockerCLIParameters | DockerResolve
 	} catch (err) {
 		if (!(err && (err.code === 'ENOENT' || err.code === 'EISDIR'))) {
 			throw err;
+		}
+	}
+	if (composeConfig?.name) {
+		if (composeConfig.name !== 'devcontainer') {
+			return toProjectName(composeConfig.name, newProjectName);
+		}
+		// Check if 'devcontainer' is from a compose file or just the default.
+		for (let i = composeFiles.length - 1; i >= 0; i--) {
+			try {
+				const fragment = yaml.load((await cliHost.readFile(composeFiles[i])).toString()) || {} as any;
+				if (fragment.name) {
+					// Use composeConfig.name ('devcontainer') because fragment.name could include environment variables.
+					return toProjectName(composeConfig.name, newProjectName);
+				}
+			} catch (error) {
+				// Ignore when parsing fails due to custom yaml tags (e.g., !reset)
+			}
 		}
 	}
 	const configDir = workspace.configFolderPath;
@@ -684,22 +705,19 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
-			let v2 = false;
+			let v2 = true;
 			let stdout: Buffer;
 			try {
 				stdout = (await dockerComposeCLI({
 					...params,
-					cmd: dockerComposeCLICmd,
-				}, 'version', '--short')).stdout;
-			} catch (err) {
-				if (err?.code !== 'ENOENT') {
-					throw err;
-				}
-				stdout = (await dockerComposeCLI({
-					...params,
 					cmd: dockerCLICmd,
 				}, 'compose', 'version', '--short')).stdout;
-				v2 = true;
+			} catch (err) {
+				stdout = (await dockerComposeCLI({
+					...params,
+					cmd: dockerComposeCLICmd,
+				}, 'version', '--short')).stdout;
+				v2 = false;
 			}
 			const version = stdout.toString().trim();
 			params.output.write(`Docker Compose version: ${version}`);

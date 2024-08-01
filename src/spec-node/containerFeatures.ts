@@ -85,6 +85,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		if (params.buildxCacheTo) {
 			args.push('--cache-to', params.buildxCacheTo);
 		}
+		if (!params.buildNoCache) {
+			params.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
+		}
 
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
@@ -94,6 +97,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		args.push(
 			'build',
 		);
+	}
+	if (params.buildNoCache) {
+		args.push('--no-cache');
 	}
 	for (const buildArg in featureBuildInfo.buildArgs) {
 		args.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
@@ -105,9 +111,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	cliHost.mkdirp(emptyTempDir);
 	args.push(
 		'--target', featureBuildInfo.overrideTarget,
-		'-t', updatedImageName,
-		...additionalImageNames.map(name => ['-t', name]).flat(),
 		'-f', dockerfilePath,
+		...additionalImageNames.length > 0 ? additionalImageNames.map(name => ['-t', name]).flat() : ['-t', updatedImageName],
+		...params.additionalLabels.length > 0 ? params.additionalLabels.map(label => ['--label', label]).flat() : [],
 		emptyTempDir
 	);
 
@@ -119,7 +125,7 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		await dockerCLI(infoParams, ...args);
 	}
 	return {
-		updatedImageName: [ updatedImageName ],
+		updatedImageName: additionalImageNames.length > 0 ? additionalImageNames : [updatedImageName],
 		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
@@ -425,7 +431,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'-f', destDockerfile,
 		'-t', fixedImageName,
 		...(platform ? ['--platform', platform] : []),
-		'--build-arg', `BASE_IMAGE=${imageName}`,
+		'--build-arg', `BASE_IMAGE=${params.isPodman && !hasRegistryHostname(imageName) ? 'localhost/' : ''}${imageName}`, // Podman: https://github.com/microsoft/vscode-remote-release/issues/9748
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
 		'--build-arg', `NEW_GID=${await cliHost.getgid!()}`,
@@ -438,4 +444,13 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		await dockerCLI(params, ...args);
 	}
 	return fixedImageName;
+}
+
+function hasRegistryHostname(imageName: string) {
+	if (imageName.startsWith('localhost/')) {
+		return true;
+	}
+	const dot = imageName.indexOf('.');
+	const slash = imageName.indexOf('/');
+	return dot !== -1 && slash !== -1 && dot < slash;
 }

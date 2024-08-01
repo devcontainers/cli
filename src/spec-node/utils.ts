@@ -11,7 +11,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
-import { ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
+import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
@@ -24,7 +24,7 @@ import { StringDecoder } from 'string_decoder';
 import { Event } from '../spec-utils/event';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
-import { ImageMetadataEntry } from './imageMetadata';
+import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
@@ -96,6 +96,7 @@ export interface DockerResolverParameters {
 	common: ResolverParameters;
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
+	isPodman: boolean;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
@@ -115,6 +116,7 @@ export interface DockerResolverParameters {
 	experimentalFrozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;
@@ -123,12 +125,13 @@ export interface DockerResolverParameters {
 export interface ResolverResult {
 	params: ResolverParameters;
 	properties: ContainerProperties;
-	config: DevContainerConfig | undefined;
+	config: CommonDevContainerConfig;
+	mergedConfig: MergedDevContainerConfig;
 	resolvedAuthority: { extensionHostEnv?: { [key: string]: string | null } };
 	tunnelInformation: { environmentTunnels?: { remoteAddress: { port: number; host: string }; localAddress: string }[] };
 	isTrusted?: boolean;
-	dockerParams: DockerResolverParameters | undefined;
-	dockerContainerId: string | undefined;
+	dockerParams: DockerResolverParameters;
+	dockerContainerId: string;
 	composeProjectName?: string;
 }
 

@@ -24,11 +24,13 @@ describe('Dev Containers CLI', function () {
 	describe('Command set-up', () => {
 		it('should succeed and run postAttachCommand from config', async () => {
 
-			const containerId = (await shellExec(`docker run -d alpine:3.17 sleep inf`)).stdout.trim();
+			const containerId = (await shellExec(`docker run -d -e TEST_CE=TEST_VALUE alpine:3.17 sleep inf`)).stdout.trim();
 
-			const res = await shellExec(`${cli} set-up --container-id ${containerId} --config ${__dirname}/configs/set-up-with-config/devcontainer.json`);
+			const res = await shellExec(`${cli} set-up --container-id ${containerId} --config ${__dirname}/configs/set-up-with-config/devcontainer.json --include-configuration --include-merged-configuration`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
+			assert.equal(response.configuration?.remoteEnv?.TEST_RE, 'TEST_VALUE');
+			assert.equal(response.mergedConfiguration?.remoteEnv?.TEST_RE, 'TEST_VALUE');
 
 			await shellExec(`docker exec ${containerId} test -f /postAttachCommand.txt`);
 			await shellExec(`docker rm -f ${containerId}`);
@@ -37,11 +39,13 @@ describe('Dev Containers CLI', function () {
 		it('should succeed and run postCreateCommand from metadata', async () => {
 
 			await shellExec(`docker build -t devcontainer-set-up-test ${__dirname}/configs/set-up-with-metadata`);
-			const containerId = (await shellExec(`docker run -d devcontainer-set-up-test sleep inf`)).stdout.trim();
+			const containerId = (await shellExec(`docker run -d -e TEST_CE=TEST_VALUE2 devcontainer-set-up-test sleep inf`)).stdout.trim();
 
-			const res = await shellExec(`${cli} set-up --container-id ${containerId}`);
+			const res = await shellExec(`${cli} set-up --container-id ${containerId} --include-configuration --include-merged-configuration`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
+			assert.equal(Object.keys(response.configuration).length, 0);
+			assert.equal(response.mergedConfiguration?.remoteEnv?.TEST_RE, 'TEST_VALUE2');
 
 			await shellExec(`docker exec ${containerId} test -f /postCreateCommand.txt`);
 			await shellExec(`docker rm -f ${containerId}`);

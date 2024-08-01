@@ -21,6 +21,8 @@ interface ContainerErrorData {
 	start?: boolean;
 	attach?: boolean;
 	fileWithError?: string;
+	disallowedFeatureId?: string;
+	didStopContainer?: boolean;
 	learnMoreUrl?: string;
 }
 

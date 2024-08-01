@@ -17,7 +17,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { dockerBuildKitVersion } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion, isPodman } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
 
@@ -52,6 +52,7 @@ export interface ProvisionOptions {
 	omitLoggerHeader?: boolean | undefined;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
+	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
@@ -69,6 +70,8 @@ export interface ProvisionOptions {
 	experimentalFrozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
+	includeConfig?: boolean;
+	includeMergedConfig?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -81,10 +84,12 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {
-		containerId: dockerContainerId!,
+		containerId: dockerContainerId,
 		composeProjectName,
 		remoteUser: result.properties.user,
 		remoteWorkspaceFolder: result.properties.remoteWorkspaceFolder,
+		configuration: options.includeConfig ? result.config : undefined,
+		mergedConfiguration: options.includeMergedConfig ? result.mergedConfig : undefined,
 		finishBackgroundTasks: async () => {
 			try {
 				await finishBackgroundTasks(result.params.backgroundTasks);
@@ -203,6 +208,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		common,
 		parsedAuthority,
 		dockerCLI: dockerPath,
+		isPodman: await isPodman({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output }),
 		dockerComposeCLI: dockerComposeCLI,
 		dockerEnv: cliHost.env,
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
@@ -222,6 +228,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		experimentalFrozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
+		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
 		platformInfo

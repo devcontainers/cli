@@ -88,7 +88,14 @@ async function templatesPublish({
         }
 
         const archiveName = getArchiveName(t.id, collectionType);
-        const publishResult = await doPublishCommand(params, t.version, templateRef, outputDir, collectionType, archiveName);
+
+        // Properties here are available on the manifest without needing to download the full Template archive.
+        const templateAnnotations = {
+            'dev.containers.metadata': JSON.stringify(t),
+        };
+        output.write(`Template Annotations: ${JSON.stringify(templateAnnotations)}`, LogLevel.Debug);
+
+        const publishResult = await doPublishCommand(params, t.version, templateRef, outputDir, collectionType, archiveName, templateAnnotations);
         if (!publishResult) {
             output.write(`(!) ERR: Failed to publish '${resource}'`, LogLevel.Error);
             process.exit(1);

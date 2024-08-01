@@ -1,10 +1,12 @@
 {
 	"image": "ubuntu:latest",
 	"postCreateCommand": "echo \"Val: $TEST\" > /postCreateCommand.txt",
+	"runArgs": ["-e", "TEST_CE=TEST_VALUE3"],
 	"remoteEnv": {
 		"TEST": "ENV",
 		"TEST_ESCAPING": "{\n  \"fo$o\": \"ba'r\"\n}",
 		"LOCAL_PATH": "${localEnv:PATH}",
-		"CONTAINER_PATH": "${containerEnv:PATH}"
+		"CONTAINER_PATH": "${containerEnv:PATH}",
+		"TEST_RE": "${containerEnv:TEST_CE}"
 	}
 }

@@ -11,7 +11,7 @@ import { requestEnsureAuthenticated } from './httpOCIRegistry';
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string, featureAnnotations = {}): Promise<string | undefined> {
+export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string, annotations: { [key: string]: string } = {}): Promise<string | undefined> {
 	const { output } = params;
 
 	output.write(`-- Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
@@ -25,7 +25,7 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 	const dataBytes = fs.readFileSync(pathToTgz);
 
 	// Generate Manifest for given feature/template artifact.
-	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType, featureAnnotations);
+	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType, annotations);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${ociRef.id}`, LogLevel.Error);
 		return;
@@ -44,8 +44,8 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 		{
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
-			contents: Buffer.alloc(0),
 			size: manifest.manifestObj.config.size,
+			contents: Buffer.from('{}'),
 		},
 		{
 			name: 'tgzLayer',
@@ -119,7 +119,7 @@ export async function pushCollectionMetadata(params: CommonParams, collectionRef
 			name: 'configLayer',
 			digest: manifest.manifestObj.config.digest,
 			size: manifest.manifestObj.config.size,
-			contents: Buffer.alloc(0),
+			contents: Buffer.from('{}'),
 		},
 		{
 			name: 'collectionLayer',
@@ -268,14 +268,13 @@ async function putBlob(params: CommonParams, blobPutLocationUriPath: string, oci
 // Generate a layer that follows the `application/vnd.devcontainers.layer.v1+tar` mediaType as defined in
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
-async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string, featureAnnotations = {}): Promise<ManifestContainer | undefined> {
+async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string, annotations: { [key: string]: string } = {}): Promise<ManifestContainer | undefined> {
 	const tgzLayer = await calculateDataLayer(output, dataBytes, path.basename(pathToTgz), DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 	if (!tgzLayer) {
 		output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
 		return undefined;
 	}
 
-	let annotations: { [key: string]: string } = featureAnnotations;
 	// Specific registries look for certain optional metadata 
 	// in the manifest, in this case for UI presentation.
 	if (ociRef.registry === 'ghcr.io') {
@@ -382,16 +381,16 @@ async function postUploadSessionId(params: CommonParams, ociRef: OCIRef | OCICol
 export async function calculateManifestAndContentDigest(output: Log, ociRef: OCIRef | OCICollectionRef, dataLayer: OCILayer, annotations: { [key: string]: string } | undefined): Promise<ManifestContainer> {
 	// A canonical manifest digest is the sha256 hash of the JSON representation of the manifest, without the signature content.
 	// See: https://docs.docker.com/registry/spec/api/#content-digests
-	// Below is an example of a serialized manifest that should resolve to '9726054859c13377c4c3c3c73d15065de59d0c25d61d5652576c0125f2ea8ed3'
-	// {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:b2006e7647191f7b47222ae48df049c6e21a4c5a04acfad0c4ef614d819de4c5","size":15872,"annotations":{"org.opencontainers.image.title":"go.tgz"}}]}
+	// Below is an example of a serialized manifest that should resolve to 'dd328c25cc7382aaf4e9ee10104425d9a2561b47fe238407f6c0f77b3f8409fc'
+	// {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.devcontainers","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[{"mediaType":"application/vnd.devcontainers.layer.v1+tar","digest":"sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1","size":3584,"annotations":{"org.opencontainers.image.title":"devcontainer-feature-color.tgz"}}],"annotations":{"dev.containers.metadata":"{\"id\":\"color\",\"version\":\"1.0.0\",\"name\":\"A feature to remind you of your favorite color\",\"options\":{\"favorite\":{\"type\":\"string\",\"enum\":[\"red\",\"gold\",\"green\"],\"default\":\"red\",\"description\":\"Choose your favorite color.\"}}}","com.github.package.type":"devcontainer_feature"}}
 
 	let manifest: OCIManifest = {
 		schemaVersion: 2,
 		mediaType: 'application/vnd.oci.image.manifest.v1+json',
 		config: {
 			mediaType: 'application/vnd.devcontainers',
-			digest: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // A zero byte digest for the devcontainer mediaType.
-			size: 0
+			digest: 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a', // A empty json byte digest for the devcontainer mediaType.
+			size: 2
 		},
 		layers: [
 			dataLayer

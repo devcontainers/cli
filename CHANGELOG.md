@@ -2,6 +2,54 @@
 
 Notable changes.
 
+## August 2024
+
+### [0.67.0]
+- Fix containerEnv substitution. (https://github.com/microsoft/vscode-remote-release/issues/10033)
+
+## July 2024
+
+### [0.66.0]
+- Wait for result to be written to stdout. (https://github.com/microsoft/vscode-remote-release/issues/10029)
+
+## June 2024
+
+### [0.65.0]
+- Fix confusing error message with local feature. (https://github.com/devcontainers/cli/issues/834)
+- Add `--label` parameter to `devcontainer build` command. (https://github.com/devcontainers/cli/issues/837)
+- Prefer Docker Compose v2 over v1. (https://github.com/devcontainers/cli/issues/826)
+
+### [0.64.0]
+- Fix project name with env variable. (https://github.com/devcontainers/cli/issues/839)
+
+### [0.63.0]
+- Surface additional information in `devcontainer up`. (https://github.com/devcontainers/cli/pull/836)
+- Changes the config layer of the Feature manifest to a empty descriptor (https://github.com/devcontainers/cli/pull/815)
+
+## May 2024
+
+### [0.62.0]
+- Fix support for project name attribute. (https://github.com/devcontainers/cli/issues/831)
+
+### [0.61.0]
+- Use --depth 1 to make dotfiles install process faster (https://github.com/devcontainers/cli/pull/830)
+- Enable --cache-to and --cache-from in devcontainer up (https://github.com/devcontainers/cli/pull/813)
+- Omit generated image name when `--image-name` is given (https://github.com/devcontainers/cli/pull/812)
+
+### [0.60.0]
+- Support project name attribute. (https://github.com/microsoft/vscode-remote-release/issues/512)
+
+## April 2024
+
+### [0.59.1]
+- Check if image name has registry host. (https://github.com/microsoft/vscode-remote-release/issues/9748)
+
+### [0.59.0]
+- Propagate --cache-from to buildx build. (https://github.com/devcontainers/cli/pull/638)
+- Disable cache on feature build when `--build-no-cache` is passed. (https://github.com/devcontainers/cli/pull/790)
+- Qualify local image for Podman. (https://github.com/microsoft/vscode-remote-release/issues/9748)
+- Stop races docker-compose.devcontainer.containerFeatures file. (https://github.com/devcontainers/cli/issues/801)
+
 ## March 2024
 
 ### [0.58.0]
