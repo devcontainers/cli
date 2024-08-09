@@ -560,11 +560,11 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 				cwd: destCachePath,
 				filter: (tPath: string, stat: tar.FileStat) => {
 					output.write(`Testing '${tPath}'(${stat.type})`, LogLevel.Trace);
-					tPath = tPath
+					const cleanedPath = tPath
 						.replace(/\\/g, '/')
 						.replace(/^\.\//, '');
 
-					if (filesToOmit.includes(tPath) || directoriesToOmit.some(d => tPath.startsWith(d))) {
+					if (filesToOmit.includes(cleanedPath) || directoriesToOmit.some(d => cleanedPath.startsWith(d))) {
 						output.write(`  Omitting '${tPath}'`, LogLevel.Trace);
 						return false; // Skip
 					}
