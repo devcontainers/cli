@@ -542,10 +542,10 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 
 		await mkdirpLocal(destCachePath);
 		await writeLocalFile(tempTarballPath, resBody);
-		
+
 		// https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property
-		const directoriesToOmit = omitDuringExtraction.filter(f => f.endsWith("/*")).map(f => f.slice(0, -1));
-		const filesToOmit = omitDuringExtraction.filter(f => !f.endsWith("/*"));
+		const directoriesToOmit = omitDuringExtraction.filter(f => f.endsWith('/*')).map(f => f.slice(0, -1));
+		const filesToOmit = omitDuringExtraction.filter(f => !f.endsWith('/*'));
 		
 		output.write(`omitDuringExtraction: '${omitDuringExtraction.join(', ')}`, LogLevel.Trace);
 		output.write(`Files to omit: '${filesToOmit.join(', ')}'`, LogLevel.Info);
