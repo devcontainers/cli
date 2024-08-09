@@ -15,7 +15,7 @@ export function templateApplyOptions(y: Argv) {
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'tmp-dir': { type: 'string', description: 'Directory to use for temporary files. If not provided, the system default will be inferred.' },
-			'omit-paths': { type: 'string', default: '[]', description: 'List of paths within the Template to omit applying, provided as JSON.  To ignore a directory append a trailing slash. Eg: \'[".github/", "projects/A/", "file.ts"]\'' },
+			'omit-paths': { type: 'string', default: '[]', description: 'List of paths within the Template to omit applying, provided as JSON.  To ignore a directory append \'/*\'. Eg: \'[".github/*", "dir/a/*", "file.ts"]\'' },
 		})
 		.check(_argv => {
 			return true;
@@ -72,7 +72,7 @@ async function templateApply({
 		let omitPathsErrors: jsonc.ParseError[] = [];
 		omitPaths = jsonc.parse(omitPathsArg, omitPathsErrors);
 		if (!Array.isArray(omitPaths)) {
-			output.write('Invalid \'--omitPaths\' argument provided. Provide as a JSON array, eg: \'[".github", "project/"]\'', LogLevel.Error);
+			output.write('Invalid \'--omitPaths\' argument provided. Provide as a JSON array, eg: \'[".github/*", "dir/a/*", "file.ts"]\'', LogLevel.Error);
 			process.exit(1);
 		}
 	}

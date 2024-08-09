@@ -132,8 +132,8 @@ describe('fetchTemplate', async function () {
 	describe('omit-path', async function () {
 		this.timeout('120s');
 
-		// https://github.com/codspace/templates/pkgs/container/templates%2Fmytemplate/252099017?tag=1.0.3
-		const id = 'ghcr.io/codspace/templates/mytemplate@sha256:c44cb27efa68ee87a71838a59d1d2892b3c2de24be6f94c136652e45a19f017e';
+		// https://github.com/codspace/templates/pkgs/container/templates%2Fmytemplate/255979159?tag=1.0.4
+		const id = 'ghcr.io/codspace/templates/mytemplate@sha256:57cbf968907c74c106b7b2446063d114743ab3f63345f7c108c577915c535185';
 		const templateFiles = [
 			'./c1.ts',
 			'./c2.ts',
@@ -178,7 +178,7 @@ describe('fetchTemplate', async function () {
 				id,
 				options: {},
 				features: [],
-				omitPaths: ['example-projects/exampleB/'],
+				omitPaths: ['example-projects/exampleB/*'],
 			};
 
 			const files = await fetchTemplate(
@@ -205,7 +205,7 @@ describe('fetchTemplate', async function () {
 				id,
 				options: {},
 				features: [],
-				omitPaths: ['.github/', 'example-projects/exampleA/', 'c1.ts'],
+				omitPaths: ['.github/*', 'example-projects/exampleA/*', 'c1.ts'],
 			};
 
 			const files = await fetchTemplate(

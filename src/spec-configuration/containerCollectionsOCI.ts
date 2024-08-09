@@ -504,7 +504,7 @@ export async function getPublishedTags(params: CommonParams, ref: OCIRef): Promi
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, omitDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -542,8 +542,17 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 
 		await mkdirpLocal(destCachePath);
 		await writeLocalFile(tempTarballPath, resBody);
+		
+		// https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property
+		const directoriesToOmit = omitDuringExtraction.filter(f => f.endsWith("/*")).map(f => f.slice(0, -1));
+		const filesToOmit = omitDuringExtraction.filter(f => !f.endsWith("/*"));
+		
+		output.write(`omitDuringExtraction: '${omitDuringExtraction.join(', ')}`, LogLevel.Trace);
+		output.write(`Files to omit: '${filesToOmit.join(', ')}'`, LogLevel.Info);
+		if (directoriesToOmit.length) {
+			output.write(`Dirs to omit : '${directoriesToOmit.join(', ')}'`, LogLevel.Info);
+		}
 
-		output.write(`Filtering out the following paths from the blob: '${ignoredFilesDuringExtraction.join(', ')}`, LogLevel.Trace);
 		const files: string[] = [];
 		await tar.x(
 			{
@@ -551,29 +560,20 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 				cwd: destCachePath,
 				filter: (tPath: string, stat: tar.FileStat) => {
 					output.write(`Testing '${tPath}'(${stat.type})`, LogLevel.Trace);
-					// Skip files or folders that are in the ignore list
-					// Contents of ignoredFilesDuringExtraction should be resolved relative to the root of the tarball.
-					// Examples:
-					//    - 'devcontainer-template.json' (single file at the root)
-					//    - '.github/' 					 (entire folder at the root)
-					//    - 'my-project/index.ts' 		 (file in a subfolder)
-					if (ignoredFilesDuringExtraction.some(ignoredFileOrFolder => {
-						const fileOrFolder =
-							tPath.replace(/\\/g, '/')
-								.replace(/^\.\//, '');
-						const ignored =
-							ignoredFileOrFolder.replace(/\\/g, '/')
-								.replace(/^\.\//, '');
-						return ignored.endsWith('/') ? fileOrFolder.startsWith(ignored) : fileOrFolder === ignored;
-					})) {
-						output.write(`   ** Ignoring '${tPath}' during blob extraction`, LogLevel.Trace);
-						return false;
+					tPath = tPath
+						.replace(/\\/g, '/')
+						.replace(/^\.\//, '');
+
+					if (filesToOmit.includes(tPath) || directoriesToOmit.some(d => tPath.startsWith(d))) {
+						output.write(`  Omitting '${tPath}'`, LogLevel.Trace);
+						return false; // Skip
 					}
-					// Keep track of all files extracted, in case the caller is interested.
-					if ((stat.type.toString() === 'File')) {
+
+					if (stat.type.toString() === 'File') {
 						files.push(tPath);
 					}
-					return true;
+
+					return true; // Keep
 				}
 			}
 		);
