@@ -17,7 +17,7 @@ const pkg = require('../../../package.json');
 describe('tests apply command', async function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
+	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp6'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
@@ -195,5 +195,41 @@ describe('tests generateTemplateDocumentation()', async function () {
 
 		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-template/README.md`);
 		assert.isFalse(invalidDocsExists);
+	});
+});
+
+describe('template metadata', async function () {
+	this.timeout('120s');
+
+	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp7'));
+	const cli = `npx --prefix ${tmp} devcontainer`;
+
+	// https://github.com/codspace/templates/pkgs/container/templates%2Fmytemplate/255979159?tag=1.0.4
+	const templateId = 'ghcr.io/codspace/templates/mytemplate@sha256:57cbf968907c74c106b7b2446063d114743ab3f63345f7c108c577915c535185';
+
+	before('Install', async () => {
+		await shellExec(`rm -rf ${tmp}/node_modules`);
+		await shellExec(`rm -rf ${tmp}/output`);
+		await shellExec(`mkdir -p ${tmp}`);
+		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
+	});
+
+	it('successfully fetches metdata off a published Template', async function () {
+		let success = false;
+		let result: ExecResult | undefined = undefined;
+		try {
+			result = await shellExec(`${cli} templates metadata ${templateId} --log-level trace`);
+			success = true;
+
+		} catch (error) {
+			assert.fail('features test sub-command should not throw');
+		}
+
+		assert.isTrue(success);
+		assert.isDefined(result);
+		const json = JSON.parse(result.stdout);
+		assert.strictEqual('mytemplate', json.id);
+		assert.strictEqual('Simple test', json.description);
+
 	});
 });
