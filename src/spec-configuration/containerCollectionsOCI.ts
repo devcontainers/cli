@@ -504,7 +504,7 @@ export async function getPublishedTags(params: CommonParams, ref: OCIRef): Promi
 	}
 }
 
-export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, ignoredFilesDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
+export async function getBlob(params: CommonParams, url: string, ociCacheDir: string, destCachePath: string, ociRef: OCIRef, expectedDigest: string, omitDuringExtraction: string[] = [], metadataFile?: string): Promise<{ files: string[]; metadata: {} | undefined } | undefined> {
 	// TODO: Parallelize if multiple layers (not likely).
 	// TODO: Seeking might be needed if the size is too large.
 
@@ -543,24 +543,37 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 		await mkdirpLocal(destCachePath);
 		await writeLocalFile(tempTarballPath, resBody);
 
+		// https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property
+		const directoriesToOmit = omitDuringExtraction.filter(f => f.endsWith('/*')).map(f => f.slice(0, -1));
+		const filesToOmit = omitDuringExtraction.filter(f => !f.endsWith('/*'));
+		
+		output.write(`omitDuringExtraction: '${omitDuringExtraction.join(', ')}`, LogLevel.Trace);
+		output.write(`Files to omit: '${filesToOmit.join(', ')}'`, LogLevel.Info);
+		if (directoriesToOmit.length) {
+			output.write(`Dirs to omit : '${directoriesToOmit.join(', ')}'`, LogLevel.Info);
+		}
+
 		const files: string[] = [];
 		await tar.x(
 			{
 				file: tempTarballPath,
 				cwd: destCachePath,
-				filter: (path: string, stat: tar.FileStat) => {
-					// Skip files that are in the ignore list
-					if (ignoredFilesDuringExtraction.some(f => path.indexOf(f) !== -1)) {
-						// Skip.
-						output.write(`Skipping file '${path}' during blob extraction`, LogLevel.Trace);
-						return false;
+				filter: (tPath: string, stat: tar.FileStat) => {
+					output.write(`Testing '${tPath}'(${stat.type})`, LogLevel.Trace);
+					const cleanedPath = tPath
+						.replace(/\\/g, '/')
+						.replace(/^\.\//, '');
+
+					if (filesToOmit.includes(cleanedPath) || directoriesToOmit.some(d => cleanedPath.startsWith(d))) {
+						output.write(`  Omitting '${tPath}'`, LogLevel.Trace);
+						return false; // Skip
 					}
-					// Keep track of all files extracted, in case the caller is interested.
-					output.write(`${path} : ${stat.type}`, LogLevel.Trace);
-					if ((stat.type.toString() === 'File')) {
-						files.push(path);
+
+					if (stat.type.toString() === 'File') {
+						files.push(tPath);
 					}
-					return true;
+
+					return true; // Keep
 				}
 			}
 		);
@@ -576,8 +589,8 @@ export async function getBlob(params: CommonParams, url: string, ociCacheDir: st
 			{
 				file: tempTarballPath,
 				cwd: ociCacheDir,
-				filter: (path: string, _: tar.FileStat) => {
-					return path === `./${metadataFile}`;
+				filter: (tPath: string, _: tar.FileStat) => {
+					return tPath === `./${metadataFile}`;
 				}
 			});
 		const pathToMetadataFile = path.join(ociCacheDir, metadataFile);

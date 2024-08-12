@@ -19,12 +19,13 @@ export interface SelectedTemplate {
 	id: string;
 	options: TemplateOptions;
 	features: TemplateFeatureOption[];
+	omitPaths: string[];
 }
 
 export async function fetchTemplate(params: CommonParams, selectedTemplate: SelectedTemplate, templateDestPath: string, userProvidedTmpDir?: string): Promise<string[] | undefined> {
 	const { output } = params;
 
-	let { id: userSelectedId, options: userSelectedOptions } = selectedTemplate;
+	let { id: userSelectedId, options: userSelectedOptions, omitPaths } = selectedTemplate;
 	const templateRef = getRef(output, userSelectedId);
 	if (!templateRef) {
 		output.write(`Failed to parse template ref for ${userSelectedId}`, LogLevel.Error);
@@ -46,7 +47,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);
-	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, blobDigest, ['devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
+	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, blobDigest, [...omitPaths, 'devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
 		throw new Error(`Failed to download package for ${templateRef.resource}`);
