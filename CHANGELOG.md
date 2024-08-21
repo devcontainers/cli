@@ -4,6 +4,12 @@ Notable changes.
 
 ## August 2024
 
+### [0.68.0]
+- Supporting changes for [Template `optionalPaths` specification](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property) (https://github.com/microsoft/vscode-remote-release/issues/10095)
+	- Publish metadata on Template OCI manifests (https://github.com/devcontainers/cli/pull/865)
+	- Add `--omit-paths` option to `templates apply` command (https://github.com/devcontainers/cli/pull/868)
+	- Add `templates metadata` command (https://github.com/devcontainers/cli/pull/866)
+
 ### [0.67.0]
 - Fix containerEnv substitution. (https://github.com/microsoft/vscode-remote-release/issues/10033)
 
