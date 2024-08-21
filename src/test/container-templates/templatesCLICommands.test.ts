@@ -146,10 +146,15 @@ describe('tests packageTemplates()', async function () {
 		assert.isNotEmpty(mytemplateProperties);
 		// -- optionalPaths
 		assert.strictEqual(mytemplateProperties?.optionalPaths?.length, 3);
-		assert.deepEqual(mytemplateProperties?.optionalPaths, ['.github/*', 'example-projects/exampleA/*', 'c1.ts']);
+		assert.deepEqual(mytemplateProperties?.optionalPaths,
+			[
+				'.github/dependabot.yml',  // NOTE: Packaging step replaces the original value '.github/*' here since there's only a single file in the folder
+				'example-projects/exampleA/*',
+				'c1.ts'
+			]);
 		// -- files
 		assert.strictEqual(mytemplateProperties?.files?.length, 14);
-		assert.deepEqual(mytemplateProperties?.files, [
+		assert.deepEqual(mytemplateProperties?.files.sort(), [
 			'c1.ts',
 			'c2.ts',
 			'c3.ts',
@@ -164,7 +169,7 @@ describe('tests packageTemplates()', async function () {
 			'example-projects/exampleB/b1.ts',
 			'example-projects/exampleB/.github/dependabot.yml',
 			'example-projects/exampleB/subFolderB/b2.ts'
-		]);
+		].sort()); // Order isn't guaranteed
 		// -- featureIds
 		assert.strictEqual(mytemplateProperties?.featureIds?.length, 4);
 		assert.deepEqual(mytemplateProperties?.featureIds, [

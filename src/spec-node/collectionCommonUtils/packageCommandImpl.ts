@@ -134,10 +134,10 @@ async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTempla
 		return false;
 	}
 
-	const fileNames = (await recursiveDirReader.default(srcFolder));
+	const fileNames = (await recursiveDirReader.default(srcFolder))?.map((f) => path.relative(srcFolder, f)) ?? [];
 
 	templateData.type = type;
-	templateData.files = fileNames.map((f) => path.relative(srcFolder, f));
+	templateData.files = fileNames;
 	templateData.fileCount = fileNames.length;
 	templateData.featureIds =
 		config.features
@@ -145,6 +145,34 @@ async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTempla
 				.map((f) => getRef(output, f)?.resource)
 				.filter((f) => f !== undefined) as string[]
 			: [];
+
+	// If the Template is omitting a folder and that folder contains just a single file, 
+	// replace the entry in the metadata with the full file name,
+	// as that provides a better user experience when tools consume the metadata.
+	// Eg: If the template is omitting ".github/*" and the Template source contains just a single file
+	//     "workflow.yml", replace ".github/*" with ".github/workflow.yml"
+	if (templateData.optionalPaths && templateData.optionalPaths?.length) {
+		const optionalPaths = templateData.optionalPaths;
+		for (const optPath of optionalPaths) {
+			// Skip if not a directory
+			if (!optPath.endsWith('/*') || optPath.length < 3) {
+				continue;
+			}
+			const dirPath = optPath.slice(0, -2);
+			const dirFiles = fileNames.filter((f) => f.startsWith(dirPath));
+			output.write(`Given optionalPath starting with '${dirPath}' has ${dirFiles.length} files`, LogLevel.Trace);
+			if (dirFiles.length === 1) {
+				// If that one item is a file and not a directory
+				const f = dirFiles[0];
+				output.write(`Checking if optionalPath '${optPath}' with lone contents '${f}' is a file `, LogLevel.Trace);
+				const localPath = path.join(srcFolder, f);
+				if (await isLocalFile(localPath)) {
+					output.write(`Checked path '${localPath}' on disk is a file. Replacing optionalPaths entry '${optPath}' with '${f}'`, LogLevel.Trace);
+					templateData.optionalPaths[optionalPaths.indexOf(optPath)] = f;
+				}
+			}
+		}
+	}
 
 	await writeLocalFile(devcontainerTemplateJsonPath, JSON.stringify(templateData, null, 4));
 
