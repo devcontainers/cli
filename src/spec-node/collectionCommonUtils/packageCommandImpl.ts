@@ -9,6 +9,7 @@ import path from 'path';
 import { DevContainerConfig, isDockerFileConfig } from '../../spec-configuration/configuration';
 import { Template } from '../../spec-configuration/containerTemplatesConfiguration';
 import { Feature } from '../../spec-configuration/containerFeaturesConfiguration';
+import { getRef } from '../../spec-configuration/containerCollectionsOCI';
 
 export interface SourceInformation {
 	source: string;
@@ -133,9 +134,17 @@ async function addsAdditionalTemplateProps(srcFolder: string, devcontainerTempla
 		return false;
 	}
 
+	const fileNames = (await recursiveDirReader.default(srcFolder));
+
 	templateData.type = type;
-	templateData.fileCount = (await recursiveDirReader.default(srcFolder)).length;
-	templateData.featureIds = config.features ? Object.keys(config.features).map((k) => k.split(':')[0]) : [];
+	templateData.files = fileNames.map((f) => path.relative(srcFolder, f));
+	templateData.fileCount = fileNames.length;
+	templateData.featureIds =
+		config.features
+			? Object.keys(config.features)
+				.map((f) => getRef(output, f)?.resource)
+				.filter((f) => f !== undefined) as string[]
+			: [];
 
 	await writeLocalFile(devcontainerTemplateJsonPath, JSON.stringify(templateData, null, 4));
 
