@@ -116,7 +116,7 @@ describe('tests packageTemplates()', async function () {
 
 		const collectionFileExists = await isLocalFile(`${outputDir}/devcontainer-collection.json`);
 		const json: DevContainerCollectionMetadata = JSON.parse((await readLocalFile(`${outputDir}/devcontainer-collection.json`)).toString());
-		assert.strictEqual(json.templates.length, 3);
+		assert.strictEqual(json.templates.length, 4);
 		assert.isTrue(collectionFileExists);
 
 		// Checks if the automatically added properties are set correctly.
@@ -140,6 +140,46 @@ describe('tests packageTemplates()', async function () {
 		assert.equal(nodeProperties?.featureIds?.length, 2);
 		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/common-utils'));
 		assert.isTrue(nodeProperties?.featureIds?.some(f => f === 'ghcr.io/devcontainers/features/git'));
+
+		const mytemplateProperties: Template | undefined = json?.templates.find(t => t.id === 'mytemplate');
+		console.log(JSON.stringify(mytemplateProperties, null, 4));
+		assert.isNotEmpty(mytemplateProperties);
+		// -- optionalPaths
+		assert.strictEqual(mytemplateProperties?.optionalPaths?.length, 3);
+		assert.deepEqual(mytemplateProperties?.optionalPaths,
+			[
+				'.github/dependabot.yml',  // NOTE: Packaging step replaces the original value '.github/*' here since there's only a single file in the folder
+				'example-projects/exampleA/*',
+				'c1.ts'
+			]);
+		// -- files
+		assert.strictEqual(mytemplateProperties?.files?.length, 14);
+		assert.deepEqual(mytemplateProperties?.files.sort(), [
+			'c1.ts',
+			'c2.ts',
+			'c3.ts',
+			'devcontainer-template.json',
+			'.devcontainer/devcontainer.json',
+			'.github/dependabot.yml',
+			'assets/hello.md',
+			'assets/hi.md',
+			'example-projects/exampleA/a1.ts',
+			'example-projects/exampleA/.github/dependabot.yml',
+			'example-projects/exampleA/subFolderA/a2.ts',
+			'example-projects/exampleB/b1.ts',
+			'example-projects/exampleB/.github/dependabot.yml',
+			'example-projects/exampleB/subFolderB/b2.ts'
+		].sort()); // Order isn't guaranteed
+		// -- featureIds
+		assert.strictEqual(mytemplateProperties?.featureIds?.length, 4);
+		assert.deepEqual(mytemplateProperties?.featureIds, [
+			'ghcr.io/devcontainers/features/azure-cli',
+			'ghcr.io/devcontainers/features/aws-cli',
+			'ghcr.io/devcontainers/features/common-utils',
+			'ghcr.io/devcontainers/features/docker-in-docker'
+		]);
+
+
 	});
 
 	it('tests packaging for single template', async function () {
