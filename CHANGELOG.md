@@ -4,6 +4,12 @@ Notable changes.
 
 ## August 2024
 
+### [0.69.0]
+- Enhance Template metadata (https://github.com/devcontainers/cli/pull/875)
+    - Caches additional Template metadata (such as `files`) onto the manifest
+	- Resolves full file paths for `optionalPaths` directories that only contain one file (for better usability in upstream tools)
+	- Fixes bugs
+
 ### [0.68.0]
 - Supporting changes for [Template `optionalPaths` specification](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property) (https://github.com/microsoft/vscode-remote-release/issues/10095)
 	- Publish metadata on Template OCI manifests (https://github.com/devcontainers/cli/pull/865)
