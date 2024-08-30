@@ -70,9 +70,10 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 		return;
 	}
 
-	switch (wwwAuthenticate.split(' ')[0]) {
+	const authenticationMethod = wwwAuthenticate.split(' ')[0];
+	switch (authenticationMethod.toLowerCase()) {
 		// Basic realm="localhost"
-		case 'Basic':
+		case 'basic':
 
 			output.write(`[httpOci] Attempting to authenticate via 'Basic' auth.`, LogLevel.Trace);
 
@@ -87,7 +88,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			break;
 
 		// Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push"
-		case 'Bearer':
+		case 'bearer':
 
 			output.write(`[httpOci] Attempting to authenticate via 'Bearer' auth.`, LogLevel.Trace);
 
@@ -116,7 +117,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			break;
 
 		default:
-			output.write(`[httpOci] ERR: Unsupported authentication mode '${wwwAuthenticate.split(' ')[0]}'`, LogLevel.Error);
+			output.write(`[httpOci] ERR: Unsupported authentication mode '${authenticationMethod}'`, LogLevel.Error);
 			return;
 	}
 
