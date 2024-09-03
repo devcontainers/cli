@@ -11,7 +11,7 @@ import { requestEnsureAuthenticated } from './httpOCIRegistry';
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
 //     OCI Spec                     : https://github.com/opencontainers/distribution-spec/blob/main/spec.md#push
-export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string, featureAnnotations = {}): Promise<string | undefined> {
+export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCIRef, pathToTgz: string, tags: string[], collectionType: string, annotations: { [key: string]: string } = {}): Promise<string | undefined> {
 	const { output } = params;
 
 	output.write(`-- Starting push of ${collectionType} '${ociRef.id}' to '${ociRef.resource}' with tags '${tags.join(', ')}'`);
@@ -25,7 +25,7 @@ export async function pushOCIFeatureOrTemplate(params: CommonParams, ociRef: OCI
 	const dataBytes = fs.readFileSync(pathToTgz);
 
 	// Generate Manifest for given feature/template artifact.
-	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType, featureAnnotations);
+	const manifest = await generateCompleteManifestForIndividualFeatureOrTemplate(output, dataBytes, pathToTgz, ociRef, collectionType, annotations);
 	if (!manifest) {
 		output.write(`Failed to generate manifest for ${ociRef.id}`, LogLevel.Error);
 		return;
@@ -268,14 +268,13 @@ async function putBlob(params: CommonParams, blobPutLocationUriPath: string, oci
 // Generate a layer that follows the `application/vnd.devcontainers.layer.v1+tar` mediaType as defined in
 //     Devcontainer Spec (features) : https://containers.dev/implementors/features-distribution/#oci-registry
 //     Devcontainer Spec (templates): https://github.com/devcontainers/spec/blob/main/proposals/devcontainer-templates-distribution.md#oci-registry
-async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string, featureAnnotations = {}): Promise<ManifestContainer | undefined> {
+async function generateCompleteManifestForIndividualFeatureOrTemplate(output: Log, dataBytes: Buffer, pathToTgz: string, ociRef: OCIRef, collectionType: string, annotations: { [key: string]: string } = {}): Promise<ManifestContainer | undefined> {
 	const tgzLayer = await calculateDataLayer(output, dataBytes, path.basename(pathToTgz), DEVCONTAINER_TAR_LAYER_MEDIATYPE);
 	if (!tgzLayer) {
 		output.write(`Failed to calculate tgz layer.`, LogLevel.Error);
 		return undefined;
 	}
 
-	let annotations: { [key: string]: string } = featureAnnotations;
 	// Specific registries look for certain optional metadata 
 	// in the manifest, in this case for UI presentation.
 	if (ociRef.registry === 'ghcr.io') {

@@ -1,0 +1,39 @@
+{
+    "id": "mytemplate",
+    "version": "1.0.0",
+    "name": "My Template",
+    "description": "Simple test",
+    "documentationURL": "https://github.com/codspace/templates/tree/main/src/test",
+    "publisher": "codspace",
+    "licenseURL": "https://github.com/devcontainers/templates/blob/main/LICENSE",
+    "platforms": [
+        "Any"
+    ],
+    "options": {
+        "anOption": {
+            "type": "string",
+            "description": "A great option",
+            "proposals": [
+                "8.0",
+                "7.0",
+                "6.0"
+            ],
+            "default": "8.0"
+        },
+        "userUid": {
+            "type": "string",
+            "description": "The user's UID",
+            "proposals": [
+                "1000",
+                "1001",
+                "1002"
+            ],
+            "default": "1000"
+        }
+    },
+    "optionalPaths": [
+        ".github/*",
+        "example-projects/exampleA/*",
+        "c1.ts"
+    ]
+}

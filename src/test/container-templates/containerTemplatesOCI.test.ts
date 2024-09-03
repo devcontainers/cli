@@ -1,8 +1,9 @@
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
+import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 import { fetchTemplate, SelectedTemplate } from '../../spec-configuration/containerTemplatesOCI';
-import * as path from 'path';
 import { readLocalFile } from '../../spec-utils/pfs';
 
 describe('fetchTemplate', async function () {
@@ -14,7 +15,8 @@ describe('fetchTemplate', async function () {
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
 			options: { 'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true' },
-			features: []
+			features: [],
+			omitPaths: [],
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp1'));
@@ -43,7 +45,8 @@ describe('fetchTemplate', async function () {
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
 			options: {},
-			features: []
+			features: [],
+			omitPaths: [],
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
@@ -72,7 +75,8 @@ describe('fetchTemplate', async function () {
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/docker-from-docker:latest',
 			options: { 'installZsh': 'false', 'upgradePackages': 'true', 'dockerVersion': '20.10', 'moby': 'true', 'enableNonRootDocker': 'true' },
-			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }]
+			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }],
+			omitPaths: [],
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
@@ -104,7 +108,8 @@ describe('fetchTemplate', async function () {
 		const selectedTemplate: SelectedTemplate = {
 			id: 'ghcr.io/devcontainers/templates/anaconda-postgres:latest',
 			options: { 'nodeVersion': 'lts/*' },
-			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }, { id: 'ghcr.io/devcontainers/features/git:1', options: { 'version': 'latest', ppa: true } }]
+			features: [{ id: 'ghcr.io/devcontainers/features/azure-cli:1', options: {} }, { id: 'ghcr.io/devcontainers/features/git:1', options: { 'version': 'latest', ppa: true } }],
+			omitPaths: [],
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
@@ -123,4 +128,109 @@ describe('fetchTemplate', async function () {
 		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {}/);
 		assert.match(devcontainer, /"ghcr.io\/devcontainers\/features\/git:1": {\n\t\t\t"version": "latest",\n\t\t\t"ppa": true/);
 	});
+
+	describe('omit-path', async function () {
+		this.timeout('120s');
+
+		// https://github.com/codspace/templates/pkgs/container/templates%2Fmytemplate/255979159?tag=1.0.4
+		const id = 'ghcr.io/codspace/templates/mytemplate@sha256:57cbf968907c74c106b7b2446063d114743ab3f63345f7c108c577915c535185';
+		const templateFiles = [
+			'./c1.ts',
+			'./c2.ts',
+			'./c3.ts',
+			'./.devcontainer/devcontainer.json',
+			'./.github/dependabot.yml',
+			'./assets/hello.md',
+			'./assets/hi.md',
+			'./example-projects/exampleA/a1.ts',
+			'./example-projects/exampleA/.github/dependabot.yml',
+			'./example-projects/exampleA/subFolderA/a2.ts',
+			'./example-projects/exampleB/b1.ts',
+			'./example-projects/exampleB/.github/dependabot.yml',
+			'./example-projects/exampleB/subFolderB/b2.ts',
+		];
+
+		// NOTE: Certain files, like the 'devcontainer-template.json', are always filtered
+		//	     out as they are not part of the Template.
+		it('Omit nothing', async () => {
+			const selectedTemplate: SelectedTemplate = {
+				id,
+				options: {},
+				features: [],
+				omitPaths: [],
+			};
+
+			const files = await fetchTemplate(
+				{ output, env: process.env },
+				selectedTemplate,
+				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
+			);
+
+			assert.ok(files);
+			assert.strictEqual(files.length, templateFiles.length);
+			for (const file of templateFiles) {
+				assert.ok(files.includes(file));
+			}
+		});
+
+		it('Omit nested folder', async () => {
+			const selectedTemplate: SelectedTemplate = {
+				id,
+				options: {},
+				features: [],
+				omitPaths: ['example-projects/exampleB/*'],
+			};
+
+			const files = await fetchTemplate(
+				{ output, env: process.env },
+				selectedTemplate,
+				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
+			);
+
+			const expectedRemovedFiles = [
+				'./example-projects/exampleB/b1.ts',
+				'./example-projects/example/.github/dependabot.yml',
+				'./example-projects/exampleB/subFolderB/b2.ts',
+			];
+
+			assert.ok(files);
+			assert.strictEqual(files.length, templateFiles.length - 3);
+			for (const file of expectedRemovedFiles) {
+				assert.ok(!files.includes(file));
+			}
+		});
+
+		it('Omit single file, root folder, and nested folder', async () => {
+			const selectedTemplate: SelectedTemplate = {
+				id,
+				options: {},
+				features: [],
+				omitPaths: ['.github/*', 'example-projects/exampleA/*', 'c1.ts'],
+			};
+
+			const files = await fetchTemplate(
+				{ output, env: process.env },
+				selectedTemplate,
+				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
+			);
+
+			const expectedRemovedFiles = [
+				'./c1.ts',
+				'./.github/dependabot.yml',
+				'./example-projects/exampleA/a1.ts',
+				'./example-projects/exampleA/.github/dependabot.yml',
+				'./example-projects/exampleA/subFolderA/a2.ts',
+			];
+
+			assert.ok(files);
+			assert.strictEqual(files.length, templateFiles.length - 5);
+			for (const file of expectedRemovedFiles) {
+				assert.ok(!files.includes(file));
+			}
+		});
+	});
+
+
 });
+
+

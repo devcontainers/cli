@@ -1,0 +1,6 @@
+version: 2
+updates:
+  - package-ecosystem: "devcontainers" # See documentation for possible values
+    directory: "/"
+    schedule:
+      interval: weekly

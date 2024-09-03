@@ -1,0 +1,16 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/base",
+    "containerEnv": {
+        "MY_ENV_VAR": "${templateOption:anOption}"
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/azure-cli": {
+            "installBicep": false
+        },
+        "ghcr.io/devcontainers/features/aws-cli:1": {},
+        "ghcr.io/devcontainers/features/common-utils:2.5.1": {
+            "userUid": "${templateOption:userUid}"
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker@sha256:503f23cd692325b3cbb8c20a0ecfabb3444b0c786b363e0c82572bd7d71dc099": {}
+    }
+}
