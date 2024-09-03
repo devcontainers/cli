@@ -15,7 +15,7 @@ import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -564,7 +564,7 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 					container = undefined;
 				} else if (removeContainerWithOldLabels === true || removeContainerWithOldLabels === container.Id) {
 					// Remove container, so it will be rebuilt with new labels.
-					await dockerCLI(params, 'rm', '-f', container.Id);
+					await removeContainer(params, container.Id);
 					container = undefined;
 				}
 			}

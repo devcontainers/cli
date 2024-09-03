@@ -7,7 +7,7 @@
 import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -299,7 +299,7 @@ export async function findExistingContainer(params: DockerResolverParameters, la
 	if (container && (params.removeOnStartup === true || params.removeOnStartup === container.Id)) {
 		const text = 'Removing Existing Container';
 		const start = common.output.start(text);
-		await dockerCLI(params, 'rm', '-f', container.Id);
+		await removeContainer(params, container.Id);
 		common.output.stop(text, start);
 		container = undefined;
 	}

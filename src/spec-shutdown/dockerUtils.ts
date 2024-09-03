@@ -9,6 +9,7 @@ import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
 import { Event } from '../spec-utils/event';
 import { escapeRegExCharacters } from '../spec-utils/strings';
+import { delay } from '../spec-common/async';
 
 export interface ContainerDetails {
 	Id: string;
@@ -168,7 +169,44 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.filter(s => !!s);
 }
 
-export async function getEvents(params: DockerResolverParameters, filters?: Record<string, string[]>) {
+export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string) {
+	let eventsProcess: Exec | undefined;
+	let removedSeenP: Promise<void> | undefined;
+	try {
+		for (let i = 0, n = 4; i < n; i++) {
+			try {
+				await dockerCLI(params, 'rm', '-f', nameOrId);
+				return;
+			} catch (err) {
+				// https://github.com/microsoft/vscode-remote-release/issues/6509
+				const stderr: string = err?.stderr?.toString().toLowerCase() || '';
+				if (i === n - 1 || !stderr.includes('already in progress')) {
+					throw err;
+				}
+				if (!removedSeenP) {
+					eventsProcess = await getEvents(params, {
+						container: [nameOrId],
+						event: ['destroy'],
+					});
+					removedSeenP = new Promise<void>(resolve => {
+						eventsProcess!.stdout.on('data', () => {
+							resolve();
+							eventsProcess!.terminate();
+							removedSeenP = new Promise(() => {}); // safeguard in case we see the 'removal already in progress' error again
+						});
+					});
+				}
+				await Promise.race([removedSeenP, delay(1000)]);
+			}
+		}
+	} finally {
+		if (eventsProcess) {
+			eventsProcess.terminate();
+		}
+	}
+}
+
+export async function getEvents(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, filters?: Record<string, string[]>) {
 	const { exec, cmd, args, env, output } = toExecParameters(params);
 	const filterArgs = [];
 	for (const filter in filters) {
@@ -176,7 +214,7 @@ export async function getEvents(params: DockerResolverParameters, filters?: Reco
 			filterArgs.push('--filter', `${filter}=${value}`);
 		}
 	}
-	const format = params.isPodman ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
+	const format = 'isPodman' in params && params.isPodman ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
 	const combinedArgs = (args || []).concat(['events', '--format', format, ...filterArgs]);
 
 	const p = await exec({

@@ -11,7 +11,7 @@ import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
 import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-common/commonUtils';
-import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerCLI, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -54,7 +54,7 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		if (container && (params.removeOnStartup === true || params.removeOnStartup === container.Id)) {
 			const text = 'Removing existing container.';
 			const start = common.output.start(text);
-			await dockerCLI(params, 'rm', '-f', container.Id);
+			await removeContainer(params, container.Id);
 			common.output.stop(text, start);
 			container = undefined;
 		}
