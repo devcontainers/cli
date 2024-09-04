@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## September 2024
+
+### [0.70.0]
+- Add more leniency towards registries that malform WWW-Authenticate (https://github.com/devcontainers/cli/pull/884)
+- Handle concurrent removal (https://github.com/microsoft/vscode-remote-release/issues/6509)
+
 ## August 2024
 
 ### [0.69.0]
