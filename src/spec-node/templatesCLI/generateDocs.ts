@@ -4,6 +4,7 @@ import { generateTemplatesDocumentation } from '../collectionCommonUtils/generat
 import { createLog } from '../devContainers';
 import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
+import { runAsyncHandler } from '../utils';
 
 // -- 'templates generate-docs' command
 export function templatesGenerateDocsOptions(y: Argv) {
@@ -22,7 +23,7 @@ export function templatesGenerateDocsOptions(y: Argv) {
 export type TemplatesGenerateDocsArgs = UnpackArgv<ReturnType<typeof templatesGenerateDocsOptions>>;
 
 export function templatesGenerateDocsHandler(args: TemplatesGenerateDocsArgs) {
-	(async () => await templatesGenerateDocs(args))().catch(console.error);
+	runAsyncHandler(templatesGenerateDocs.bind(null, args));
 }
 
 export async function templatesGenerateDocs({

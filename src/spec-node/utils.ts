@@ -579,3 +579,14 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 			[`${hostFolderLabel}=${workspaceFolder}`],
 	};
 }
+
+export function runAsyncHandler(handler: () => Promise<void>) {
+	(async () => {
+		try {
+			await handler();
+		} catch (err) {
+			console.error(err);
+			process.exit(1);
+		}
+	})();
+}

@@ -4,6 +4,7 @@ import { generateFeaturesDocumentation } from '../collectionCommonUtils/generate
 import { createLog } from '../devContainers';
 import { mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
+import { runAsyncHandler } from '../utils';
 
 // -- 'features generate-docs' command
 export function featuresGenerateDocsOptions(y: Argv) {
@@ -24,7 +25,7 @@ export function featuresGenerateDocsOptions(y: Argv) {
 export type FeaturesGenerateDocsArgs = UnpackArgv<ReturnType<typeof featuresGenerateDocsOptions>>;
 
 export function featuresGenerateDocsHandler(args: FeaturesGenerateDocsArgs) {
-	(async () => await featuresGenerateDocs(args))().catch(console.error);
+	runAsyncHandler(featuresGenerateDocs.bind(null, args));
 }
 
 export async function featuresGenerateDocs({
