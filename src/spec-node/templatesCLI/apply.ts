@@ -5,6 +5,7 @@ import { createLog } from '../devContainers';
 import * as jsonc from 'jsonc-parser';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { fetchTemplate, SelectedTemplate, TemplateFeatureOption, TemplateOptions } from '../../spec-configuration/containerTemplatesOCI';
+import { runAsyncHandler } from '../utils';
 
 export function templateApplyOptions(y: Argv) {
 	return y
@@ -25,7 +26,7 @@ export function templateApplyOptions(y: Argv) {
 export type TemplateApplyArgs = UnpackArgv<ReturnType<typeof templateApplyOptions>>;
 
 export function templateApplyHandler(args: TemplateApplyArgs) {
-	(async () => await templateApply(args))().catch(console.error);
+	runAsyncHandler(templateApply.bind(null, args));
 }
 
 async function templateApply({

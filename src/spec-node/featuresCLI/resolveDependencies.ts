@@ -10,6 +10,7 @@ import { DevContainerConfig, DevContainerFeature } from '../../spec-configuratio
 import { buildDependencyGraph, computeDependsOnInstallationOrder, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { OCISourceInformation, processFeatureIdentifier, userFeaturesToArray } from '../../spec-configuration/containerFeaturesConfiguration';
 import { readLockfile } from '../../spec-configuration/lockfile';
+import { runAsyncHandler } from '../utils';
 
 interface JsonOutput {
 	installOrder?: {
@@ -29,7 +30,7 @@ export function featuresResolveDependenciesOptions(y: Argv) {
 export type featuresResolveDependenciesArgs = UnpackArgv<ReturnType<typeof featuresResolveDependenciesOptions>>;
 
 export function featuresResolveDependenciesHandler(args: featuresResolveDependenciesArgs) {
-	(async () => await featuresResolveDependencies(args))().catch(console.error);
+	runAsyncHandler(featuresResolveDependencies.bind(null, args));
 }
 
 async function featuresResolveDependencies({
