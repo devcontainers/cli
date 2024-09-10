@@ -4,6 +4,10 @@ Notable changes.
 
 ## September 2024
 
+### [0.71.0]
+- Exit with non-zero code on unexpected errors (https://github.com/microsoft/vscode-remote-release/issues/10217)
+- Add option for GPU availability (https://github.com/microsoft/vscode-remote-release/issues/9385)
+
 ### [0.70.0]
 - Add more leniency towards registries that malform WWW-Authenticate (https://github.com/devcontainers/cli/pull/884)
 - Handle concurrent removal (https://github.com/microsoft/vscode-remote-release/issues/6509)
