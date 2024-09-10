@@ -329,7 +329,7 @@ export async function findDevContainer(params: DockerCLIParameters | DockerResol
 	return details.filter(container => container.State.Status !== 'removing')[0];
 }
 
-export async function extraRunArgs(common: ResolverParameters, params: DockerCLIParameters | DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
+export async function extraRunArgs(common: ResolverParameters, params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig) {
 	const extraArguments: string[] = [];
 	if (config.hostRequirements?.gpu) {
 		if (await checkDockerSupportForGPU(params)) {
