@@ -35,6 +35,8 @@ export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommo
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
 
+export type GPUAvailability = 'all' | 'detect' | 'none';
+
 // Generic retry function
 export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
 	const { retryIntervalMilliseconds, maxRetries, output } = options;
@@ -100,6 +102,7 @@ export interface DockerResolverParameters {
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
+	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
@@ -202,7 +205,13 @@ async function hasLabels(params: DockerResolverParameters, info: any, expectedLa
 		.every(name => actualLabels[name] === expectedLabels[name]);
 }
 
-export async function checkDockerSupportForGPU(params: DockerCLIParameters | DockerResolverParameters): Promise<Boolean> {
+export async function checkDockerSupportForGPU(params: DockerResolverParameters): Promise<Boolean> {
+	if (params.gpuAvailability === 'all') {
+		return true;
+	}
+	if (params.gpuAvailability === 'none') {
+		return false;
+	}
 	const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
 	const runtimeFound = result.stdout.includes('nvidia-container-runtime');
 	return runtimeFound;
