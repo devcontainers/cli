@@ -5,6 +5,7 @@ import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig, PackageConfiguration } from '../../spec-utils/product';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { doFeaturesTestCommand } from './testCommandImpl';
+import { runAsyncHandler } from '../utils';
 
 // -- 'features test' command
 export function featuresTestOptions(y: Argv) {
@@ -67,7 +68,7 @@ export interface FeaturesTestCommandInput {
 }
 
 export function featuresTestHandler(args: FeaturesTestArgs) {
-	(async () => await featuresTest(args))().catch(console.error);
+	runAsyncHandler(featuresTest.bind(null, args));
 }
 
 async function featuresTest({

@@ -5,6 +5,7 @@ import { createLog } from '../devContainers';
 import { fetchOCIManifestIfExists, getRef } from '../../spec-configuration/containerCollectionsOCI';
 
 import { UnpackArgv } from '../devContainersSpecCLI';
+import { runAsyncHandler } from '../utils';
 
 export function templateMetadataOptions(y: Argv) {
 	return y
@@ -17,7 +18,7 @@ export function templateMetadataOptions(y: Argv) {
 export type TemplateMetadataArgs = UnpackArgv<ReturnType<typeof templateMetadataOptions>>;
 
 export function templateMetadataHandler(args: TemplateMetadataArgs) {
-	(async () => await templateMetadata(args))().catch(console.error);
+	runAsyncHandler(templateMetadata.bind(null, args));
 }
 
 async function templateMetadata({

@@ -10,7 +10,7 @@ import textTable from 'text-table';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder } from './utils';
+import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder, runAsyncHandler } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -105,6 +105,7 @@ function provisionOptions(y: Argv) {
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'workspace-mount-consistency': { choices: ['consistent' as 'consistent', 'cached' as 'cached', 'delegated' as 'delegated'], default: 'cached' as 'cached', description: 'Workspace mount consistency.' },
+		'gpu-availability': { choices: ['all' as 'all', 'detect' as 'detect', 'none' as 'none'], default: 'detect' as 'detect', description: 'Availability of GPUs in case the dev container requires any. `all` expects a GPU to be available.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. These will be set on the container and used to query for an existing container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -168,7 +169,7 @@ function provisionOptions(y: Argv) {
 type ProvisionArgs = UnpackArgv<ReturnType<typeof provisionOptions>>;
 
 function provisionHandler(args: ProvisionArgs) {
-	(async () => provision(args))().catch(console.error);
+	runAsyncHandler(provision.bind(null, args));
 }
 
 async function provision({
@@ -179,6 +180,7 @@ async function provision({
 	'container-system-data-folder': containerSystemDataFolder,
 	'workspace-folder': workspaceFolderArg,
 	'workspace-mount-consistency': workspaceMountConsistency,
+	'gpu-availability': gpuAvailability,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
 	'id-label': idLabel,
 	config,
@@ -233,6 +235,7 @@ async function provision({
 		containerSystemDataFolder,
 		workspaceFolder,
 		workspaceMountConsistency,
+		gpuAvailability,
 		mountWorkspaceGitRoot,
 		configFile: config ? URI.file(path.resolve(process.cwd(), config)) : undefined,
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
@@ -366,7 +369,7 @@ function setUpOptions(y: Argv) {
 type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>>;
 
 function setUpHandler(args: SetUpArgs) {
-	(async () => setUp(args))().catch(console.error);
+	runAsyncHandler(setUp.bind(null, args));
 }
 
 async function setUp(args: SetUpArgs) {
@@ -529,7 +532,7 @@ function buildOptions(y: Argv) {
 type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
 
 function buildHandler(args: BuildArgs) {
-	(async () => build(args))().catch(console.error);
+	runAsyncHandler(build.bind(null, args));
 }
 
 async function build(args: BuildArgs) {
@@ -791,7 +794,7 @@ function runUserCommandsOptions(y: Argv) {
 type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>>;
 
 function runUserCommandsHandler(args: RunUserCommandsArgs) {
-	(async () => runUserCommands(args))().catch(console.error);
+	runAsyncHandler(runUserCommands.bind(null, args));
 }
 async function runUserCommands(args: RunUserCommandsArgs) {
 	const result = await doRunUserCommands(args);
@@ -981,7 +984,7 @@ function readConfigurationOptions(y: Argv) {
 type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>>;
 
 function readConfigurationHandler(args: ReadConfigurationArgs) {
-	(async () => readConfiguration(args))().catch(console.error);
+	runAsyncHandler(readConfiguration.bind(null, args));
 }
 
 async function readConfiguration({
@@ -1117,7 +1120,7 @@ function outdatedOptions(y: Argv) {
 type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
 
 function outdatedHandler(args: OutdatedArgs) {
-	(async () => outdated(args))().catch(console.error);
+	runAsyncHandler(outdated.bind(null, args));
 }
 
 async function outdated({
@@ -1249,7 +1252,7 @@ function execOptions(y: Argv) {
 export type ExecArgs = UnpackArgv<ReturnType<typeof execOptions>>;
 
 function execHandler(args: ExecArgs) {
-	(async () => exec(args))().catch(console.error);
+	runAsyncHandler(exec.bind(null, args));
 }
 
 async function exec(args: ExecArgs) {

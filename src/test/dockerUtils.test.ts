@@ -6,6 +6,8 @@
 import { createPlainLog, LogLevel, makeLog } from '../spec-utils/log';
 import { inspectImageInRegistry, qualifyImageName } from '../spec-node/utils';
 import assert from 'assert';
+import { dockerCLI, listContainers, PartialExecParameters, removeContainer, toExecParameters } from '../spec-shutdown/dockerUtils';
+import { createCLIParams } from './testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -46,4 +48,26 @@ describe('Docker utils', function () {
 		assert.strictEqual(qualifyImageName('random/image'), 'docker.io/random/image');
 		assert.strictEqual(qualifyImageName('foo/random/image'), 'foo/random/image');
 	});
+
+	it('protects against concurrent removal', async () => {
+		const params = await createCLIParams(__dirname);
+		const verboseParams = { ...toExecParameters(params), output: makeLog(output, LogLevel.Info), print: 'continuous' as 'continuous' };
+		const { stdout } = await dockerCLI(verboseParams, 'run', '-d', 'ubuntu:latest', 'sleep', 'inf');
+		const containerId = stdout.toString().trim();
+		const start = Date.now();
+		await Promise.all([
+			testRemoveContainer(verboseParams, containerId),
+			testRemoveContainer(verboseParams, containerId),
+			testRemoveContainer(verboseParams, containerId),
+		]);
+		console.log('removal took', Date.now() - start, 'ms');
+	});
 });
+
+async function testRemoveContainer(params: PartialExecParameters, nameOrId: string) {
+	await removeContainer(params, nameOrId);
+	const all = await listContainers(params, true);
+	if (all.some(shortId => nameOrId.startsWith(shortId))) {
+		throw new Error('container still exists');
+	}
+}

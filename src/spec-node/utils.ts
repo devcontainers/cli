@@ -15,7 +15,7 @@ import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -34,6 +34,8 @@ export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommo
 
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
+
+export type GPUAvailability = 'all' | 'detect' | 'none';
 
 // Generic retry function
 export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
@@ -100,6 +102,7 @@ export interface DockerResolverParameters {
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
+	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
@@ -202,7 +205,13 @@ async function hasLabels(params: DockerResolverParameters, info: any, expectedLa
 		.every(name => actualLabels[name] === expectedLabels[name]);
 }
 
-export async function checkDockerSupportForGPU(params: DockerCLIParameters | DockerResolverParameters): Promise<Boolean> {
+export async function checkDockerSupportForGPU(params: DockerResolverParameters): Promise<Boolean> {
+	if (params.gpuAvailability === 'all') {
+		return true;
+	}
+	if (params.gpuAvailability === 'none') {
+		return false;
+	}
 	const result = await dockerCLI(params, 'info', '-f', '{{.Runtimes.nvidia}}');
 	const runtimeFound = result.stdout.includes('nvidia-container-runtime');
 	return runtimeFound;
@@ -564,7 +573,7 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 					container = undefined;
 				} else if (removeContainerWithOldLabels === true || removeContainerWithOldLabels === container.Id) {
 					// Remove container, so it will be rebuilt with new labels.
-					await dockerCLI(params, 'rm', '-f', container.Id);
+					await removeContainer(params, container.Id);
 					container = undefined;
 				}
 			}
@@ -578,4 +587,15 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 			[`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`] :
 			[`${hostFolderLabel}=${workspaceFolder}`],
 	};
+}
+
+export function runAsyncHandler(handler: () => Promise<void>) {
+	(async () => {
+		try {
+			await handler();
+		} catch (err) {
+			console.error(err);
+			process.exit(1);
+		}
+	})();
 }

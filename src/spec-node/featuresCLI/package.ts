@@ -7,6 +7,7 @@ import { createLog } from '../devContainers';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { doFeaturesPackageCommand } from './packageCommandImpl';
 import { PackageCommandInput, PackageOptions } from '../collectionCommonUtils/package';
+import { runAsyncHandler } from '../utils';
 
 export function featuresPackageOptions(y: Argv) {
 	return PackageOptions(y, 'feature');
@@ -14,7 +15,7 @@ export function featuresPackageOptions(y: Argv) {
 
 export type FeaturesPackageArgs = UnpackArgv<ReturnType<typeof featuresPackageOptions>>;
 export function featuresPackageHandler(args: FeaturesPackageArgs) {
-	(async () => await featuresPackage(args))().catch(console.error);
+	runAsyncHandler(featuresPackage.bind(null, args));
 }
 
 async function featuresPackage({

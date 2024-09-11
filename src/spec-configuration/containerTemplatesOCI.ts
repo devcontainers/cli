@@ -50,7 +50,8 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 	const blobResult = await getBlob(params, blobUrl, tmpDir, templateDestPath, templateRef, blobDigest, [...omitPaths, 'devcontainer-template.json', 'README.md', 'NOTES.md'], 'devcontainer-template.json');
 
 	if (!blobResult) {
-		throw new Error(`Failed to download package for ${templateRef.resource}`);
+		output.write(`Failed to download package for ${templateRef.resource}`, LogLevel.Error);
+		return;
 	}
 
 	const { files, metadata } = blobResult;
