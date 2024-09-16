@@ -98,7 +98,7 @@ checkMultiple() {
     shift; MINIMUMPASSED=$1
     shift; EXPRESSION="$1"
     while [ "$EXPRESSION" != "" ]; do
-        if $EXPRESSION; then ((PASSED++)); fi
+        if $EXPRESSION; then ((PASSED+=1)); fi
         shift; EXPRESSION=$1
     done
     if [ $PASSED -ge $MINIMUMPASSED ]; then
