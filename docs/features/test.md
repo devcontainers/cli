@@ -278,4 +278,4 @@ Example: `checkMultiple "python and node are available" 2 "python3 --version" "n
 
 ### `reportResults`
 
-Prints results of check and checkMultiple
+Prints results of `check` and `checkMultiple`
