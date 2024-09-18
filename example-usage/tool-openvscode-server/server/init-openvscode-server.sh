@@ -4,7 +4,14 @@ cd "$(dirname $0)"
 
 if [ ! -e "$HOME/.openvscodeserver/bin" ]; then
     echo "Downloading openvscode-server..."
-    curl -fsSL https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-v1.72.2/openvscode-server-v1.72.2-linux-x64.tar.gz -o /tmp/openvscode-server.tar.gz
+    install_arch=x64
+    arch=$(uname -m)
+    if [ $arch = "aarch64" ] || [ $arch = "arm64" ]; then
+        install_arch=arm64
+    fi
+    install_url="https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-v1.72.2/openvscode-server-v1.72.2-linux-$install_arch.tar.gz"
+    echo "Installing from: $install_url"
+    curl -fsSL "$install_url" -o /tmp/openvscode-server.tar.gz
     mkdir -p "$HOME/.openvscodeserver"
     echo "Extracting..."
     tar --strip 1 -xzf /tmp/openvscode-server.tar.gz -C "$HOME/.openvscodeserver/"
