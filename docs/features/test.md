@@ -266,6 +266,16 @@ Note:
 
 Example: `check "python is available" python3 --version`
 
+### `checkMultiple LABEL MINIMUM_NUMBER_OF_PASSED_COMMANDS EXPRESSIONS...`
+
+Executes multiple `EXPRESSIONS` (commands) and prints success/failed depending on the number of successful executions. If the number of successful executions is equal to or higher than `MINIMUM_NUMBER_OF_PASSED_COMMANDS`, the check is considered a success.
+
+Note:
+- `MINIMUM_NUMBER_OF_PASSED_COMMANDS` should not be higher than the total number of `EXPRESSIONS`.
+- Commands passed as expressions must be enclosed in quotes.
+
+Example: `checkMultiple "python and node are available" 2 "python3 --version" "node --version"`
+
 ### `reportResults`
 
 Prints results of check and checkMultiple
