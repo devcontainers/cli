@@ -257,10 +257,15 @@ reportResults
 
 The `dev-container-features-test-lib` is convenience helper [defined in the CLI](https://github.com/devcontainers/cli/blob/1910ca41015c627b884ddd69ebc52d1e8cdd8cf0/src/spec-node/featuresCLI/utils.ts#L59) that adds several bash functions to organize test asserts. Note that using this libary **is not required**.
 
-#### `check <LABEL> <cmd> [args...]`
-Description: Executes `cmd` and prints success/failed depending on exit code (0 === success) of `cmd`.
-Note: Use quotes to include whitespace in the label or individual arguments for the command.
+### `check LABEL EXPRESSION`
+
+Executes `EXPRESSION` (command) and prints success/failed depending on the exit code (0 === success) of the command.
+
+Note:
+- Use quotes to include whitespace in the label or individual arguments for the command.
+
 Example: `check "python is available" python3 --version`
 
-##### reportResults
+### `reportResults`
+
 Prints results of check and checkMultiple
