@@ -524,7 +524,8 @@ export function getFolderImageName(params: ResolverParameters | DockerCLIParamet
 	const { cwd } = 'cwd' in params ? params : params.cliHost;
 	const folderHash = getFolderHash(cwd);
 	const baseName = path.basename(cwd);
-	return toDockerImageName(`vsc-${baseName}-${folderHash}`);
+	// Fixes https://github.com/containers/podman/issues/23055
+	return `localhost/${toDockerImageName(`vsc-${baseName}-${folderHash}`)}`;
 }
 
 export function getFolderHash(fsPath: string): string {
