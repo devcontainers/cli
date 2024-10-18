@@ -540,12 +540,6 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 			}
 
 			await Promise.all(commands);
-
-			infoOutput.event({
-				type: 'progress',
-				name: progressName,
-				status: 'succeeded',
-			});
 		} catch {
 			infoOutput.event({
 				type: 'progress',
