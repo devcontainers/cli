@@ -173,7 +173,7 @@ export async function removeContainer(params: DockerCLIParameters | PartialExecP
 	let eventsProcess: Exec | undefined;
 	let removedSeenP: Promise<void> | undefined;
 	try {
-		for (let i = 0, n = 4; i < n; i++) {
+		for (let i = 0, n = 7; i < n; i++) {
 			try {
 				await dockerCLI(params, 'rm', '-f', nameOrId);
 				return;
