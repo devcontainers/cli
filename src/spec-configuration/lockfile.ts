@@ -67,7 +67,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	return;
 }
 
-export async function readLockfile(config: DevContainerConfig): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
+export async function readLockfile(config: DevContainerConfig | string): Promise<{ lockfile?: Lockfile; initLockfile?: boolean }> {
 	try {
 		const content = await readLocalFile(getLockfilePath(config));
 		// If empty file, use as marker to initialize lockfile when build completes.

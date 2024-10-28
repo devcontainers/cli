@@ -84,7 +84,9 @@ async function featuresResolveDependencies({
 		env: process.env,
 	};
 
-	const { lockfile } = await readLockfile(config);
+	let configObj: DevContainerConfig | string = config.hasOwnProperty('configFilePath') && config.configFilePath ? config : configPath;
+
+	const { lockfile } = await readLockfile(configObj);
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceFolder, _userFeature, lockfile);
 	};
