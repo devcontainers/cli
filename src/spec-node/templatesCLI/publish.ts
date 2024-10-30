@@ -67,7 +67,6 @@ async function templatesPublish({
     const metadata = await packageTemplates(packageArgs);
 
     if (!metadata) {
-        output.write(`(!) ERR: Failed to fetch ${OCICollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 
