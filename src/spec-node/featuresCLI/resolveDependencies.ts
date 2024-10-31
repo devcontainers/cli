@@ -76,13 +76,12 @@ async function featuresResolveDependencies({
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
-	const configFile: URI | undefined = configPath ? URI.file(path.resolve(process.cwd(), configPath)) : undefined;
-	const configs = configFile && await readDevContainerConfigFile(cliHost, workspace, configFile, false, output, undefined, undefined);
-	
+	const configFile: URI = URI.file(path.resolve(process.cwd(), configPath));
+	const configs = await readDevContainerConfigFile(cliHost, workspace, configFile, false, output, undefined, undefined);	
+
 	if (configFile && !configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });
 	}
-
 	const configWithRaw = configs!.config;
 	const { config } = configWithRaw;
 
