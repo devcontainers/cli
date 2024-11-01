@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## November 2024
+
+### [0.72.0]
+- Fix: change increment syntax in test library script (https://github.com/devcontainers/cli/pull/896)
+- Increase timeout to 6 seconds (7 attempts) (https://github.com/microsoft/vscode-remote-release/issues/6509)
+- Remove unnecessary log (https://github.com/devcontainers/cli/pull/925)
+
 ## September 2024
 
 ### [0.71.0]
