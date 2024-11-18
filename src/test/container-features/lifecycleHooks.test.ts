@@ -406,10 +406,10 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(containerUpStandardError, /Running the postAttachCommand from devcontainer.json/);
 
 				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_1.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel1 from devcontainer.json.../);
+				assert.match(containerUpStandardError, /Running parallel1 of postCreateCommand from devcontainer.json.../);
 
 				assert.match(outputOfExecCommand, /helperScript.devContainer.parallel_postCreateCommand_2.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel2 from devcontainer.json.../);
+				assert.match(containerUpStandardError, /Running parallel2 of postCreateCommand from devcontainer.json.../);
 
 				// Since lifecycle scripts are executed relative to the workspace folder,
 				// to run a script bundled with the Feature, the Feature author needs to copy that script to a persistent directory.
@@ -429,10 +429,10 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(containerUpStandardError, /Running the postAttachCommand from Feature '\.\/rabbit'/);
 
 				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_1.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel1 from Feature '\.\/rabbit'/);
+				assert.match(containerUpStandardError, /Running parallel1 of postCreateCommand from Feature '\.\/rabbit'/);
 
 				assert.match(outputOfExecCommand, /helperScript.rabbit.parallel_postCreateCommand_2.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel2 from Feature '\.\/rabbit'/);
+				assert.match(containerUpStandardError, /Running parallel2 of postCreateCommand from Feature '\.\/rabbit'/);
 
 
 				// -- 'Otter' Feature
@@ -449,10 +449,10 @@ describe('Feature lifecycle hooks', function () {
 				assert.match(containerUpStandardError, /Running the postAttachCommand from Feature '\.\/otter'/);
 
 				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_1.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel1 from Feature '\.\/otter'/);
+				assert.match(containerUpStandardError, /Running parallel1 of postCreateCommand from Feature '\.\/otter'/);
 
 				assert.match(outputOfExecCommand, /helperScript.otter.parallel_postCreateCommand_2.testMarker/);
-				assert.match(containerUpStandardError, /Running parallel2 from Feature '\.\/otter'/);
+				assert.match(containerUpStandardError, /Running parallel2 of postCreateCommand from Feature '\.\/otter'/);
 
 				// -- Assert that at no point did logging the lifecycle hook fail.
 				assert.notMatch(containerUpStandardError, /Running the (.*) from \?\?\?/);
