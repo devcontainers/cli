@@ -503,18 +503,26 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 				// doesn't get interleaved with the output of other commands.
 				const printMode = name ? 'off' : 'continuous';
 				const env = { ...(await remoteEnv), ...(await secrets) };
-				const { cmdOutput } = await runRemoteCommand({ ...lifecycleHook, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: env, pty: true, print: printMode });
 
-				// 'name' is set when parallel execution syntax is used.
-				if (name) {
-					infoOutput.raw(`\x1b[1mRunning ${name} from ${userCommandOrigin}...\x1b[0m\r\n${cmdOutput}\r\n`);
+				try {
+					const { cmdOutput } = await runRemoteCommand({ ...lifecycleHook, output: infoOutput }, containerProperties, typeof postCommand === 'string' ? ['/bin/sh', '-c', postCommand] : postCommand, remoteCwd, { remoteEnv: env, pty: true, print: printMode });
+
+					// 'name' is set when parallel execution syntax is used.
+					if (name) {
+						infoOutput.raw(`\x1b[1mRunning ${name} of ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n${cmdOutput}\r\n`);
+					}
+				} catch (err) {
+					if (printMode === 'off' && err?.cmdOutput) {
+						infoOutput.raw(`\r\n\x1b[1m${err.cmdOutput}\x1b[0m\r\n\r\n`);
+						if (err?.code) {
+							infoOutput.write(toErrorText(`${lifecycleHookName} failed with exit code ${err.code}. Skipping any further user-provided commands.`));
+						}
+						throw new ContainerError({
+							description: `${name ? `${name} of ${lifecycleHookName}` : lifecycleHookName} from ${userCommandOrigin} failed.`,
+							originalError: err
+						});
+					}
 				}
-
-				infoOutput.event({
-					type: 'progress',
-					name: progressName,
-					status: 'succeeded',
-				});
 			}
 
 			infoOutput.raw(`\x1b[1mRunning the ${lifecycleHookName} from ${userCommandOrigin}...\x1b[0m\r\n\r\n`);

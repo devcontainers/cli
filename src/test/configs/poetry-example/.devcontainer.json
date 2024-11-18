@@ -1,0 +1,14 @@
+// Example devcontainer.json configuration, 
+// wired into the vscode launch task (.vscode/launch.json)
+{
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/devcontainers/features/python:1": {
+			"version": "latest",
+			"installTools": "false"
+		}
+	},
+	"postStartCommand": {
+		"poetry setup":  ["/bin/bash", "-i", "-c",  "python3 -m venv $HOME/.local && source $HOME/.local/bin/activate && poetry install"]
+	}
+}
