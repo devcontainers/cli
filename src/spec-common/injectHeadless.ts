@@ -539,13 +539,23 @@ async function runLifecycleCommand({ lifecycleHook }: ResolverParameters, contai
 				});
 			}
 
-			await Promise.all(commands);
-		} catch {
+			const results = await Promise.allSettled(commands); // Wait for all commands to finish (successfully or not) before continuing.
+			const rejection = results.find(p => p.status === 'rejected');
+			if (rejection) {
+				throw (rejection as PromiseRejectedResult).reason;
+			}
+			infoOutput.event({
+				type: 'progress',
+				name: progressName,
+				status: 'succeeded',
+			});
+		} catch (err) {
 			infoOutput.event({
 				type: 'progress',
 				name: progressName,
 				status: 'failed',
 			});
+			throw err;
 		}
 	}
 }
