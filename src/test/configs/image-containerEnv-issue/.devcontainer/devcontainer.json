@@ -1,0 +1,15 @@
+{
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "devcontainerissues",
+	"workspaceFolder": "/workspaces/cli",		
+	"containerEnv": {
+		"SOME_PATH": "/tmp/path/doc-ver/loc",
+		"Test_Message": "H\"\n\ne\"'''llo M:;a/t?h&^iKa%#@!``ni,sk_a-",
+		"ROSCONSOLE_FORMAT": "[$${severity}] [$${walltime:%Y-%m-%d %H:%M:%S}] [$${node}]: $${message}",
+        "VAR_WITH_SPACES": "value with spaces",
+        "VAR_WITH_QUOTES_WE_WANT_TO_KEEP": "value with \"quotes\" we want to keep",
+        "VAR_WITH_DOLLAR_SIGN": "value with $dollar sign",
+        "VAR_WITH_BACK_SLASH": "value with \\back slash",
+        "ENV_WITH_COMMAND": "bash -c 'echo -n \"Hello, World!\"'"		
+	}
+}
