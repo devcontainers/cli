@@ -557,7 +557,7 @@ while sleep 1 & wait $$!; do :; done", "-"${userEntrypoint.map(a => `, ${JSON.st
     init: true` : ''}${user ? `
     user: ${user}` : ''}${Object.keys(env).length ? `
     environment:${Object.keys(env).map(key => `
-      - '${key}=${env[key].replace(/'/g, '\'\'')}'`).join('')}` : ''}${mergedConfig.privileged ? `
+      - '${key}=${env[key].replace(/\n/g, '\\n').replace(/\$/g, '$$$$').replace(/'/g, '\'\'')}'`).join('')}` : ''}${mergedConfig.privileged ? `
     privileged: true` : ''}${capAdd.length ? `
     cap_add:${capAdd.map(cap => `
       - ${cap}`).join('')}` : ''}${securityOpts.length ? `
