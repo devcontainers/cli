@@ -232,7 +232,9 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// TODO generate an image name that is specific to this dev container?
 	const buildKitVersionParsed = params.buildKitVersion?.versionMatch ? parseVersion(params.buildKitVersion.versionMatch) : undefined;
 	const minRequiredVersion = [0, 8, 0];
-	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
+	const useBuildKitBuildContexts = params.isPodman
+		? !('dockerComposeFile' in devContainerConfig.config) // https://github.com/microsoft/vscode-remote-release/issues/10178#issuecomment-2330257443
+		: buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const isBuildah = !!params.buildKitVersion?.versionString.toLowerCase().includes('buildah');
 
