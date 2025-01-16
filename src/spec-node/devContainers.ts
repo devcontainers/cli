@@ -58,6 +58,7 @@ export interface ProvisionOptions {
 	buildxCacheTo: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
+	skipForwardPorts: boolean;
 	skipPostAttach: boolean;
 	containerSessionDataFolder?: string;
 	skipPersistingCustomizationsFromFeatures: boolean;
@@ -81,7 +82,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 	const text = 'Resolving Remote';
 	const start = output.start(text);
 
-	const result = await resolve(params, options.configFile, options.overrideConfigFile, providedIdLabels, options.additionalFeatures ?? {});
+	const result = await resolve(params, options.configFile, options.overrideConfigFile, providedIdLabels, options.additionalFeatures ?? {}, options.skipForwardPorts);
 	output.stop(text, start);
 	const { dockerContainerId, composeProjectName } = result;
 	return {
