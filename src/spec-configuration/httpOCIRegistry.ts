@@ -37,7 +37,7 @@ const scopeRegex = /scope="([^"]+)"/;
 
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
 export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef) {
-	// If needed, Initialize the Authorization header cache. 
+	// If needed, Initialize the Authorization header cache.
 	if (!params.cachedAuthHeader) {
 		params.cachedAuthHeader = {};
 	}
@@ -54,14 +54,14 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
 
-	// For anything except a 401 response
-	// Simply return the original response to the caller.
-	if (initialAttemptRes.statusCode !== 401) {
+	// For anything except a 401 (invalid/no token) or 403 (insufficient scope)
+	// response simply return the original response to the caller.
+	if (initialAttemptRes.statusCode !== 401 && initialAttemptRes.statusCode !== 403) {
 		output.write(`[httpOci] ${initialAttemptRes.statusCode} (${maybeCachedAuthHeader ? 'Cached' : 'NoAuth'}): ${httpOptions.url}`, LogLevel.Trace);
 		return initialAttemptRes;
 	}
 
-	// -- 'responseAttempt' status code was 401 at this point.
+	// -- 'responseAttempt' status code was 401 or 403 at this point.
 
 	// Attempt to authenticate via WWW-Authenticate Header.
 	const wwwAuthenticate = initialAttemptRes.resHeaders['WWW-Authenticate'] || initialAttemptRes.resHeaders['www-authenticate'];
