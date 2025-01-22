@@ -2,6 +2,14 @@
 
 Notable changes.
 
+## January 2025
+
+### [0.73.0]
+- Fix: TypeError: Cannot read properties of undefined (reading 'fsPath') (https://github.com/devcontainers/cli/issues/895)
+- Fix: Log output of failing lifecycle scripts (https://github.com/devcontainers/cli/issues/845)
+- Fix: Escaping of metadata in Docker Compose file (https://github.com/devcontainers/cli/issues/904)
+- Fix: Re-authenticate against OCI registry after 403 error (https://github.com/devcontainers/cli/pull/945)
+
 ## November 2024
 
 ### [0.72.0]
