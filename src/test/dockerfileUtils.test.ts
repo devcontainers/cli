@@ -1,4 +1,4 @@
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../spec-node/imageMetadata';
 import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement, supportsBuildContexts } from '../spec-node/dockerfileUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
@@ -143,6 +143,16 @@ RUN another command
             });
         });
     });
+
+    describe('without any from stage (invalid Dockerfile)', () => {
+        it('should throw an error', () => {
+            const dockerfile = `
+RUN some command
+`;
+            expect(() => ensureDockerfileHasFinalStageName(dockerfile, 'placeholder')).to.throw('Error parsing Dockerfile: Dockerfile contains no FROM instructions');
+        });
+    });
+
 });
 
 describe('getImageBuildInfo', () => {
