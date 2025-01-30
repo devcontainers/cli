@@ -145,7 +145,7 @@ RUN another command
     });
 
     describe('without any from stage (invalid Dockerfile)', () => {
-        it('should throw an error', () => {
+        it('should throw a descriptive error', () => {
             const dockerfile = `
 RUN some command
 `;
