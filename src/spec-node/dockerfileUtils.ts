@@ -227,6 +227,10 @@ export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLas
 
 	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
 	const fromLines = [...dockerfile.matchAll(findFromLines)];
+	if (fromLines.length === 0) {
+		throw new Error('Error parsing Dockerfile: Dockerfile contains no FROM instructions');
+	}
+
 	const lastFromLineMatch = fromLines[fromLines.length - 1];
 	const lastFromLine = lastFromLineMatch.groups?.line as string;
 
