@@ -774,9 +774,6 @@ function runUserCommandsOptions(y: Argv) {
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
-			}
 			return true;
 		});
 }
@@ -830,7 +827,7 @@ async function doRunUserCommands({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg ?? '.');
 		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
