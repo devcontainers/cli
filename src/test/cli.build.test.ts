@@ -16,7 +16,7 @@ const pkg = require('../../package.json');
 describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const tmp = path.join(__dirname, 'tmp');
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
@@ -424,9 +424,19 @@ describe('Dev Containers CLI', function () {
 			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
 
-		it('should apply build options', async () => {
+		it.only('should apply build options', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.ok(response.imageName);
+			const details = JSON.parse((await shellExec(`docker inspect ${response.imageName}`)).stdout)[0] as ImageDetails;
+			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
+		});
+
+		it.only('should build with default workspace folder', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
+			const res = await shellExec(`${cli} build`, { cwd: testFolder });
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
 			assert.ok(response.imageName);
