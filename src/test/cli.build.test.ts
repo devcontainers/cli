@@ -53,7 +53,7 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
 				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
 				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
-				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1'); 
+				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1');
 			} catch (error) {
 				assert.equal(error.code, 'ERR_ASSERTION', 'Should fail with ERR_ASSERTION');
 			}
@@ -424,7 +424,7 @@ describe('Dev Containers CLI', function () {
 			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
 
-		it.only('should apply build options', async () => {
+		it'should apply build options', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
 			const response = JSON.parse(res.stdout);
@@ -434,7 +434,7 @@ describe('Dev Containers CLI', function () {
 			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
 		});
 
-		it.only('should build with default workspace folder', async () => {
+		it'should build with default workspace folder', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const res = await shellExec(`${cli} build`, { cwd: testFolder });
 			const response = JSON.parse(res.stdout);

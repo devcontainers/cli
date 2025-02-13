@@ -92,7 +92,7 @@ describe('Lockfile', function () {
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
 		const response = JSON.parse(res.stdout);
-		
+
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
 		assert.ok(git);
 		assert.strictEqual(git.current, '1.0.4');
@@ -125,7 +125,7 @@ describe('Lockfile', function () {
 		assert.strictEqual(foo.latestMajor, '2');
 	});
 
-	it.only('outdated command with text output', async () => {
+	it'outdated command with text output', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format text`);
@@ -151,8 +151,8 @@ describe('Lockfile', function () {
 		assert.ok(!response.includes('terraform'));
 		assert.ok(!response.includes('myfeatures'));
 	});
-	
-	it.only('outdated command without workspace', async () => {
+
+	it'outdated command without workspace', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated  --output-format text`, { cwd: workspaceFolder });
