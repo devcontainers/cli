@@ -26,7 +26,7 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command up', () => {
 
-		it.only('should execute successfully with valid config', async () => {
+		it('should execute successfully with valid config', async () => {
 			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --include-configuration --include-merged-configuration`);
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
@@ -69,7 +69,7 @@ describe('Dev Containers CLI', function () {
 			assert.equal(success, false, 'expect non-successful call');
 		});
 
-		it.only('should succeed when run without a workspace-folder in a workspace root', async () => {
+		it('should succeed when run without a workspace-folder in a workspace root', async () => {
 			const res = await shellExec(`${cli} up`, { cwd: `${__dirname}/configs/image-with-features` });
 			const response = JSON.parse(res.stdout);
 			assert.equal(response.outcome, 'success');
