@@ -144,16 +144,6 @@ function provisionOptions(y: Argv) {
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
 	})
 		.check(argv => {
-			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
-			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
-				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
-			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
-			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
 				throw new Error('Unmatched argument format: mount must match type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]');
@@ -218,7 +208,7 @@ async function provision({
 	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
 
-	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+	const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg ?? '.');
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
