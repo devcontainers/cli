@@ -12,7 +12,7 @@ const pkg = require('../../package.json');
 describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const tmp = path.join(__dirname, 'tmp');
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
@@ -27,13 +27,18 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command run-user-commands', () => {
-		describe('with valid config', () => {
+		describe.only('with valid config', () => {
 			let containerId: string | null = null;
 			const testFolder = `${__dirname}/configs/image`;
 			beforeEach(async () => containerId = (await devContainerUp(cli, testFolder)).containerId);
 			afterEach(async () => await devContainerDown({ containerId }));
 			it('should execute successfully', async () => {
 				const res = await shellExec(`${cli} run-user-commands --workspace-folder ${testFolder}`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			});
+			it('should execute successfully', async () => {
+				const res = await shellExec(`${cli} run-user-commands`, { cwd: testFolder });
 				const response = JSON.parse(res.stdout);
 				assert.equal(response.outcome, 'success');
 			});
