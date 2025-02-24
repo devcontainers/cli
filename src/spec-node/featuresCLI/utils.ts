@@ -57,35 +57,27 @@ export interface LaunchResult {
 
 // dev-container-features-test-lib
 export const testLibraryScript = `
-#!/bin/bash
-SCRIPT_FOLDER="$(cd "$(dirname $0)" && pwd)"
-USERNAME=\${1:-root}
+#!/bin/sh
+
+set -eu
 
 if [ -z $HOME ]; then
     HOME="/root"
 fi
 
-FAILED=()
-
-echoStderr()
-{
-    echo "$@" 1>&2
-}
+FAILED=""
 
 check() {
     LABEL=$1
     shift
-    echo -e "\n"
-    echo -e "🔄 Testing '$LABEL'"
-    echo -e '\\033[37m'
+    printf "\n🔄 Testing '%s'%s" "\${LABEL}" "$(tput setaf 7)"
     if "$@"; then
-        echo -e "\n" 
-        echo "✅  Passed '$LABEL'!"
+        printf "\n✅  Passed '%s'!" "\${LABEL}"
         return 0
     else
-        echo -e "\n"
-        echoStderr "❌ $LABEL check failed."
-        FAILED+=("$LABEL")
+        printf "\n"
+        printf "❌ %s check failed." "\${LABEL}" >&2
+        FAILED="\${FAILED}\n\${LABEL}"
         return 1
     fi
 }
@@ -93,34 +85,31 @@ check() {
 checkMultiple() {
     PASSED=0
     LABEL="$1"
-    echo -e "\n"
-    echo -e "🔄 Testing '$LABEL'."
+    printf "\n🔄 Testing '%s'." "\${LABEL}"
     shift; MINIMUMPASSED=$1
     shift; EXPRESSION="$1"
     while [ "$EXPRESSION" != "" ]; do
-        if $EXPRESSION; then ((PASSED+=1)); fi
+        if $EXPRESSION; then PASSED=$((PASSED+1)); fi
         shift; EXPRESSION=$1
     done
     if [ $PASSED -ge $MINIMUMPASSED ]; then
-        echo -e "\n"
-        echo "✅ Passed!"
+        printf "\n✅ Passed!"
         return 0
     else
-        echo -e "\n"
-        echoStderr "❌ '$LABEL' check failed."
-        FAILED+=("$LABEL")
+        printf "\n"
+        printf "❌ '%s' check failed." "\${LABEL}" >&2
+        FAILED="\${FAILED}\n\${LABEL}"
         return 1
     fi
 }
 
 reportResults() {
-    if [ \${#FAILED[@]} -ne 0 ]; then
-        echo -e "\n"
-        echoStderr -e "💥  Failed tests: \${FAILED[@]}"
+    if [ "\${FAILED}" ]; then
+        printf "\n"
+        printf "💥  Failed tests: %s" "\${FAILED}" >&2
         exit 1
     else
-        echo -e "\n"
-        echo -e "Test Passed!"
+        printf "\nTest Passed!"
         exit 0
     fi
 }`;
