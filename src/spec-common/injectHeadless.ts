@@ -244,7 +244,7 @@ export async function getContainerProperties(options: {
 		params.output.write(toWarningText(`User ${containerUser} not found with 'getent passwd'.`));
 	}
 	const shell = await getUserShell(containerEnv, passwdUser);
-	const homeFolder = await getHomeFolder(containerEnv, passwdUser);
+	const homeFolder = await getHomeFolder(shellServer, containerEnv, passwdUser);
 	const userDataFolder = getUserDataFolder(homeFolder, params);
 	let rootShellServerP: Promise<ShellServer> | undefined;
 	if (rootShellServer) {
@@ -278,8 +278,19 @@ export async function getUser(shellServer: ShellServer) {
 	return (await shellServer.exec('id -un')).stdout.trim();
 }
 
-export async function getHomeFolder(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdUser | undefined) {
-	return containerEnv.HOME || (passwdUser && passwdUser.home) || '/root';
+export async function getHomeFolder(shellServer: ShellServer, containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdUser | undefined) {
+	if (containerEnv.HOME) {
+		if (containerEnv.HOME === passwdUser?.home || passwdUser?.uid === '0') {
+			return containerEnv.HOME;
+		}
+		try {
+			await shellServer.exec(`[ ! -e '${containerEnv.HOME}' ] || [ -w '${containerEnv.HOME}' ]`);
+			return containerEnv.HOME;
+		} catch {
+			// Exists but not writable.
+		}
+	}
+	return passwdUser?.home || '/root';
 }
 
 async function getUserShell(containerEnv: NodeJS.ProcessEnv, passwdUser: PasswdUser | undefined) {
