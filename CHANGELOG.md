@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## February 2025
+
+### [0.74.0]
+- Ignore non-writeable HOME (https://github.com/microsoft/vscode-remote-release/issues/10707)
+
 ## January 2025
 
 ### [0.73.0]
