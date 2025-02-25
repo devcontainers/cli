@@ -8,11 +8,12 @@ module.exports = {
         'sourceType': 'module'
     },
     'plugins': [
-        '@typescript-eslint'
+        '@typescript-eslint',
+        '@stylistic'
     ],
     'rules': {
         // '@typescript-eslint/class-name-casing': 'warn', https://github.com/typescript-eslint/typescript-eslint/issues/2077
-        '@typescript-eslint/member-delimiter-style': [
+        '@stylistic/member-delimiter-style': [
             'warn',
             {
                 'multiline': {
@@ -25,7 +26,7 @@ module.exports = {
                 }
             }
         ],
-        '@typescript-eslint/semi': [
+        'semi': [
             'warn',
             'always'
         ],
