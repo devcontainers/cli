@@ -79,7 +79,7 @@ describe('Dev Containers CLI', function () {
 		});
 	});
 
-	describe'Command read-configuration', () => {
+	describe('Command read-configuration', () => {
 		it('should succeed and return postAttachCommand from config', async () => {
 
 			const containerId = (await shellExec(`docker run -d alpine:3.17 sleep inf`)).stdout.trim();

@@ -27,7 +27,7 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command run-user-commands', () => {
-		describe'with valid config', () => {
+		describe('with valid config', () => {
 			let containerId: string | null = null;
 			const testFolder = `${__dirname}/configs/image`;
 			beforeEach(async () => containerId = (await devContainerUp(cli, testFolder)).containerId);
