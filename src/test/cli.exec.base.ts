@@ -30,13 +30,13 @@ export function describeTests1({ text, options }: BuildKitOption) {
 				const testFolder = `${__dirname}/configs/image`;
 				beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, options)).containerId);
 				afterEach(async () => await devContainerDown({ containerId }));
-				it'should execute successfully', async () => {
+				it('should execute successfully', async () => {
 					const res = await shellBufferExec(`${cli} exec --workspace-folder ${testFolder} echo hi`);
 					assert.strictEqual(res.code, 0);
 					assert.equal(res.signal, undefined);
 					assert.strictEqual(res.stdout.toString(), 'hi\n');
 				});
-				it'should execute without a workspace folder', async () => {
+				it('should execute without a workspace folder', async () => {
 					const res = await shellBufferExec(`${cli} exec echo hi`, { cwd: testFolder});
 					assert.strictEqual(res.code, 0);
 					assert.equal(res.signal, undefined);

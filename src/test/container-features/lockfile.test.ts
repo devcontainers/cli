@@ -125,7 +125,7 @@ describe('Lockfile', function () {
 		assert.strictEqual(foo.latestMajor, '2');
 	});
 
-	it'outdated command with text output', async () => {
+	it('outdated command with text output', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format text`);
@@ -152,7 +152,7 @@ describe('Lockfile', function () {
 		assert.ok(!response.includes('myfeatures'));
 	});
 
-	it'outdated command without workspace', async () => {
+	it('outdated command without workspace', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
 
 		const res = await shellExec(`${cli} outdated  --output-format text`, { cwd: workspaceFolder });
