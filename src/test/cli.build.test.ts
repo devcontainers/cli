@@ -424,7 +424,7 @@ describe('Dev Containers CLI', function () {
 			assert.strictEqual(envListToObj(details.Config.Env).SUBFOLDER_CONFIG_IMAGE_ENV, 'true');
 		});
 
-		it'should apply build options', async () => {
+		it('should apply build options', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const res = await shellExec(`${cli} build --workspace-folder ${testFolder}`);
 			const response = JSON.parse(res.stdout);
@@ -434,7 +434,7 @@ describe('Dev Containers CLI', function () {
 			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
 		});
 
-		it'should build with default workspace folder', async () => {
+		it('should build with default workspace folder', async () => {
 			const testFolder = `${__dirname}/configs/dockerfile-with-target`;
 			const res = await shellExec(`${cli} build`, { cwd: testFolder });
 			const response = JSON.parse(res.stdout);
