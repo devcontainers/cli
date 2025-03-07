@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## March 2025
+
+### [0.75.0]
+- Fix: add check for missing FROM instructions in Dockerfile parsing (https://github.com/devcontainers/cli/pull/950)
+- Update dependencies (https://github.com/devcontainers/cli/pull/954)
+
 ## February 2025
 
 ### [0.74.0]
