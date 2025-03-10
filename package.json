@@ -55,7 +55,7 @@
 	],
 	"devDependencies": {
 		"@stylistic/eslint-plugin": "^3.0.1",
-		"@types/chai": "^5.2.0",
+		"@types/chai": "^4.3.20",
 		"@types/chalk": "^2.2.4",
 		"@types/follow-redirects": "^1.14.4",
 		"@types/js-yaml": "^4.0.9",

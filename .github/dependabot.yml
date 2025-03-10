@@ -18,9 +18,13 @@ updates:
           - "*"
     ignore:
       - dependency-name: "@stylistic/eslint-plugin"
-        update-types: ["version-update:semver-major"] # stylistic 4 to avoid esm
+        update-types: ["version-update:semver-major"] # stylistic 3 to avoid esm
+      - dependency-name: "@types/chai"
+        update-types: ["version-update:semver-major"] # chai 4 to avoid esm
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"] # Keep Node 18 compatibility
+      - dependency-name: "@types/tar"
+        update-types: ["version-update:semver-major"] # tar 6 for source compatibility
       - dependency-name: "chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
       - dependency-name: "eslint"
