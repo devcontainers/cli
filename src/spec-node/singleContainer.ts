@@ -409,6 +409,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...getLabels(labels),
 		...containerEnv,
 		...containerUserArgs,
+		...getPodmanArgs(params),
 		...(config.runArgs || []),
 		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
@@ -431,6 +432,13 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 
 	await started;
 	common.output.stop(text, start);
+}
+
+function getPodmanArgs(params: DockerResolverParameters): string[] {
+	if (params.isPodman && params.common.cliHost.platform === 'linux') {
+		return ['--security-opt', 'label=disable', '--userns=keep-id'];
+	}
+	return [];
 }
 
 function getLabels(labels: string[]): string[] {
