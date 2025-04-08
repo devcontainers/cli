@@ -59,8 +59,8 @@ export interface BufferExecResult {
     signal?: string | null;
 }
 
-export async function shellBufferExec(command: string, options: { stdin?: Buffer } = {}): Promise<BufferExecResult> {
-    const exec = await plainExec(undefined);
+export async function shellBufferExec(command: string, options: { stdin?: Buffer; cwd?: string } = {}): Promise<BufferExecResult> {
+    const exec = plainExec(options.cwd);
     return runCommandNoPty({
         exec,
         cmd: '/bin/sh',
