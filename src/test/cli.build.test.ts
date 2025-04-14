@@ -27,8 +27,17 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command build', () => {
 
-		it('should build successfully with valid image metadata --label property', async () => {
+		it('should build successfully with valid image metadata --label property (image)', async () => {
 			const testFolder = `${__dirname}/configs/example`;
+			const response = await shellExec(`${cli} build --workspace-folder ${testFolder} --label 'name=label-test' --label 'type=multiple-labels'`);
+			const res = JSON.parse(response.stdout);
+			assert.equal(res.outcome, 'success');
+			const labels = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${res.imageName} | jq`);
+			assert.match(labels.stdout.toString(), /\"name\": \"label-test\"/);
+		});
+
+		it('should build successfully with valid image metadata --label property (dockerfile)', async () => {
+			const testFolder = `${__dirname}/configs/example-dockerfile`;
 			const response = await shellExec(`${cli} build --workspace-folder ${testFolder} --label 'name=label-test' --label 'type=multiple-labels'`);
 			const res = JSON.parse(response.stdout);
 			assert.equal(res.outcome, 'success');

@@ -1,0 +1,11 @@
+// Example devcontainer.json configuration with a Dockerfile
+{
+	"build": {
+		"dockerfile": "mcr.microsoft.com/devcontainers/base:latest"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "latest"
+		}
+	}
+}
