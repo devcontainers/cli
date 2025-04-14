@@ -196,7 +196,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -385,18 +385,12 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	);
 
 	const customEntrypoints = mergedConfig.entrypoints || [];
-	const entrypoint = ['--entrypoint', '/bin/sh'];
-	const cmd = ['-c', `echo Container started
+	const entrypoint = typeof typeof mergedConfig.overrideCommand === 'boolean' && !mergedConfig.overrideCommand ? [] : ['--entrypoint', '/bin/sh'];
+	const cmd = typeof mergedConfig.overrideCommand === 'boolean' && !mergedConfig.overrideCommand ? [] : ['-c', `echo Container started
 trap "exit 0" 15
 ${customEntrypoints.join('\n')}
 exec "$@"
 while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` to run (synchronous `sleep` would not).
-	const overrideCommand = mergedConfig.overrideCommand;
-	if (overrideCommand === false && imageDetails) {
-		const details = await imageDetails();
-		cmd.push(...details.Config.Entrypoint || []);
-		cmd.push(...details.Config.Cmd || []);
-	}
 
 	const args = [
 		'run',
