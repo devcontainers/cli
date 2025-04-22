@@ -2,7 +2,55 @@
 
 Notable changes.
 
+## March 2025
+
+### [0.75.0]
+- Fix: add check for missing FROM instructions in Dockerfile parsing (https://github.com/devcontainers/cli/pull/950)
+- Update dependencies (https://github.com/devcontainers/cli/pull/954)
+
+## February 2025
+
+### [0.74.0]
+- Ignore non-writeable HOME (https://github.com/microsoft/vscode-remote-release/issues/10707)
+
+## January 2025
+
+### [0.73.0]
+- Fix: TypeError: Cannot read properties of undefined (reading 'fsPath') (https://github.com/devcontainers/cli/issues/895)
+- Fix: Log output of failing lifecycle scripts (https://github.com/devcontainers/cli/issues/845)
+- Fix: Escaping of metadata in Docker Compose file (https://github.com/devcontainers/cli/issues/904)
+- Fix: Re-authenticate against OCI registry after 403 error (https://github.com/devcontainers/cli/pull/945)
+
+## November 2024
+
+### [0.72.0]
+- Fix: change increment syntax in test library script (https://github.com/devcontainers/cli/pull/896)
+- Increase timeout to 6 seconds (7 attempts) (https://github.com/microsoft/vscode-remote-release/issues/6509)
+- Remove unnecessary log (https://github.com/devcontainers/cli/pull/925)
+
+## September 2024
+
+### [0.71.0]
+- Exit with non-zero code on unexpected errors (https://github.com/microsoft/vscode-remote-release/issues/10217)
+- Add option for GPU availability (https://github.com/microsoft/vscode-remote-release/issues/9385)
+
+### [0.70.0]
+- Add more leniency towards registries that malform WWW-Authenticate (https://github.com/devcontainers/cli/pull/884)
+- Handle concurrent removal (https://github.com/microsoft/vscode-remote-release/issues/6509)
+
 ## August 2024
+
+### [0.69.0]
+- Enhance Template metadata (https://github.com/devcontainers/cli/pull/875)
+    - Caches additional Template metadata (such as `files`) onto the manifest
+	- Resolves full file paths for `optionalPaths` directories that only contain one file (for better usability in upstream tools)
+	- Fixes bugs
+
+### [0.68.0]
+- Supporting changes for [Template `optionalPaths` specification](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-templates.md#the-optionalpaths-property) (https://github.com/microsoft/vscode-remote-release/issues/10095)
+	- Publish metadata on Template OCI manifests (https://github.com/devcontainers/cli/pull/865)
+	- Add `--omit-paths` option to `templates apply` command (https://github.com/devcontainers/cli/pull/868)
+	- Add `templates metadata` command (https://github.com/devcontainers/cli/pull/866)
 
 ### [0.67.0]
 - Fix containerEnv substitution. (https://github.com/microsoft/vscode-remote-release/issues/10033)

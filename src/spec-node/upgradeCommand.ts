@@ -13,7 +13,7 @@ import { Workspace, workspaceFromPath } from '../spec-utils/workspaces';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { readDevContainerConfigFile } from './configContainer';
 import { ContainerError } from '../spec-common/errors';
-import { getCacheFolder } from './utils';
+import { getCacheFolder, runAsyncHandler } from './utils';
 import { Lockfile, generateLockfile, getLockfilePath, writeLockfile } from '../spec-configuration/lockfile';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
@@ -51,7 +51,7 @@ export function featuresUpgradeOptions(y: Argv) {
 export type FeaturesUpgradeArgs = UnpackArgv<ReturnType<typeof featuresUpgradeOptions>>;
 
 export function featuresUpgradeHandler(args: FeaturesUpgradeArgs) {
-	(async () => await featuresUpgrade(args))().catch(console.error);
+	runAsyncHandler(featuresUpgrade.bind(null, args));
 }
 
 async function featuresUpgrade({

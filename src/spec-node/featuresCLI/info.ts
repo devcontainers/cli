@@ -7,6 +7,7 @@ import { UnpackArgv } from '../devContainersSpecCLI';
 import { buildDependencyGraph, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
+import { runAsyncHandler } from '../utils';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -21,7 +22,7 @@ export function featuresInfoOptions(y: Argv) {
 export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>>;
 
 export function featuresInfoHandler(args: FeaturesInfoArgs) {
-	(async () => await featuresInfo(args))().catch(console.error);
+	runAsyncHandler(featuresInfo.bind(null, args));
 }
 
 interface InfoJsonOutput {

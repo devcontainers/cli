@@ -5,6 +5,7 @@ import { createLog } from '../devContainers';
 import * as jsonc from 'jsonc-parser';
 import { UnpackArgv } from '../devContainersSpecCLI';
 import { fetchTemplate, SelectedTemplate, TemplateFeatureOption, TemplateOptions } from '../../spec-configuration/containerTemplatesOCI';
+import { runAsyncHandler } from '../utils';
 
 export function templateApplyOptions(y: Argv) {
 	return y
@@ -15,6 +16,7 @@ export function templateApplyOptions(y: Argv) {
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 			'tmp-dir': { type: 'string', description: 'Directory to use for temporary files. If not provided, the system default will be inferred.' },
+			'omit-paths': { type: 'string', default: '[]', description: 'List of paths within the Template to omit applying, provided as JSON.  To ignore a directory append \'/*\'. Eg: \'[".github/*", "dir/a/*", "file.ts"]\'' },
 		})
 		.check(_argv => {
 			return true;
@@ -24,7 +26,7 @@ export function templateApplyOptions(y: Argv) {
 export type TemplateApplyArgs = UnpackArgv<ReturnType<typeof templateApplyOptions>>;
 
 export function templateApplyHandler(args: TemplateApplyArgs) {
-	(async () => await templateApply(args))().catch(console.error);
+	runAsyncHandler(templateApply.bind(null, args));
 }
 
 async function templateApply({
@@ -34,6 +36,7 @@ async function templateApply({
 	'features': featuresArgs,
 	'log-level': inputLogLevel,
 	'tmp-dir': userProvidedTmpDir,
+	'omit-paths': omitPathsArg,
 }: TemplateApplyArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -65,12 +68,22 @@ async function templateApply({
 		process.exit(1);
 	}
 
+	let omitPaths: string[] = [];
+	if (omitPathsArg) {
+		let omitPathsErrors: jsonc.ParseError[] = [];
+		omitPaths = jsonc.parse(omitPathsArg, omitPathsErrors);
+		if (!Array.isArray(omitPaths)) {
+			output.write('Invalid \'--omitPaths\' argument provided. Provide as a JSON array, eg: \'[".github/*", "dir/a/*", "file.ts"]\'', LogLevel.Error);
+			process.exit(1);
+		}
+	}
+
 	const selectedTemplate: SelectedTemplate = {
 		id: templateId,
 		options,
-		features
+		features,
+		omitPaths,
 	};
-
 
 	const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {

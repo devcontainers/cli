@@ -10,10 +10,11 @@ import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { PackageCommandInput } from '../collectionCommonUtils/package';
-import { getArchiveName, OCICollectionFileName } from '../collectionCommonUtils/packageCommandImpl';
+import { getArchiveName } from '../collectionCommonUtils/packageCommandImpl';
 import { packageTemplates } from './packageImpl';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
+import { runAsyncHandler } from '../utils';
 
 const collectionType = 'template';
 
@@ -24,7 +25,7 @@ export function templatesPublishOptions(y: Argv) {
 export type TemplatesPublishArgs = UnpackArgv<ReturnType<typeof templatesPublishOptions>>;
 
 export function templatesPublishHandler(args: TemplatesPublishArgs) {
-    (async () => await templatesPublish(args))().catch(console.error);
+	runAsyncHandler(templatesPublish.bind(null, args));
 }
 
 async function templatesPublish({
@@ -66,7 +67,6 @@ async function templatesPublish({
     const metadata = await packageTemplates(packageArgs);
 
     if (!metadata) {
-        output.write(`(!) ERR: Failed to fetch ${OCICollectionFileName}`, LogLevel.Error);
         process.exit(1);
     }
 

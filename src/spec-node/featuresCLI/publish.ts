@@ -14,6 +14,7 @@ import { getArchiveName, OCICollectionFileName } from '../collectionCommonUtils/
 import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
+import { runAsyncHandler } from '../utils';
 
 const collectionType = 'feature';
 export function featuresPublishOptions(y: Argv) {
@@ -23,7 +24,7 @@ export function featuresPublishOptions(y: Argv) {
 export type FeaturesPublishArgs = UnpackArgv<ReturnType<typeof featuresPublishOptions>>;
 
 export function featuresPublishHandler(args: FeaturesPublishArgs) {
-    (async () => await featuresPublish(args))().catch(console.error);
+	runAsyncHandler(featuresPublish.bind(null, args));
 }
 
 async function featuresPublish({
