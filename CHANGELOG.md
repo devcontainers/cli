@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## April 2025
+
+### [0.76.0]
+- Fix: Add Podman options (https://github.com/microsoft/vscode-remote-release/issues/10798)
+- Fix: Restore accidental robustness towards numbers (https://github.com/microsoft/vscode-remote-release/issues/10691)
+
 ## March 2025
 
 ### [0.75.0]
