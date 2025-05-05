@@ -130,6 +130,7 @@ function provisionOptions(y: Argv) {
 		'buildkit': { choices: ['auto' as 'auto', 'never' as 'never'], default: 'auto' as 'auto', description: 'Control whether BuildKit should be used' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'skip-forward-ports': { type: 'boolean', default: false, description: 'Do not publish forwardPorts.' },
 		'skip-post-attach': { type: 'boolean', default: false, description: 'Do not run postAttachCommand.' },
 		'dotfiles-repository': { type: 'string', description: 'URL of a dotfiles Git repository (e.g., https://github.com/owner/repository.git)' },
 		'dotfiles-install-command': { type: 'string', description: 'The command to run after cloning the dotfiles repository. Defaults to run the first file of `install.sh`, `install`, `bootstrap.sh`, `bootstrap`, `setup.sh` and `setup` found in the dotfiles repository`s root folder.' },
@@ -204,6 +205,7 @@ async function provision({
 	'buildkit': buildkit,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'skip-forward-ports': skipForwardPorts,
 	'skip-post-attach': skipPostAttach,
 	'dotfiles-repository': dotfilesRepository,
 	'dotfiles-install-command': dotfilesInstallCommand,
@@ -277,6 +279,7 @@ async function provision({
 		buildxCacheTo: addCacheTo,
 		additionalFeatures,
 		skipFeatureAutoMapping,
+		skipForwardPorts,
 		skipPostAttach,
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
@@ -680,7 +683,7 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			
+
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});

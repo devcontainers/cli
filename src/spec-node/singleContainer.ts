@@ -13,11 +13,12 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
+import { getStaticPorts } from './ports';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
 
-export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
+export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, skipForwardPorts: boolean): Promise<ResolverResult> {
 	const { common } = params;
 	const { config } = configWithRaw;
 	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
@@ -51,7 +52,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser, res.labels || {});
+				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser, res.labels || {}, skipForwardPorts);
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -196,7 +197,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -344,13 +345,12 @@ export async function extraRunArgs(common: ResolverParameters, params: DockerRes
 	return extraArguments;
 }
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined, extraLabels: Record<string, string>) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined, extraLabels: Record<string, string>, skipForwardPorts: boolean) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
-	const appPort = config.appPort;
-	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
-	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
+	const exposedPorts = getStaticPorts(config, skipForwardPorts);
+	const exposed = exposedPorts.flatMap((port) => ['-p', port]);
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 
