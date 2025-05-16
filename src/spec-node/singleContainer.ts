@@ -409,7 +409,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...getLabels(labels),
 		...containerEnv,
 		...containerUserArgs,
-		...getPodmanArgs(params),
+		...getPodmanArgs(params, config),
 		...(config.runArgs || []),
 		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
@@ -434,9 +434,14 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 	common.output.stop(text, start);
 }
 
-function getPodmanArgs(params: DockerResolverParameters): string[] {
+function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig): string[] {
 	if (params.isPodman && params.common.cliHost.platform === 'linux') {
-		return ['--security-opt', 'label=disable', '--userns=keep-id'];
+		const args = ['--security-opt', 'label=disable'];
+		const hasIdMapping = (config.runArgs || []).some(arg => /--[ug]idmap(=|$)/.test(arg));
+		if (!hasIdMapping) {
+			args.push('--userns=keep-id');
+		}
+		return args;
 	}
 	return [];
 }
