@@ -23,19 +23,19 @@ import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import { createDocuments } from '../spec-configuration/editableFiles';
 
 
-export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
+export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, skipForwardPorts: boolean): Promise<ResolverResult> {
 	if (configFile && !/\/\.?devcontainer\.json$/.test(configFile.path)) {
 		throw new Error(`Filename must be devcontainer.json or .devcontainer.json (${uriToFsPath(configFile, params.common.cliHost.platform)}).`);
 	}
 	const parsedAuthority = params.parsedAuthority;
 	if (!parsedAuthority || isDevContainerAuthority(parsedAuthority)) {
-		return resolveWithLocalFolder(params, parsedAuthority, configFile, overrideConfigFile, providedIdLabels, additionalFeatures);
+		return resolveWithLocalFolder(params, parsedAuthority, configFile, overrideConfigFile, providedIdLabels, additionalFeatures, skipForwardPorts);
 	} else {
 		throw new Error(`Unexpected authority: ${JSON.stringify(parsedAuthority)}`);
 	}
 }
 
-async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
+async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAuthority: DevContainerAuthority | undefined, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, skipForwardPorts: boolean): Promise<ResolverResult> {
 	const { common, workspaceMountConsistencyDefault } = params;
 	const { cliHost, output } = common;
 
@@ -67,7 +67,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 
 	let result: ResolverResult;
 	if (isDockerFileConfig(config) || 'image' in config) {
-		result = await openDockerfileDevContainer(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, configs.workspaceConfig, idLabels, additionalFeatures);
+		result = await openDockerfileDevContainer(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, configs.workspaceConfig, idLabels, additionalFeatures, skipForwardPorts);
 	} else if ('dockerComposeFile' in config) {
 		if (!workspace) {
 			throw new ContainerError({ description: `A Dev Container using Docker Compose requires a workspace folder.` });
