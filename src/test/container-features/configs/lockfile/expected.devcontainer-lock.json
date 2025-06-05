@@ -10,10 +10,10 @@
       "resolved": "ghcr.io/codspace/features/flower@sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43",
       "integrity": "sha256:c9cc1ac636b9ef595512b5ca7ecb3a35b7d3499cb6f86372edec76ae0cd71d43"
     },
-    "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {
-      "version": "1.0.0",
-      "resolved": "https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz",
-      "integrity": "sha256:9cf3f2a17c1bb2b599b6027cfa975d2fb28234df88ba33ff5e276fa052aac7ae"
+    "https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-D.tgz": {
+      "version": "2.0.0",
+      "resolved": "https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-D.tgz",
+      "integrity": "sha256:41607bd6aba3975adcd0641cc479e67b04abd21763ba8a41ea053bcc04a6a818"
     }
   }
 }
