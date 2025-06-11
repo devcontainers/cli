@@ -752,9 +752,9 @@ async function patchEtcEnvironment(params: ResolverParameters, containerProperti
 	if (params.allowSystemConfigChange && containerProperties.launchRootShellServer && !(await isFile(containerProperties.shellServer, markerFile))) {
 		const rootShellServer = await containerProperties.launchRootShellServer();
 		if (await createFile(rootShellServer, markerFile)) {
-			await rootShellServer.exec(`cat >> /etc/environment <<'etcEnvrionmentEOF'
+			await rootShellServer.exec(`cat >> /etc/environment <<'etcEnvironmentEOF'
 ${Object.keys(containerProperties.env).map(k => `\n${k}="${containerProperties.env[k]}"`).join('')}
-etcEnvrionmentEOF
+etcEnvironmentEOF
 `);
 		}
 	}
