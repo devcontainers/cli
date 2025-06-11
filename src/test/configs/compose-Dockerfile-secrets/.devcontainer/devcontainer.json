@@ -1,0 +1,20 @@
+{
+  "name": "My DevContainer",
+  "dockerComposeFile": [
+	 "./docker-compose.yml",
+ 	 "./docker-compose.override.yml"
+	],
+   "build": { 
+		"dockerfile": "Dockerfile",
+		"args": {
+	  		"DOCKER_BUILDKIT": "1"
+		}
+   },
+  "service": "my-service",
+  "features": {
+    "docker-in-docker": {
+		"version": "latest",
+        "installDockerBuildx": true
+	}
+  }
+}

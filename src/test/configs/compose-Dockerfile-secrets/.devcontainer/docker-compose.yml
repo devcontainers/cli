@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  my-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: my-image
+    environment:
+      - MY-SECRET=${SOME_SECRET}
+    ports:
+      - "8080:80"
+
+secrets:
+  some-secret:
+    file: ./secret.txt
+
