@@ -12,7 +12,7 @@ const pkg = require('../../package.json');
 describe('Dev Containers CLI', function () {
 	this.timeout('120s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const tmp = path.join(__dirname, 'tmp');
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
@@ -98,6 +98,18 @@ describe('Dev Containers CLI', function () {
 			const containerId = (await shellExec(`docker run -d devcontainer-set-up-test sleep inf`)).stdout.trim();
 
 			const res = await shellExec(`${cli} read-configuration --container-id ${containerId} --include-merged-configuration`);
+			const response = JSON.parse(res.stdout);
+			assert.strictEqual(response.mergedConfiguration.postCreateCommands.length, 1);
+
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
+		it('should succeed without a workspace folder', async () => {
+
+			await shellExec(`docker build -t devcontainer-set-up-test ${__dirname}/configs/set-up-with-metadata`);
+			const containerId = (await shellExec(`docker run -d devcontainer-set-up-test sleep inf`)).stdout.trim();
+
+			const res = await shellExec(`${cli} read-configuration --include-merged-configuration`, { cwd: `${__dirname}/configs/set-up-with-metadata` });
 			const response = JSON.parse(res.stdout);
 			assert.strictEqual(response.mergedConfiguration.postCreateCommands.length, 1);
 

@@ -14,7 +14,7 @@ const pkg = require('../../../package.json');
 describe('Lockfile', function () {
 	this.timeout('240s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const tmp = path.join(__dirname, 'tmp');
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 	before('Install', async () => {
@@ -92,7 +92,7 @@ describe('Lockfile', function () {
 
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format json`);
 		const response = JSON.parse(res.stdout);
-		
+
 		const git = response.features['ghcr.io/devcontainers/features/git:1.0'];
 		assert.ok(git);
 		assert.strictEqual(git.current, '1.0.4');
@@ -150,6 +150,20 @@ describe('Lockfile', function () {
 		assert.ok(!response.includes('mylocalfeature'));
 		assert.ok(!response.includes('terraform'));
 		assert.ok(!response.includes('myfeatures'));
+	});
+
+	it('outdated command without workspace', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
+
+		const res = await shellExec(`${cli} outdated  --output-format text`, { cwd: workspaceFolder });
+		const response = res.stdout;
+		// Count number of lines of output
+		assert.strictEqual(response.split('\n').length, 7); // 5 valid Features + header + empty line
+
+		// Check that the header is present
+		assert.ok(response.includes('Current'), 'Current column is missing');
+		assert.ok(response.includes('Wanted'), 'Wanted column is missing');
+		assert.ok(response.includes('Latest'), 'Latest column is missing');
 	});
 
 	it('upgrade command', async () => {
