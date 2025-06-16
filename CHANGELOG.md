@@ -2,6 +2,18 @@
 
 Notable changes.
 
+## May 2025
+
+### [0.77.0]
+- Fix: --uidmap/--gidmap conflict with --userns (https://github.com/microsoft/vscode-remote-release/10954)
+- Fix: Omit --userns=keep-id for root (https://github.com/devcontainers/cli/pull/1004)
+
+## April 2025
+
+### [0.76.0]
+- Fix: Add Podman options (https://github.com/microsoft/vscode-remote-release/issues/10798)
+- Fix: Restore accidental robustness towards numbers (https://github.com/microsoft/vscode-remote-release/issues/10691)
+
 ## March 2025
 
 ### [0.75.0]
