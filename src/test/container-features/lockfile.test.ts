@@ -123,6 +123,14 @@ describe('Lockfile', function () {
 		assert.strictEqual(foo.wantedMajor, '0');
 		assert.strictEqual(foo.latest, '2.11.1');
 		assert.strictEqual(foo.latestMajor, '2');
+
+		const doesnotexist = response.features['ghcr.io/codspace/doesnotexist:0.1.2'];
+		assert.ok(doesnotexist);
+		assert.strictEqual(doesnotexist.current, undefined);
+		assert.strictEqual(doesnotexist.wanted, undefined);
+		assert.strictEqual(doesnotexist.wantedMajor, undefined);
+		assert.strictEqual(doesnotexist.latest, undefined);
+		assert.strictEqual(doesnotexist.latestMajor, undefined);
 	});
 
 	it('outdated command with text output', async () => {
@@ -131,7 +139,7 @@ describe('Lockfile', function () {
 		const res = await shellExec(`${cli} outdated --workspace-folder ${workspaceFolder} --output-format text`);
 		const response = res.stdout;
 		// Count number of lines of output
-		assert.strictEqual(response.split('\n').length, 7); // 5 valid Features + header + empty line
+		assert.strictEqual(response.split('\n').length, 8); // 5 valid Features + header + empty line
 
 		// Check that the header is present
 		assert.ok(response.includes('Current'), 'Current column is missing');
@@ -145,6 +153,7 @@ describe('Lockfile', function () {
 		assert.ok(response.includes('ghcr.io/devcontainers/features/github-cli'), 'github-cli Feature is missing');
 		assert.ok(response.includes('ghcr.io/devcontainers/features/azure-cli'), 'azure-cli Feature is missing');
 		assert.ok(response.includes('ghcr.io/codspace/versioning/foo'), 'foo Feature is missing');
+		assert.ok(response.includes('ghcr.io/codspace/doesnotexist'), 'doesnotexist Feature is missing');
 
 		// Check that filtered Features are not present
 		assert.ok(!response.includes('mylocalfeature'));

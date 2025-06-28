@@ -527,7 +527,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 		const featureRef = getRef(nullLog, userFeatureId); // Filters out Feature identifiers that cannot be versioned (e.g. local paths, deprecated, etc..)
 		if (featureRef) {
 			const versions = (await getVersionsStrictSorted(params, featureRef))
-				?.reverse();
+				?.reverse() || [];
 			if (versions) {
 				const lockfileVersion = lockfile?.features[userFeatureId]?.version;
 				let wanted = lockfileVersion;
@@ -550,7 +550,7 @@ export async function loadVersionInfo(params: ContainerFeatureInternalParams, co
 					wanted,
 					wantedMajor: wanted && semver.major(wanted)?.toString(),
 					latest: versions[0],
-					latestMajor: semver.major(versions[0])?.toString(),
+					latestMajor: versions[0] && semver.major(versions[0])?.toString(),
 				};
 			}
 		}
