@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## June 2025
+
+### [0.78.0]
+- Fix: Handle missing features (https://github.com/devcontainers/cli/pull/1040)
+
 ## May 2025
 
 ### [0.77.0]
