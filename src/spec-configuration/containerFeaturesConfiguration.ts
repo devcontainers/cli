@@ -211,6 +211,10 @@ FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 
 USER root
 
+RUN --mount=type=cache,target=/var/cache/apt \\
+	--mount=type=cache,target=/var/lib/apt/lists \\
+	apt update
+
 RUN mkdir -p ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
 COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ ${FEATURES_CONTAINER_TEMP_DEST_FOLDER}
 
@@ -306,20 +310,24 @@ echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand(remoteUser)} | cut -d: -f6)
 		const dest = path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, folder!);
 		if (!useBuildKitBuildContexts) {
 			result += `COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
-RUN chmod -R 0755 ${dest} \\
-&& cd ${dest} \\
-&& chmod +x ./install.sh \\
-&& ./install.sh
+RUN --mount=type=cache,target=/var/cache/apt \\
+	--mount=type=cache,target=/var/lib/apt/lists \\
+	chmod -R 0755 ${dest} \\
+	&& cd ${dest} \\
+	&& chmod +x ./install.sh \\
+	&& ./install.sh
 
 `;
 		} else {
-			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder}${useSELinuxLabel ? ',z' : ''} \\
-    cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
- && chmod -R 0755 ${dest} \\
- && cd ${dest} \\
- && chmod +x ./install.sh \\
- && ./install.sh \\
- && rm -rf ${dest}
+			result += `RUN --mount=type=cache,target=/var/cache/apt \\
+	--mount=type=cache,target=/var/lib/apt/lists \\
+	--mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder}${useSELinuxLabel ? ',z' : ''} \\
+	cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+	&& chmod -R 0755 ${dest} \\
+	&& cd ${dest} \\
+	&& chmod +x ./install.sh \\
+	&& ./install.sh \\
+	&& rm -rf ${dest}
 
 `;
 		}
@@ -333,21 +341,25 @@ RUN chmod -R 0755 ${dest} \\
 			if (!useBuildKitBuildContexts) {
 				result += `
 COPY --chown=root:root --from=dev_containers_feature_content_source ${source} ${dest}
-RUN chmod -R 0755 ${dest} \\
-&& cd ${dest} \\
-&& chmod +x ./devcontainer-features-install.sh \\
-&& ./devcontainer-features-install.sh
+RUN --mount=type=cache,target=/var/cache/apt \\
+	--mount=type=cache,target=/var/lib/apt/lists \\
+	chmod -R 0755 ${dest} \\
+	&& cd ${dest} \\
+	&& chmod +x ./devcontainer-features-install.sh \\
+	&& ./devcontainer-features-install.sh
 
 `;
 			} else {
 				result += `
-RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId}${useSELinuxLabel ? ',z' : ''} \\
-    cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
- && chmod -R 0755 ${dest} \\
- && cd ${dest} \\
- && chmod +x ./devcontainer-features-install.sh \\
- && ./devcontainer-features-install.sh \\
- && rm -rf ${dest}
+RUN --mount=type=cache,target=/var/cache/apt \\
+	--mount=type=cache,target=/var/lib/apt/lists \\
+	--mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId}${useSELinuxLabel ? ',z' : ''} \\
+	cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+	&& chmod -R 0755 ${dest} \\
+	&& cd ${dest} \\
+	&& chmod +x ./devcontainer-features-install.sh \\
+	&& ./devcontainer-features-install.sh \\
+	&& rm -rf ${dest}
 
 `;
 			}
@@ -467,7 +479,7 @@ function updateFromOldProperties<T extends { features: (Feature & { extensions?:
 	};
 }
 
-// Generate a base featuresConfig object with the set of locally-cached features, 
+// Generate a base featuresConfig object with the set of locally-cached features,
 // as well as downloading and merging in remote feature definitions.
 export async function generateFeaturesConfig(params: ContainerFeatureInternalParams, dstFolder: string, config: DevContainerConfig, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
 	const { output } = params;
@@ -931,7 +943,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		};
 		return newFeaturesSet;
 	} else {
-		// We must have a tag, return a tarball URI for the tagged version. 
+		// We must have a tag, return a tarball URI for the tagged version.
 		let newFeaturesSet: FeatureSet = {
 			sourceInformation: {
 				type: 'github-repo',
@@ -1151,7 +1163,7 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 
 // Reads the feature's 'devcontainer-feature.json` and applies any attributes to the in-memory Feature object.
 // NOTE:
-// 		Implements the latest ('internalVersion' = '2') parsing logic, 
+// 		Implements the latest ('internalVersion' = '2') parsing logic,
 // 		Falls back to earlier implementation(s) if requirements not present.
 // 		Returns a boolean indicating whether the feature was successfully parsed.
 async function applyFeatureConfigToFeature(output: Log, featureSet: FeatureSet, feature: Feature, featCachePath: string, computedDigest: string | undefined): Promise<boolean> {
