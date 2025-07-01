@@ -579,7 +579,10 @@ export async function readDockerComposeConfig(params: DockerCLIParameters, compo
 			composeGlobalArgs.push('--env-file', envFile);
 		}
 		const composeCLI = await params.dockerComposeCLI();
-		if ((parseVersion(composeCLI.version) || [])[0] >= 2) {
+		// Read COMPOSE_PROFILE from the environment.
+		// params.env is a NodeJS.ProcessEnv, which can have undefined values.
+		const composeProfile = params.env?.COMPOSE_PROFILE;
+		if ((parseVersion(composeCLI.version) || [])[0] >= 2 && !composeProfile) {
 			composeGlobalArgs.push('--profile', '*');
 		}
 		try {

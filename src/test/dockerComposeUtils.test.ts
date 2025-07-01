@@ -1,9 +1,16 @@
 import { assert } from 'chai';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
-import { getBuildInfoForService } from '../spec-node/dockerCompose';
+import * as os from 'os';
+import * as fs from 'fs';
+import { getBuildInfoForService, readDockerComposeConfig } from '../spec-node/dockerCompose';
+import { DockerCLIParameters, dockerComposeCLI, DockerComposeCLI } from '../spec-shutdown/dockerUtils';
+import { nullLog } from '../spec-utils/log';
+import { CLIHost, getCLIHost } from '../spec-common/cliHost';
+import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 
 const testComposeFile = path.join('somepath', 'docker-compose.yml');
+const testDockerComposeCliDetails: DockerComposeCLI = { version: '2.0.0', cmd: 'docker', args: ['compose'] };
 
 function loadYamlAndGetBuildInfoForService(input: string) {
     const yamlInput = yaml.load(input);
@@ -96,4 +103,89 @@ build:
     });
 
 
+});
+
+describe('docker-compose - readDockerComposeConfig', () => {
+	let tmpFolder: string;
+
+	beforeEach(async () => {
+		tmpFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'devcontainers-test-'));
+	});
+
+	afterEach(() => {
+		if (tmpFolder) {
+			fs.rmSync(tmpFolder, { recursive: true, force: true });
+		}
+	});
+
+	function createTestDockerCLIParameters(cliHost: CLIHost, env: NodeJS.ProcessEnv = {}): DockerCLIParameters {
+		return {
+			cliHost,
+			dockerCLI: 'docker',
+			dockerComposeCLI: () => Promise.resolve(testDockerComposeCliDetails),
+			env,
+			output: nullLog,
+			platformInfo: {
+				os: mapNodeOSToGOOS(cliHost.platform),
+				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+			}
+		};
+	}
+
+	it('should include --profile * when COMPOSE_PROFILE is not set', async () => {
+		const dockerFileContent = 'FROM alpine';
+		const composeFileContent = `
+services:
+  test-service:
+    build: .
+`;
+		fs.writeFileSync(path.join(tmpFolder, 'Dockerfile'), dockerFileContent);
+		fs.writeFileSync(path.join(tmpFolder, 'docker-compose.yml'), composeFileContent);
+
+		const cliHost = await getCLIHost(tmpFolder, async (imageName: string) => imageName as any, true);
+		const params = createTestDockerCLIParameters(cliHost);
+		let composeArgs: string[] = [];
+		const originalDockerComposeCLI = dockerComposeCLI;
+		(dockerComposeCLI as any) = async (_params: DockerCLIParameters, ...args: string[]) => {
+			composeArgs = args;
+			return originalDockerComposeCLI(_params, ...args);
+		};
+
+		try {
+			await readDockerComposeConfig(params, [path.join(tmpFolder, 'docker-compose.yml')], undefined);
+		} finally {
+			(dockerComposeCLI as any) = originalDockerComposeCLI; // Restore original
+		}
+
+		assert.include(composeArgs, '--profile');
+		assert.include(composeArgs, '*');
+	});
+
+	it('should not include --profile * when COMPOSE_PROFILE is set', async () => {
+		const dockerFileContent = 'FROM alpine';
+		const composeFileContent = `
+services:
+  test-service:
+    build: .
+`;
+		fs.writeFileSync(path.join(tmpFolder, 'Dockerfile'), dockerFileContent);
+		fs.writeFileSync(path.join(tmpFolder, 'docker-compose.yml'), composeFileContent);
+
+		const cliHost = await getCLIHost(tmpFolder, async (imageName: string) => imageName as any, true);
+		const params = createTestDockerCLIParameters(cliHost, { COMPOSE_PROFILE: 'my-profile' });
+		let composeArgs: string[] = [];
+		const originalDockerComposeCLI = dockerComposeCLI;
+		(dockerComposeCLI as any) = async (_params: DockerCLIParameters, ...args: string[]) => {
+			composeArgs = args;
+			return originalDockerComposeCLI(_params, ...args);
+		};
+
+		try {
+			await readDockerComposeConfig(params, [path.join(tmpFolder, 'docker-compose.yml')], undefined);
+		} finally {
+			(dockerComposeCLI as any) = originalDockerComposeCLI; // Restore original
+		}
+		assert.notInclude(composeArgs, '--profile');
+		assert.notInclude(composeArgs, '*');
+	});
 });
