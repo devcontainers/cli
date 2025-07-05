@@ -1627,15 +1627,44 @@ async function stopContainers(params: DockerCLIParameters, options: { all?: bool
 			labels.push(`devcontainer.local_folder=${resolvedWorkspaceFolder}`);
 			containerIds = await listContainers(params, false, labels);
 			
-			// If no containers found by local folder, try by config file
-			if (containerIds.length === 0) {
-				const configPath = configFile ? URI.file(path.resolve(process.cwd(), configFile)) : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-				if (configPath) {
-					const configFilePath = uriToFsPath(configPath, cliHost.platform);
-					labels.length = 0; // Clear labels
-					if (idLabel) labels.push(idLabel);
-					labels.push(`devcontainer.config_file=${configFilePath}`);
-					containerIds = await listContainers(params, false, labels);
+			// Check if it's a Docker Compose configuration
+			const configPath = configFile ? URI.file(path.resolve(process.cwd(), configFile)) : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
+			if (configPath) {
+				const configs = await readDevContainerConfigFile(cliHost, workspace, configPath, true, output);
+				if (configs) {
+					const { config } = configs;
+					if ('dockerComposeFile' in config.config) {
+						// Handle Docker Compose stop
+						const composeFiles = await getDockerComposeFilePaths(cliHost, config.config, cliHost.env, cliHost.cwd);
+						const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
+						const envFile = Array.isArray(config.config.dockerComposeFile) && config.config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
+						const composeConfig = await readDockerComposeConfig(params, composeFiles, envFile);
+						const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
+						
+						// List containers before stopping them for observability
+						const projectLabel = `com.docker.compose.project=${projectName}`;
+						const projectContainers = await listContainers(params, false, [projectLabel]);
+						
+						const text = `Running docker-compose stop for project ${projectName}...`;
+						const start = output.start(text);
+						await dockerComposeCLICommand(params, ...composeFiles.map(f => ['-f', f]).flat(), '-p', projectName, 'stop');
+						output.stop(text, start);
+						
+						return {
+							outcome: 'success',
+							message: undefined,
+							stoppedContainers: projectContainers,
+							containersFound: projectContainers.length,
+							dockerComposeProject: projectName,
+						};
+					} else if (containerIds.length === 0) {
+						// If no containers found by local folder and it's not compose, try by config file
+						const configFilePath = uriToFsPath(configPath, cliHost.platform);
+						labels.length = 0; // Clear labels
+						if (idLabel) labels.push(idLabel);
+						labels.push(`devcontainer.config_file=${configFilePath}`);
+						containerIds = await listContainers(params, false, labels);
+					}
 				}
 			}
 		} else if (idLabel) {
@@ -1710,6 +1739,10 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 						const composeConfig = await readDockerComposeConfig(params, composeFiles, envFile);
 						const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 						
+						// List containers before removing them for observability
+						const projectLabel = `com.docker.compose.project=${projectName}`;
+						const projectContainers = await listContainers(params, true, [projectLabel]);
+						
 						const text = `Running docker-compose down for project ${projectName}...`;
 						const start = output.start(text);
 						const args = ['down'];
@@ -1722,8 +1755,8 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 						return {
 							outcome: 'success',
 							message: undefined,
-							removedContainers: [],
-							containersFound: 0,
+							removedContainers: projectContainers,
+							containersFound: projectContainers.length,
 							dockerComposeProject: projectName,
 						};
 					} else if (containerIds.length === 0) {
