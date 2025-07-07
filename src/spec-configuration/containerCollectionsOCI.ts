@@ -203,6 +203,11 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 
 	const splitOnSlash = resource.split('/');
 
+	if (splitOnSlash[1] === 'devcontainers-contrib') {
+		output.write(`Redirecting 'devcontainers-contrib' to 'devcontainers-extra'.`);
+		splitOnSlash[1] = 'devcontainers-extra';
+	}
+
 	const id = splitOnSlash[splitOnSlash.length - 1]; // Aka 'featureName' - Eg: 'ruby'
 	const owner = splitOnSlash[1];
 	const registry = splitOnSlash[0];
