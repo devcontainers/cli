@@ -50,14 +50,12 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
-function getDockerComposeCLI(cliHost: CLIHost, options: { dockerComposePath?: string }) {
+function getDockerComposeCLI(cliHost: CLIHost, output: Log, options: { dockerPath?: string; dockerComposePath?: string }) {
 	return dockerComposeCLIConfig({
 		exec: cliHost.exec,
 		env: cliHost.env,
-		output: makeLog({
-			event: () => undefined,
-		}, LogLevel.Info),
-	}, 'docker', options.dockerComposePath || 'docker-compose');
+		output,
+	}, options.dockerPath || 'docker', options.dockerComposePath || 'docker-compose');
 }
 
 (async () => {
@@ -1269,7 +1267,7 @@ async function stop({
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath || 'docker',
-			dockerComposeCLI: getDockerComposeCLI(cliHost, { dockerComposePath }),
+			dockerComposeCLI: getDockerComposeCLI(cliHost, output, { dockerPath, dockerComposePath }),
 			env: cliHost.env,
 			output,
 			platformInfo: {
@@ -1352,7 +1350,7 @@ async function down({
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath || 'docker',
-			dockerComposeCLI: getDockerComposeCLI(cliHost, { dockerComposePath }),
+			dockerComposeCLI: getDockerComposeCLI(cliHost, output, { dockerPath, dockerComposePath }),
 			env: cliHost.env,
 			output,
 			platformInfo: {
@@ -1615,7 +1613,7 @@ async function stopContainers(params: DockerCLIParameters, options: { all?: bool
 		
 		if (all) {
 			// Stop all dev containers - look for containers with devcontainer labels
-			const labels = ['devcontainer.local_folder'];
+			const labels = ['devcontainer.metadata'];
 			containerIds = await listContainers(params, false, labels);
 		} else if (workspaceFolder || configFile) {
 			// Stop containers related to a specific workspace
@@ -1713,7 +1711,7 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 		
 		if (all) {
 			// Remove all dev containers - look for containers with devcontainer labels
-			const labels = ['devcontainer.local_folder'];
+			const labels = ['devcontainer.metadata'];
 			containerIds = await listContainers(params, true, labels);
 		} else if (workspaceFolder || configFile) {
 			// Remove containers related to a specific workspace
@@ -1786,6 +1784,7 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 					}
 				} catch (err) {
 					// Continue even if inspection fails
+					output.write(`Failed to inspect container ${containerId}: ${err.message || err}`);
 				}
 			}
 		}
@@ -1819,6 +1818,7 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 					removedVolumes.push(volume);
 				} catch (err) {
 					// Volume might be in use or already removed
+					output.write(`Failed to remove volume ${volume}: ${err.message || err}`);
 				}
 			}
 		}
