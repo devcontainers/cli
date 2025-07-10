@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## July 2025
+
+### [0.80.0]
+- Podman: Use label=disable instead of z flag (https://github.com/microsoft/vscode-remote-release/issues/10585)
+
 ## June 2025
 
 ### [0.79.0]

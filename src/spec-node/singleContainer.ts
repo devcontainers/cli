@@ -180,6 +180,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		for (const buildArg in featureBuildInfo.buildArgs) {
 			additionalBuildArgs.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 		}
+
+		for (const securityOpt of featureBuildInfo.securityOpts) {
+			additionalBuildArgs.push('--security-opt', securityOpt);
+		}
 	}
 
 	const args: string[] = [];
