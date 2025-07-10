@@ -69,6 +69,13 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Tools Info
+      run: |
+        docker info
+        docker buildx version
+        podman info
+        podman buildx version
+      continue-on-error: true
     - name: Install Dependencies
       run: |
         yarn install --frozen-lockfile

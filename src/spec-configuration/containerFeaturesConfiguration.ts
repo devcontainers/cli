@@ -291,7 +291,7 @@ function escapeQuotesForShell(input: string) {
 
 export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, isBuildah = false, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features') {
 
-	const useSELinuxLabel = process.platform === 'linux' && isBuildah;
+	const useSELinuxLabel = 0 && process.platform === 'linux' && isBuildah;
 	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
 echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand(containerUser)} | cut -d: -f6)" >> ${builtinsEnvFile} && \\
