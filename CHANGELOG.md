@@ -4,6 +4,9 @@ Notable changes.
 
 ## June 2025
 
+### [0.79.0]
+- Redirect devcontainers-contrib to devcontainers-extra (https://github.com/microsoft/vscode-remote-release/issues/11046)
+
 ### [0.78.0]
 - Fix: Handle missing features (https://github.com/devcontainers/cli/pull/1040)
 
