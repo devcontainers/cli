@@ -188,7 +188,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine whether we need to extend with features
 	const version = parseVersion((await params.dockerComposeCLI()).version);
-	const supportsAdditionalBuildContexts = version && !isEarlierVersion(version, [2, 17, 0]);
+	const supportsAdditionalBuildContexts = !params.isPodman && version && !isEarlierVersion(version, [2, 17, 0]);
 	const optionalBuildKitParams = supportsAdditionalBuildContexts ? params : { ...params, buildKitVersion: undefined };
 	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
 

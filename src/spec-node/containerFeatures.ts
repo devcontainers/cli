@@ -12,7 +12,7 @@ import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWr
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
 import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
-import { isEarlierVersion, parseVersion } from '../spec-common/commonUtils';
+import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
@@ -91,6 +91,10 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 
 		for (const buildContext in featureBuildInfo.buildKitContexts) {
 			args.push('--build-context', `${buildContext}=${featureBuildInfo.buildKitContexts[buildContext]}`);
+		}
+
+		for (const securityOpt of featureBuildInfo.securityOpts) {
+			args.push('--security-opt', securityOpt);
 		}
 	} else {
 		// Not using buildx
@@ -186,6 +190,7 @@ export interface ImageBuildOptions {
 	dockerfilePrefixContent: string;
 	buildArgs: Record<string, string>;
 	buildKitContexts: Record<string, string>;
+	securityOpts: string[];
 }
 
 function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
@@ -204,6 +209,7 @@ ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, 
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,
 		} as Record<string, string>,
 		buildKitContexts: {} as Record<string, string>,
+		securityOpts: [],
 	};
 }
 
@@ -234,7 +240,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const minRequiredVersion = [0, 8, 0];
 	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
-	const isBuildah = !!params.buildKitVersion?.versionString.toLowerCase().includes('buildah');
+	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
 
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
 	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
@@ -251,7 +257,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
 	const dockerfile = getContainerFeaturesBaseDockerFile(contentSourceRootPath)
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
-		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, isBuildah, useBuildKitBuildContexts, contentSourceRootPath))
+		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
 		.replace('#{containerEnv}', generateContainerEnvsV1(featuresConfig))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
@@ -343,7 +349,30 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 			_DEV_CONTAINERS_FEATURE_CONTENT_SOURCE: buildContentImageName,
 		},
 		buildKitContexts: useBuildKitBuildContexts ? { dev_containers_feature_content_source: dstFolder } : {},
+		securityOpts: disableSELinuxLabels ? ['label=disable'] : [],
 	};
+}
+
+async function isUsingSELinuxLabels(params: DockerResolverParameters): Promise<boolean> {
+	try {
+		const { common } = params;
+		const { cliHost, output } = common;
+		return params.isPodman && cliHost.platform === 'linux'
+			&& (await runCommandNoPty({
+				exec: cliHost.exec,
+				cmd: 'getenforce',
+				output,
+				print: true,
+			})).stdout.toString().trim() !== 'Disabled'
+			&& (await dockerCLI({
+				...toExecParameters(params),
+				print: true,
+			}, 'info', '-f', '{{.Host.Security.SELinuxEnabled}}')).stdout.toString().trim() === 'true';
+	} catch {
+		// If we can't run the commands, assume SELinux is not enabled.
+		return false;
+		
+	}
 }
 
 export function findContainerUsers(imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>, composeServiceUser: string | undefined, imageUser: string) {
