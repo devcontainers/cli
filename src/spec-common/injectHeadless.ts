@@ -849,12 +849,25 @@ async function runUserEnvProbe(userEnvProbe: UserEnvProbe, params: { allowSystem
 
 		// handle popular non-POSIX shells
 		const name = path.posix.basename(systemShellUnix);
-		const command = `echo -n ${mark}; ${cmd}; echo -n ${mark}`;
+		let command = `echo -n ${mark}; ${cmd}; echo -n ${mark}`;
 		let shellArgs: string[];
 		if (/^pwsh(-preview)?$/.test(name)) {
 			shellArgs = userEnvProbe === 'loginInteractiveShell' || userEnvProbe === 'loginShell' ?
 				['-Login', '-Command'] : // -Login must be the first option.
 				['-Command'];
+		} else if (/^fish$/.test(name)) {
+			// Fish shell needs the command to be quoted when using interactive modes
+			// to prevent it from interpreting the -n flag as a shell option
+			const isInteractive = userEnvProbe === 'loginInteractiveShell' || userEnvProbe === 'interactiveShell';
+			if (isInteractive) {
+				command = `'${command.replace(/'/g, `'\\''`)}'`;
+			}
+			shellArgs = [
+				userEnvProbe === 'loginInteractiveShell' ? '-lic' :
+					userEnvProbe === 'loginShell' ? '-lc' :
+						userEnvProbe === 'interactiveShell' ? '-ic' :
+							'-c'
+			];
 		} else {
 			shellArgs = [
 				userEnvProbe === 'loginInteractiveShell' ? '-lic' :
