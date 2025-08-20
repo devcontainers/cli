@@ -2,6 +2,25 @@
 
 Notable changes.
 
+## July 2025
+
+### [0.80.0]
+- Podman: Use label=disable instead of z flag (https://github.com/microsoft/vscode-remote-release/issues/10585)
+
+## June 2025
+
+### [0.79.0]
+- Redirect devcontainers-contrib to devcontainers-extra (https://github.com/microsoft/vscode-remote-release/issues/11046)
+
+### [0.78.0]
+- Fix: Handle missing features (https://github.com/devcontainers/cli/pull/1040)
+
+## May 2025
+
+### [0.77.0]
+- Fix: --uidmap/--gidmap conflict with --userns (https://github.com/microsoft/vscode-remote-release/10954)
+- Fix: Omit --userns=keep-id for root (https://github.com/devcontainers/cli/pull/1004)
+
 ## April 2025
 
 ### [0.76.0]

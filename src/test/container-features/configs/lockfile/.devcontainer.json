@@ -3,6 +3,6 @@
 	"features": {
 		"ghcr.io/codspace/features/flower:1.0.0": {},
 		"ghcr.io/codspace/features/color:1.0.4": {},
-		"https://github.com/codspace/features/releases/download/tarball02/devcontainer-feature-docker-in-docker.tgz": {}
+		"https://github.com/codspace/tgz-features-with-dependson/releases/download/0.0.2/devcontainer-feature-D.tgz": {}
 	}
 }

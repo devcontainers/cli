@@ -180,6 +180,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		for (const buildArg in featureBuildInfo.buildArgs) {
 			additionalBuildArgs.push('--build-arg', `${buildArg}=${featureBuildInfo.buildArgs[buildArg]}`);
 		}
+
+		for (const securityOpt of featureBuildInfo.securityOpts) {
+			additionalBuildArgs.push('--security-opt', securityOpt);
+		}
 	}
 
 	const args: string[] = [];
@@ -344,7 +348,7 @@ export async function extraRunArgs(common: ResolverParameters, params: DockerRes
 	return extraArguments;
 }
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: (() => Promise<ImageDetails>) | undefined, containerUser: string | undefined, extraLabels: Record<string, string>) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: () => Promise<ImageDetails>, containerUser: string | undefined, extraLabels: Record<string, string>) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -392,7 +396,7 @@ ${customEntrypoints.join('\n')}
 exec "$@"
 while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` to run (synchronous `sleep` would not).
 	const overrideCommand = mergedConfig.overrideCommand;
-	if (overrideCommand === false && imageDetails) {
+	if (overrideCommand === false) {
 		const details = await imageDetails();
 		cmd.push(...details.Config.Entrypoint || []);
 		cmd.push(...details.Config.Cmd || []);
@@ -409,7 +413,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...getLabels(labels),
 		...containerEnv,
 		...containerUserArgs,
-		...getPodmanArgs(params),
+		...await getPodmanArgs(params, config, mergedConfig, imageDetails),
 		...(config.runArgs || []),
 		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
@@ -434,9 +438,17 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 	common.output.stop(text, start);
 }
 
-function getPodmanArgs(params: DockerResolverParameters): string[] {
+async function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageDetails: () => Promise<ImageDetails>): Promise<string[]> {
 	if (params.isPodman && params.common.cliHost.platform === 'linux') {
-		return ['--security-opt', 'label=disable', '--userns=keep-id'];
+		const args = ['--security-opt', 'label=disable'];
+		const hasIdMapping = (config.runArgs || []).some(arg => /--[ug]idmap(=|$)/.test(arg));
+		if (!hasIdMapping) {
+			const remoteUser = mergedConfig.remoteUser || findUserArg(config.runArgs) || (await imageDetails()).Config.User || 'root';
+			if (remoteUser !== 'root' && remoteUser !== '0') {
+				args.push('--userns=keep-id');
+			}
+		}
+		return args;
 	}
 	return [];
 }
