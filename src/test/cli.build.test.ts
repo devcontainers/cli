@@ -49,6 +49,48 @@ describe('Dev Containers CLI', function () {
 			assert.equal(labels.type, 'multiple-labels');
 		});
 
+		it('should build successfully with valid image metadata --label property (compose)', async () => {
+			const testFolder = `${__dirname}/configs/compose-without-name`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1} --label 'name=label-test' --label 'type=multiple-labels'`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label (inside compose as dictionary)', async () => {
+			const testFolder = `${__dirname}/configs/compose-with-labels`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label (inside compose as array)', async () => {
+			const testFolder = `${__dirname}/configs/compose-with-labels-array`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
 		it('should fail to build with correct error message for local feature', async () => {
 			const testFolder = `${__dirname}/configs/image-with-local-feature`;
 			try {
