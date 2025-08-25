@@ -244,6 +244,10 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			}
 		}
 	}
+
+	// Add labels
+	args.push(...buildParams.additionalLabels.length > 0 ? buildParams.additionalLabels.map(label => ['--label', label]).flat() : []);
+
 	const buildArgs = config.build?.args;
 	if (buildArgs) {
 		for (const key in buildArgs) {
