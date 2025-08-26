@@ -13,7 +13,7 @@ import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, Use
 import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
-import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
+import { LogLevel, LogDimensions, toErrorText, toWarningText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
@@ -197,14 +197,18 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		}
 	})();
 
-	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
-		cliHost,
-		dockerCLI: dockerPath,
-		dockerComposeCLI,
-		env: cliHost.env,
-		output,
-		platformInfo
-	}));
+	const buildKitVersion = async () => {
+		if (options.useBuildKit === 'never') {
+			return undefined;
+		} else {
+			if (await isPodman({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output })) {
+				output.write(toWarningText('Podman does not support BuildKit, defaulting to legacy builder.'));
+				return undefined;
+			}
+			return await dockerBuildKitVersion({ cliHost, dockerCLI: dockerPath, dockerComposeCLI, env: cliHost.env, output, platformInfo });
+		}
+	}; 
+
 	return {
 		common,
 		parsedAuthority,
@@ -224,7 +228,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		userRepositoryConfigurationPaths: [],
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
-		buildKitVersion,
+		buildKitVersion: await buildKitVersion(),
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
 		experimentalLockfile,
 		experimentalFrozenLockfile,
