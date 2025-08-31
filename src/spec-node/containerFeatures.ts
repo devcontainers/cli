@@ -265,7 +265,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
 	const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
 	const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
-		useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
+		useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.11' :
 		syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
