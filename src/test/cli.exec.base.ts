@@ -406,6 +406,18 @@ export function describeTests2({ text, options }: BuildKitOption) {
 
 				await shellExec(`docker rm -f ${response.containerId}`);
 			});
+
+			describe(`with valid (Dockerfile) multi-platform build config containing features [${text}]`, () => {
+				let containerId: string | null = null;
+				const testFolder = `${__dirname}/configs/dockerfile-with-automatic-platform-args`;
+				beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, options)).containerId);
+				afterEach(async () => await devContainerDown({ containerId }));
+				it('should have access to installed features (hello)', async () => {
+					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
+					assert.strictEqual(res.error, null);
+					assert.match(res.stdout, /howdy, node/);
+				});
+			});
 		});
 	});
 }
