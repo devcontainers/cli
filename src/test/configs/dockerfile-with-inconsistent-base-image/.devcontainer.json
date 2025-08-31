@@ -1,0 +1,10 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/feature-starter/hello:1": {
+			"greeting": "howdy"
+		}
+	}
+}
