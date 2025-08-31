@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PlatformInfo } from '../spec-common/commonUtils';
 import { ContainerError } from '../spec-common/errors';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
@@ -394,16 +395,20 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
 	const { output } = 'output' in params ? params : params.common;
 	const omitSyntaxDirective = 'common' in params ? !!params.common.omitSyntaxDirective : false;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective, params.platformInfo);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean, platformInfo: PlatformInfo): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
 	if (dockerfile.preamble.directives.syntax && omitSyntaxDirective) {
 		output.write(`Omitting syntax directive '${dockerfile.preamble.directives.syntax}' from Dockerfile.`, LogLevel.Trace);
 		delete dockerfile.preamble.directives.syntax;
 	}
-	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
+	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platformInfo);
+	const dummyBaseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage, { os: 'unknown', arch: 'unknown' });
+	if (baseImage !== dummyBaseImage) {
+		throw new Error(`Inconsistent base image used for multi-platform builds. Please check your Dockerfile.`);
+	}
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
