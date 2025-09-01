@@ -423,8 +423,15 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 		delete dockerfile.preamble.directives.syntax;
 	}
 	const images: string[] = [];
-	for (const platform of buildxPlatforms) {
-		const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platform);
+	if (buildxPlatforms.length > 0) {
+		for (const platform of buildxPlatforms) {
+			const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platform);
+			if (image) {
+				images.push(image);
+			}
+		}
+	} else {
+		const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platformInfo);
 		if (image) {
 			images.push(image);
 		}
@@ -432,8 +439,8 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 	if (images.length !== 0 && !images.every(image => image === images[0])) {
 		throw new Error(`Inconsistent base image used for multi-platform builds. Please check your Dockerfile.`);
 	}
-	const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platformInfo);
-	const imageDetails = image && await inspectDockerImage(image) || undefined;
+	const baseImage = images.at(0);
+	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
