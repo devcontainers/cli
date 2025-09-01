@@ -178,7 +178,7 @@ FROM ubuntu:latest as dev
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'amd64' }, []);
         assert.strictEqual(info.user, 'imageUser');
         assert.strictEqual(info.metadata.config.length, 1);
         assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
@@ -206,7 +206,7 @@ USER dockerfileUserB
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'amd64' }, []);
         assert.strictEqual(info.user, 'dockerfileUserB');
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);
@@ -220,7 +220,7 @@ describe('findBaseImage', () => {
 USER user1
 `;
         const extracted = extractDockerfile(dockerfile);
-        const image = findBaseImage(extracted, {}, undefined);
+        const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(image, 'image1');
     });
 
@@ -231,7 +231,7 @@ ARG IMAGE_USER=user2
 USER $IMAGE_USER
 `;
         const extracted = extractDockerfile(dockerfile);
-        const image = findBaseImage(extracted, {}, undefined);
+        const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(image, 'image2');
     });
 
@@ -244,7 +244,7 @@ USER $IMAGE_USER
         const extracted = extractDockerfile(dockerfile);
         const image = findBaseImage(extracted, {
             'BASE_IMAGE': 'image3'
-        }, undefined);
+        }, undefined, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(image, 'image3');
     });
 
@@ -256,7 +256,7 @@ FROM image3 as stage3
 FROM image4 as stage4
 `;
         const extracted = extractDockerfile(dockerfile);
-        const image = findBaseImage(extracted, {}, 'stage2');
+        const image = findBaseImage(extracted, {}, 'stage2', { os: 'linux', arch: 'amd64' });
         assert.strictEqual(image, 'image3');
     });
 
@@ -268,7 +268,7 @@ FROM "\${BASE_IMAGE}"
 `;
         const extracted = extractDockerfile(dockerfile);
         assert.strictEqual(extracted.stages.length, 1);
-        const image = findBaseImage(extracted, {}, undefined);
+        const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(image, 'ubuntu:latest');
     });
 
@@ -282,7 +282,7 @@ FROM \${cloud:+mcr.microsoft.com/}azure-cli:latest
             assert.strictEqual(extracted.stages.length, 1);
             const image = findBaseImage(extracted, {
                 'cloud': 'true'
-            }, undefined);
+            }, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
         });
 
@@ -293,7 +293,7 @@ FROM \${cloud:+mcr.microsoft.com/}azure-cli:latest
 `;
             const extracted = extractDockerfile(dockerfile);
             assert.strictEqual(extracted.stages.length, 1);
-            const image = findBaseImage(extracted, {}, undefined);
+            const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'azure-cli:latest');
         });
 
@@ -306,7 +306,7 @@ FROM \${cloud:-mcr.microsoft.com/}azure-cli:latest
             assert.strictEqual(extracted.stages.length, 1);
             const image = findBaseImage(extracted, {
                 'cloud': 'ghcr.io/'
-            }, undefined);
+            }, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'ghcr.io/azure-cli:latest');
         });
 
@@ -317,7 +317,7 @@ FROM \${cloud:-mcr.microsoft.com/}azure-cli:latest
 `;
             const extracted = extractDockerfile(dockerfile);
             assert.strictEqual(extracted.stages.length, 1);
-            const image = findBaseImage(extracted, {}, undefined);
+            const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
         });
 
@@ -334,7 +334,8 @@ FROM \${cloud:+"mcr.microsoft.com/"}azure-cli:latest"
               {
                 cloud: 'true',
               },
-              undefined
+                undefined,
+                { os: 'linux', arch: 'amd64' }
             );
             assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
           });
@@ -347,7 +348,7 @@ FROM "\${cloud:+"mcr.microsoft.com/"}azure-cli:latest"
 
             const extracted = extractDockerfile(dockerfile);
             assert.strictEqual(extracted.stages.length, 1);
-            const image = findBaseImage(extracted, {}, undefined);
+              const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'azure-cli:latest');
           });
 
@@ -364,7 +365,8 @@ FROM "\${cloud:-"mcr.microsoft.com/"}azure-cli:latest"
               {
                 cloud: 'ghcr.io/',
               },
-              undefined
+                undefined,
+                { os: 'linux', arch: 'amd64' }
             );
             assert.strictEqual(image, 'ghcr.io/azure-cli:latest');
           });
@@ -377,9 +379,33 @@ FROM \${cloud:-"mcr.microsoft.com/"}azure-cli:latest as label
 
             const extracted = extractDockerfile(dockerfile);
             assert.strictEqual(extracted.stages.length, 1);
-            const image = findBaseImage(extracted, {}, undefined);
+              const image = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
             assert.strictEqual(image, 'mcr.microsoft.com/azure-cli:latest');
           });
+
+            it('Multi-platform build', async () => {
+                const dockerfile = `
+ARG TARGETARCH
+FROM image1 AS base-1
+
+FROM image2 AS base-2
+
+FROM --platform=amd64 base-1 AS amd64-base
+LABEL Architecture="amd64"
+
+FROM --platform=arm64 base-2 AS arm64-base
+LABEL Architecture="arm64"
+
+FROM \${TARGETARCH}-base AS final
+`;
+
+                const extracted = extractDockerfile(dockerfile);
+                assert.strictEqual(extracted.stages.length, 5);
+                const amd64BaseImage = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'amd64' });
+                assert.strictEqual(amd64BaseImage, 'image1');
+                const arm64BaseImage = findBaseImage(extracted, {}, undefined, { os: 'linux', arch: 'arm64' });
+                assert.strictEqual(arm64BaseImage, 'image2');
+            });
         });
     });
 });
