@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, BuildSecret } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -243,6 +243,13 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 				buildOverrideContent += `        - ${buildKitContext}=${featureBuildInfo.buildKitContexts[buildKitContext]}\n`;
 			}
 		}
+
+		if (params.buildSecrets.length > 0) {
+			buildOverrideContent += '      secrets:\n';
+			for (const secret of params.buildSecrets) {
+				buildOverrideContent += `        - ${secret.id}\n`;
+			}
+		}
 	}
 
 	// Generate the docker-compose override and build
@@ -253,10 +260,27 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		await cliHost.mkdirp(composeFolder);
 		const composeOverrideFile = cliHost.path.join(composeFolder, `${overrideFilePrefix}-${Date.now()}.yml`);
 		const cacheFromOverrideContent = (additionalCacheFroms && additionalCacheFroms.length > 0) ? `      cache_from:\n${additionalCacheFroms.map(cacheFrom => `        - ${cacheFrom}\n`).join('\n')}` : '';
+		const secretsOverrideContent = generateSecretsOverrideContent(params.buildSecrets);
+
+		function generateSecretsOverrideContent(buildSecrets: BuildSecret[]): string {
+			if (!buildSecrets || buildSecrets.length === 0) {
+				return '';
+			}
+			let content = 'secrets:\n';
+			for (const secret of buildSecrets) {
+				if (secret.file) {
+					content += `  ${secret.id}:\n    file: ${secret.file}\n`;
+				} else if (secret.env) {
+					content += `  ${secret.id}:\n    environment: ${secret.env}\n`;
+				}
+			}
+			return content;
+		}
 		const composeOverrideContent = `${versionPrefix}services:
   ${config.service}:
 ${buildOverrideContent?.trimEnd()}
 ${cacheFromOverrideContent}
+${secretsOverrideContent}
 `;
 		output.write(`Docker Compose override file for building image:\n${composeOverrideContent}`);
 		await cliHost.writeFile(composeOverrideFile, Buffer.from(composeOverrideContent));

@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
-import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder, GPUAvailability } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder, GPUAvailability, BuildSecret } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
@@ -74,6 +74,7 @@ export interface ProvisionOptions {
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
 	includeMergedConfig?: boolean;
+	buildSecrets: BuildSecret[];
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -246,7 +247,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
-		platformInfo
+		platformInfo,
+		buildSecrets: options.buildSecrets
 	};
 }
 

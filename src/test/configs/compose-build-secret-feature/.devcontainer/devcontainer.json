@@ -1,0 +1,9 @@
+{
+  "name": "Test Docker Compose Feature Secrets",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces",
+  "features": {
+    "./secret_test": {}
+  }
+}
