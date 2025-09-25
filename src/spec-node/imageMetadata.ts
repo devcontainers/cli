@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GoARCH, GoOS, PlatformInfo } from '../spec-common/commonUtils';
 import { ContainerError } from '../spec-common/errors';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
@@ -394,16 +395,51 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
 	const { output } = 'output' in params ? params : params.common;
 	const omitSyntaxDirective = 'common' in params ? !!params.common.omitSyntaxDirective : false;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective);
+	const buildxPlatform = 'common' in params ? params.common.buildxPlatform : undefined;
+	const buildxPlatforms = buildxPlatform?.split(',').map(platform => {
+		const slash1 = platform.indexOf('/');
+		const slash2 = platform.indexOf('/', slash1 + 1);
+		// `--platform linux/amd64/v3` `--platform linux/arm64/v8`
+		if (slash2 !== -1) {
+			return {
+				os: <GoOS>platform.slice(0, slash1),
+				arch: <GoARCH>platform.slice(slash1 + 1, slash2),
+				variant: platform.slice(slash2 + 1),
+			};
+		}
+		// `--platform linux/amd64` and `--platform linux/arm64`
+		return {
+			os: <GoOS>platform.slice(0, slash1),
+			arch: <GoARCH>platform.slice(slash1 + 1),
+		};
+	}) ?? [] satisfies PlatformInfo[];
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective, params.platformInfo, buildxPlatforms);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean, platformInfo: PlatformInfo, buildxPlatforms: PlatformInfo[]): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
 	if (dockerfile.preamble.directives.syntax && omitSyntaxDirective) {
 		output.write(`Omitting syntax directive '${dockerfile.preamble.directives.syntax}' from Dockerfile.`, LogLevel.Trace);
 		delete dockerfile.preamble.directives.syntax;
 	}
-	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
+	const images: string[] = [];
+	if (buildxPlatforms.length > 0) {
+		for (const platform of buildxPlatforms) {
+			const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platform);
+			if (image) {
+				images.push(image);
+			}
+		}
+	} else {
+		const image = findBaseImage(dockerfile, dockerBuildArgs, targetStage, platformInfo);
+		if (image) {
+			images.push(image);
+		}
+	}
+	if (images.length !== 0 && !images.every(image => image === images[0])) {
+		throw new Error(`Inconsistent base image used for multi-platform builds. Please check your Dockerfile.`);
+	}
+	const baseImage = images.at(0);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
