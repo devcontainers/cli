@@ -1,3 +1,4 @@
+import path from 'path';
 import { Argv } from 'yargs';
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
@@ -10,7 +11,7 @@ import { runAsyncHandler } from '../utils';
 export function templateApplyOptions(y: Argv) {
 	return y
 		.options({
-			'workspace-folder': { type: 'string', alias: 'w', demandOption: true, default: '.', description: 'Target workspace folder to apply Template' },
+			'workspace-folder': { type: 'string', alias: 'w', default: '.', description: 'Target workspace folder to apply Template' },
 			'template-id': { type: 'string', alias: 't', demandOption: true, description: 'Reference to a Template in a supported OCI registry' },
 			'template-args': { type: 'string', alias: 'a', default: '{}', description: 'Arguments to replace within the provided Template, provided as JSON' },
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },
@@ -30,7 +31,7 @@ export function templateApplyHandler(args: TemplateApplyArgs) {
 }
 
 async function templateApply({
-	'workspace-folder': workspaceFolder,
+	'workspace-folder': workspaceFolderArg,
 	'template-id': templateId,
 	'template-args': templateArgs,
 	'features': featuresArgs,
@@ -42,6 +43,9 @@ async function templateApply({
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
+
+	// Use cwd as workspaceFolder when not provided
+	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 
 	const pkg = getPackageConfig();
 
