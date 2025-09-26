@@ -103,7 +103,7 @@ function provisionOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'workspace-mount-consistency': { choices: ['consistent' as 'consistent', 'cached' as 'cached', 'delegated' as 'delegated'], default: 'cached' as 'cached', description: 'Workspace mount consistency.' },
 		'gpu-availability': { choices: ['all' as 'all', 'detect' as 'detect', 'none' as 'none'], default: 'detect' as 'detect', description: 'Availability of GPUs in case the dev container requires any. `all` expects a GPU to be available.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
@@ -147,12 +147,6 @@ function provisionOptions(y: Argv) {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
-			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
 			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
@@ -218,7 +212,7 @@ async function provision({
 	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
 
-	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+	const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
@@ -507,7 +501,7 @@ function buildOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
@@ -680,7 +674,7 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			
+
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});
@@ -752,7 +746,7 @@ function runUserCommandsOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -783,9 +777,6 @@ function runUserCommandsOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
-			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -840,7 +831,7 @@ async function doRunUserCommands({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
@@ -954,7 +945,7 @@ function readConfigurationOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -973,9 +964,6 @@ function readConfigurationOptions(y: Argv) {
 			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
-			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -1012,7 +1000,7 @@ async function readConfiguration({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
@@ -1107,7 +1095,7 @@ async function readConfiguration({
 function outdatedOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
@@ -1209,7 +1197,7 @@ function execOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.', default: '.', defaultDescription: 'Current Working Directory' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -1241,9 +1229,6 @@ function execOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
-			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
 			}
 			return true;
 		});
@@ -1292,7 +1277,7 @@ export async function doExec({
 	let output: Log | undefined;
 	const isTTY = process.stdin.isTTY && process.stdout.isTTY || logFormat === 'json'; // If stdin or stdout is a pipe, we don't want to use a PTY.
 	try {
-		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
 		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
 		const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
