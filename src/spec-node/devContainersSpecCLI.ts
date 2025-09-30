@@ -50,6 +50,28 @@ const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
+/**
+ * Derives the workspace folder from either the provided workspace folder argument or the config path.
+ * When config is in a .devcontainer directory, the workspace folder is the parent directory.
+ * Otherwise, it's the directory containing the config file.
+ */
+function deriveWorkspaceFolder(workspaceFolderArg: string | undefined, configParam: string | undefined): string {
+	if (workspaceFolderArg) {
+		return path.resolve(process.cwd(), workspaceFolderArg);
+	}
+	if (configParam) {
+		const resolvedConfig = path.resolve(process.cwd(), configParam);
+		const configDir = path.dirname(resolvedConfig);
+		// If config is in a .devcontainer directory, go up one level to get the workspace folder
+		if (path.basename(configDir) === '.devcontainer') {
+			return path.dirname(configDir);
+		}
+		return configDir;
+	}
+	// This should never be reached due to validation, but provide a fallback
+	return process.cwd();
+}
+
 (async () => {
 
 	const packageFolder = path.join(__dirname, '..', '..');
@@ -580,24 +602,7 @@ async function doBuild({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		// If workspace-folder is not provided, derive it from config path
-		// When config is in .devcontainer/devcontainer.json, we need to go up two levels
-		// When config is in devcontainer.json, we need to go up one level
-		let workspaceFolder: string;
-		if (workspaceFolderArg) {
-			workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		} else if (configParam) {
-			const resolvedConfig = path.resolve(process.cwd(), configParam);
-			const configDir = path.dirname(resolvedConfig);
-			// If config is in a .devcontainer directory, go up one more level
-			if (path.basename(configDir) === '.devcontainer') {
-				workspaceFolder = path.dirname(configDir);
-			} else {
-				workspaceFolder = configDir;
-			}
-		} else {
-			workspaceFolder = process.cwd();
-		}
+		const workspaceFolder = deriveWorkspaceFolder(workspaceFolderArg, configParam);
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -1168,24 +1173,7 @@ async function outdated({
 	};
 	let output: Log | undefined;
 	try {
-		// If workspace-folder is not provided, derive it from config path
-		// When config is in .devcontainer/devcontainer.json, we need to go up two levels
-		// When config is in devcontainer.json, we need to go up one level
-		let workspaceFolder: string;
-		if (workspaceFolderArg) {
-			workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
-		} else if (configParam) {
-			const resolvedConfig = path.resolve(process.cwd(), configParam);
-			const configDir = path.dirname(resolvedConfig);
-			// If config is in a .devcontainer directory, go up one more level
-			if (path.basename(configDir) === '.devcontainer') {
-				workspaceFolder = path.dirname(configDir);
-			} else {
-				workspaceFolder = configDir;
-			}
-		} else {
-			workspaceFolder = process.cwd();
-		}
+		const workspaceFolder = deriveWorkspaceFolder(workspaceFolderArg, configParam);
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
