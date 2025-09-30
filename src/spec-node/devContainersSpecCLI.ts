@@ -507,7 +507,7 @@ function buildOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
@@ -526,7 +526,13 @@ function buildOptions(y: Argv) {
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
-	});
+	})
+		.check(argv => {
+			if (!argv['workspace-folder'] && !argv['config']) {
+				throw new Error('Missing required argument: Either --workspace-folder or --config is required.');
+			}
+			return true;
+		});
 }
 
 type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
@@ -574,7 +580,24 @@ async function doBuild({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		// If workspace-folder is not provided, derive it from config path
+		// When config is in .devcontainer/devcontainer.json, we need to go up two levels
+		// When config is in devcontainer.json, we need to go up one level
+		let workspaceFolder: string;
+		if (workspaceFolderArg) {
+			workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		} else if (configParam) {
+			const resolvedConfig = path.resolve(process.cwd(), configParam);
+			const configDir = path.dirname(resolvedConfig);
+			// If config is in a .devcontainer directory, go up one more level
+			if (path.basename(configDir) === '.devcontainer') {
+				workspaceFolder = path.dirname(configDir);
+			} else {
+				workspaceFolder = configDir;
+			}
+		} else {
+			workspaceFolder = process.cwd();
+		}
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -1107,14 +1130,20 @@ async function readConfiguration({
 function outdatedOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
-	});
+	})
+		.check(argv => {
+			if (!argv['workspace-folder'] && !argv['config']) {
+				throw new Error('Missing required argument: Either --workspace-folder or --config is required.');
+			}
+			return true;
+		});
 }
 
 type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
@@ -1139,7 +1168,24 @@ async function outdated({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		// If workspace-folder is not provided, derive it from config path
+		// When config is in .devcontainer/devcontainer.json, we need to go up two levels
+		// When config is in devcontainer.json, we need to go up one level
+		let workspaceFolder: string;
+		if (workspaceFolderArg) {
+			workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		} else if (configParam) {
+			const resolvedConfig = path.resolve(process.cwd(), configParam);
+			const configDir = path.dirname(resolvedConfig);
+			// If config is in a .devcontainer directory, go up one more level
+			if (path.basename(configDir) === '.devcontainer') {
+				workspaceFolder = path.dirname(configDir);
+			} else {
+				workspaceFolder = configDir;
+			}
+		} else {
+			workspaceFolder = process.cwd();
+		}
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
