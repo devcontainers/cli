@@ -2,10 +2,12 @@
 
 Notable changes.
 
-## July 2025
+## October 2025
 
 ### [0.81.0]
 - Add `--metadata-file` to `build` command (https://github.com/devcontainers/cli/issues/464)
+
+## July 2025
 
 ### [0.80.0]
 - Podman: Use label=disable instead of z flag (https://github.com/microsoft/vscode-remote-release/issues/10585)
