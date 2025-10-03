@@ -656,6 +656,7 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		buildxPush: false,
 		buildxOutput: undefined,
 		buildxCacheTo: undefined,
+		buildxMetadataFile: undefined,
 		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,

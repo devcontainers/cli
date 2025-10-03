@@ -24,6 +24,7 @@ export const staticProvisionParams = {
     buildxPush: false,
     buildxOutput: undefined,
     buildxCacheTo: undefined,
+    buildxMetadataFile: undefined,
     skipPostAttach: false,
 };
 

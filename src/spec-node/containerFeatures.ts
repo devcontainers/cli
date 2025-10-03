@@ -85,6 +85,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		if (params.buildxCacheTo) {
 			args.push('--cache-to', params.buildxCacheTo);
 		}
+		if (params.buildxMetadataFile) {
+			args.push('--metadata-file', params.buildxMetadataFile);
+		}
 		if (!params.buildNoCache) {
 			params.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
 		}

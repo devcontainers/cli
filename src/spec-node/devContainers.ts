@@ -56,6 +56,7 @@ export interface ProvisionOptions {
 	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
+	buildxMetadataFile: string | undefined;
 	additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>;
 	skipFeatureAutoMapping: boolean;
 	skipPostAttach: boolean;
@@ -150,6 +151,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildxPush: options.buildxPush,
 		buildxOutput: options.buildxOutput,
 		buildxCacheTo: options.buildxCacheTo,
+		buildxMetadtaFile: options.buildxCacheTo,
 		skipFeatureAutoMapping: options.skipFeatureAutoMapping,
 		skipPostAttach: options.skipPostAttach,
 		containerSessionDataFolder: options.containerSessionDataFolder,
@@ -233,6 +235,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
+		buildxMetadataFile: common.buildxMetadtaFile,
 		platformInfo
 	};
 }
