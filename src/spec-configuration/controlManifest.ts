@@ -82,9 +82,10 @@ async function updateControlManifest(controlManifestPath: string, oldManifest: D
 }
 
 async function fetchControlManifest(output: Log) {
+	const controlManifestURL = process.env.DEVCONTAINERS_CONTROL_MANIFEST_URL ?? 'https://containers.dev/static/devcontainer-control-manifest.json';
 	return request({
 		type: 'GET',
-		url: 'https://containers.dev/static/devcontainer-control-manifest.json',
+		url: controlManifestURL,
 		headers: {
 			'user-agent': 'devcontainers-vscode',
 			'accept': 'application/json',
