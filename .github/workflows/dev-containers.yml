@@ -33,7 +33,7 @@ jobs:
         echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
         echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
     - name: Store TGZ
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ env.TGZ_UPLOAD }}
         path: ${{ env.TGZ }}
