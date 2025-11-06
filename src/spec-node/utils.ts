@@ -123,6 +123,7 @@ export interface DockerResolverParameters {
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;
+	buildxMetadataFile: string | undefined;
 }
 
 export interface ResolverResult {

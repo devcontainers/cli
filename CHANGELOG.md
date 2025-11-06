@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## October 2025
+
+### [0.81.0]
+- Add `--metadata-file` to `build` command (https://github.com/devcontainers/cli/issues/464)
+
 ## July 2025
 
 ### [0.80.0]

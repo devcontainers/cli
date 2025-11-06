@@ -197,6 +197,9 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			output.write('Setting BuildKit platform(s): ' + buildParams.buildxPlatform, LogLevel.Trace);
 			args.push('--platform', buildParams.buildxPlatform);
 		}
+		if (buildParams.buildxMetadataFile) {
+			args.push('--metadata-file', buildParams.buildxMetadataFile);
+		}
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
