@@ -1209,7 +1209,7 @@ function execOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. Defaults to current directory if not specified. The devcontainer.json will be looked up relative to this path.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -1243,7 +1243,7 @@ function execOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
