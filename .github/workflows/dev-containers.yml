@@ -69,6 +69,20 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Install Docker v29.0.0
+      run: |
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo VERSION=29.0.0 sh get-docker.sh
+        sudo systemctl restart docker
+    - name: Verify Docker version
+      run: |
+        docker version
+        DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
+        if [[ ! "$DOCKER_VERSION" =~ ^29\. ]]; then
+          echo "ERROR: Expected Docker v29.x but got $DOCKER_VERSION"
+          exit 1
+        fi
     - name: Tools Info
       run: |
         docker info
@@ -102,6 +116,20 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Install Docker v29.0.0
+      run: |
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo VERSION=29.0.0 sh get-docker.sh
+        sudo systemctl restart docker
+    - name: Verify Docker version
+      run: |
+        docker version
+        DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
+        if [[ ! "$DOCKER_VERSION" =~ ^29\. ]]; then
+          echo "ERROR: Expected Docker v29.x but got $DOCKER_VERSION"
+          exit 1
+        fi
     - name: Install Dependencies
       run: yarn install --frozen-lockfile
     - name: Type-Check
