@@ -24,17 +24,16 @@ jobs:
         curl -fsSL https://get.docker.com -o get-docker.sh
         sudo VERSION=29.0.0 sh get-docker.sh
         sudo systemctl restart docker
-        
+    
+    - name: Verify Docker version, Install and Test
+      run: |
         # Verify
         docker version
         DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
         if [[ ! "$DOCKER_VERSION" =~ ^29\. ]]; then
           echo "ERROR: Expected Docker v29.x but got $DOCKER_VERSION"
           exit 1
-        fi
-    
-    - name: Install and Test
-      run: |
+        fi      
         yarn install --frozen-lockfile
         yarn type-check
         yarn package
