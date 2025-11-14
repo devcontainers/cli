@@ -1,0 +1,6 @@
+{
+	"id": "secret_test",
+	"name": "Secret Test Feature",
+	"description": "A test feature to demonstrate secrets in Docker Buildx",
+	"version": "1.0.0"
+}

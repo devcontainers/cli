@@ -200,7 +200,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -210,6 +210,14 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			args.push('--cache-to', buildParams.buildxCacheTo);
 		}
 		args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
+
+		for (const secret of buildParams.buildSecrets) {
+			if (secret.file) {
+				args.push('--secret', `id=${secret.id},src=${secret.file}`);
+			} else if (secret.env) {
+				args.push('--secret', `id=${secret.id},env=${secret.env}`);
+			}
+		}
 	} else {
 		args.push('build');
 	}
