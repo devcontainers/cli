@@ -178,8 +178,8 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 						if (line.trim()) {
 							try {
 								const info = JSON.parse(line);
-								// Docker uses 'status', Podman 'Status'.
-								if ((info.status || info.Status) === 'start' && await hasLabels(params, info, labels)) {
+								// Docker uses 'status', Podman 'Status'. Docker v29.0.0 onwards use 'Action' as 'status' is deprecated. 
+								if ((info.status || info.Status || info.Action) === 'start' && await hasLabels(params, info, labels)) {
 									eventsProcess.terminate();
 									resolve();
 								}
