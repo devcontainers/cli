@@ -2,6 +2,16 @@
 
 Notable changes.
 
+## November 2025
+
+### [0.80.2]
+- Fix: Docker container event 'start' dropped deprecated fields in Docker v29.0.0 (https://github.com/devcontainers/cli/pull/1103)
+
+## September 2025
+
+### [0.80.1]
+- Fix: debian:latest dropped adduser / addgroup (https://github.com/devcontainers/cli/pull/1060)
+
 ## July 2025
 
 ### [0.80.0]
