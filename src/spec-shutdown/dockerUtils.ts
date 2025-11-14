@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec, PlatformInfo } from '../spec-common/commonUtils';
+import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec, PlatformInfo, GoARCH, GoOS } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
 import { Log, makeLog } from '../spec-utils/log';
@@ -425,4 +425,21 @@ export function toDockerImageName(name: string) {
 		.toLowerCase()
 		.replace(/[^a-z0-9\._-]+/g, '')
 		.replace(/(\.[\._-]|_[\.-]|__[\._-]|-+[\._])[\._-]*/g, (_, a) => a.substr(0, a.length - 1));
+}
+
+export interface ManifestDetail {
+	readonly schemaVersion: number;
+	readonly mediaType: string;
+	readonly manifests: readonly Manifest[];
+}
+
+export interface Manifest {
+	readonly mediaType: string;
+	readonly size: number;
+	readonly digest: string;
+	readonly platform: {
+		readonly architecture: GoARCH;
+		readonly os: GoOS;
+		readonly variant?: string;
+	};
 }

@@ -172,7 +172,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}, dockerPath, dockerComposePath);
 
 	const platformInfo = (() => {
-		if (common.buildxPlatform) {
+		if (common.buildxPlatform && common.buildxPlatform.split(',').length === 1) {
 			const slash1 = common.buildxPlatform.indexOf('/');
 			const slash2 = common.buildxPlatform.indexOf('/', slash1 + 1);
 			// `--platform linux/amd64/v3` `--platform linux/arm64/v8`
@@ -189,7 +189,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 				arch: <GoARCH> common.buildxPlatform.slice(slash1 + 1),
 			};
 		} else {
-			// `--platform` omitted
+			// `--platform` omitted or multiple platforms
 			return {
 				os: mapNodeOSToGOOS(cliHost.platform),
 				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
