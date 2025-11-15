@@ -82,6 +82,22 @@ export function describeTests1({ text, options }: BuildKitOption) {
 					assert.strictEqual(env.FOO, 'BAR');
 					assert.strictEqual(env.BAZ, '');
 				});
+				it('should exec with default workspace folder (current directory)', async () => {
+					const originalCwd = process.cwd();
+					const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+					const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+					process.chdir(testFolder);
+
+					try {
+						// Exec without --workspace-folder should use current directory as default
+						const execRes = await shellExec(`${absoluteCli} exec echo "default workspace test"`);
+						assert.strictEqual(execRes.error, null);
+						assert.match(execRes.stdout, /default workspace test/);
+					} finally {
+						// Restore original directory
+						process.chdir(originalCwd);
+					}
+				});
 			});
 			describe(`with valid (image) config containing features [${text}]`, () => {
 				let containerId: string | null = null;
