@@ -526,12 +526,6 @@ function buildOptions(y: Argv) {
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
-	})
-		.check(argv => {
-			if (!argv['workspace-folder']) {
-				argv['workspace-folder'] = process.cwd();
-			}
-			return true;
 	});
 }
 
@@ -1120,13 +1114,7 @@ function outdatedOptions(y: Argv) {
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
 		'terminal-columns': { type: 'number', implies: ['terminal-rows'], description: 'Number of columns to render the output for. This is required for some of the subprocesses to correctly render their output.' },
 		'terminal-rows': { type: 'number', implies: ['terminal-columns'], description: 'Number of rows to render the output for. This is required for some of the subprocesses to correctly render their output.' },
-	})
-		.check(argv => {
-			if (!argv['workspace-folder']) {
-				argv['workspace-folder'] = process.cwd();
-			}
-			return true;
-		});
+	});
 }
 
 type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
