@@ -580,7 +580,7 @@ async function doBuild({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -1151,7 +1151,7 @@ async function outdated({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
