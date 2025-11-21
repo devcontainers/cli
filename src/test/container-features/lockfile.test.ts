@@ -258,4 +258,24 @@ describe('Lockfile', function () {
 			await cleanup();
 		}
 	});
+
+	it('outdated command should work with default workspace folder', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
+		const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+		const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+		const originalCwd = process.cwd();
+		try {
+			process.chdir(workspaceFolder);
+			const res = await shellExec(`${absoluteCli} outdated --output-format json`);
+			const response = JSON.parse(res.stdout);
+
+			// Should have same structure as the test with explicit workspace-folder
+			assert.ok(response.features);
+			assert.ok(response.features['ghcr.io/devcontainers/features/git:1.0']);
+			assert.strictEqual(response.features['ghcr.io/devcontainers/features/git:1.0'].current, '1.0.4');
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
 });
