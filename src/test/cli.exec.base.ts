@@ -210,7 +210,7 @@ export function describeTests1({ text, options }: BuildKitOption) {
 }
 
 export function describeTests2({ text, options }: BuildKitOption) {
-	
+
 	describe('Dev Containers CLI', function () {
 		this.timeout('300s');
 
@@ -424,7 +424,7 @@ export function describeTests2({ text, options }: BuildKitOption) {
 				await shellExec(`docker rm -f ${response.containerId}`);
 			});
 
-			describe.only('Command exec with default workspace', () => {
+			describe('Command exec with default workspace', () => {
 				it('should fail gracefully when no config in current directory and no container-id', async () => {
 					const tempDir = path.join(os.tmpdir(), 'devcontainer-exec-test-' + Date.now());
 					await shellExec(`mkdir -p ${tempDir}`);
