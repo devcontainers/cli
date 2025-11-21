@@ -278,4 +278,24 @@ describe('Lockfile', function () {
 			process.chdir(originalCwd);
 		}
 	});
+
+	it('upgrade command should work with default workspace folder', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-upgrade-command');
+		const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+		const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await cpLocal(path.join(workspaceFolder, 'outdated.devcontainer-lock.json'), lockfilePath);
+
+		const originalCwd = process.cwd();
+		try {
+			process.chdir(workspaceFolder);
+			await shellExec(`${absoluteCli} upgrade`);
+			const actual = await readLocalFile(lockfilePath);
+			const expected = await readLocalFile(path.join(workspaceFolder, 'upgraded.devcontainer-lock.json'));
+			assert.equal(actual.toString(), expected.toString());
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
 });
