@@ -68,6 +68,37 @@ describe('Dev Containers CLI', function () {
 
 			await shellExec(`docker rm -f ${upResponse.containerId}`);
 		});
+
+		it('run-user-commands should run with default workspace folder (current directory)', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+			// First, ensure container is up
+			const upRes = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-post-create`);
+			const upResponse = JSON.parse(upRes.stdout);
+			assert.strictEqual(upResponse.outcome, 'success');
+			const containerId = upResponse.containerId;
+
+			const originalCwd = process.cwd();
+			try {
+				// Change to workspace folder
+				process.chdir(testFolder);
+
+				// Run user commands without --workspace-folder should use current directory as default
+				const runRes = await shellExec(`${absoluteCli} run-user-commands`);
+				const runResponse = JSON.parse(runRes.stdout);
+				assert.strictEqual(runResponse.outcome, 'success');
+
+				// Verify that the postCreateCommand was executed
+				await shellExec(`docker exec ${containerId} test -f /postCreateCommand.txt`);
+			} finally {
+				// Restore original directory
+				process.chdir(originalCwd);
+				// Clean up container
+				await shellExec(`docker rm -f ${containerId}`);
+			}
+		});
 	});
 
 	describe('Command read-configuration', () => {

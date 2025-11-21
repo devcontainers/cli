@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellBufferExec, shellExec, shellPtyExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -81,6 +82,22 @@ export function describeTests1({ text, options }: BuildKitOption) {
 						.reduce((m, [k, v]) => { m[k] = v; return m; }, {} as { [key: string]: string });
 					assert.strictEqual(env.FOO, 'BAR');
 					assert.strictEqual(env.BAZ, '');
+				});
+				it('should exec with default workspace folder (current directory)', async () => {
+					const originalCwd = process.cwd();
+					const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+					const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+					process.chdir(testFolder);
+
+					try {
+						// Exec without --workspace-folder should use current directory as default
+						const execRes = await shellExec(`${absoluteCli} exec echo "default workspace test"`);
+						assert.strictEqual(execRes.error, null);
+						assert.match(execRes.stdout, /default workspace test/);
+					} finally {
+						// Restore original directory
+						process.chdir(originalCwd);
+					}
 				});
 			});
 			describe(`with valid (image) config containing features [${text}]`, () => {
@@ -405,6 +422,60 @@ export function describeTests2({ text, options }: BuildKitOption) {
 				assert.strictEqual(execRes.stdout.trim(), 'true');
 
 				await shellExec(`docker rm -f ${response.containerId}`);
+			});
+
+			describe('Command exec with default workspace', () => {
+				it('should fail gracefully when no config in current directory and no container-id', async () => {
+					const tempDir = path.join(os.tmpdir(), 'devcontainer-exec-test-' + Date.now());
+					await shellExec(`mkdir -p ${tempDir}`);
+					const originalCwd = process.cwd();
+					const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+					const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+					try {
+						process.chdir(tempDir);
+						let success = false;
+						try {
+							// Test exec without --workspace-folder (should default to current directory with no config)
+							await shellExec(`${absoluteCli} exec echo "test"`);
+							success = true;
+						} catch (error) {
+							console.log('Caught error as expected: ', error.stderr);
+							// Should fail because there's no container or config
+							assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+						}
+						assert.equal(success, false, 'expect non-successful call');
+					} finally {
+						process.chdir(originalCwd);
+						await shellExec(`rm -rf ${tempDir}`);
+					}
+				});
+
+				describe('with valid config in current directory', () => {
+					let containerId: string | null = null;
+					const testFolder = `${__dirname}/configs/image`;
+
+					beforeEach(async () => {
+						containerId = (await devContainerUp(cli, testFolder, options)).containerId;
+					});
+
+					afterEach(async () => await devContainerDown({ containerId }));
+
+					it('should execute command successfully when using current directory', async () => {
+						const originalCwd = process.cwd();
+						const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+						const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+						try {
+							process.chdir(testFolder);
+							// Test exec without --workspace-folder (should default to current directory)
+							const res = await shellExec(`${absoluteCli} exec echo "hello world"`);
+							assert.strictEqual(res.error, null);
+							assert.match(res.stdout, /hello world/);
+						} finally {
+							process.chdir(originalCwd);
+						}
+					});
+				});
+
 			});
 		});
 	});
