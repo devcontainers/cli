@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Checkout Actions
         if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           ref: stable
