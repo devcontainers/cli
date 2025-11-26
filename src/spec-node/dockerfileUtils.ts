@@ -5,6 +5,7 @@
 
 import * as semver from 'semver';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { PlatformInfo } from '../spec-common/commonUtils';
 
 
 const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gmi');
@@ -100,7 +101,7 @@ export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<stri
 	return undefined;
 }
 
-export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined) {
+export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined, platformInfo: PlatformInfo) {
 	let stage: Stage | undefined = target ? dockerfile.stagesByLabel[target] : dockerfile.stages[dockerfile.stages.length - 1];
 	const seen = new Set<Stage>();
 	while (stage) {
@@ -108,7 +109,20 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 			return undefined;
 		}
 		seen.add(stage);
-
+		if (stage.from.image.includes('$')) {
+			buildArgs = {
+				...buildArgs,
+				TARGETPLATFORM: platformInfo.variant ? `${platformInfo.arch}/${platformInfo.os}/${platformInfo.variant}` : `${platformInfo.arch}/${platformInfo.os}`,
+				TARGETOS: platformInfo.os,
+				TARGETARCH: platformInfo.arch,
+			};
+			if (platformInfo.variant) {
+				buildArgs = {
+					...buildArgs,
+					TARGETVARIANT: platformInfo.variant,
+				};
+			}
+		}
 		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		const nextStage = dockerfile.stagesByLabel[image];
 		if (!nextStage) {

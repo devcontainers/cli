@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import { buildKitOptions, shellExec } from './testUtils';
-import { ImageDetails } from '../spec-shutdown/dockerUtils';
+import { ImageDetails, ManifestDetail } from '../spec-shutdown/dockerUtils';
 import { envListToObj } from '../spec-node/utils';
 
 const pkg = require('../../package.json');
@@ -432,6 +432,73 @@ describe('Dev Containers CLI', function () {
 			assert.ok(response.imageName);
 			const details = JSON.parse((await shellExec(`docker inspect ${response.imageName}`)).stdout)[0] as ImageDetails;
 			assert.strictEqual(details.Config.Labels?.test_build_options, 'success');
+		});
+
+		it(`should build successfully with platform args container builder`, async () => {
+			const builderName = 'test-container-builder';
+			const registryName = 'test-registry';
+			const imageName = `localhost:5000/test:latest`;
+			try {
+				await shellExec(`docker run -d --name ${registryName} -p 5000:5000 registry`);
+				const testFolder = `${__dirname}/configs/dockerfile-with-automatic-platform-args`;
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use --driver-opt network=host --config ${testFolder}/config.toml`);
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --platform linux/arm64,linux/amd64 --push --image-name ${imageName}`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+				const details = JSON.parse((await shellExec(`docker manifest inspect --insecure ${imageName}`)).stdout) as ManifestDetail;
+
+				const osSet = new Set(details.manifests.map(manifest => manifest.platform.os));
+				assert.ok(osSet.has('linux'), 'Expected linux OS to be present');
+
+				const archSet = new Set(details.manifests.map(manifest => manifest.platform.architecture));
+				assert.ok(archSet.has('arm64'), 'Expected linux/arm64 architecture to be present');
+				assert.ok(archSet.has('amd64'), 'Expected linux/amd64 architecture to be present');
+
+				const amd64Manifest = details.manifests.find(manifest => manifest.platform.architecture === 'amd64');
+				assert.ok(amd64Manifest, 'Expected linux/amd64 manifest to be present');
+
+				await shellExec(`docker pull ${imageName}@${amd64Manifest.digest}`);
+				const amd64Details = JSON.parse((await shellExec(`docker inspect ${imageName}@${amd64Manifest.digest}`)).stdout)[0] as ImageDetails;
+				assert.strictEqual(amd64Details.Config.Labels?.Architecture, 'amd64');
+				assert.strictEqual(amd64Details.Config.Labels?.TargetPlatform, 'linux/amd64');
+				assert.strictEqual(amd64Details.Config.Labels?.TargetOS, 'linux');
+				assert.strictEqual(amd64Details.Config.Labels?.TargetArch, 'amd64');
+				assert.strictEqual(amd64Details.Config.Labels?.TargetVariant, '');
+
+				const arm64Manifest = details.manifests.find(manifest => manifest.platform.architecture === 'arm64');
+				assert.ok(arm64Manifest, 'Expected linux/arm64 manifest to be present');
+
+				await shellExec(`docker pull ${imageName}@${arm64Manifest.digest}`);
+				const arm64Details = JSON.parse((await shellExec(`docker inspect ${imageName}@${arm64Manifest.digest}`)).stdout)[0] as ImageDetails;
+				assert.strictEqual(arm64Details.Config.Labels?.Architecture, 'arm64');
+				assert.strictEqual(arm64Details.Config.Labels?.TargetPlatform, 'linux/arm64');
+				assert.strictEqual(arm64Details.Config.Labels?.TargetOS, 'linux');
+				assert.strictEqual(arm64Details.Config.Labels?.TargetArch, 'arm64');
+				assert.strictEqual(arm64Details.Config.Labels?.TargetVariant, '');
+
+			} finally {
+				await shellExec(`docker rm -f ${registryName}`);
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
+		});
+		it(`should fail with inconsistent base images`, async () => {
+			const builderName = 'test-container-builder';
+			try {
+				await shellExec(`docker buildx create --name ${builderName} --driver docker-container --use`);
+				const testFolder = `${__dirname}/configs/dockerfile-with-inconsistent-base-image`;
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --log-level trace --platform linux/arm64,linux/amd64`);
+				console.log(res.stdout);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			} catch (error) {
+				assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				const res = JSON.parse(error.stdout);
+				assert.equal(res.outcome, 'error');
+				assert.match(res.message, /Inconsistent base image used for multi-platform builds. Please check your Dockerfile./);
+			} finally {
+				await shellExec(`docker buildx rm ${builderName}`);
+			}
 		});
 	});
 });
