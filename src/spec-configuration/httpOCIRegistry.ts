@@ -66,7 +66,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	// Attempt to authenticate via WWW-Authenticate Header.
 	const wwwAuthenticate = initialAttemptRes.resHeaders['WWW-Authenticate'] || initialAttemptRes.resHeaders['www-authenticate'];
 	if (!wwwAuthenticate) {
-		output.write(`[httpOci] ERR: Server did not provide instructions to authentiate! (Required: A 'WWW-Authenticate' Header)`, LogLevel.Error);
+		output.write(`[httpOci] ERR: Server did not provide instructions to authenticate! (Required: A 'WWW-Authenticate' Header)`, LogLevel.Error);
 		return;
 	}
 
