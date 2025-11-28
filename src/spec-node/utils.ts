@@ -46,7 +46,11 @@ export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMil
 			return await fn();
 		} catch (err) {
 			lastError = err;
-			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			output.write(
+			  `Retrying (Attempt ${i}) with error 
+			  '${toErrorText(String(err && (err.stack || err.message) || err))}'`,
+			  LogLevel.Warning
+			);
 			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
 		}
 	}

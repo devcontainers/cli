@@ -11,11 +11,12 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, retry } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
+import { requestResolveHeaders } from '../spec-utils/httpRequest';
 
 // Escapes environment variable keys.
 //
@@ -154,7 +155,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 				}
 			};
 		}
-		return { featureBuildInfo: getImageBuildOptions(params, config, dstFolder, baseName, imageBuildInfo) };
+		return { featureBuildInfo: await getImageBuildOptions(params, config, dstFolder, baseName, imageBuildInfo) };
 	}
 
 	// Generates the end configuration.
@@ -193,24 +194,25 @@ export interface ImageBuildOptions {
 	securityOpts: string[];
 }
 
-function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
-	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-	return {
-		dstFolder,
-		dockerfileContent: `
+async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
+    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+    const dockerHubAccessible = syntax ? await ensureDockerfileFrontendAccessible(params) : false;
+    return {
+        dstFolder,
+        dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
-		overrideTarget: 'dev_containers_target_stage',
-		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
-	ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+        overrideTarget: 'dev_containers_target_stage',
+        dockerfilePrefixContent: `${dockerHubAccessible && syntax ? `# syntax=${syntax}` : ''}
+    ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
-		buildArgs: {
-			_DEV_CONTAINERS_BASE_IMAGE: baseName,
-		} as Record<string, string>,
-		buildKitContexts: {} as Record<string, string>,
-		securityOpts: [],
-	};
+        buildArgs: {
+            _DEV_CONTAINERS_BASE_IMAGE: baseName,
+        } as Record<string, string>,
+        buildKitContexts: {} as Record<string, string>,
+        securityOpts: [],
+    };
 }
 
 function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEnvFromMetadata?: boolean }): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
@@ -219,6 +221,62 @@ function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEn
 	}
 
 	return [];
+}
+
+async function checkDockerfileFrontendAccessibleOrThrow(params: DockerResolverParameters): Promise<void> {
+  const { output } = params.common;
+
+  const tokenRes = await requestResolveHeaders({
+    type: 'GET',
+    url: 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:docker/dockerfile:pull&tag=1.4',
+    headers: { 'user-agent': 'devcontainer' }
+  }, output);
+  if (!tokenRes || tokenRes.statusCode !== 200) {
+    throw new Error('Token fetch failed: status ' + (tokenRes?.statusCode ?? 'unknown'));
+  }
+
+  let body: any;
+  try {
+    body = JSON.parse(tokenRes.resBody.toString());
+  } catch (e) {
+    throw new Error('Token parse failed: ' + (e instanceof Error ? e.message : String(e)));
+  }
+  const token: string | undefined = body?.token || body?.access_token;
+  if (!token) {
+    throw new Error('Token missing in auth response');
+  }
+
+  const manifestRes = await requestResolveHeaders({
+    type: 'GET',
+    url: 'https://registry-1.docker.io/v2/docker/dockerfile/manifests/1.4',
+    headers: {
+      'user-agent': 'devcontainer',
+      'authorization': `Bearer ${token}`,
+      'accept': 'application/vnd.docker.distribution.manifest.v2+json'
+    }
+  }, output);
+  if (!manifestRes || manifestRes.statusCode !== 200) {
+    throw new Error('Manifest fetch failed: status ' + (manifestRes?.statusCode ?? 'unknown'));
+  }
+}
+
+async function ensureDockerfileFrontendAccessible(params: DockerResolverParameters): Promise<boolean> {
+  const { output } = params.common;
+  try {
+    await retry(
+      async () => { await checkDockerfileFrontendAccessibleOrThrow(params); },
+      { maxRetries: 5, retryIntervalMilliseconds: 2000, output }
+    );
+	output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
+    return true;
+  } catch (err) {
+    output.write(
+      'Dockerfile frontend check failed after retries: ' +
+      (err instanceof Error ? err.message : String(err)),
+      LogLevel.Warning
+    );
+    return false;
+  }
 }
 
 async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
@@ -262,11 +320,12 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
 		;
-	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-	const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-	const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
-		useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
-		syntax ? `# syntax=${syntax}` : ''}
+    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+    const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
+    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerfileFrontendAccessible(params) : false;
+    const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
+        useBuildKitBuildContexts && dockerHubAccessible && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
+        syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
