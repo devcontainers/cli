@@ -11,20 +11,11 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, retry } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, ensureDockerfileFrontendAccessible } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
-import { requestResolveHeaders } from '../spec-utils/httpRequest';
-
-// Constants for DockerHub registry + Dockerfile v1.4 image access check
-const DOCKERHUB_AUTH_URL = 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:docker/dockerfile:pull&tag=1.4';
-const DOCKERHUB_REGISTRY_URL = 'https://registry-1.docker.io/v2/docker/dockerfile/manifests/1.4';
-const DEVCONTAINER_USER_AGENT = 'devcontainer';
-const DOCKER_MANIFEST_ACCEPT_HEADER = 'application/vnd.docker.distribution.manifest.v2+json';
-const DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES = 5;
-const DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS = 2000;
 
 // Escapes environment variable keys.
 //
@@ -204,7 +195,7 @@ export interface ImageBuildOptions {
 
 async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-    const dockerHubAccessible = syntax ? await ensureDockerfileFrontendAccessible(params) : false;
+    const dockerHubAccessible = syntax ? await ensureDockerfileFrontendAccessible(params, 'docker/dockerfile', '1.4') : false;
     return {
         dstFolder,
         dockerfileContent: `
@@ -229,62 +220,6 @@ function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEn
 	}
 
 	return [];
-}
-
-async function checkDockerfileFrontendAccessible(params: DockerResolverParameters): Promise<void> {
-  const { output } = params.common;
-
-  const tokenRes = await requestResolveHeaders({
-    type: 'GET',
-    url: DOCKERHUB_AUTH_URL,
-    headers: { 'user-agent': DEVCONTAINER_USER_AGENT }
-  }, output);
-  if (!tokenRes || tokenRes.statusCode !== 200) {
-    throw new Error('Token fetch failed: status ' + (tokenRes?.statusCode ?? 'unknown'));
-  }
-
-  let body: any;
-  try {
-    body = JSON.parse(tokenRes.resBody.toString());
-  } catch (e) {
-    throw new Error('Token parse failed: ' + (e instanceof Error ? e.message : String(e)));
-  }
-  const token: string | undefined = body?.token || body?.access_token;
-  if (!token) {
-    throw new Error('Token missing in auth response');
-  }
-
-  const manifestRes = await requestResolveHeaders({
-    type: 'GET',
-    url: DOCKERHUB_REGISTRY_URL,
-    headers: {
-      'user-agent': DEVCONTAINER_USER_AGENT,
-      'authorization': `Bearer ${token}`,
-      'accept': DOCKER_MANIFEST_ACCEPT_HEADER
-    }
-  }, output);
-  if (!manifestRes || manifestRes.statusCode !== 200) {
-    throw new Error('Manifest fetch failed: status ' + (manifestRes?.statusCode ?? 'unknown'));
-  }
-}
-
-async function ensureDockerfileFrontendAccessible(params: DockerResolverParameters): Promise<boolean> {
-  const { output } = params.common;
-  try {
-    await retry(
-      async () => { await checkDockerfileFrontendAccessible(params); },
-      { maxRetries: DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES, retryIntervalMilliseconds: DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS, output }
-    );
-    output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
-    return true;
-  } catch (err) {
-    output.write(
-      'Dockerfile frontend check failed after retries: ' +
-      (err instanceof Error ? err.message : String(err)),
-      LogLevel.Warning
-    );
-    return false;
-  }
 }
 
 async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
@@ -330,7 +265,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		;
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
     const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerfileFrontendAccessible(params) : false;
+    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerfileFrontendAccessible(params, 'docker/dockerfile', '1.4') : false;
     const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
         useBuildKitBuildContexts && dockerHubAccessible && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
         syntax ? `# syntax=${syntax}` : ''}
