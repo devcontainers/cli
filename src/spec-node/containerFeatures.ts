@@ -18,7 +18,7 @@ import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 import { requestResolveHeaders } from '../spec-utils/httpRequest';
 
-// Constants for DockerHub registry access check
+// Constants for DockerHub registry + Dockerfile v1.4 image access check
 const DOCKERHUB_AUTH_URL = 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:docker/dockerfile:pull&tag=1.4';
 const DOCKERHUB_REGISTRY_URL = 'https://registry-1.docker.io/v2/docker/dockerfile/manifests/1.4';
 const DEVCONTAINER_USER_AGENT = 'devcontainer';
