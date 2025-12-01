@@ -18,6 +18,14 @@ import { supportsBuildContexts } from './dockerfileUtils';
 import { ContainerError } from '../spec-common/errors';
 import { requestResolveHeaders } from '../spec-utils/httpRequest';
 
+// Constants for DockerHub registry access check
+const DOCKERHUB_AUTH_URL = 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:docker/dockerfile:pull&tag=1.4';
+const DOCKERHUB_REGISTRY_URL = 'https://registry-1.docker.io/v2/docker/dockerfile/manifests/1.4';
+const DEVCONTAINER_USER_AGENT = 'devcontainer';
+const DOCKER_MANIFEST_ACCEPT_HEADER = 'application/vnd.docker.distribution.manifest.v2+json';
+const DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES = 5;
+const DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS = 2000;
+
 // Escapes environment variable keys.
 //
 // Environment variables must contain:
@@ -223,13 +231,13 @@ function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEn
 	return [];
 }
 
-async function checkDockerfileFrontendAccessibleOrThrow(params: DockerResolverParameters): Promise<void> {
+async function checkDockerfileFrontendAccessible(params: DockerResolverParameters): Promise<void> {
   const { output } = params.common;
 
   const tokenRes = await requestResolveHeaders({
     type: 'GET',
-    url: 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:docker/dockerfile:pull&tag=1.4',
-    headers: { 'user-agent': 'devcontainer' }
+    url: DOCKERHUB_AUTH_URL,
+    headers: { 'user-agent': DEVCONTAINER_USER_AGENT }
   }, output);
   if (!tokenRes || tokenRes.statusCode !== 200) {
     throw new Error('Token fetch failed: status ' + (tokenRes?.statusCode ?? 'unknown'));
@@ -248,11 +256,11 @@ async function checkDockerfileFrontendAccessibleOrThrow(params: DockerResolverPa
 
   const manifestRes = await requestResolveHeaders({
     type: 'GET',
-    url: 'https://registry-1.docker.io/v2/docker/dockerfile/manifests/1.4',
+    url: DOCKERHUB_REGISTRY_URL,
     headers: {
-      'user-agent': 'devcontainer',
+      'user-agent': DEVCONTAINER_USER_AGENT,
       'authorization': `Bearer ${token}`,
-      'accept': 'application/vnd.docker.distribution.manifest.v2+json'
+      'accept': DOCKER_MANIFEST_ACCEPT_HEADER
     }
   }, output);
   if (!manifestRes || manifestRes.statusCode !== 200) {
@@ -264,10 +272,10 @@ async function ensureDockerfileFrontendAccessible(params: DockerResolverParamete
   const { output } = params.common;
   try {
     await retry(
-      async () => { await checkDockerfileFrontendAccessibleOrThrow(params); },
-      { maxRetries: 5, retryIntervalMilliseconds: 2000, output }
+      async () => { await checkDockerfileFrontendAccessible(params); },
+      { maxRetries: DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES, retryIntervalMilliseconds: DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS, output }
     );
-	output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
+    output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
     return true;
   } catch (err) {
     output.write(
