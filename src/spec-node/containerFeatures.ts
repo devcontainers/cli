@@ -11,7 +11,7 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, ensureDockerfileFrontendAccessible } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, ensureDockerHubImageAccessible } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
@@ -195,7 +195,7 @@ export interface ImageBuildOptions {
 
 async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-    const dockerHubAccessible = syntax ? await ensureDockerfileFrontendAccessible(params, 'docker/dockerfile', '1.4') : false;
+    const dockerHubAccessible = syntax ? await ensureDockerHubImageAccessible(params, 'docker/dockerfile', '1.4') : false;
     return {
         dstFolder,
         dockerfileContent: `
@@ -265,7 +265,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		;
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
     const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerfileFrontendAccessible(params, 'docker/dockerfile', '1.4') : false;
+    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerHubImageAccessible(params, 'docker/dockerfile', '1.4') : false;
     const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
         useBuildKitBuildContexts && dockerHubAccessible && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
         syntax ? `# syntax=${syntax}` : ''}

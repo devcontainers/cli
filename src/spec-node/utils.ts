@@ -619,7 +619,7 @@ function getDockerHubRegistryUrl(imageName: string, version: string): string {
   return `https://registry-1.docker.io/v2/${imageName}/manifests/${version}`;
 }
 
-async function checkDockerfileFrontendAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<void> {
+async function checkDockerHubImageAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<void> {
   const { output } = params.common;
   
   const authUrl = getDockerHubAuthUrl(imageName, version);
@@ -659,11 +659,11 @@ async function checkDockerfileFrontendAccessible(params: DockerResolverParameter
   }
 }
 
-export async function ensureDockerfileFrontendAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<boolean> {
+export async function ensureDockerHubImageAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<boolean> {
   const { output } = params.common;
   try {
     await retry(
-      async () => { await checkDockerfileFrontendAccessible(params, imageName, version); },
+      async () => { await checkDockerHubImageAccessible(params, imageName, version); },
       { maxRetries: DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES, retryIntervalMilliseconds: DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS, output }
     );
     output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
