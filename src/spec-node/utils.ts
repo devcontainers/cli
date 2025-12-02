@@ -28,7 +28,7 @@ import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
-
+import { requestResolveHeaders } from '../spec-utils/httpRequest';
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 
@@ -36,6 +36,12 @@ export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommo
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
 
 export type GPUAvailability = 'all' | 'detect' | 'none';
+
+// Constants for DockerHub registry + image access check
+const DEVCONTAINER_USER_AGENT = 'devcontainer';
+const DOCKER_MANIFEST_ACCEPT_HEADER = 'application/vnd.docker.distribution.manifest.v2+json';
+const DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES = 5;
+const DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS = 2000;
 
 // Generic retry function
 export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
@@ -46,7 +52,11 @@ export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMil
 			return await fn();
 		} catch (err) {
 			lastError = err;
-			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			output.write(
+			  `Retrying (Attempt ${i}) with error 
+			  '${toErrorText(String(err && (err.stack || err.message) || err))}'`,
+			  LogLevel.Warning
+			);
 			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
 		}
 	}
@@ -598,4 +608,72 @@ export function runAsyncHandler(handler: () => Promise<void>) {
 			process.exit(1);
 		}
 	})();
+}
+
+// Helper functions to construct DockerHub URLs
+function getDockerHubAuthUrl(imageName: string, version: string): string {
+  return `https://auth.docker.io/token?service=registry.docker.io&scope=repository:${imageName}:pull&tag=${version}`;
+}
+
+function getDockerHubRegistryUrl(imageName: string, version: string): string {
+  return `https://registry-1.docker.io/v2/${imageName}/manifests/${version}`;
+}
+
+async function checkDockerHubImageAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<void> {
+  const { output } = params.common;
+  
+  const authUrl = getDockerHubAuthUrl(imageName, version);
+  const registryUrl = getDockerHubRegistryUrl(imageName, version);
+
+  const tokenRes = await requestResolveHeaders({
+    type: 'GET',
+    url: authUrl,
+    headers: { 'user-agent': DEVCONTAINER_USER_AGENT }
+  }, output);
+  if (!tokenRes || tokenRes.statusCode !== 200) {
+    throw new Error('Token fetch failed: status ' + (tokenRes?.statusCode ?? 'unknown'));
+  }
+
+  let body: any;
+  try {
+    body = JSON.parse(tokenRes.resBody.toString());
+  } catch (e) {
+    throw new Error('Token parse failed: ' + (e instanceof Error ? e.message : String(e)));
+  }
+  const token: string | undefined = body?.token || body?.access_token;
+  if (!token) {
+    throw new Error('Token missing in auth response');
+  }
+
+  const manifestRes = await requestResolveHeaders({
+    type: 'GET',
+    url: registryUrl,
+    headers: {
+      'user-agent': DEVCONTAINER_USER_AGENT,
+      'authorization': `Bearer ${token}`,
+      'accept': DOCKER_MANIFEST_ACCEPT_HEADER
+    }
+  }, output);
+  if (!manifestRes || manifestRes.statusCode !== 200) {
+    throw new Error('Manifest fetch failed: status ' + (manifestRes?.statusCode ?? 'unknown'));
+  }
+}
+
+export async function ensureDockerHubImageAccessible(params: DockerResolverParameters, imageName: string, version: string): Promise<boolean> {
+  const { output } = params.common;
+  try {
+    await retry(
+      async () => { await checkDockerHubImageAccessible(params, imageName, version); },
+      { maxRetries: DOCKERFILE_FRONTEND_CHECK_MAX_RETRIES, retryIntervalMilliseconds: DOCKERFILE_FRONTEND_CHECK_RETRY_INTERVAL_MS, output }
+    );
+    output.write('Dockerfile frontend is accessible in DockerHub registry.', LogLevel.Info);
+    return true;
+  } catch (err) {
+    output.write(
+      'Dockerfile frontend check failed after retries: ' +
+      (err instanceof Error ? err.message : String(err)),
+      LogLevel.Warning
+    );
+    return false;
+  }
 }
