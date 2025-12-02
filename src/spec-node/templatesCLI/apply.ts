@@ -11,7 +11,7 @@ import path from 'path';
 export function templateApplyOptions(y: Argv) {
 	return y
 		.options({
-			'workspace-folder': { type: 'string', alias: 'w', default: '.', description: 'Target workspace folder to apply Template' },
+			'workspace-folder': { type: 'string', alias: 'w', description: 'Target workspace folder to apply Template. If --workspace-folder is not provided, this defaults to the current directory' },
 			'template-id': { type: 'string', alias: 't', demandOption: true, description: 'Reference to a Template in a supported OCI registry' },
 			'template-args': { type: 'string', alias: 'a', default: '{}', description: 'Arguments to replace within the provided Template, provided as JSON' },
 			'features': { type: 'string', alias: 'f', default: '[]', description: 'Features to add to the provided Template, provided as JSON.' },

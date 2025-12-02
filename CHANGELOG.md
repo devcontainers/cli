@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## December 2025
+
+### [0.81.0]
+- devcontainer commands now use current directory as default workspace folder when not specified (https://github.com/devcontainers/cli/pull/1104)
+
 ## November 2025
 
 ### [0.80.2]

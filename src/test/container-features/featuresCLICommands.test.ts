@@ -1,14 +1,14 @@
 import { assert } from 'chai';
 import path from 'path';
+import { existsSync } from 'fs';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
 import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
 import { generateFeaturesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
+import pkg from '../../../package.json';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
-
-const pkg = require('../../../package.json');
 
 describe('CLI features subcommands', async function () {
 	this.timeout('240s');
@@ -441,8 +441,8 @@ describe('CLI features subcommands', async function () {
 				const absoluteCliPath = `npx --prefix ${absoluteTmpPath} devcontainer`;
 
 				// First check if the config file exists
-				const configExists = require('fs').existsSync('.devcontainer/devcontainer.json') ||
-					require('fs').existsSync('.devcontainer.json');
+				const configExists = existsSync('.devcontainer/devcontainer.json') ||
+					existsSync('.devcontainer.json');
 				assert.isTrue(configExists, 'Test config file should exist');
 
 				let result;
