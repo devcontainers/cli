@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { devContainerDown, devContainerUp, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -68,6 +69,59 @@ describe('Dev Containers CLI', function () {
 
 			await shellExec(`docker rm -f ${upResponse.containerId}`);
 		});
+
+		it('run-user-commands should run with default workspace folder (current directory)', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+			// First, ensure container is up
+			const upRes = await shellExec(`${cli} up --workspace-folder ${testFolder} --skip-post-create`);
+			const upResponse = JSON.parse(upRes.stdout);
+			assert.strictEqual(upResponse.outcome, 'success');
+			const containerId = upResponse.containerId;
+
+			const originalCwd = process.cwd();
+			try {
+				// Change to workspace folder
+				process.chdir(testFolder);
+
+				// Run user commands without --workspace-folder should use current directory as default
+				const runRes = await shellExec(`${absoluteCli} run-user-commands`);
+				const runResponse = JSON.parse(runRes.stdout);
+				assert.strictEqual(runResponse.outcome, 'success');
+
+				// Verify that the postCreateCommand was executed
+				await shellExec(`docker exec ${containerId} test -f /postCreateCommand.txt`);
+			} finally {
+				// Restore original directory
+				process.chdir(originalCwd);
+				// Clean up container
+				await shellExec(`docker rm -f ${containerId}`);
+			}
+		});
+
+		it('run-user-commands should fail gracefully when no config in current directory and no container-id', async () => {
+			const tempDir = path.join(os.tmpdir(), 'devcontainer-run-test-' + Date.now());
+			await shellExec(`mkdir -p ${tempDir}`);
+			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(tempDir);
+				let success = false;
+				try {
+					await shellExec(`${absoluteCli} run-user-commands`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			} finally {
+				process.chdir(originalCwd);
+				await shellExec(`rm -rf ${tempDir}`);
+			}
+		});
 	});
 
 	describe('Command read-configuration', () => {
@@ -123,6 +177,43 @@ describe('Dev Containers CLI', function () {
 			const res = await shellExec(`${cli} read-configuration --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
 			const response = JSON.parse(res.stdout);
 			assert.strictEqual(response.configuration.remoteEnv.SUBFOLDER_CONFIG_REMOTE_ENV, 'true');
+		});
+
+		it('should use current directory for read-configuration when no workspace-folder provided', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(testFolder);
+				const res = await shellExec(`${absoluteCli} read-configuration`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.configuration.image, 'ubuntu:latest');
+			} finally {
+				process.chdir(originalCwd);
+			}
+		});
+
+		it('should fail gracefully when no workspace-folder and no config in current directory', async () => {
+			const tempDir = path.join(os.tmpdir(), 'devcontainer-test-' + Date.now());
+			await shellExec(`mkdir -p ${tempDir}`);
+			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(tempDir);
+				let success = false;
+				try {
+					await shellExec(`${absoluteCli} read-configuration`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			} finally {
+				process.chdir(originalCwd);
+				await shellExec(`rm -rf ${tempDir}`);
+			}
 		});
 	});
 });

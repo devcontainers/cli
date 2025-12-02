@@ -62,6 +62,60 @@ describe('tests apply command', async function () {
 		// Assert that the Feature included in the command was added.
 		assert.match(file, /"ghcr.io\/devcontainers\/features\/azure-cli:1": {\n/);
 	});
+
+	it('templates apply subcommand with default workspace folder', async function () {
+		const testOutputPath = path.resolve(__dirname, 'tmp-default-workspace');
+		const originalCwd = process.cwd();
+
+		try {
+			// Create and change to test output directory to test default workspace folder behavior
+			await shellExec(`rm -rf ${testOutputPath}`);
+			await shellExec(`mkdir -p ${testOutputPath}`);
+			process.chdir(testOutputPath);
+
+			// Use absolute path to CLI to prevent npm ENOENT errors
+			const absoluteTmpPath = path.resolve(originalCwd, tmp);
+			const absoluteCliPath = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+			let success = false;
+			let result: ExecResult | undefined = undefined;
+
+			try {
+				// Run without --workspace-folder to test default behavior
+				result = await shellExec(`${absoluteCliPath} templates apply \
+				--template-id     ghcr.io/devcontainers/templates/docker-from-docker:latest \
+				--template-args   '{ "installZsh": "false", "upgradePackages": "true", "dockerVersion": "20.10", "moby": "true", "enableNonRootDocker": "true" }' \
+				--log-level trace`);
+				success = true;
+
+			} catch (error) {
+				assert.fail('templates apply sub-command should not throw when using default workspace folder');
+			}
+
+			assert.isTrue(success);
+			assert.isDefined(result);
+			assert.strictEqual(result.stdout.trim(), '{"files":["./.devcontainer/devcontainer.json"]}');
+
+			// Verify the file was created in the current working directory (default workspace folder)
+			const file = (await readLocalFile(path.join(testOutputPath, '.devcontainer', 'devcontainer.json'))).toString();
+
+			assert.match(file, /"name": "Docker from Docker"/);
+			assert.match(file, /"installZsh": "false"/);
+			assert.match(file, /"upgradePackages": "true"/);
+			assert.match(file, /"version": "20.10"/);
+			assert.match(file, /"moby": "true"/);
+			assert.match(file, /"enableNonRootDocker": "true"/);
+
+			// Assert that the Features included in the template were not removed.
+			assert.match(file, /"ghcr.io\/devcontainers\/features\/common-utils:1": {\n/);
+			assert.match(file, /"ghcr.io\/devcontainers\/features\/docker-from-docker:1": {\n/);
+
+		} finally {
+			process.chdir(originalCwd);
+			// Clean up test directory
+			await shellExec(`rm -rf ${testOutputPath}`);
+		}
+	});
 });
 
 describe('tests packageTemplates()', async function () {

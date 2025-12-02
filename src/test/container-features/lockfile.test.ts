@@ -258,4 +258,44 @@ describe('Lockfile', function () {
 			await cleanup();
 		}
 	});
+
+	it('outdated command should work with default workspace folder', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-outdated-command');
+		const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+		const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+		const originalCwd = process.cwd();
+		try {
+			process.chdir(workspaceFolder);
+			const res = await shellExec(`${absoluteCli} outdated --output-format json`);
+			const response = JSON.parse(res.stdout);
+
+			// Should have same structure as the test with explicit workspace-folder
+			assert.ok(response.features);
+			assert.ok(response.features['ghcr.io/devcontainers/features/git:1.0']);
+			assert.strictEqual(response.features['ghcr.io/devcontainers/features/git:1.0'].current, '1.0.4');
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
+
+	it('upgrade command should work with default workspace folder', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-upgrade-command');
+		const absoluteTmpPath = path.resolve(__dirname, 'tmp');
+		const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await cpLocal(path.join(workspaceFolder, 'outdated.devcontainer-lock.json'), lockfilePath);
+
+		const originalCwd = process.cwd();
+		try {
+			process.chdir(workspaceFolder);
+			await shellExec(`${absoluteCli} upgrade`);
+			const actual = await readLocalFile(lockfilePath);
+			const expected = await readLocalFile(path.join(workspaceFolder, 'upgraded.devcontainer-lock.json'));
+			assert.equal(actual.toString(), expected.toString());
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
 });

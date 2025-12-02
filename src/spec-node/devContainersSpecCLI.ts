@@ -103,7 +103,7 @@ function provisionOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --id-label, --override-config, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'workspace-mount-consistency': { choices: ['consistent' as 'consistent', 'cached' as 'cached', 'delegated' as 'delegated'], default: 'cached' as 'cached', description: 'Workspace mount consistency.' },
 		'gpu-availability': { choices: ['all' as 'all', 'detect' as 'detect', 'none' as 'none'], default: 'detect' as 'detect', description: 'Availability of GPUs in case the dev container requires any. `all` expects a GPU to be available.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
@@ -148,11 +148,9 @@ function provisionOptions(y: Argv) {
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
+			// Default workspace-folder to current directory if not provided and no id-label or override-config
+			if (!argv['workspace-folder'] && !argv['id-label'] && !argv['override-config']) {
+				argv['workspace-folder'] = process.cwd();
 			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
@@ -507,7 +505,7 @@ function buildOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If not provided, defaults to the current directory.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
@@ -574,7 +572,7 @@ async function doBuild({
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -752,7 +750,7 @@ function runUserCommandsOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path.The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -785,7 +783,7 @@ function runUserCommandsOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
@@ -954,7 +952,7 @@ function readConfigurationOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -975,7 +973,7 @@ function readConfigurationOptions(y: Argv) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
@@ -1107,7 +1105,7 @@ async function readConfiguration({
 function outdatedOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --workspace-folder is not provided, defaults to the current directory.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
@@ -1139,7 +1137,7 @@ async function outdated({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
@@ -1209,7 +1207,7 @@ function execOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
@@ -1243,7 +1241,7 @@ function execOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
