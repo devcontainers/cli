@@ -14,7 +14,7 @@ const pkg = require('../../package.json');
 describe('Dev Containers CLI', function () {
 	this.timeout('240s');
 
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
+	const tmp = path.join(__dirname, 'tmp');
 	const cli = `npx --prefix ${tmp} devcontainer`;
 
 
@@ -67,6 +67,15 @@ describe('Dev Containers CLI', function () {
 				assert.match(res.message, /Dev container config \(.*\) not found./);
 			}
 			assert.equal(success, false, 'expect non-successful call');
+		});
+
+		it('should succeed when run without a workspace-folder in a workspace root', async () => {
+			const res = await shellExec(`${cli} up`, { cwd: `${__dirname}/configs/image-with-features` });
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			await shellExec(`docker rm -f ${containerId}`);
 		});
 
 		// docker-compose variations _without_ features are here (under 'up' tests)
@@ -283,7 +292,7 @@ describe('Dev Containers CLI', function () {
 			assert.equal('Hello, World!', evalEnvWithCommand.stdout);
 
 			const envWithTestMessage = await shellExec(`docker exec ${containerId} bash -c 'echo -n $Test_Message'`);
-			assert.equal('H"\\n\\ne"\'\'\'llo M:;a/t?h&^iKa%#@!``ni,sk_a-', envWithTestMessage.stdout);			
+			assert.equal('H"\\n\\ne"\'\'\'llo M:;a/t?h&^iKa%#@!``ni,sk_a-', envWithTestMessage.stdout);
 
 			const envWithFormat = await shellExec(`docker exec ${containerId} bash -c 'echo -n $ROSCONSOLE_FORMAT'`);
 			assert.equal('[$${severity}] [$${walltime:%Y-%m-%d %H:%M:%S}] [$${node}]: $${message}', envWithFormat.stdout);
@@ -295,10 +304,10 @@ describe('Dev Containers CLI', function () {
 			assert.equal('value with $dollar sign', envWithDollar.stdout);
 
 			const envWithBackSlash = await shellExec(`docker exec ${containerId} bash -c 'echo -n $VAR_WITH_BACK_SLASH'`);
-			assert.equal('value with \\back slash', envWithBackSlash.stdout);	
+			assert.equal('value with \\back slash', envWithBackSlash.stdout);
 
 			await shellExec(`docker rm -f ${containerId}`);
-		});		
+		});
 
 		it('should run with config in subfolder', async () => {
 			const upRes = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
