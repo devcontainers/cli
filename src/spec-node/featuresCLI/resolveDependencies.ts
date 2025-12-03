@@ -30,7 +30,7 @@ export function featuresResolveDependenciesOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'error' as 'error', description: 'Log level.' },
-			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration.', demandOption: true },
+			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration.' },
 		});
 }
 
@@ -41,7 +41,7 @@ export function featuresResolveDependenciesHandler(args: featuresResolveDependen
 }
 
 async function featuresResolveDependencies({
-	'workspace-folder': workspaceFolder,
+	'workspace-folder': workspaceFolderArg,
 	'log-level': inputLogLevel,
 }: featuresResolveDependenciesArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -61,6 +61,9 @@ async function featuresResolveDependencies({
 	// const params = { output, env: process.env, outputFormat };
 
 	let jsonOutput: JsonOutput = {};
+
+		// Use cwd as workspaceFolder when not provided
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 
 	// Detect path to dev container config
 	let configPath = path.join(workspaceFolder, '.devcontainer.json');
