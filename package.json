@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.80.2",
+	"version": "0.80.3",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
