@@ -259,6 +259,24 @@ export async function dockerBuildKitVersion(params: DockerCLIParameters | Partia
 	}
 }
 
+export async function dockerEngineVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<{ versionString: string; versionMatch?: string } | undefined> {
+    try {
+        const execParams = {
+            ...toExecParameters(params),
+            print: true,
+        };
+        const result = await dockerCLI(execParams, 'version', '--format', '{{.Server.Version}}');
+        const versionString = result.stdout.toString().trim();
+        const versionMatch = versionString.match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
+        if (!versionMatch) {
+            return { versionString };
+        }
+        return { versionString, versionMatch: versionMatch[0] };
+    } catch {
+        return undefined;
+    }
+}
+
 export async function dockerCLI(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, ...args: string[]) {
 	const partial = toExecParameters(params);
 	return runCommandNoPty({

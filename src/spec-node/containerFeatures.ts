@@ -11,7 +11,7 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, ensureDockerHubImageAccessible } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
@@ -195,7 +195,6 @@ export interface ImageBuildOptions {
 
 async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-    const dockerHubAccessible = syntax ? await ensureDockerHubImageAccessible(params, 'docker/dockerfile', '1.4') : false;
     return {
         dstFolder,
         dockerfileContent: `
@@ -203,7 +202,7 @@ FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
         overrideTarget: 'dev_containers_target_stage',
-        dockerfilePrefixContent: `${dockerHubAccessible && syntax ? `# syntax=${syntax}` : ''}
+        dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
     ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
         buildArgs: {
@@ -242,7 +241,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
-
+    // Access Docker engine version
+    const dockerEngineVersionParsed = params.dockerEngineVersion?.versionMatch ? parseVersion(params.dockerEngineVersion.versionMatch) : undefined;
+    const minDockerEngineVersion = [23, 0, 0];
+    const skipDefaultSyntax = dockerEngineVersionParsed ? !isEarlierVersion(dockerEngineVersionParsed, minDockerEngineVersion) : false;
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
 	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
@@ -265,9 +267,9 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		;
     const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
     const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-    const dockerHubAccessible = !omitSyntaxDirective ? await ensureDockerHubImageAccessible(params, 'docker/dockerfile', '1.4') : false;
     const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
-        useBuildKitBuildContexts && dockerHubAccessible && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
+        skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
+        useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
         syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
