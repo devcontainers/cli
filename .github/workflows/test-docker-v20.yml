@@ -8,8 +8,8 @@ on:
 
 jobs:
   test-docker-v20:
-    name: Docker v20.10.24 Compatibility
-    runs-on: ubuntu-latest
+    name: Docker v20.10 Compatibility
+    runs-on: ubuntu-22.04
     
     steps:
     - uses: actions/checkout@v6
@@ -18,11 +18,22 @@ jobs:
       with:
         node-version: '18.x'
     
-    - name: Install Docker v20.10.24
+    - name: Install Docker v20.10
       run: |
         sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sudo VERSION=20.10.24 sh get-docker.sh
+        sudo apt-get update
+        sudo apt-get install -y \
+          ca-certificates \
+          curl \
+          gnupg \
+          lsb-release
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io
         sudo systemctl restart docker
     
     - name: Verify Docker version, Install and Test
@@ -30,8 +41,8 @@ jobs:
         # Verify
         docker version
         DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
-        if [[ ! "$DOCKER_VERSION" =~ ^20\. ]]; then
-          echo "ERROR: Expected Docker v20.x but got $DOCKER_VERSION"
+        if [[ ! "$DOCKER_VERSION" =~ ^20\.10\. ]]; then
+          echo "ERROR: Expected Docker v20.10.x but got $DOCKER_VERSION"
           exit 1
         fi      
         yarn install --frozen-lockfile
@@ -40,5 +51,3 @@ jobs:
         yarn test-matrix --forbid-only src/test/cli.up.test.ts
       env:
         CI: true
-
-
