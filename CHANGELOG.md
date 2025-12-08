@@ -5,7 +5,7 @@ Notable changes.
 ## December 2025
 
 ### [0.80.3]
-- Fix: Adding precautionary check for DockerHub registry availability during container startup. In failure scenarios, skip syntax injection of `dockerfile:1.4`. (Note: dockerfile >=1.4 is default for Docker Engine versions [>=23.0.0](https://docs.docker.com/engine/release-notes/23.0/#2300)). (https://github.com/devcontainers/cli/pull/1113)
+- Fix: Skip download and injection of `dockerfile:1.4` syntax for Docker Engine versions [>=23.0.0](https://docs.docker.com/engine/release-notes/23.0/#2300)) - `dockerfile:1.4` or a subsequent version is already used by the docker engine package. (https://github.com/devcontainers/cli/pull/1113)
 
 ## November 2025
 
