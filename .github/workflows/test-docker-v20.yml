@@ -1,0 +1,53 @@
+name: Docker v20 Tests for dockerfile frontend test
+
+on:
+  push:
+    branches: ['main', 'directive-syntax-further-changes']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  test-docker-v20:
+    name: Docker v20.10 Compatibility
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - uses: actions/checkout@v6
+    
+    - uses: actions/setup-node@v5
+      with:
+        node-version: '18.x'
+    
+    - name: Install Docker v20.10
+      run: |
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
+        sudo apt-get update
+        sudo apt-get install -y \
+          ca-certificates \
+          curl \
+          gnupg \
+          lsb-release
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io
+        sudo systemctl restart docker
+    
+    - name: Verify Docker version, Install and Test
+      run: |
+        # Verify
+        docker version
+        DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
+        if [[ ! "$DOCKER_VERSION" =~ ^20\.10\. ]]; then
+          echo "ERROR: Expected Docker v20.10.x but got $DOCKER_VERSION"
+          exit 1
+        fi      
+        yarn install --frozen-lockfile
+        yarn type-check
+        yarn package
+        yarn test-matrix --forbid-only src/test/cli.up.test.ts
+      env:
+        CI: true
