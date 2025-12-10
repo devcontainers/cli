@@ -39,7 +39,7 @@ export interface ExecResult {
     stderr: string;
 }
 
-export function shellExec(command: string, options: cp.ExecOptions = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
+export function shellExec(command: string, options: cp.ExecOptionsWithStringEncoding = {}, suppressOutput: boolean = false, doNotThrow: boolean = false): Promise<ExecResult> {
     return new Promise<ExecResult>((resolve, reject) => {
         cp.exec(command, options, (error, stdout, stderr) => {
             if (!suppressOutput) {

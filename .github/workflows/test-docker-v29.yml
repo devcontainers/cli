@@ -1,0 +1,43 @@
+name: Docker v29 Tests
+
+on:
+  push:
+    branches: ['main', 'docker-v29-issue-old']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  test-docker-v29:
+    name: Docker v29.0.0 Compatibility
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v6
+    
+    - uses: actions/setup-node@v5
+      with:
+        node-version: '18.x'
+    
+    - name: Install Docker v29.0.0
+      run: |
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo VERSION=29.0.0 sh get-docker.sh
+        sudo systemctl restart docker
+    
+    - name: Verify Docker version, Install and Test
+      run: |
+        # Verify
+        docker version
+        DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
+        if [[ ! "$DOCKER_VERSION" =~ ^29\. ]]; then
+          echo "ERROR: Expected Docker v29.x but got $DOCKER_VERSION"
+          exit 1
+        fi      
+        yarn install --frozen-lockfile
+        yarn type-check
+        yarn package
+        yarn test-matrix --forbid-only src/test/cli.up.test.ts
+      env:
+        CI: true
+

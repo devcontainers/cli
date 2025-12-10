@@ -28,7 +28,6 @@ import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
-
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 
@@ -46,7 +45,11 @@ export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMil
 			return await fn();
 		} catch (err) {
 			lastError = err;
-			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			output.write(
+			  `Retrying (Attempt ${i}) with error 
+			  '${toErrorText(String(err && (err.stack || err.message) || err))}'`,
+			  LogLevel.Warning
+			);
 			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
 		}
 	}
@@ -114,6 +117,7 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
+	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
@@ -178,8 +182,8 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 						if (line.trim()) {
 							try {
 								const info = JSON.parse(line);
-								// Docker uses 'status', Podman 'Status'.
-								if ((info.status || info.Status) === 'start' && await hasLabels(params, info, labels)) {
+								// Docker uses 'status', Podman 'Status'. Docker v29.0.0 onwards use 'Action' as 'status' is deprecated. 
+								if ((info.status || info.Status || info.Action) === 'start' && await hasLabels(params, info, labels)) {
 									eventsProcess.terminate();
 									resolve();
 								}
