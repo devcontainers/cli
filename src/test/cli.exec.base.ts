@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { BuildKitOption, commandMarkerTests, devContainerDown, devContainerStop, devContainerUp, pathExists, shellBufferExec, shellExec, shellPtyExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -405,6 +406,57 @@ export function describeTests2({ text, options }: BuildKitOption) {
 				assert.strictEqual(execRes.stdout.trim(), 'true');
 
 				await shellExec(`docker rm -f ${response.containerId}`);
+			});
+
+			describe('Command exec with default workspace', () => {
+				describe('with valid config in current directory', () => {
+					let containerId: string | null = null;
+					const testFolder = `${__dirname}/configs/image`;
+					
+					beforeEach(async () => {
+						const originalCwd = process.cwd();
+						try {
+							process.chdir(testFolder);
+							containerId = (await devContainerUp(cli, '.')).containerId;
+						} finally {
+							process.chdir(originalCwd);
+						}
+					});
+					
+					afterEach(async () => await devContainerDown({ containerId }));
+					
+					it('should execute command successfully when using current directory', async () => {
+						const originalCwd = process.cwd();
+						try {
+							process.chdir(testFolder);
+							const res = await shellExec(`${cli} exec echo "hello world"`);
+							assert.match(res.stdout, /hello world/);
+						} finally {
+							process.chdir(originalCwd);
+						}
+					});
+				});
+
+				it('should fail gracefully when no config in current directory and no container-id', async () => {
+					const tempDir = path.join(os.tmpdir(), 'devcontainer-exec-test-' + Date.now());
+					await shellExec(`mkdir -p ${tempDir}`);
+					const originalCwd = process.cwd();
+					try {
+						process.chdir(tempDir);
+						let success = false;
+						try {
+							await shellExec(`${cli} exec echo "test"`);
+							success = true;
+						} catch (error) {
+							// Should fail because there's no container or config
+							assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+						}
+						assert.equal(success, false, 'expect non-successful call');
+					} finally {
+						process.chdir(originalCwd);
+						await shellExec(`rm -rf ${tempDir}`);
+					}
+				});
 			});
 		});
 	});
