@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## January 2026
+
+### [0.81.0]
+- Add option to mount a worktree's common folder. (https://github.com/devcontainers/cli/pull/1127)
+
 ## December 2025
 
 ### [0.80.3]
