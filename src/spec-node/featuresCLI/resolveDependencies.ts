@@ -77,7 +77,7 @@ async function featuresResolveDependencies({
 	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 	const configFile: URI = URI.file(path.resolve(process.cwd(), configPath));
-	const configs = await readDevContainerConfigFile(cliHost, workspace, configFile, false, output, undefined, undefined);	
+	const configs = await readDevContainerConfigFile(cliHost, workspace, configFile, false, false, output, undefined, undefined);
 
 	if (configFile && !configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });

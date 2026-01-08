@@ -86,6 +86,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						false,
+						false,
 						nullLog
 					);
 
@@ -116,6 +117,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						true,
+						true,
 						nullLog
 					);
 
@@ -142,9 +144,70 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						true,
+						true,
 						nullLog
 					);
 
+					assert.isUndefined(result.additionalMountString);
+				});
+
+				it('should not add additional mount when mountGitWorktreeCommonDir is false', async () => {
+					const p = {
+						linux: { worktreePath: '/home/user/worktrees/feature', gitFile: '/home/user/worktrees/feature/.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', consistency: '' },
+						darwin: { worktreePath: '/Users/user/worktrees/feature', gitFile: '/Users/user/worktrees/feature/.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', consistency: ',consistency=consistent' },
+						win32: { worktreePath: 'C:\\Users\\user\\worktrees\\feature', gitFile: 'C:\\Users\\user\\worktrees\\feature\\.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', consistency: ',consistency=consistent' },
+					}[platform];
+
+					const cliHost = createMockCLIHost({
+						platform,
+						files: {
+							[p.gitFile]: p.gitdir
+						}
+					});
+					const workspace = createWorkspace(p.worktreePath);
+
+					const result = await getWorkspaceConfiguration(
+						cliHost,
+						workspace,
+						{},
+						true,
+						false,
+						nullLog
+					);
+
+					assert.strictEqual(result.workspaceFolder, '/workspaces/feature');
+					assert.strictEqual(result.workspaceMount, `type=bind,source=${p.worktreePath},target=/workspaces/feature${p.consistency}`);
+					assert.isUndefined(result.additionalMountString);
+				});
+
+				it('should not add additional mount when mountGitWorktreeCommonDir is false with workspace in subfolder', async () => {
+					const p = {
+						linux: { worktreePath: '/home/user/worktrees/feature', gitConfigFile: '/home/user/worktrees/feature/.git/config', gitFile: '/home/user/worktrees/feature/.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', subfolderPath: '/home/user/worktrees/feature/packages/app', consistency: '' },
+						darwin: { worktreePath: '/Users/user/worktrees/feature', gitConfigFile: '/Users/user/worktrees/feature/.git/config', gitFile: '/Users/user/worktrees/feature/.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', subfolderPath: '/Users/user/worktrees/feature/packages/app', consistency: ',consistency=consistent' },
+						win32: { worktreePath: 'C:\\Users\\user\\worktrees\\feature', gitConfigFile: 'C:\\Users\\user\\worktrees\\feature\\.git\\config', gitFile: 'C:\\Users\\user\\worktrees\\feature\\.git', gitdir: 'gitdir: ../../repo/.git/worktrees/feature', subfolderPath: 'C:\\Users\\user\\worktrees\\feature\\packages\\app', consistency: ',consistency=consistent' },
+					}[platform];
+
+					const cliHost = createMockCLIHost({
+						platform,
+						files: {
+							[p.gitConfigFile]: '[core]',
+							[p.gitFile]: p.gitdir
+						},
+						useFileHost: true
+					});
+					const workspace = createWorkspace(p.subfolderPath);
+
+					const result = await getWorkspaceConfiguration(
+						cliHost,
+						workspace,
+						{},
+						true,
+						false,
+						nullLog
+					);
+
+					assert.strictEqual(result.workspaceFolder, '/workspaces/feature/packages/app');
+					assert.strictEqual(result.workspaceMount, `type=bind,source=${p.worktreePath},target=/workspaces/feature${p.consistency}`);
 					assert.isUndefined(result.additionalMountString);
 				});
 
@@ -167,6 +230,7 @@ describe('getWorkspaceConfiguration', function () {
 						cliHost,
 						workspace,
 						{},
+						true,
 						true,
 						nullLog
 					);
@@ -196,6 +260,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						true,
+						true,
 						nullLog
 					);
 
@@ -222,6 +287,7 @@ describe('getWorkspaceConfiguration', function () {
 						cliHost,
 						workspace,
 						{},
+						true,
 						true,
 						nullLog
 					);
@@ -252,6 +318,7 @@ describe('getWorkspaceConfiguration', function () {
 						cliHost,
 						workspace,
 						{},
+						true,
 						true,
 						nullLog
 					);
@@ -286,6 +353,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						true,
+						true,
 						nullLog
 					);
 
@@ -315,6 +383,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						false,
+						false,
 						nullLog
 					);
 
@@ -342,6 +411,7 @@ describe('getWorkspaceConfiguration', function () {
 						cliHost,
 						workspace,
 						{},
+						true,
 						true,
 						nullLog
 					);
@@ -372,6 +442,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{},
 						true,
+						true,
 						nullLog
 					);
 
@@ -398,6 +469,7 @@ describe('getWorkspaceConfiguration', function () {
 						workspace,
 						{ workspaceFolder: '/custom/path' },
 						false,
+						false,
 						nullLog
 					);
 
@@ -418,6 +490,7 @@ describe('getWorkspaceConfiguration', function () {
 						cliHost,
 						workspace,
 						{ workspaceMount: 'type=bind,source=/custom,target=/workspace' },
+						false,
 						false,
 						nullLog
 					);

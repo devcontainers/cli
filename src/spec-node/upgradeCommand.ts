@@ -193,7 +193,7 @@ function upgradeFeatureKeyInConfig(configText: string, current: string, updated:
 }
 
 async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {
-	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, false, output) || undefined;
 	if (!configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 	}

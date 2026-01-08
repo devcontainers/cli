@@ -46,7 +46,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 		? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 			|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 		: overrideConfigFile;
-	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, workspaceMountConsistencyDefault, overrideConfigFile) || undefined;
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, workspaceMountConsistencyDefault, overrideConfigFile) || undefined;
 	if (!configs) {
 		if (configPath || workspace) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configPath || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
@@ -79,7 +79,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	return result;
 }
 
-export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
 	const documents = createDocuments(cliHost);
 	const content = await documents.readDocument(overrideConfigFile ?? configFile);
 	if (!content) {
@@ -90,7 +90,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 	if (!updated || typeof updated !== 'object' || Array.isArray(updated)) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
 	}
-	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, output, consistency);
+	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, output, consistency);
 	const substitute0: SubstituteConfig = value => substitute({
 		platform: cliHost.platform,
 		localWorkspaceFolder: workspace?.rootFolderPath,

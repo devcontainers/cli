@@ -107,6 +107,7 @@ export interface DockerResolverParameters {
 	workspaceMountConsistencyDefault: BindMountConsistency;
 	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
+	mountGitWorktreeCommonDir: boolean;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
 	removeOnStartup?: boolean | string;
@@ -350,7 +351,7 @@ export interface WorkspaceConfiguration {
 	additionalMountString: string | undefined;
 }
 
-export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
+export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
 	if ('dockerComposeFile' in config) {
 		return {
 			workspaceFolder: getRemoteWorkspaceFolder(config),
@@ -365,7 +366,7 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 
 		// Check if .git is a file (worktree) with a relative gitdir path
 		let containerMountFolder = path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
-		if (mountWorkspaceGitRoot) {
+		if (mountWorkspaceGitRoot && mountGitWorktreeCommonDir) {
 			const dotGitPath = cliHost.path.join(hostMountFolder, '.git');
 			if (await cliHost.isFile(dotGitPath)) {
 				const dotGitContent = (await cliHost.readFile(dotGitPath)).toString();
