@@ -51,7 +51,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
 
 			try {
-				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, res.imageDetails, containerUser, res.labels || {});
+				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, workspaceConfig.additionalMountString, res.imageDetails, containerUser, res.labels || {});
 			} finally {
 				// In 'finally' because 'docker run' can fail after creating the container.
 				// Trying to get it here, so we can offer 'Rebuild Container' as an action later.
@@ -348,7 +348,7 @@ export async function extraRunArgs(common: ResolverParameters, params: DockerRes
 	return extraArguments;
 }
 
-export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, imageDetails: () => Promise<ImageDetails>, containerUser: string | undefined, extraLabels: Record<string, string>) {
+export async function spawnDevContainer(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, labels: string[], workspaceMount: string | undefined, additionalMountString: string | undefined, imageDetails: () => Promise<ImageDetails>, containerUser: string | undefined, extraLabels: Record<string, string>) {
 	const { common } = params;
 	common.progress(ResolverProgress.StartingContainer);
 
@@ -357,6 +357,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
 
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
+	const additionalMount = additionalMountString ? ['--mount', additionalMountString] : [];
 
 	const envObj = mergedConfig.containerEnv || {};
 	const containerEnv = Object.keys(envObj)
@@ -409,6 +410,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		'-a', 'STDERR',
 		...exposed,
 		...cwdMount,
+		...additionalMount,
 		...featureMounts,
 		...getLabels(labels),
 		...containerEnv,
