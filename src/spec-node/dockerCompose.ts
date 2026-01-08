@@ -243,6 +243,28 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 				buildOverrideContent += `        - ${buildKitContext}=${featureBuildInfo.buildKitContexts[buildKitContext]}\n`;
 			}
 		}
+
+		// Handle labels
+		let labels: string[] = [];
+		// Add labels from params
+		if (params.additionalLabels && params.additionalLabels.length > 0) {
+			labels.push(...params.additionalLabels);
+		}
+		// Add labels from compose (dictionary)
+		if (composeService.labels && Object.keys(composeService.labels).length > 0) {
+			labels.push(...Object.entries(composeService.labels).map(([key, value]) => `${key}=${value}`));
+		}
+		// Add labels from compose (array)
+		if (composeService.labels && composeService.labels.length > 0) {
+			labels.push(...composeService.labels);
+		}
+		// Finally add all labels
+		if (labels.length > 0) {
+			buildOverrideContent += `      labels:\n`;
+			labels.forEach(label => {
+				buildOverrideContent += `        - ${label}\n`;
+			});
+		}
 	}
 
 	// Generate the docker-compose override and build
