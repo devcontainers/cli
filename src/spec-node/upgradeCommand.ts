@@ -23,7 +23,7 @@ import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configurat
 export function featuresUpgradeOptions(y: Argv) {
 	return y
 		.options({
-			'workspace-folder': { type: 'string', description: 'Workspace folder.', demandOption: true },
+			'workspace-folder': { type: 'string', description: 'Workspace folder.' },
 			'docker-path': { type: 'string', description: 'Path to docker executable.', default: 'docker' },
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -70,7 +70,8 @@ async function featuresUpgrade({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		// Use cwd as workspaceFolder when not provided
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile = configArg ? URI.file(path.resolve(process.cwd(), configArg)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, true);
 		const extensionPath = path.join(__dirname, '..', '..');
