@@ -4,6 +4,9 @@ Notable changes.
 
 ## January 2026
 
+### [0.81.1]
+- Update js-yaml and glob dependencies. (https://github.com/devcontainers/cli/pull/1128)
+
 ### [0.81.0]
 - Add option to mount a worktree's common folder. (https://github.com/devcontainers/cli/pull/1127)
 
