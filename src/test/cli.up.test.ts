@@ -310,4 +310,47 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${response.containerId}`);
 		});
 	});
+
+	describe('Command up with default workspace', () => {
+		it('should create and start container using current directory config', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const originalCwd = process.cwd();
+			let containerId: string | null = null;
+			try {
+				process.chdir(testFolder);
+				const upResult = await devContainerUp(cli, '.');
+				containerId = upResult.containerId;
+				assert.equal(upResult.outcome, 'success');
+				assert.ok(containerId);
+			} finally {
+				process.chdir(originalCwd);
+				if (containerId) {
+					await devContainerDown({ containerId });
+				}
+			}
+		});
+
+		it('should fail gracefully when no config in current directory', async () => {
+			const tempDir = path.join(os.tmpdir(), 'devcontainer-up-test-' + Date.now());
+			await shellExec(`mkdir -p ${tempDir}`);
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(tempDir);
+				let success = false;
+				try {
+					await shellExec(`${cli} up`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.match(res.message, /Dev container config .* not found/);
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			} finally {
+				process.chdir(originalCwd);
+				await shellExec(`rm -rf ${tempDir}`);
+			}
+		});
+	});
 });

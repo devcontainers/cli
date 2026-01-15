@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as os from 'os';
 import { devContainerDown, devContainerUp, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -68,6 +69,42 @@ describe('Dev Containers CLI', function () {
 
 			await shellExec(`docker rm -f ${upResponse.containerId}`);
 		});
+
+		it('should execute successfully when using current directory', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(testFolder);
+				const res = await shellExec(`${cli} run-user-commands`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+			} finally {
+				process.chdir(originalCwd);
+			}
+		});
+
+		it('should fail gracefully when no config in current directory and no container-id', async () => {
+			const tempDir = path.join(os.tmpdir(), 'devcontainer-run-test-' + Date.now());
+			await shellExec(`mkdir -p ${tempDir}`);
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(tempDir);
+				let success = false;
+				try {
+					await shellExec(`${cli} run-user-commands`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.match(res.message, /Dev container config .* not found/);
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			} finally {
+				process.chdir(originalCwd);
+				await shellExec(`rm -rf ${tempDir}`);
+			}
+		});
 	});
 
 	describe('Command read-configuration', () => {
@@ -123,6 +160,42 @@ describe('Dev Containers CLI', function () {
 			const res = await shellExec(`${cli} read-configuration --workspace-folder ${__dirname}/configs/dockerfile-without-features --config ${__dirname}/configs/dockerfile-without-features/.devcontainer/subfolder/devcontainer.json`);
 			const response = JSON.parse(res.stdout);
 			assert.strictEqual(response.configuration.remoteEnv.SUBFOLDER_CONFIG_REMOTE_ENV, 'true');
+		});
+
+		it('should use current directory for read-configuration when no workspace-folder provided', async () => {
+			const testFolder = `${__dirname}/configs/image`;
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(testFolder);
+				const res = await shellExec(`${cli} read-configuration`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.configuration.image, 'ubuntu:latest');
+			} finally {
+				process.chdir(originalCwd);
+			}
+		});
+
+		it('should fail gracefully when no workspace-folder and no config in current directory', async () => {
+			const tempDir = path.join(os.tmpdir(), 'devcontainer-test-' + Date.now());
+			await shellExec(`mkdir -p ${tempDir}`);
+			const originalCwd = process.cwd();
+			try {
+				process.chdir(tempDir);
+				let success = false;
+				try {
+					await shellExec(`${cli} read-configuration`);
+					success = true;
+				} catch (error) {
+					assert.equal(error.error.code, 1, 'Should fail with exit code 1');
+					const res = JSON.parse(error.stdout);
+					assert.equal(res.outcome, 'error');
+					assert.match(res.message, /Dev container config .* not found/);
+				}
+				assert.equal(success, false, 'expect non-successful call');
+			} finally {
+				process.chdir(originalCwd);
+				await shellExec(`rm -rf ${tempDir}`);
+			}
 		});
 	});
 });
