@@ -4,6 +4,9 @@ Notable changes.
 
 ## January 2026
 
+### [0.82.0]
+- devcontainer commands now use current directory as default workspace folder when not specified (https://github.com/devcontainers/cli/pull/1104)
+
 ### [0.81.1]
 - Update js-yaml and glob dependencies. (https://github.com/devcontainers/cli/pull/1128)
 
