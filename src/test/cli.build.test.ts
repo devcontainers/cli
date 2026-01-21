@@ -435,7 +435,7 @@ describe('Dev Containers CLI', function () {
 		});
 
 		it('should use current directory for build when no workspace-folder provided', async function () {
-			const testFolder = `${__dirname}/configs/image`; // Use simpler config without features
+			const testFolder = `${__dirname}/configs/image`;
 			const absoluteTmpPath = path.resolve(__dirname, 'tmp');
 			const absoluteCli = `npx --prefix ${absoluteTmpPath} devcontainer`;
 			const originalCwd = process.cwd();
