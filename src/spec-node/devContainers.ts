@@ -31,6 +31,7 @@ export interface ProvisionOptions {
 	gpuAvailability?: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
 	mountGitWorktreeCommonDir: boolean;
+	containerName?: string;
 	configFile: URI | undefined;
 	overrideConfigFile: URI | undefined;
 	logLevel: LogLevel;
@@ -103,7 +104,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, containerName, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -227,6 +228,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		gpuAvailability: gpuAvailability || 'detect',
 		mountWorkspaceGitRoot,
 		mountGitWorktreeCommonDir,
+		containerName,
 		updateRemoteUserUIDOnMacOS: false,
 		cacheMount: 'bind',
 		removeOnStartup: options.removeExistingContainer,

@@ -91,6 +91,68 @@ devcontainer exec --workspace-folder <path-to-vscode-remote-try-rust> cargo run
 
 This will compile and run the Rust sample, outputting:
 
+### Custom Container Names
+
+You can specify a custom name for your dev container using the `--container-name` option:
+
+```bash
+devcontainer up --workspace-folder <path-to-vscode-remote-try-rust> --container-name my-rust-dev
+```
+
+This will create a dev container with the name `my-rust-dev` instead of a randomly generated name. Custom container names provide several benefits:
+
+- **Easy identification**: Quickly identify your dev containers with meaningful names
+- **Scripting**: Reference containers by name in scripts and automation
+- **Environment variables**: Container information is automatically stored in environment variables:
+  - `DEVCONTAINER_NAME`: The custom container name (if provided)
+  - `DEVCONTAINER_ID`: The container ID
+  - `DEVCONTAINER_WORKSPACE`: The workspace folder path
+
+#### Container Name Storage
+
+When you use a custom container name, the CLI automatically stores the container information in ephemeral storage:
+
+1. **File storage**: Container information is stored in `<cache-folder>/container-info.json`
+2. **Environment variables**: The information is available as environment variables inside the container
+
+Example of the stored container information:
+
+```json
+{
+  "name": "my-rust-dev",
+  "id": "f0a055ff056c1c1bb99cc09930efbf3a0437c54d9b4644695aa23c1d57b4bd11",
+  "workspaceFolder": "/path/to/vscode-remote-try-rust"
+}
+```
+
+#### Use Cases
+
+**Development with Multiple Containers**
+```bash
+# Frontend dev container
+devcontainer up --workspace-folder ./frontend --container-name frontend-dev
+
+# Backend dev container  
+devcontainer up --workspace-folder ./backend --container-name backend-dev
+
+# Database dev container
+devcontainer up --workspace-folder ./database --container-name db-dev
+```
+
+**Scripting and Automation**
+```bash
+#!/bin/bash
+# Start a dev container with a predictable name
+devcontainer up --workspace-folder ./my-project --container-name project-dev
+
+# Reference the container by name in subsequent commands
+docker exec project-dev npm test
+docker stop project-dev
+docker start project-dev
+```
+
+This will compile and run the Rust sample, outputting:
+
 ```bash
 [33 ms] dev-containers-cli 0.1.0.
    Compiling hello_remote_world v0.1.0 (/workspaces/vscode-remote-try-rust)
