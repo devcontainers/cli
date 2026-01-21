@@ -108,6 +108,7 @@ export interface DockerResolverParameters {
 	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
 	mountGitWorktreeCommonDir: boolean;
+	containerName?: string;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
 	removeOnStartup?: boolean | string;
@@ -586,6 +587,53 @@ export async function getCacheFolder(cliHost: CLIHost): Promise<string> {
 
 export async function getLocalCacheFolder() {
 	return path.join(os.tmpdir(), process.platform === 'linux' ? `devcontainercli-${await getLocalUsername()}` : 'devcontainercli');
+}
+
+interface ContainerInfo {
+	name?: string;
+	id: string;
+	workspaceFolder?: string;
+}
+
+export async function storeContainerInfo(params: DockerResolverParameters, containerId: string, workspaceFolder?: string): Promise<void> {
+	const cliHost = params.common.cliHost;
+	const cacheFolder = await getCacheFolder(cliHost);
+	const containerInfoFile = cliHost.path.join(cacheFolder, 'container-info.json');
+	
+	const containerInfo: ContainerInfo = {
+		name: params.containerName,
+		id: containerId,
+		workspaceFolder,
+	};
+	
+	// Store in file for ephemeral storage
+	await cliHost.writeFile(containerInfoFile, Buffer.from(JSON.stringify(containerInfo, null, 2)));
+	
+	// Set environment variables for easy access
+	if (params.containerName) {
+		cliHost.env.DEVCONTAINER_NAME = params.containerName;
+	}
+	cliHost.env.DEVCONTAINER_ID = containerId;
+	if (workspaceFolder) {
+		cliHost.env.DEVCONTAINER_WORKSPACE = workspaceFolder;
+	}
+}
+
+export async function getStoredContainerInfo(params: DockerResolverParameters): Promise<ContainerInfo | null> {
+	const cliHost = params.common.cliHost;
+	const cacheFolder = await getCacheFolder(cliHost);
+	const containerInfoFile = cliHost.path.join(cacheFolder, 'container-info.json');
+	
+	try {
+		const fileExists = await cliHost.isFile(containerInfoFile);
+		if (fileExists) {
+			const content = (await cliHost.readFile(containerInfoFile)).toString();
+			return JSON.parse(content) as ContainerInfo;
+		}
+	} catch (error) {
+		// File doesn't exist or is corrupted - return null
+	}
+	return null;
 }
 
 export function getEmptyContextFolder(common: ResolverParameters) {
