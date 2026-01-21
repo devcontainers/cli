@@ -28,7 +28,6 @@ import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
-
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 
@@ -46,7 +45,11 @@ export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMil
 			return await fn();
 		} catch (err) {
 			lastError = err;
-			output.write(`Retrying (Attempt ${i}) with error '${toErrorText(err)}'`, LogLevel.Warning);
+			output.write(
+			  `Retrying (Attempt ${i}) with error 
+			  '${toErrorText(String(err && (err.stack || err.message) || err))}'`,
+			  LogLevel.Warning
+			);
 			await new Promise(resolve => setTimeout(resolve, retryIntervalMilliseconds));
 		}
 	}
@@ -104,6 +107,7 @@ export interface DockerResolverParameters {
 	workspaceMountConsistencyDefault: BindMountConsistency;
 	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
+	mountGitWorktreeCommonDir: boolean;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
 	removeOnStartup?: boolean | string;
@@ -114,6 +118,7 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
+	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
@@ -343,24 +348,58 @@ export async function getHostMountFolder(cliHost: CLIHost, folderPath: string, m
 export interface WorkspaceConfiguration {
 	workspaceMount: string | undefined;
 	workspaceFolder: string | undefined;
+	additionalMountString: string | undefined;
 }
 
-export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
+export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
 	if ('dockerComposeFile' in config) {
 		return {
 			workspaceFolder: getRemoteWorkspaceFolder(config),
 			workspaceMount: undefined,
+			additionalMountString: undefined,
 		};
 	}
 	let { workspaceFolder, workspaceMount } = config;
+	let additionalMountString: string | undefined;
 	if (workspace && (!workspaceFolder || !('workspaceMount' in config))) {
 		const hostMountFolder = await getHostMountFolder(cliHost, workspace.rootFolderPath, mountWorkspaceGitRoot, output);
+
+		// Check if .git is a file (worktree) with a relative gitdir path
+		let containerMountFolder = path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
+		if (mountWorkspaceGitRoot && mountGitWorktreeCommonDir) {
+			const dotGitPath = cliHost.path.join(hostMountFolder, '.git');
+			if (await cliHost.isFile(dotGitPath)) {
+				const dotGitContent = (await cliHost.readFile(dotGitPath)).toString();
+				const match = /^gitdir:\s*(.+)$/m.exec(dotGitContent);
+				if (match) {
+					const gitdir = match[1];
+					// Only handle if gitdir is a relative path
+					if (!cliHost.path.isAbsolute(gitdir)) {
+						// gitdir points to .git/worktrees/<name>/, common dir is .git/ (two levels up)
+						const gitCommonDir = cliHost.path.resolve(hostMountFolder, gitdir, '..', '..');
+						// Collect path segments from hostMountFolder up to the parent of gitCommonDir
+						const segments: string[] = [];
+						for (let current = hostMountFolder; !gitCommonDir.startsWith(current + cliHost.path.sep) && current !== cliHost.path.dirname(current); current = cliHost.path.dirname(current)) {
+							segments.unshift(cliHost.path.basename(current));
+						}
+						containerMountFolder = path.posix.join('/workspaces', ...segments);
+						// Calculate where the common dir should be mounted in the container
+						const containerGitdir = cliHost.platform === 'win32' ? gitdir.replace(/\\/g, '/') : gitdir;
+						const containerGitCommonDir = path.posix.resolve(containerMountFolder, containerGitdir, '..', '..');
+						const cons = cliHost.platform !== 'linux' ? `,consistency=${consistency || 'consistent'}` : '';
+						const srcQuote = gitCommonDir.indexOf(',') !== -1 ? '"' : '';
+						const tgtQuote = containerGitCommonDir.indexOf(',') !== -1 ? '"' : '';
+						additionalMountString = `type=bind,${srcQuote}source=${gitCommonDir}${srcQuote},${tgtQuote}target=${containerGitCommonDir}${tgtQuote}${cons}`;
+					}
+				}
+			}
+		}
+
 		if (!workspaceFolder) {
-			const rel = cliHost.path.relative(cliHost.path.dirname(hostMountFolder), workspace.rootFolderPath);
-			workspaceFolder = `/workspaces/${cliHost.platform === 'win32' ? rel.replace(/\\/g, '/') : rel}`;
+			const rel = cliHost.path.relative(hostMountFolder, workspace.rootFolderPath);
+			workspaceFolder = path.posix.join(containerMountFolder, cliHost.platform === 'win32' ? rel.replace(/\\/g, '/') : rel);
 		}
 		if (!('workspaceMount' in config)) {
-			const containerMountFolder = `/workspaces/${cliHost.path.basename(hostMountFolder)}`;
 			const cons = cliHost.platform !== 'linux' ? `,consistency=${consistency || 'consistent'}` : ''; // Podman does not tolerate consistency=
 			const srcQuote = hostMountFolder.indexOf(',') !== -1 ? '"' : '';
 			const tgtQuote = containerMountFolder.indexOf(',') !== -1 ? '"' : '';
@@ -370,6 +409,7 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 	return {
 		workspaceFolder,
 		workspaceMount,
+		additionalMountString,
 	};
 }
 

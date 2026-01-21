@@ -154,7 +154,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 				}
 			};
 		}
-		return { featureBuildInfo: getImageBuildOptions(params, config, dstFolder, baseName, imageBuildInfo) };
+		return { featureBuildInfo: await getImageBuildOptions(params, config, dstFolder, baseName, imageBuildInfo) };
 	}
 
 	// Generates the end configuration.
@@ -193,24 +193,24 @@ export interface ImageBuildOptions {
 	securityOpts: string[];
 }
 
-function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): ImageBuildOptions {
-	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-	return {
-		dstFolder,
-		dockerfileContent: `
+async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
+    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+    return {
+        dstFolder,
+        dockerfileContent: `
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
-		overrideTarget: 'dev_containers_target_stage',
-		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
-	ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+        overrideTarget: 'dev_containers_target_stage',
+        dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
+    ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
-		buildArgs: {
-			_DEV_CONTAINERS_BASE_IMAGE: baseName,
-		} as Record<string, string>,
-		buildKitContexts: {} as Record<string, string>,
-		securityOpts: [],
-	};
+        buildArgs: {
+            _DEV_CONTAINERS_BASE_IMAGE: baseName,
+        } as Record<string, string>,
+        buildKitContexts: {} as Record<string, string>,
+        securityOpts: [],
+    };
 }
 
 function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEnvFromMetadata?: boolean }): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
@@ -241,7 +241,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
-
+    // Access Docker engine version
+    const dockerEngineVersionParsed = params.dockerEngineVersion?.versionMatch ? parseVersion(params.dockerEngineVersion.versionMatch) : undefined;
+    const minDockerEngineVersion = [23, 0, 0];
+    const skipDefaultSyntax = dockerEngineVersionParsed ? !isEarlierVersion(dockerEngineVersionParsed, minDockerEngineVersion) : false;
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
 	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
@@ -262,11 +265,12 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
 		;
-	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-	const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-	const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
-		useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
-		syntax ? `# syntax=${syntax}` : ''}
+    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+    const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
+    const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
+        skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
+        useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
+        syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 

@@ -107,6 +107,7 @@ function provisionOptions(y: Argv) {
 		'workspace-mount-consistency': { choices: ['consistent' as 'consistent', 'cached' as 'cached', 'delegated' as 'delegated'], default: 'cached' as 'cached', description: 'Workspace mount consistency.' },
 		'gpu-availability': { choices: ['all' as 'all', 'detect' as 'detect', 'none' as 'none'], default: 'detect' as 'detect', description: 'Availability of GPUs in case the dev container requires any. `all` expects a GPU to be available.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. These will be set on the container and used to query for an existing container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'override-config': { type: 'string', description: 'devcontainer.json path to override any devcontainer.json in the workspace folder (or built-in configuration). This is required when there is no devcontainer.json otherwise.' },
@@ -180,6 +181,7 @@ async function provision({
 	'workspace-mount-consistency': workspaceMountConsistency,
 	'gpu-availability': gpuAvailability,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'id-label': idLabel,
 	config,
 	'override-config': overrideConfig,
@@ -235,6 +237,7 @@ async function provision({
 		workspaceMountConsistency,
 		gpuAvailability,
 		mountWorkspaceGitRoot,
+		mountGitWorktreeCommonDir,
 		configFile: config ? URI.file(path.resolve(process.cwd(), config)) : undefined,
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
 		logLevel: mapLogLevel(logLevel),
@@ -418,6 +421,7 @@ async function doSetUp({
 			containerSystemDataFolder,
 			workspaceFolder: undefined,
 			mountWorkspaceGitRoot: false,
+			mountGitWorktreeCommonDir: false,
 			configFile,
 			overrideConfigFile: undefined,
 			logLevel: mapLogLevel(logLevel),
@@ -454,7 +458,7 @@ async function doSetUp({
 
 		const { common } = params;
 		const { cliHost, output } = common;
-		const configs = configFile && await readDevContainerConfigFile(cliHost, undefined, configFile, params.mountWorkspaceGitRoot, output, undefined, undefined);
+		const configs = configFile && await readDevContainerConfigFile(cliHost, undefined, configFile, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, undefined);
 		if (configFile && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });
 		}
@@ -584,6 +588,7 @@ async function doBuild({
 			containerSystemDataFolder: undefined,
 			workspaceFolder,
 			mountWorkspaceGitRoot: false,
+			mountGitWorktreeCommonDir: false,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -624,7 +629,7 @@ async function doBuild({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -752,6 +757,7 @@ function runUserCommandsOptions(y: Argv) {
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path.The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -812,6 +818,7 @@ async function doRunUserCommands({
 	'container-system-data-folder': containerSystemDataFolder,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'container-id': containerId,
 	'id-label': idLabel,
 	config: configParam,
@@ -855,6 +862,7 @@ async function doRunUserCommands({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
+			mountGitWorktreeCommonDir,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -898,7 +906,7 @@ async function doRunUserCommands({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -954,6 +962,7 @@ function readConfigurationOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -991,6 +1000,7 @@ async function readConfiguration({
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	config: configParam,
 	'override-config': overrideConfig,
 	'container-id': containerId,
@@ -1031,7 +1041,7 @@ async function readConfiguration({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1152,7 +1162,7 @@ async function outdated({
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, false, output) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1209,6 +1219,7 @@ function execOptions(y: Argv) {
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -1270,6 +1281,7 @@ export async function doExec({
 	'container-system-data-folder': containerSystemDataFolder,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'container-id': containerId,
 	'id-label': idLabel,
 	config: configParam,
@@ -1302,6 +1314,7 @@ export async function doExec({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
+			mountGitWorktreeCommonDir,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -1342,7 +1355,7 @@ export async function doExec({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
