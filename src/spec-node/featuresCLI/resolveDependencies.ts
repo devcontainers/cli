@@ -30,7 +30,7 @@ export function featuresResolveDependenciesOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'error' as 'error', description: 'Log level.' },
-			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration.If --workspace-folder is not provided, this defaults to the current directory' },
+			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration. If --workspace-folder is not provided, this defaults to the current directory' },
 		});
 }
 
