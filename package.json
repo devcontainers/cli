@@ -102,7 +102,7 @@
 		"semver": "^7.7.1",
 		"shell-quote": "^1.8.2",
 		"stream-to-pull-stream": "^1.7.3",
-		"tar": "^6.2.1",
+		"tar": "^7.5.4",
 		"text-table": "^0.2.0",
 		"vscode-uri": "^3.1.0",
 		"yargs": "~17.7.2"
