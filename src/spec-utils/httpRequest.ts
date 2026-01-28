@@ -40,6 +40,8 @@ export async function request(options: { type: string; url: string; headers: Rec
 				res.on('data', chunk => chunks.push(chunk as Buffer));
 				res.on('end', () => resolve(Buffer.concat(chunks)));
 			}
+		}).setTimeout(2000, () => {
+			req.end();
 		});
 		req.on('error', reject);
 		if (options.data) {
