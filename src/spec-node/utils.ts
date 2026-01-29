@@ -93,6 +93,13 @@ export async function logUMask(params: DockerResolverParameters): Promise<string
 	}
 }
 
+export function isBuildxCacheToInline(buildxCacheTo: string | undefined): boolean {
+	if (!buildxCacheTo) {
+		return false;
+	}
+	return /type\s*=\s*inline/i.test(buildxCacheTo);
+}
+
 export type ParsedAuthority = DevContainerAuthority;
 
 export type UpdateRemoteUserUIDDefault = 'never' | 'on' | 'off';
