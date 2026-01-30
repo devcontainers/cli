@@ -23,6 +23,7 @@ export async function request(options: { type: string; url: string; headers: Rec
 			headers: options.headers,
 			agent: new ProxyAgent(),
 			secureContext,
+			timeout: 3000
 		};
 
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
@@ -40,8 +41,9 @@ export async function request(options: { type: string; url: string; headers: Rec
 				res.on('data', chunk => chunks.push(chunk as Buffer));
 				res.on('end', () => resolve(Buffer.concat(chunks)));
 			}
-		}).setTimeout(2000, () => {
-			req.end();
+		});
+		req.on('timeout', () => {
+			req.destroy();
 		});
 		req.on('error', reject);
 		if (options.data) {
