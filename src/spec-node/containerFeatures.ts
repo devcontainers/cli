@@ -11,7 +11,7 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, isBuildxCacheToInline } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
@@ -84,6 +84,9 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		}
 		if (params.buildxCacheTo) {
 			args.push('--cache-to', params.buildxCacheTo);
+		}
+		if (!isBuildxCacheToInline(params.buildxCacheTo)) {
+			args.push('--build-arg', 'BUILDKIT_INLINE_CACHE=1');
 		}
 		if (!params.buildNoCache) {
 			params.additionalCacheFroms.forEach(cacheFrom => args.push('--cache-from', cacheFrom));
