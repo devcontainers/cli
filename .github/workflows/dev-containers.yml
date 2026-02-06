@@ -120,9 +120,21 @@ jobs:
         FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL: ${{ secrets.FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL }}
 
 
+  install-script:
+    name: Install Script
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run install.sh tests
+      run: sh scripts/install.test.sh
+
   tests:
     name: Tests
-    needs: [tests-matrix, features-registry-compatibility]
+    needs: [tests-matrix, features-registry-compatibility, install-script]
     runs-on: ubuntu-latest
     steps:
     - name: Done
