@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ['main']
 
+permissions:
+  contents: read
+
 jobs:
   test-docker-v29:
     name: Docker v29.0.0 Compatibility
