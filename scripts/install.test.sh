@@ -152,7 +152,7 @@ test_help_flag() {
 
     output=$(sh "$INSTALL_SCRIPT" --help 2>&1) || true
 
-    assert_contains "$output" "Install @devcontainers/cli" "--help shows description"
+    assert_contains "$output" "Install the Dev Containers CLI" "--help shows description"
     assert_contains "$output" "--prefix" "--help shows --prefix option"
     assert_contains "$output" "--version" "--help shows --version option"
     assert_contains "$output" "--node-version" "--help shows --node-version option"
@@ -168,7 +168,7 @@ test_help_short_flag() {
     setup
 
     output=$(sh "$INSTALL_SCRIPT" -h 2>&1) || true
-    assert_contains "$output" "Install @devcontainers/cli" "-h shows help"
+    assert_contains "$output" "Install the Dev Containers CLI" "-h shows help"
 
     teardown
 }
@@ -419,7 +419,7 @@ test_wrapper_missing_cli() {
 
     output=$("$prefix/bin/devcontainer" --version 2>&1) && rc=0 || rc=$?
     assert_exit_code "1" "$rc" "wrapper exits 1 when CLI missing"
-    assert_contains "$output" "CLI not found" "wrapper reports missing CLI"
+    assert_contains "$output" "Dev Containers CLI not found" "wrapper reports missing Dev Containers CLI"
 
     teardown
 }
