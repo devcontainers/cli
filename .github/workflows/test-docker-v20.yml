@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ['main']
 
+permissions:
+  contents: read
+
 jobs:
   test-docker-v20:
     name: Docker v20.10 Compatibility
