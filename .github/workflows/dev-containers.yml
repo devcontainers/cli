@@ -8,6 +8,10 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   cli:
     name: CLI
