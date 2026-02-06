@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## February 2026
+
+### [0.83.0]
+- Add install script. (https://github.com/devcontainers/cli/pull/1142)
+- Remove request body limit. (https://github.com/devcontainers/cli/pull/1141)
+- Add BUILDKIT_INLINE_CACHE for container Feature path. (https://github.com/devcontainers/cli/pull/1135)
+
 ## January 2026
 
 ### [0.82.0]
