@@ -240,6 +240,11 @@ export function isBuildKitImagePolicyError(err: any): boolean {
 		|| (errStderr && typeof errStderr === 'string' && (errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString)));
 }
 
+export function toPlatformString(platformInfo: PlatformInfo): string {
+	const base = `${platformInfo.os}/${platformInfo.arch}`;
+	return platformInfo.variant ? `${base}/${platformInfo.variant}` : base;
+}
+
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
@@ -254,7 +259,8 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			output.write(`Error fetching image details: ${err2?.message}`);
 		}
 		try {
-			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
+			const platformString = toPlatformString(params.platformInfo);
+			await retry(async () => dockerPtyCLI(params, 'pull', '--platform', platformString, imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
 		} catch (_err) {
 			if (err.stdout) {
 				output.write(err.stdout.toString());
