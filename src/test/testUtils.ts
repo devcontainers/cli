@@ -89,7 +89,7 @@ export async function shellPtyExec(command: string, options: { stdin?: string } 
 }
 
 export async function devContainerUp(cli: string, workspaceFolder: string, options?: { cwd?: string; useBuildKit?: boolean; userDataFolder?: string; logLevel?: string; extraArgs?: string; prefix?: string; env?: NodeJS.ProcessEnv }): Promise<UpResult> {
-    const buildkitOption = (options?.useBuildKit ?? false) ? '' : ' --buildkit=never';
+    const buildkitOption = (options?.useBuildKit ?? true) ? '' : ' --buildkit=never';
     const userDataFolderOption = (options?.userDataFolder ?? false) ? ` --user-data-folder=${options?.userDataFolder}` : '';
     const logLevelOption = (options?.logLevel ?? false) ? ` --log-level ${options?.logLevel}` : '';
     const extraArgs = (options?.extraArgs ?? false) ? ` ${options?.extraArgs}` : '';
