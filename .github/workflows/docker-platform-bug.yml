@@ -1,0 +1,86 @@
+name: Docker Platform Bug Repro
+
+on:
+  push:
+    branches:
+      - 'chrmarti/**'
+
+jobs:
+  repro:
+    name: Platform Bug Repro
+    runs-on: ubuntu-latest
+    steps:
+    - name: Update Docker
+      run: |
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+    - name: Setup
+      run: |
+        docker version
+        docker info | grep -E "Storage Driver|driver-type"
+        docker run --privileged --rm tonistiigi/binfmt --install all
+    - name: Build with platform in Dockerfile only
+      run: |
+        dir=$(mktemp -d)
+        echo 'FROM --platform=linux/arm64 debian:latest' > "$dir/Dockerfile"
+        docker buildx build --load -t test-arm64-in-dockerfile "$dir"
+    - name: Inspect manifest list (Dockerfile platform)
+      run: |
+        docker image inspect test-arm64-in-dockerfile --format '{{.Architecture}}'
+        digest=$(docker image inspect test-arm64-in-dockerfile --format '{{.Id}}')
+        docker save test-arm64-in-dockerfile | tar -xO blobs/sha256/${digest#sha256:} | python3 -c "
+        import sys, json
+        data = json.load(sys.stdin)
+        if 'manifests' in data:
+            print('Manifest list found:')
+            for m in data['manifests']:
+                p = m.get('platform', {})
+                t = m.get('annotations', {}).get('vnd.docker.reference.type', 'image')
+                print(f'  type={t} arch={p.get(\"architecture\")} os={p.get(\"os\")} variant={p.get(\"variant\", \"\")}')
+        else:
+            print('No manifest list (single manifest)')
+        "
+    - name: Build using that image as base with --platform linux/arm64
+      run: |
+        dir=$(mktemp -d)
+        echo 'FROM test-arm64-in-dockerfile' > "$dir/Dockerfile"
+        echo "Expecting this to fail due to manifest list platform mismatch..."
+        if docker build --platform linux/arm64 -t test-arm64-rebuild "$dir" 2>&1; then
+          echo "BUILD SUCCEEDED (bug may be fixed)"
+        else
+          echo "BUILD FAILED (bug confirmed)"
+        fi
+    - name: Build with --platform on CLI
+      run: |
+        dir=$(mktemp -d)
+        echo 'FROM debian:latest' > "$dir/Dockerfile"
+        docker buildx build --load --platform linux/arm64 -t test-arm64-on-cli "$dir"
+    - name: Inspect manifest list (CLI platform)
+      run: |
+        docker image inspect test-arm64-on-cli --format '{{.Architecture}}'
+        digest=$(docker image inspect test-arm64-on-cli --format '{{.Id}}')
+        docker save test-arm64-on-cli | tar -xO blobs/sha256/${digest#sha256:} | python3 -c "
+        import sys, json
+        data = json.load(sys.stdin)
+        if 'manifests' in data:
+            print('Manifest list found:')
+            for m in data['manifests']:
+                p = m.get('platform', {})
+                t = m.get('annotations', {}).get('vnd.docker.reference.type', 'image')
+                print(f'  type={t} arch={p.get(\"architecture\")} os={p.get(\"os\")} variant={p.get(\"variant\", \"\")}')
+        else:
+            print('No manifest list (single manifest)')
+        "
+    - name: Build using CLI-platform image with --platform linux/arm64
+      run: |
+        dir=$(mktemp -d)
+        echo 'FROM test-arm64-on-cli' > "$dir/Dockerfile"
+        if docker build --platform linux/arm64 -t test-arm64-on-cli-rebuild "$dir" 2>&1; then
+          echo "BUILD SUCCEEDED (expected)"
+        else
+          echo "BUILD FAILED (unexpected)"
+        fi
