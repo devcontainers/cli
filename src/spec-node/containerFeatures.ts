@@ -469,10 +469,10 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		output.write(`updateUID: docker inspect failed: ${err}`, LogLevel.Warning);
 	}
 	try {
-		const manifestResult = await dockerCLI(params, 'manifest', 'inspect', imageName);
-		output.write(`updateUID: docker manifest inspect ${imageName}: ${manifestResult.stdout.toString().trim()}`, LogLevel.Info);
+		const imagetoolsResult = await dockerCLI(params, 'buildx', 'imagetools', 'inspect', imageName, '--raw');
+		output.write(`updateUID: docker buildx imagetools inspect ${imageName}: ${imagetoolsResult.stdout.toString().trim()}`, LogLevel.Info);
 	} catch (err) {
-		output.write(`updateUID: docker manifest inspect failed: ${err}`, LogLevel.Warning);
+		output.write(`updateUID: docker buildx imagetools inspect failed: ${err instanceof Error ? err.message : JSON.stringify(err)}`, LogLevel.Warning);
 	}
 
 	const dockerfileName = 'updateUID.Dockerfile';
