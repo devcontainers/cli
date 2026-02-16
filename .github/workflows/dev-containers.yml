@@ -69,6 +69,15 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Docker Version (before update)
+      run: docker version
+    - name: Update Docker
+      run: |
+        # Install latest Docker from official repo
+        sudo apt-get update
+        sudo apt-get install -y --only-upgrade docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+    - name: Docker Version (after update)
+      run: docker version
     - name: Tools Info
       run: |
         docker info
