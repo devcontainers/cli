@@ -420,12 +420,13 @@ function getFeatureEnvVariables(f: Feature) {
 
 export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
 	const { common } = params;
-	const { cliHost } = common;
+	const { cliHost, output } = common;
 	const { updateRemoteUserUID } = mergedConfig;
 	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof updateRemoteUserUID === 'boolean' ? updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
 		return null;
 	}
 	const details = await imageDetails();
+	output.write(`updateUID: image=${imageName} Os=${details.Os} Architecture=${details.Architecture} Variant=${details.Variant || '(none)'}`, LogLevel.Info);
 	const imageUser = details.Config.User || 'root';
 	const remoteUser = mergedConfig.remoteUser || runArgsUser || imageUser;
 	if (remoteUser === 'root' || /^\d+$/.test(remoteUser)) {
@@ -434,11 +435,13 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 	const folderImageName = getFolderImageName(common);
 	const fixedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-uid`;
 
+	const platform = [details.Os, details.Architecture, details.Variant].filter(Boolean).join('/');
+	output.write(`updateUID: remoteUser=${remoteUser} imageUser=${imageUser} platform=${platform}`, LogLevel.Info);
 	return {
 		imageName: fixedImageName,
 		remoteUser,
 		imageUser,
-		platform: [details.Os, details.Architecture, details.Variant].filter(Boolean).join('/')
+		platform,
 	};
 }
 
@@ -451,6 +454,20 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		return imageName;
 	}
 	const { imageName: fixedImageName, remoteUser, imageUser, platform } = updateDetails;
+	const { output } = common;
+
+	try {
+		const infoResult = await dockerCLI(params, 'info', '--format', '{{.Driver}} / containerd: {{.DriverStatus}}');
+		output.write(`updateUID: docker info: ${infoResult.stdout.toString().trim()}`, LogLevel.Info);
+	} catch (err) {
+		output.write(`updateUID: docker info failed: ${err}`, LogLevel.Warning);
+	}
+	try {
+		const inspectResult = await dockerCLI(params, 'inspect', '--type', 'image', imageName);
+		output.write(`updateUID: docker inspect ${imageName}: ${inspectResult.stdout.toString().trim()}`, LogLevel.Info);
+	} catch (err) {
+		output.write(`updateUID: docker inspect failed: ${err}`, LogLevel.Warning);
+	}
 
 	const dockerfileName = 'updateUID.Dockerfile';
 	const srcDockerfile = path.join(common.extensionPath, 'scripts', dockerfileName);
@@ -474,6 +491,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'--build-arg', `IMAGE_USER=${imageUser}`,
 		emptyFolder,
 	];
+	output.write(`updateUID: docker ${args.join(' ')}`, LogLevel.Info);
 	if (params.isTTY) {
 		await dockerPtyCLI(params, ...args);
 	} else {
