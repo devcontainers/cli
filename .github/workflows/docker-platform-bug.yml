@@ -18,11 +18,12 @@ jobs:
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt-get update
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
-    - name: Setup
-      run: |
-        docker version
-        docker info | grep -E "Storage Driver|driver-type"
-        docker run --privileged --rm tonistiigi/binfmt --install all
+    - name: Docker Version
+      run: docker version
+    - name: Docker Info
+      run: docker info
+    - name: Setup QEMU
+      run: docker run --privileged --rm tonistiigi/binfmt --install all
     - name: Build with platform in Dockerfile only
       run: |
         dir=$(mktemp -d)
