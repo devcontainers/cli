@@ -4,6 +4,9 @@ Notable changes.
 
 ## February 2026
 
+### [0.83.1]
+- Bump tar from 7.5.6 to 7.5.7. (https://github.com/devcontainers/cli/pull/1140)
+
 ### [0.83.0]
 - Add install script. (https://github.com/devcontainers/cli/pull/1142)
 - Remove request body limit. (https://github.com/devcontainers/cli/pull/1141)
