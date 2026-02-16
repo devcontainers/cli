@@ -7,7 +7,7 @@ import * as path from 'path';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
-import { LogLevel, makeLog } from '../spec-utils/log';
+import { LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
@@ -464,15 +464,23 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 	}
 	try {
 		const inspectResult = await dockerCLI(params, 'inspect', '--type', 'image', imageName);
-		output.write(`updateUID: docker inspect ${imageName}: ${inspectResult.stdout.toString().trim()}`, LogLevel.Info);
+		const inspectJson = inspectResult.stdout.toString().trim();
+		output.write(`updateUID: docker inspect ${imageName}: ${inspectJson}`, LogLevel.Info);
+		// Read the raw manifest list from the containerd content store using the image digest
+		try {
+			const parsed = JSON.parse(inspectJson);
+			const digest = parsed[0]?.Id || parsed[0]?.Descriptor?.digest;
+			if (digest) {
+				const hash = digest.replace('sha256:', '');
+				const blobPath = `/var/lib/docker/containerd/daemon/io.containerd.content.v1.content/blobs/sha256/${hash}`;
+				const catResult = await runCommandNoPty({ exec: common.cliHost.exec, cmd: 'cat', args: [blobPath], output: nullLog });
+				output.write(`updateUID: manifest list (${blobPath}): ${catResult.stdout.toString().trim()}`, LogLevel.Info);
+			}
+		} catch (blobErr) {
+			output.write(`updateUID: reading manifest list blob failed: ${blobErr instanceof Error ? blobErr.message : JSON.stringify(blobErr)}`, LogLevel.Warning);
+		}
 	} catch (err) {
 		output.write(`updateUID: docker inspect failed: ${err}`, LogLevel.Warning);
-	}
-	try {
-		const imagetoolsResult = await dockerCLI(params, 'buildx', 'imagetools', 'inspect', imageName, '--raw');
-		output.write(`updateUID: docker buildx imagetools inspect ${imageName}: ${imagetoolsResult.stdout.toString().trim()}`, LogLevel.Info);
-	} catch (err) {
-		output.write(`updateUID: docker buildx imagetools inspect failed: ${err instanceof Error ? err.message : JSON.stringify(err)}`, LogLevel.Warning);
 	}
 
 	const dockerfileName = 'updateUID.Dockerfile';
