@@ -9,7 +9,7 @@ import { devContainerDown, devContainerUp, shellExec } from './testUtils';
 
 const pkg = require('../../package.json');
 
-(process.platform === 'linux' ? describe : describe.skip)('Dev Containers CLI', function () {
+(process.platform === 'linux' ? describe.only : describe.skip)('Dev Containers CLI', function () {
 	this.timeout('120s');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));

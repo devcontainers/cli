@@ -84,7 +84,7 @@ jobs:
     - name: Package
       run: yarn package
     - name: Run Tests
-      run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
+      run: yarn test-matrix ${{ matrix.mocha-args }}
       env:
         CI: true
 

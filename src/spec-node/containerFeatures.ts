@@ -466,18 +466,23 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		const inspectResult = await dockerCLI(params, 'inspect', '--type', 'image', imageName);
 		const inspectJson = inspectResult.stdout.toString().trim();
 		output.write(`updateUID: docker inspect ${imageName}: ${inspectJson}`, LogLevel.Info);
-		// Read the raw manifest list from the containerd content store using the image digest
+		// Extract the OCI index from docker save to see manifest list platform annotations
 		try {
 			const parsed = JSON.parse(inspectJson);
-			const digest = parsed[0]?.Id || parsed[0]?.Descriptor?.digest;
+			const digest = parsed[0]?.Descriptor?.digest;
 			if (digest) {
-				const hash = digest.replace('sha256:', '');
-				const blobPath = `/var/lib/docker/containerd/daemon/io.containerd.content.v1.content/blobs/sha256/${hash}`;
-				const catResult = await runCommandNoPty({ exec: common.cliHost.exec, cmd: 'cat', args: [blobPath], output: nullLog });
-				output.write(`updateUID: manifest list (${blobPath}): ${catResult.stdout.toString().trim()}`, LogLevel.Info);
+				const hash = digest.replace('sha256:', '').replace(':', '/');
+				// docker save outputs OCI layout; extract the manifest list blob by digest
+				const saveResult = await runCommandNoPty({
+					exec: common.cliHost.exec,
+					cmd: '/bin/sh',
+					args: ['-c', `docker save ${imageName} | tar -xO blobs/sha256/${hash} 2>/dev/null || docker save ${imageName} | tar -xO index.json 2>/dev/null`],
+					output: nullLog
+				});
+				output.write(`updateUID: manifest list for ${imageName}: ${saveResult.stdout.toString().trim()}`, LogLevel.Info);
 			}
 		} catch (blobErr) {
-			output.write(`updateUID: reading manifest list blob failed: ${blobErr instanceof Error ? blobErr.message : JSON.stringify(blobErr)}`, LogLevel.Warning);
+			output.write(`updateUID: reading manifest list failed: ${blobErr instanceof Error ? blobErr.message : JSON.stringify(blobErr)}`, LogLevel.Warning);
 		}
 	} catch (err) {
 		output.write(`updateUID: docker inspect failed: ${err}`, LogLevel.Warning);
