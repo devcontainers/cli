@@ -23,9 +23,15 @@ export async function request(options: { type: string; url: string; headers: Rec
 			headers: options.headers,
 			agent: new ProxyAgent(),
 			secureContext,
-			timeout: 3000
+			timeout: 60000,
 		};
 
+		const offline_mode: boolean = (process.env.OFFLINE_MODE ?? 'false') === 'true';
+		if (offline_mode) {
+			output.write('Offline mode enabled, skipping request', LogLevel.Warning);
+			return;
+		}
+		
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
 		if (plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
@@ -43,6 +49,7 @@ export async function request(options: { type: string; url: string; headers: Rec
 			}
 		});
 		req.on('timeout', () => {
+			output.write('Request timed out, aborting', LogLevel.Warning);
 			req.destroy();
 		});
 		req.on('error', reject);
