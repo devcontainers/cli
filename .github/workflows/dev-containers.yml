@@ -69,6 +69,20 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Disable containerd image store
+      run: |
+        # Workaround for https://github.com/moby/moby/issues/52050
+        DAEMON_JSON="/etc/docker/daemon.json"
+        if [ -f "$DAEMON_JSON" ]; then
+          sudo jq '. + {"features": {"containerd-snapshotter": false}}' "$DAEMON_JSON" \
+            | sudo tee "${DAEMON_JSON}.tmp" > /dev/null
+          sudo mv "${DAEMON_JSON}.tmp" "$DAEMON_JSON"
+        else
+          echo '{"features": {"containerd-snapshotter": false}}' \
+            | sudo tee "$DAEMON_JSON" > /dev/null
+        fi
+        cat "$DAEMON_JSON"
+        sudo systemctl restart docker
     - name: Tools Info
       run: |
         docker info
