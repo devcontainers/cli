@@ -33,7 +33,11 @@ jobs:
           "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
           $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt-get update
-        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io
+        # Pin buildx < 0.31.0 to avoid API version 1.52 incompatibility with Docker 20.10 (max API 1.41)
+        # See https://github.com/docker/buildx/issues/3654
+        BUILDX_VERSION=$(apt-cache madison docker-buildx-plugin | awk '{print $3}' | grep -v '^0\.3[1-9]\.' | head -1)
+        echo "Installing docker-buildx-plugin=$BUILDX_VERSION"
+        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io docker-buildx-plugin="$BUILDX_VERSION" docker-compose-plugin
         sudo systemctl restart docker
     
     - name: Verify Docker version, Install and Test
