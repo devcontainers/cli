@@ -243,28 +243,42 @@ export function isBuildKitImagePolicyError(err: any): boolean {
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
-	} catch (err) {
-		if (!pullImageOnError) {
-			throw err;
-		}
+	} catch (inspectErr) {
 		const output = 'cliHost' in params ? params.output : params.common.output;
+		if (!pullImageOnError) {
+			logErrorStdoutStderr(inspectErr, output);
+			throw inspectErr;
+		}
 		try {
 			return await inspectImageInRegistry(output, params.platformInfo, imageName);
-		} catch (err2) {
-			output.write(`Error fetching image details: ${err2?.message}`);
+		} catch (inspectErr2) {
+			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
 		try {
 			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
-		} catch (_err) {
-			if (err.stdout) {
-				output.write(err.stdout.toString());
-			}
-			if (err.stderr) {
-				output.write(toErrorText(err.stderr.toString()));
-			}
-			throw err;
+		} catch (pullErr) {
+			logErrorStdoutStderr(inspectErr, output);
+			logErrorStdoutStderr(pullErr, output);
+			throw pullErr;
 		}
-		return inspectImage(params, imageName);
+		try {
+			return await inspectImage(params, imageName);
+		} catch (inspectErr3) {
+			logErrorStdoutStderr(inspectErr3, output);
+			throw inspectErr3;
+		}
+	}
+}
+
+function logErrorStdoutStderr(err: any, output: Log) {
+	if (err?.message) {
+		output.write(err.message, LogLevel.Error);
+	}
+	if (err?.stdout) {
+		output.write(err.stdout.toString(), LogLevel.Error);
+	}
+	if (err?.stderr) {
+		output.write(toErrorText(err.stderr.toString()), LogLevel.Error);
 	}
 }
 
