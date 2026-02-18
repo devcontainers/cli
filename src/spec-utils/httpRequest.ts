@@ -23,13 +23,13 @@ export async function request(options: { type: string; url: string; headers: Rec
 			headers: options.headers,
 			agent: new ProxyAgent(),
 			secureContext,
-			timeout: 60000,
 		};
 
 		const offline_mode: boolean = (process.env.OFFLINE_MODE ?? 'false') === 'true';
 		if (offline_mode) {
-			output.write('Offline mode enabled, skipping request', LogLevel.Warning);
-			return;
+			// Use the exception handling as a signal to skip the request
+			const err = `Offline mode enabled. Aboring request.`;
+			throw new Error(err);
 		}
 		
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
@@ -47,10 +47,6 @@ export async function request(options: { type: string; url: string; headers: Rec
 				res.on('data', chunk => chunks.push(chunk as Buffer));
 				res.on('end', () => resolve(Buffer.concat(chunks)));
 			}
-		});
-		req.on('timeout', () => {
-			output.write('Request timed out, aborting', LogLevel.Warning);
-			req.destroy();
 		});
 		req.on('error', reject);
 		if (options.data) {
