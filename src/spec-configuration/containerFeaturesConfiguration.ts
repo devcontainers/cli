@@ -313,7 +313,7 @@ RUN chmod -R 0755 ${dest} \\
 
 `;
 		} else {
-			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
+			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder},rw \\
     cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
@@ -341,7 +341,7 @@ RUN chmod -R 0755 ${dest} \\
 `;
 			} else {
 				result += `
-RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
+RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId},rw \\
     cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
