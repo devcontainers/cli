@@ -650,6 +650,17 @@ async function doBuild({
 		// Support multiple use of `--label`
 		params.additionalLabels = (buildxLabel && (Array.isArray(buildxLabel) ? buildxLabel : [buildxLabel]) as string[]) || [];
 
+		// Detect multiple platforms for buildx
+		const platforms = buildxPlatform ? (Array.isArray(buildxPlatform) ? buildxPlatform : String(buildxPlatform).split(',').map(p => p.trim())) : [];
+		if (platforms.length > 1) {
+			// For multi-platform builds, force --push and unset --load
+			params.buildxPush = true;
+			if (params.buildxOutput === 'load' || params.buildxOutput === '--load') {
+				params.buildxOutput = undefined;
+				output && output.write('Warning: --load is not supported for multi-platform builds. Using --push instead.\n');
+			}
+		}
+
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
