@@ -34,6 +34,7 @@
 		"precommit": "node build/hygiene.js",
 		"lint": "eslint -c .eslintrc.js --rulesdir ./build/eslint --max-warnings 0 --ext .ts ./src",
 		"npm-pack": "npm pack",
+		"build-executable": "node build/single-executable.js",
 		"clean": "npm-run-all clean-dist clean-built",
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
