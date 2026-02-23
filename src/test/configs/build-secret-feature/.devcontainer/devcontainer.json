@@ -1,0 +1,7 @@
+{
+  "name": "Test Feature Secrets",
+  "image": "debian:trixie-slim",
+  "features": {
+    "./secret_test": {}
+  }
+}
