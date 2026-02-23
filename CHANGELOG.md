@@ -4,6 +4,9 @@ Notable changes.
 
 ## February 2026
 
+### [0.83.3]
+- Bump tar from 7.5.7 to 7.5.8. (https://github.com/devcontainers/cli/pull/1160)
+
 ### [0.83.2]
 - Improved logging for image inspect errors. (https://github.com/devcontainers/cli/pull/1152)
 
