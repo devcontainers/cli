@@ -30,7 +30,7 @@ export function featuresResolveDependenciesOptions(y: Argv) {
 	return y
 		.options({
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'error' as 'error', description: 'Log level.' },
-			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration.', demandOption: true },
+			'workspace-folder': { type: 'string', description: 'Workspace folder to use for the configuration. If --workspace-folder is not provided, this defaults to the current directory' },
 		});
 }
 
@@ -41,7 +41,7 @@ export function featuresResolveDependenciesHandler(args: featuresResolveDependen
 }
 
 async function featuresResolveDependencies({
-	'workspace-folder': workspaceFolder,
+	'workspace-folder': workspaceFolderArg,
 	'log-level': inputLogLevel,
 }: featuresResolveDependenciesArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -62,6 +62,8 @@ async function featuresResolveDependencies({
 
 	let jsonOutput: JsonOutput = {};
 
+	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
+
 	// Detect path to dev container config
 	let configPath = path.join(workspaceFolder, '.devcontainer.json');
 	if (!(await isLocalFile(configPath))) {
@@ -77,7 +79,7 @@ async function featuresResolveDependencies({
 	const cliHost = await getCLIHost(cwd, loadNativeModule, true);
 	const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 	const configFile: URI = URI.file(path.resolve(process.cwd(), configPath));
-	const configs = await readDevContainerConfigFile(cliHost, workspace, configFile, false, output, undefined, undefined);	
+	const configs = await readDevContainerConfigFile(cliHost, workspace, configFile, false, false, output, undefined, undefined);
 
 	if (configFile && !configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });

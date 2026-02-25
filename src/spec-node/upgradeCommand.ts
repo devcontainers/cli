@@ -23,7 +23,7 @@ import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configurat
 export function featuresUpgradeOptions(y: Argv) {
 	return y
 		.options({
-			'workspace-folder': { type: 'string', description: 'Workspace folder.', demandOption: true },
+			'workspace-folder': { type: 'string', description: 'Workspace folder. If --workspace-folder is not provided defaults to the current directory.' },
 			'docker-path': { type: 'string', description: 'Path to docker executable.', default: 'docker' },
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -37,7 +37,6 @@ export function featuresUpgradeOptions(y: Argv) {
 			if (argv.feature && !argv['target-version'] || !argv.feature && argv['target-version']) {
 				throw new Error('The \'--target-version\' and \'--feature\' flag must be used together.');
 			}
-
 			if (argv['target-version']) {
 				const targetVersion = argv['target-version'];
 				if (!targetVersion.match(/^\d+(\.\d+(\.\d+)?)?$/)) {
@@ -70,7 +69,7 @@ async function featuresUpgrade({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+        const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();		
 		const configFile = configArg ? URI.file(path.resolve(process.cwd(), configArg)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, true);
 		const extensionPath = path.join(__dirname, '..', '..');
@@ -193,7 +192,7 @@ function upgradeFeatureKeyInConfig(configText: string, current: string, updated:
 }
 
 async function getConfig(configPath: URI | undefined, cliHost: CLIHost, workspace: Workspace, output: Log, configFile: URI | undefined): Promise<DevContainerConfig> {
-	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+	const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, false, output) || undefined;
 	if (!configs) {
 		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 	}

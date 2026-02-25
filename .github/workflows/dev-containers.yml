@@ -8,6 +8,10 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   cli:
     name: CLI
@@ -69,6 +73,20 @@ jobs:
         node-version: '18.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Disable containerd image store
+      run: |
+        # Workaround for https://github.com/moby/moby/issues/52050
+        DAEMON_JSON="/etc/docker/daemon.json"
+        if [ -f "$DAEMON_JSON" ]; then
+          sudo jq '. + {"features": {"containerd-snapshotter": false}}' "$DAEMON_JSON" \
+            | sudo tee "${DAEMON_JSON}.tmp" > /dev/null
+          sudo mv "${DAEMON_JSON}.tmp" "$DAEMON_JSON"
+        else
+          echo '{"features": {"containerd-snapshotter": false}}' \
+            | sudo tee "$DAEMON_JSON" > /dev/null
+        fi
+        cat "$DAEMON_JSON"
+        sudo systemctl restart docker
     - name: Tools Info
       run: |
         docker info
@@ -120,9 +138,21 @@ jobs:
         FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL: ${{ secrets.FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL }}
 
 
+  install-script:
+    name: Install Script
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run install.sh tests
+      run: sh scripts/install.test.sh
+
   tests:
     name: Tests
-    needs: [tests-matrix, features-registry-compatibility]
+    needs: [tests-matrix, features-registry-compatibility, install-script]
     runs-on: ubuntu-latest
     steps:
     - name: Done

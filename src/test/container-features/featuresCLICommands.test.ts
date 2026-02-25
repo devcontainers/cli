@@ -1,14 +1,14 @@
 import { assert } from 'chai';
 import path from 'path';
+import { existsSync } from 'fs';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { ExecResult, shellExec } from '../testUtils';
 import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
 import { generateFeaturesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
+import pkg from '../../../package.json';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
-
-const pkg = require('../../../package.json');
 
 describe('CLI features subcommands', async function () {
 	this.timeout('240s');
@@ -422,6 +422,119 @@ describe('CLI features subcommands', async function () {
 ✅ Passed:      'frowning_with_a_dockerfile'`;
 			const hasExpectedTestReport = result.stdout.includes(expectedTestReport);
 			assert.isTrue(hasExpectedTestReport);
+		});
+	});
+
+	describe('features resolve-dependencies', function () {
+
+		it('should resolve dependencies when workspace-folder defaults to current directory', async function () {
+			// Create a test config with features that have dependencies
+			const testConfigPath = path.resolve(__dirname, 'configs/feature-dependencies/dependsOn/oci-ab');
+			const originalCwd = process.cwd();
+
+			try {
+				// Change to test config directory to test default workspace folder behavior
+				process.chdir(testConfigPath);
+
+				// Use absolute path to CLI to prevent npm ENOENT errors
+				const absoluteTmpPath = path.resolve(originalCwd, tmp);
+				const absoluteCliPath = `npx --prefix ${absoluteTmpPath} devcontainer`;
+
+				// First check if the config file exists
+				const configExists = existsSync('.devcontainer/devcontainer.json') ||
+					existsSync('.devcontainer.json');
+				assert.isTrue(configExists, 'Test config file should exist');
+
+				let result;
+				try {
+					result = await shellExec(`${absoluteCliPath} features resolve-dependencies --log-level trace`);
+				} catch (error: any) {
+					// If command fails, log details for debugging
+					console.error('Command failed:', error);
+					if (error.stderr) {
+						console.error('STDERR:', error.stderr);
+					}
+					if (error.stdout) {
+						console.error('STDOUT:', error.stdout);
+					}
+					throw error;
+				}
+
+				// Verify the command succeeded
+				assert.isDefined(result);
+				assert.isString(result.stdout);
+				assert.isNotEmpty(result.stdout.trim(), 'Command should produce output');
+
+				// Parse the JSON output to verify it contains expected structure
+				let jsonOutput;
+				try {
+					// Try parsing stdout directly first
+					jsonOutput = JSON.parse(result.stdout.trim());
+				} catch (parseError) {
+					// If direct parsing fails, try extracting JSON from mixed output
+					const lines = result.stdout.split('\n');
+
+					// Find the last occurrence of '{' that starts a complete JSON object
+					let jsonStartIndex = -1;
+					let jsonEndIndex = -1;
+					let braceCount = 0;
+
+					// Work backwards from the end to find the complete JSON
+					for (let i = lines.length - 1; i >= 0; i--) {
+						const line = lines[i].trim();
+						if (line === '}' && jsonEndIndex === -1) {
+							jsonEndIndex = i;
+							braceCount = 1;
+						} else if (jsonEndIndex !== -1) {
+							// Count braces to find matching opening
+							for (const char of line) {
+								if (char === '}') {
+									braceCount++;
+								} else if (char === '{') {
+									braceCount--;
+								}
+							}
+							if (braceCount === 0 && line === '{') {
+								jsonStartIndex = i;
+								break;
+							}
+						}
+					}
+
+					if (jsonStartIndex >= 0 && jsonEndIndex >= 0) {
+						// Extract just the JSON lines
+						const jsonLines = lines.slice(jsonStartIndex, jsonEndIndex + 1);
+						const jsonString = jsonLines.join('\n');
+						try {
+							jsonOutput = JSON.parse(jsonString);
+						} catch (innerError) {
+							console.error('Failed to parse extracted JSON:', jsonString.substring(0, 500) + '...');
+							throw new Error(`Failed to parse extracted JSON: ${innerError}`);
+						}
+					} else {
+						console.error('Could not find complete JSON in output');
+						console.error('Last 10 lines:', lines.slice(-10));
+						throw new Error(`Failed to find complete JSON in output: ${parseError}`);
+					}
+				}
+
+				assert.isDefined(jsonOutput, 'Should have valid JSON output');
+				assert.property(jsonOutput, 'installOrder');
+				assert.isArray(jsonOutput.installOrder);
+
+				// Verify the install order contains the expected features
+				const installOrder = jsonOutput.installOrder;
+				assert.isAbove(installOrder.length, 0, 'Install order should contain at least one feature');
+
+				// Each item should have id and options
+				installOrder.forEach((item: any) => {
+					assert.property(item, 'id');
+					assert.property(item, 'options');
+				});
+
+			} finally {
+				process.chdir(originalCwd);
+			}
 		});
 	});
 

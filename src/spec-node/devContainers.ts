@@ -17,7 +17,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { dockerBuildKitVersion, isPodman } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion, dockerEngineVersion, isPodman } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
 
@@ -30,6 +30,7 @@ export interface ProvisionOptions {
 	workspaceMountConsistency?: BindMountConsistency;
 	gpuAvailability?: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
+	mountGitWorktreeCommonDir: boolean;
 	configFile: URI | undefined;
 	overrideConfigFile: URI | undefined;
 	logLevel: LogLevel;
@@ -102,7 +103,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -205,6 +206,16 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output,
 		platformInfo
 	}));
+
+	const dockerEngineVer = await dockerEngineVersion({
+		cliHost,
+		dockerCLI: dockerPath,
+		dockerComposeCLI,
+		env: cliHost.env,
+		output,
+		platformInfo
+	});	
+
 	return {
 		common,
 		parsedAuthority,
@@ -215,6 +226,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
 		gpuAvailability: gpuAvailability || 'detect',
 		mountWorkspaceGitRoot,
+		mountGitWorktreeCommonDir,
 		updateRemoteUserUIDOnMacOS: false,
 		cacheMount: 'bind',
 		removeOnStartup: options.removeExistingContainer,
@@ -225,6 +237,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
+		dockerEngineVersion: dockerEngineVer,
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
 		experimentalLockfile,
 		experimentalFrozenLockfile,

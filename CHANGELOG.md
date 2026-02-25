@@ -2,6 +2,38 @@
 
 Notable changes.
 
+## February 2026
+
+### [0.83.3]
+- Bump tar from 7.5.7 to 7.5.8. (https://github.com/devcontainers/cli/pull/1160)
+
+### [0.83.2]
+- Improved logging for image inspect errors. (https://github.com/devcontainers/cli/pull/1152)
+
+### [0.83.1]
+- Bump tar from 7.5.6 to 7.5.7. (https://github.com/devcontainers/cli/pull/1140)
+
+### [0.83.0]
+- Add install script. (https://github.com/devcontainers/cli/pull/1142)
+- Remove request body limit. (https://github.com/devcontainers/cli/pull/1141)
+- Add BUILDKIT_INLINE_CACHE for container Feature path. (https://github.com/devcontainers/cli/pull/1135)
+
+## January 2026
+
+### [0.82.0]
+- devcontainer commands now use current directory as default workspace folder when not specified (https://github.com/devcontainers/cli/pull/1104)
+
+### [0.81.1]
+- Update js-yaml and glob dependencies. (https://github.com/devcontainers/cli/pull/1128)
+
+### [0.81.0]
+- Add option to mount a worktree's common folder. (https://github.com/devcontainers/cli/pull/1127)
+
+## December 2025
+
+### [0.80.3]
+- Fix: Skip download and injection of `dockerfile:1.4` syntax for Docker Engine versions [>=23.0.0](https://docs.docker.com/engine/release-notes/23.0/#2300)) - `dockerfile:1.4` or a subsequent version is already used by the docker engine package. (https://github.com/devcontainers/cli/pull/1113)
+
 ## November 2025
 
 ### [0.80.2]
