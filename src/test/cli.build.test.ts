@@ -27,13 +27,68 @@ describe('Dev Containers CLI', function () {
 
 	describe('Command build', () => {
 
-		it('should build successfully with valid image metadata --label property', async () => {
+		it('should build successfully with valid image metadata --label property (image)', async () => {
 			const testFolder = `${__dirname}/configs/example`;
 			const response = await shellExec(`${cli} build --workspace-folder ${testFolder} --label 'name=label-test' --label 'type=multiple-labels'`);
 			const res = JSON.parse(response.stdout);
 			assert.equal(res.outcome, 'success');
-			const labels = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${res.imageName} | jq`);
-			assert.match(labels.stdout.toString(), /\"name\": \"label-test\"/);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${res.imageName}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label property (dockerfile)', async () => {
+			const testFolder = `${__dirname}/configs/example-dockerfile`;
+			const response = await shellExec(`${cli} build --workspace-folder ${testFolder} --label 'name=label-test' --label 'type=multiple-labels'`);
+			const res = JSON.parse(response.stdout);
+			assert.equal(res.outcome, 'success');
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${res.imageName}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label property (compose)', async () => {
+			const testFolder = `${__dirname}/configs/compose-without-name`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1} --label 'name=label-test' --label 'type=multiple-labels'`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label (inside compose as dictionary)', async () => {
+			const testFolder = `${__dirname}/configs/compose-with-labels`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
+		});
+
+		it('should build successfully with valid image metadata --label (inside compose as array)', async () => {
+			const testFolder = `${__dirname}/configs/compose-with-labels-array`;
+			const image1 = 'image-1';
+			await shellExec(`docker rmi -f ${image1}`);
+			const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${image1}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+			assert.equal(response.imageName[0], image1);
+			const labelsResponse = await shellExec(`docker inspect --format '{{json .Config.Labels}}' ${response.imageName[0]}`);
+			const labels = JSON.parse(labelsResponse.stdout);
+			assert.equal(labels.name, 'label-test');
+			assert.equal(labels.type, 'multiple-labels');
 		});
 
 		it('should fail to build with correct error message for local feature', async () => {
