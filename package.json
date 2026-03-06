@@ -54,7 +54,7 @@
 		"scripts/updateUID.Dockerfile"
 	],
 	"devDependencies": {
-		"@stylistic/eslint-plugin": "^3.0.1",
+		"@stylistic/eslint-plugin": "^5.10.0",
 		"@types/chai": "^4.3.20",
 		"@types/chalk": "^2.2.4",
 		"@types/follow-redirects": "^1.14.4",

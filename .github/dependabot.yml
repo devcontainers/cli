@@ -17,8 +17,6 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "@stylistic/eslint-plugin"
-        update-types: ["version-update:semver-major"] # stylistic 3 to avoid esm
       - dependency-name: "@types/chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
       - dependency-name: "@types/node"
