@@ -23,5 +23,9 @@ updates:
         update-types: ["version-update:semver-major"] # Keep Node 20 compatibility
       - dependency-name: "chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
+      - dependency-name: "yargs"
+        update-types: ["version-update:semver-major"] # yargs 17 for esbuild CJS bundling
+      - dependency-name: "node-pty"
+        update-types: ["version-update:semver-minor"] # node-pty 1.1 has broken spawn-helper permissions (microsoft/node-pty#866)
     schedule:
       interval: "weekly"
