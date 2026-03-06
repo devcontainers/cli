@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const typescriptParser = require('@typescript-eslint/parser');
-const typescriptPlugin = require('@typescript-eslint/eslint-plugin');
-const stylisticPlugin = require('@stylistic/eslint-plugin');
+import typescriptParser from '@typescript-eslint/parser';
+import typescriptPlugin from '@typescript-eslint/eslint-plugin';
+import stylisticPlugin from '@stylistic/eslint-plugin';
 
-module.exports = [
+export default [
 	{
 		ignores: ['**/node_modules/**'],
 	},
