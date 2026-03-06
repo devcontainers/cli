@@ -40,7 +40,10 @@ jobs:
         # See https://github.com/docker/buildx/issues/3654
         BUILDX_VERSION=$(apt-cache madison docker-buildx-plugin | awk '{print $3}' | grep -v '^0\.3[1-9]\.' | head -1)
         echo "Installing docker-buildx-plugin=$BUILDX_VERSION"
-        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io docker-buildx-plugin="$BUILDX_VERSION" docker-compose-plugin
+        # Pin compose plugin to v2.x to avoid API incompatibility with Docker 20.10
+        COMPOSE_VERSION=$(apt-cache madison docker-compose-plugin | awk '{print $3}' | grep '^2\.' | head -1)
+        echo "Installing docker-compose-plugin=$COMPOSE_VERSION"
+        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io docker-buildx-plugin="$BUILDX_VERSION" docker-compose-plugin="$COMPOSE_VERSION"
         sudo systemctl restart docker
     
     - name: Verify Docker version, Install and Test
