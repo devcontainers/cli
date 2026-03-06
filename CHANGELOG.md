@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## March 2026
+
+### [0.84.0]
+- Dependencies update. (https://github.com/devcontainers/cli/pull/1167)
+
 ## February 2026
 
 ### [0.83.3]
