@@ -19,7 +19,7 @@ jobs:
     
     - uses: actions/setup-node@v5
       with:
-        node-version: '18.x'
+        node-version: '20.x'
     
     - name: Install Docker v20.10
       run: |
