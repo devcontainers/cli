@@ -15,7 +15,7 @@
 	},
 	"license": "MIT",
 	"engines": {
-		"node": "^16.13.0 || >=18.0.0"
+		"node": ">=20.0.0"
 	},
 	"scripts": {
 		"compile": "npm-run-all clean-dist compile-dev",
@@ -61,7 +61,7 @@
 		"@types/js-yaml": "^4.0.9",
 		"@types/mocha": "^10.0.10",
 		"@types/ncp": "^2.0.8",
-		"@types/node": "^18.19.127",
+		"@types/node": "^20.19.37",
 		"@types/pull-stream": "^3.6.7",
 		"@types/recursive-readdir": "^2.2.4",
 		"@types/semver": "^7.5.8",
