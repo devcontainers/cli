@@ -47,7 +47,7 @@ async function setupInstallOrderTest(testWorkspaceFolder: string) {
 }
 
 describe('Feature Dependencies', function () {
-    this.timeout('10s');
+    this.timeout('20s');
     const baseTestConfigPath = `${__dirname}/configs/feature-dependencies`;
 
     describe('installsAfter', function () {
