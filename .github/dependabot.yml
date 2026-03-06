@@ -27,8 +27,6 @@ updates:
         update-types: ["version-update:semver-major"] # tar 6 for source compatibility
       - dependency-name: "chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"] # eslint 8 for `--rulesdir`
       - dependency-name: "rimraf"
         update-types: ["version-update:semver-major"] # rimraf 5 for Node 18 compatibility
       - dependency-name: "tar"
