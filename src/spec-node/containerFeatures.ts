@@ -99,6 +99,14 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		for (const securityOpt of featureBuildInfo.securityOpts) {
 			args.push('--security-opt', securityOpt);
 		}
+
+		for (const secret of params.buildSecrets) {
+			if (secret.file) {
+				args.push('--secret', `id=${secret.id},src=${secret.file}`);
+			} else if (secret.env) {
+				args.push('--secret', `id=${secret.id},env=${secret.env}`);
+			}
+		}
 	} else {
 		// Not using buildx
 		args.push(
@@ -263,7 +271,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const contentSourceRootPath = useBuildKitBuildContexts ? '.' : '/tmp/build-features/';
 	const dockerfile = getContainerFeaturesBaseDockerFile(contentSourceRootPath)
 		.replace('#{nonBuildKitFeatureContentFallback}', useBuildKitBuildContexts ? '' : `FROM ${buildContentImageName} as dev_containers_feature_content_source`)
-		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath))
+		.replace('#{featureLayer}', getFeatureLayers(featuresConfig, containerUser, remoteUser, useBuildKitBuildContexts, contentSourceRootPath, params.buildSecrets))
 		.replace('#{containerEnv}', generateContainerEnvsV1(featuresConfig))
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))

@@ -290,7 +290,17 @@ function escapeQuotesForShell(input: string) {
 	return input.replace(new RegExp(`'`, 'g'), `'\\''`);
 }
 
-export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features') {
+export interface BuildSecret {
+	id: string;
+	file?: string;
+	env?: string;
+}
+
+function getSecretMounts(buildSecrets: BuildSecret[]): string {
+	return buildSecrets.map(secret => `--mount=type=secret,id=${secret.id}`).join(' ');
+}
+
+export function getFeatureLayers(featuresConfig: FeaturesConfig, containerUser: string, remoteUser: string, useBuildKitBuildContexts = false, contentSourceRootPath = '/tmp/build-features', buildSecrets: BuildSecret[] = []) {
 
 	const builtinsEnvFile = `${path.posix.join(FEATURES_CONTAINER_TEMP_DEST_FOLDER, 'devcontainer-features.builtin.env')}`;
 	let result = `RUN \\
@@ -313,8 +323,10 @@ RUN chmod -R 0755 ${dest} \\
 
 `;
 		} else {
-			result += `RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
-    cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+			const secretMounts = getSecretMounts(buildSecrets);
+			const runPrefix = secretMounts ? `RUN ${secretMounts} ` : 'RUN ';
+			result += `${runPrefix}--mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${folder} \\
+	cp -ar /tmp/build-features-src/${folder} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./install.sh \\
@@ -340,9 +352,11 @@ RUN chmod -R 0755 ${dest} \\
 
 `;
 			} else {
+				const secretMounts = getSecretMounts(buildSecrets);
+				const runPrefix = secretMounts ? `RUN ${secretMounts} ` : 'RUN ';
 				result += `
-RUN --mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
-    cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
+${runPrefix}--mount=type=bind,from=dev_containers_feature_content_source,source=${source},target=/tmp/build-features-src/${feature.consecutiveId} \\
+	cp -ar /tmp/build-features-src/${feature.consecutiveId} ${FEATURES_CONTAINER_TEMP_DEST_FOLDER} \\
  && chmod -R 0755 ${dest} \\
  && cd ${dest} \\
  && chmod +x ./devcontainer-features-install.sh \\

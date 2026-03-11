@@ -36,6 +36,12 @@ export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undef
 
 export type GPUAvailability = 'all' | 'detect' | 'none';
 
+export interface BuildSecret {
+	id: string;
+	file?: string;
+	env?: string;
+}
+
 // Generic retry function
 export async function retry<T>(fn: () => Promise<T>, options: { retryIntervalMilliseconds: number; maxRetries: number; output: Log }): Promise<T> {
 	const { retryIntervalMilliseconds, maxRetries, output } = options;
@@ -135,6 +141,7 @@ export interface DockerResolverParameters {
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
 	platformInfo: PlatformInfo;
+	buildSecrets: BuildSecret[];
 }
 
 export interface ResolverResult {

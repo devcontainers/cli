@@ -10,7 +10,7 @@ import textTable from 'text-table';
 import * as jsonc from 'jsonc-parser';
 
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
-import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder, runAsyncHandler } from './utils';
+import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder, runAsyncHandler, BuildSecret } from './utils';
 import { URI } from 'vscode-uri';
 import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
@@ -49,6 +49,43 @@ import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
 const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
+
+function parseBuildSecrets(buildSecretsArg: string[] | undefined): BuildSecret[] {
+	if (!buildSecretsArg) {
+		return [];
+	}
+	const secrets = Array.isArray(buildSecretsArg) ? buildSecretsArg : [buildSecretsArg];
+	return secrets.map(secret => {
+		// Support shorthand: id=name (assumes env=name)
+		const shorthandMatch = secret.match(/^id=([^,]+)$/);
+		if (shorthandMatch) {
+			return {
+				id: shorthandMatch[1],
+				env: shorthandMatch[1].toUpperCase()
+			};
+		}
+
+		// Support file format: id=name,src=path
+		const fileMatch = secret.match(/^id=([^,]+),src=(.+)$/);
+		if (fileMatch) {
+			return {
+				id: fileMatch[1],
+				file: path.resolve(process.cwd(), fileMatch[2])
+			};
+		}
+
+		// Support env format: id=name,env=VAR
+		const envMatch = secret.match(/^id=([^,]+),env=(.+)$/);
+		if (envMatch) {
+			return {
+				id: envMatch[1],
+				env: envMatch[2]
+			};
+		}
+
+		throw new Error(`Invalid build-secret format: ${secret}. Supported formats are: "id=<id>,src=<path>", "id=<id>,env=<var>", or "id=<id>" (which assumes env=<ID>).`);
+	});
+}
 
 (async () => {
 
@@ -138,6 +175,7 @@ function provisionOptions(y: Argv) {
 		'container-session-data-folder': { type: 'string', description: 'Folder to cache CLI data, for example userEnvProbe results' },
 		'omit-config-remote-env-from-metadata': { type: 'boolean', default: false, hidden: true, description: 'Omit remoteEnv from devcontainer.json for container metadata label' },
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
+		'build-secret': { type: 'string', description: 'Build secrets in the format id=<id>,src=<path>, id=<id>,env=<var>, or id=<id> (assumes env=<ID>). These will be passed as Docker build secrets to feature installation steps.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
@@ -160,6 +198,10 @@ function provisionOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			const buildSecrets = (argv['build-secret'] && (Array.isArray(argv['build-secret']) ? argv['build-secret'] : [argv['build-secret']])) as string[] | undefined;
+			if (buildSecrets?.some(buildSecret => !/^id=[^,]+(,src=.+|,env=.+)?$/.test(buildSecret))) {
+				throw new Error('Unmatched argument format: build-secret must match id=<id>,src=<path>, id=<id>,env=<var>, or id=<id>');
 			}
 			return true;
 		});
@@ -211,6 +253,7 @@ async function provision({
 	'container-session-data-folder': containerSessionDataFolder,
 	'omit-config-remote-env-from-metadata': omitConfigRemotEnvFromMetadata,
 	'secrets-file': secretsFile,
+	'build-secret': buildSecret,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
@@ -223,6 +266,7 @@ async function provision({
 	const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 	const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 	const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+	const buildSecrets = parseBuildSecrets(buildSecret as string[] | undefined);
 
 	const cwd = workspaceFolder || process.cwd();
 	const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
@@ -287,6 +331,7 @@ async function provision({
 		omitSyntaxDirective,
 		includeConfig,
 		includeMergedConfig,
+		buildSecrets,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -454,6 +499,7 @@ async function doSetUp({
 				installCommand: dotfilesInstallCommand,
 				targetPath: dotfilesTargetPath,
 			},
+			buildSecrets: [],
 		}, disposables);
 
 		const { common } = params;
@@ -525,6 +571,7 @@ function buildOptions(y: Argv) {
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
+		'build-secret': { type: 'string', description: 'Build secrets in the format id=<id>,src=<path>, id=<id>,env=<var>, or id=<id> (assumes env=<ID>). These will be passed as Docker build secrets to feature installation steps.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
@@ -570,6 +617,7 @@ async function doBuild({
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'build-secret': buildSecret,
 }: BuildArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -581,6 +629,7 @@ async function doBuild({
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
+		const buildSecrets = parseBuildSecrets(buildSecret as string[] | undefined);
 		const params = await createDockerParams({
 			dockerPath,
 			dockerComposePath,
@@ -620,6 +669,7 @@ async function doBuild({
 			experimentalLockfile,
 			experimentalFrozenLockfile,
 			omitSyntaxDirective,
+			buildSecrets,
 		}, disposables);
 
 		const { common, dockerComposeCLI } = params;
@@ -854,6 +904,7 @@ async function doRunUserCommands({
 		const cwd = workspaceFolder || process.cwd();
 		const cliHost = await getCLIHost(cwd, loadNativeModule, logFormat === 'text');
 		const secretsP = readSecretsFromFile({ secretsFile, cliHost });
+		const buildSecrets: BuildSecret[] = [];
 
 		const params = await createDockerParams({
 			dockerPath,
@@ -897,6 +948,7 @@ async function doRunUserCommands({
 			},
 			containerSessionDataFolder,
 			secretsP,
+			buildSecrets,
 		}, disposables);
 
 		const { common } = params;
@@ -1344,7 +1396,8 @@ export async function doExec({
 			buildxOutput: undefined,
 			skipPostAttach: false,
 			skipPersistingCustomizationsFromFeatures: false,
-			dotfiles: {}
+			dotfiles: {},
+			buildSecrets: []
 		}, disposables);
 
 		const { common } = params;

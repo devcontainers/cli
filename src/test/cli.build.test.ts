@@ -53,7 +53,7 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
 				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
 				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
-				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1'); 
+				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1');
 			} catch (error) {
 				assert.equal(error.code, 'ERR_ASSERTION', 'Should fail with ERR_ASSERTION');
 			}
@@ -477,5 +477,54 @@ describe('Dev Containers CLI', function () {
 			}
 		});
 
+		it('should build with Docker Compose and build secrets', async () => {
+			// Create a temporary secret file
+			const secretContent = 'My super important secret';
+			const secretFile = path.join(os.tmpdir(), 'test_secret.txt');
+			fs.writeFileSync(secretFile, secretContent);
+
+			const testFolder = `${__dirname}/configs/compose-build-secret-feature`;
+			const imageName = 'test-compose-image';
+
+			try {
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --build-secret id=compose_file,src=${secretFile} --image-name ${imageName} --no-cache`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+
+				// Verify the secret content was correctly written to the image
+				const secretCheck = await shellExec(`docker run --rm --entrypoint="cat" ${imageName} /secret_file.txt`);
+				assert.equal(secretCheck.stdout.trim(), secretContent);
+				const secretCheckDockerfile = await shellExec(`docker run --rm --entrypoint="cat" ${imageName} /secret_test_output_dockerfile.txt`);
+				assert.equal(secretCheckDockerfile.stdout.trim(), secretContent);
+			} finally {
+				// Cleanup
+				fs.unlinkSync(secretFile);
+				await shellExec(`docker rmi -f ${imageName}`).catch(() => { });
+			}
+		});
+
+		it('should build with image and build secrets', async () => {
+			// Create a temporary secret file
+			const secretContent = 'My super important secret';
+			const secretFile = path.join(os.tmpdir(), 'test_secret.txt');
+			fs.writeFileSync(secretFile, secretContent);
+
+			const testFolder = `${__dirname}/configs/build-secret-feature`;
+			const imageName = 'test-build-secrets-image';
+
+			try {
+				const res = await shellExec(`${cli} build --workspace-folder ${testFolder} --build-secret id=compose_file,src=${secretFile} --image-name ${imageName} --no-cache`);
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'success');
+
+				// Verify the secret content was correctly written to the image
+				const secretCheck = await shellExec(`docker run --rm --entrypoint="cat" ${imageName} /secret_file.txt`);
+				assert.equal(secretCheck.stdout.trim(), secretContent);
+			} finally {
+				// Cleanup
+				fs.unlinkSync(secretFile);
+				await shellExec(`docker rmi -f ${imageName}`).catch(() => { });
+			}
+		});
 	});
 });
