@@ -100,7 +100,7 @@ export function findUserStatement(dockerfile: Dockerfile, buildArgs: Record<stri
 	return undefined;
 }
 
-export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined) {
+export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, string>, target: string | undefined, globalBuildxPlatformArgs: Record<string, string> = {}) {
 	let stage: Stage | undefined = target ? dockerfile.stagesByLabel[target] : dockerfile.stages[dockerfile.stages.length - 1];
 	const seen = new Set<Stage>();
 	while (stage) {
@@ -109,7 +109,7 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 		}
 		seen.add(stage);
 
-		const image = replaceVariables(dockerfile, buildArgs, /* not available in FROM instruction */ {}, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
+		const image = replaceVariables(dockerfile, buildArgs, globalBuildxPlatformArgs, stage.from.image, dockerfile.preamble, dockerfile.preamble.instructions.length);
 		const nextStage = dockerfile.stagesByLabel[image];
 		if (!nextStage) {
 			return image;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContainerError } from '../spec-common/errors';
+import { PlatformInfo } from '../spec-common/commonUtils';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
 import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
@@ -349,7 +350,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 		const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 		const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 		const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, cliHost.cwd);
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env: cliHost.env, output, platformInfo: params.platformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env: cliHost.env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 
 		const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 		const services = Object.keys(composeConfig.services || {});
@@ -394,18 +395,40 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
 	const { output } = 'output' in params ? params : params.common;
 	const omitSyntaxDirective = 'common' in params ? !!params.common.omitSyntaxDirective : false;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective, params.buildPlatformInfo, params.targetPlatformInfo);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean, buildPlatform: PlatformInfo, targetPlatform: PlatformInfo): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
 	if (dockerfile.preamble.directives.syntax && omitSyntaxDirective) {
 		output.write(`Omitting syntax directive '${dockerfile.preamble.directives.syntax}' from Dockerfile.`, LogLevel.Trace);
 		delete dockerfile.preamble.directives.syntax;
 	}
-	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage);
+	// https://github.com/moby/buildkit/blob/master/frontend/dockerfile/docs/reference.md#automatic-platform-args-in-the-global-scope
+	const globalBuildxPlatformArgs = {
+		// platform of the node performing the build.
+		BUILDPLATFORM: [buildPlatform.os, buildPlatform.arch, buildPlatform.variant].filter(Boolean).join("/"),
+		// OS component of BUILDPLATFORM
+		BUILDOS: buildPlatform.os,
+		// architecture component of BUILDPLATFORM
+		BUILDARCH: buildPlatform.arch,
+		// variant component of BUILDPLATFORM
+		BUILDVARIANT: buildPlatform.variant ?? "",
+		// platform of the build result. Eg linux/amd64, linux/arm/v7, windows/amd64.
+		TARGETPLATFORM: [targetPlatform.os, targetPlatform.arch, targetPlatform.variant].filter(Boolean).join("/"),
+		// OS component of TARGETPLATFORM
+		TARGETOS: targetPlatform.os,
+		// architecture component of TARGETPLATFORM
+		TARGETARCH: targetPlatform.arch,
+		// variant component of TARGETPLATFORM
+		TARGETVARIANT: targetPlatform.variant ?? "",
+	};
+	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage, globalBuildxPlatformArgs);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
-	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), targetStage);
+	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, {
+		...envListToObj(imageDetails?.Config.Env),
+		...globalBuildxPlatformArgs,
+	}, targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
 	return {

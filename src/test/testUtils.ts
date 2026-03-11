@@ -154,16 +154,18 @@ export async function createCLIParams(hostPath: string) {
 		env: cliHost.env,
 		output,
 	}, 'docker', 'docker-compose');
+	const buildPlatformInfo = {
+		os: mapNodeOSToGOOS(cliHost.platform),
+		arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+	};
 	const cliParams: DockerCLIParameters = {
 		cliHost,
 		dockerCLI: 'docker',
 		dockerComposeCLI,
 		env: {},
 		output,
-		platformInfo: {
-			os: mapNodeOSToGOOS(cliHost.platform),
-			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
-		}
+		buildPlatformInfo,
+		targetPlatformInfo: buildPlatformInfo,
 };
 	return cliParams;
 }

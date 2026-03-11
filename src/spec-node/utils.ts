@@ -134,7 +134,8 @@ export interface DockerResolverParameters {
 	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
-	platformInfo: PlatformInfo;
+	buildPlatformInfo: PlatformInfo;
+	targetPlatformInfo: PlatformInfo;
 }
 
 export interface ResolverResult {
@@ -250,7 +251,7 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			throw inspectErr;
 		}
 		try {
-			return await inspectImageInRegistry(output, params.platformInfo, imageName);
+			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName);
 		} catch (inspectErr2) {
 			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}

@@ -178,7 +178,7 @@ FROM ubuntu:latest as dev
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, {} as any, {} as any);
         assert.strictEqual(info.user, 'imageUser');
         assert.strictEqual(info.metadata.config.length, 1);
         assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
@@ -206,8 +206,41 @@ USER dockerfileUserB
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, {} as any, {} as any);
         assert.strictEqual(info.user, 'dockerfileUserB');
+        assert.strictEqual(info.metadata.config.length, 0);
+        assert.strictEqual(info.metadata.raw.length, 0);
+    });
+
+    it('for a USER in a multiarch image', async () => {
+        const dockerfile = `
+FROM ubuntu:latest as base-amd64
+USER amd64_user
+
+FROM ubuntu:latest as base-arm64
+USER arm64_user
+
+FROM base-\${TARGETARCH}
+
+ARG TARGETARCH
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: null,
+                Entrypoint: null,
+                Cmd: null
+            },
+						Os: 'linux',
+						Architecture: 'amd64'
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
+            return details;
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, {} as any, { os: 'linux', arch: 'amd64' });
+        assert.strictEqual(info.user, 'amd64_user');
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);
     });
