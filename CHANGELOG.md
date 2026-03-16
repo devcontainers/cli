@@ -4,6 +4,9 @@ Notable changes.
 
 ## March 2026
 
+### [0.84.1]
+- Bump tar from 7.5.10 to 7.5.11 due to [CVE-2026-31802](https://github.com/advisories/GHSA-9ppj-qmqm-q256). (https://github.com/devcontainers/cli/pull/1174)
+
 ### [0.84.0]
 - Dependencies update. (https://github.com/devcontainers/cli/pull/1167)
 
