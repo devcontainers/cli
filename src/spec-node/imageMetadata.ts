@@ -425,10 +425,7 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 	};
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage, globalBuildxPlatformArgs);
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
-	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, {
-		...envListToObj(imageDetails?.Config.Env),
-		...globalBuildxPlatformArgs,
-	}, targetStage);
+	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), globalBuildxPlatformArgs, targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
 	return {
