@@ -172,7 +172,12 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output: common.output,
 	}, dockerPath, dockerComposePath);
 
-	const platformInfo = (() => {
+	const buildPlatformInfo = {
+		os: mapNodeOSToGOOS(cliHost.platform),
+		arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+	};
+
+	const targetPlatformInfo = (() => {
 		if (common.buildxPlatform) {
 			const slash1 = common.buildxPlatform.indexOf('/');
 			const slash2 = common.buildxPlatform.indexOf('/', slash1 + 1);
@@ -204,7 +209,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	}));
 
 	const dockerEngineVer = await dockerEngineVersion({
@@ -213,7 +219,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	});	
 
 	return {
@@ -246,7 +253,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	};
 }
 

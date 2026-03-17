@@ -641,7 +641,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -1058,16 +1058,18 @@ async function readConfiguration({
 			env: cliHost.env,
 			output,
 		}, dockerCLI, dockerComposePath || 'docker-compose');
+		const buildPlatformInfo = {
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		};
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI,
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
-			platformInfo: {
-				os: mapNodeOSToGOOS(cliHost.platform),
-				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
-			}
+			buildPlatformInfo,
+			targetPlatformInfo: buildPlatformInfo
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
