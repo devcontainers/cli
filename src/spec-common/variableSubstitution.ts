@@ -97,6 +97,9 @@ function replaceWithContext(isWindows: boolean, context: SubstitutionContext, ma
 		case 'localEnv':
 			return lookupValue(isWindows, context.env, args, match, context.configFile);
 
+		case 'localHomeFolder':
+			return lookupHomeFolder(isWindows, context.env, args, match, context.configFile);
+
 		case 'localWorkspaceFolder':
 			return context.localWorkspaceFolder !== undefined ? context.localWorkspaceFolder : match;
 
@@ -133,6 +136,26 @@ function replaceDevContainerId(getDevContainerId: () => string | undefined, matc
 			return match;
 	}
 }
+
+function lookupHomeFolder(isWindows: boolean, envObj: NodeJS.ProcessEnv, args: string[], match: string, configFile: URI | undefined) {
+	if (args.length != 0) {
+		let envVariableName = "HOME";
+		if (isWindows) {
+			envVariableName = "userprofile";
+		}
+		const env = envObj[envVariableName];
+		if (typeof env === 'string') {
+			return env;
+		}
+
+		// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
+		return '';
+	}
+	throw new ContainerError({
+		description: `'${match}'${configFile ? ` in ${path.posix.basename(configFile.path)}` : ''} localHomeFolder cannot have any arguments.`
+	});
+}
+
 
 function lookupValue(isWindows: boolean, envObj: NodeJS.ProcessEnv, args: string[], match: string, configFile: URI | undefined) {
 	if (args.length > 0) {
