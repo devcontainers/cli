@@ -52,7 +52,8 @@ export interface DockerCLIParameters {
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	env: NodeJS.ProcessEnv;
 	output: Log;
-	platformInfo: PlatformInfo;
+	buildPlatformInfo: PlatformInfo;
+	targetPlatformInfo: PlatformInfo;
 }
 
 export interface PartialExecParameters {

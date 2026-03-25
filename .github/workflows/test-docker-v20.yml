@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ['main']
 
+permissions:
+  contents: read
+
 jobs:
   test-docker-v20:
     name: Docker v20.10 Compatibility
@@ -16,7 +19,7 @@ jobs:
     
     - uses: actions/setup-node@v5
       with:
-        node-version: '18.x'
+        node-version: '20.x'
     
     - name: Install Docker v20.10
       run: |
@@ -33,7 +36,14 @@ jobs:
           "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
           $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt-get update
-        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io
+        # Pin buildx < 0.31.0 to avoid API version 1.52 incompatibility with Docker 20.10 (max API 1.41)
+        # See https://github.com/docker/buildx/issues/3654
+        BUILDX_VERSION=$(apt-cache madison docker-buildx-plugin | awk '{print $3}' | grep -v '^0\.3[1-9]\.' | head -1)
+        echo "Installing docker-buildx-plugin=$BUILDX_VERSION"
+        # Pin compose plugin to v2.x to avoid API incompatibility with Docker 20.10
+        COMPOSE_VERSION=$(apt-cache madison docker-compose-plugin | awk '{print $3}' | grep '^2\.' | head -1)
+        echo "Installing docker-compose-plugin=$COMPOSE_VERSION"
+        sudo apt-get install -y docker-ce=5:20.10.* docker-ce-cli=5:20.10.* containerd.io docker-buildx-plugin="$BUILDX_VERSION" docker-compose-plugin="$COMPOSE_VERSION"
         sudo systemctl restart docker
     
     - name: Verify Docker version, Install and Test

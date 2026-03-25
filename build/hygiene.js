@@ -5,15 +5,30 @@
 
 'use strict';
 
-const filter = require('gulp-filter');
 const es = require('event-stream');
 const tsfmt = require('typescript-formatter');
-const gulpeslint = require('gulp-eslint');
+const { ESLint } = require('eslint');
 const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
-const pall = require('p-all');
+const pall = require('p-all').default;
+const { minimatch } = require('minimatch');
+
+function fileFilter(patterns) {
+	return es.through(function (file) {
+		const rel = file.relative;
+		const match = patterns.every(p => {
+			if (p.startsWith('!')) {
+				return !minimatch(rel, p.slice(1), { dot: true });
+			}
+			return true;
+		}) && patterns.some(p => !p.startsWith('!') && minimatch(rel, p, { dot: true }));
+		if (match) {
+			this.emit('data', file);
+		}
+	});
+}
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -175,21 +190,26 @@ function hygiene(some) {
 	}
 
 	const result = input
-		.pipe(filter(f => !f.stat.isDirectory()))
-		.pipe(filter(indentationFilter))
+		.pipe(es.through(function (f) { if (!f.stat.isDirectory()) this.emit('data', f); }))
+		.pipe(fileFilter(indentationFilter))
 		.pipe(indentation)
-		.pipe(filter(copyrightFilter))
+		.pipe(fileFilter(copyrightFilter))
 		.pipe(copyrights)
-		.pipe(filter(tsHygieneFilter))
+		.pipe(fileFilter(tsHygieneFilter))
 		.pipe(formatting)
-		.pipe(gulpeslint({
-			configFile: '.eslintrc.js',
-			rulePaths: ['./build/eslint']
-		}))
-		.pipe(gulpeslint.formatEach('compact'))
-		.pipe(gulpeslint.result(result => {
-			errorCount += result.warningCount;
-			errorCount += result.errorCount;
+		.pipe(es.map(function (file, cb) {
+			const eslint = new ESLint();
+			eslint.lintText(file.contents.toString('utf8'), {
+				filePath: file.path,
+			}).then(results => {
+				for (const result of results) {
+					errorCount += result.warningCount + result.errorCount;
+					for (const message of result.messages) {
+						console.error(`${file.relative}:${message.line}:${message.column}: ${message.message} [${message.ruleId}]`);
+					}
+				}
+				cb(null, file);
+			}).catch(err => cb(err));
 		}));
 
 	let count = 0;

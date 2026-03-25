@@ -22,11 +22,41 @@ This CLI is in active development. Current status:
 
 ## Try it out
 
-We'd love for you to try out the dev container CLI and let us know what you think. You can quickly try it out in just a few simple steps, either by installing its npm package or building the CLI repo from sources (see "[Build from sources](#build-from-sources)").
+We'd love for you to try out the dev container CLI and let us know what you think. You can quickly try it out in just a few simple steps, either by using the install script, installing its npm package, or building the CLI repo from sources (see "[Build from sources](#build-from-sources)").
 
-To install the npm package you will need Python and C/C++ installed to build one of the dependencies (see, e.g., [here](https://github.com/microsoft/vscode/wiki/How-to-Contribute) for instructions).
+### Install script
+
+You can install the CLI with a standalone script that downloads a bundled Node.js runtime, so no pre-installed Node.js is required. It works on Linux and macOS (x64 and arm64):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/devcontainers/cli/main/scripts/install.sh | sh
+```
+
+Then add the install location to your PATH:
+
+```bash
+export PATH="$HOME/.devcontainers/bin:$PATH"
+```
+
+You can also specify a version, a custom install directory, or update/uninstall an existing installation:
+
+```bash
+# Install a specific version
+sh install.sh --version 0.82.0
+
+# Install to a custom directory
+sh install.sh --prefix ~/.local/devcontainers
+
+# Update to latest
+sh install.sh --update
+
+# Uninstall
+sh install.sh --uninstall
+```
 
 ### npm install
+
+To install the npm package you will need Python and C/C++ installed to build one of the dependencies (see, e.g., [here](https://github.com/microsoft/vscode/wiki/How-to-Contribute) for instructions).
 
 ```bash
 npm install -g @devcontainers/cli

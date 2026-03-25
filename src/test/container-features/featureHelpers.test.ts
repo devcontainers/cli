@@ -57,6 +57,7 @@ describe('validate processFeatureIdentifier', async function () {
 	console.log(`workspaceRoot = ${workspaceRoot}, defaultConfigPath = ${defaultConfigPath}`);
 
 	describe('VALID processFeatureIdentifier examples', async function () {
+		this.timeout('4s');
 
 		it('should process v1 local-cache', async function () {
 			// Parsed out of a user's devcontainer.json

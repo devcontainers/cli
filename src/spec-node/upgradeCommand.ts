@@ -86,16 +86,18 @@ async function featuresUpgrade({
 			env: cliHost.env,
 			output,
 		}, dockerPath, dockerComposePath);
+		const buildPlatformInfo = {
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		};
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
-			platformInfo: {
-				os: mapNodeOSToGOOS(cliHost.platform),
-				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
-			}
+			buildPlatformInfo,
+			targetPlatformInfo: buildPlatformInfo,
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
