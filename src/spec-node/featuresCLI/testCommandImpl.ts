@@ -6,7 +6,7 @@ import { CLIHost } from '../../spec-common/cliHost';
 import { launch, ProvisionOptions, createDockerParams } from '../devContainers';
 import { doExec } from '../devContainersSpecCLI';
 import { LaunchResult, staticExecParams, staticProvisionParams, testLibraryScript } from './utils';
-import { DockerResolverParameters } from '../utils';
+import { DockerResolverParameters, normalizeDevContainerLabelPath } from '../utils';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { FeaturesTestCommandInput } from './test';
 import { cpDirectoryLocal, rmLocal } from '../../spec-utils/pfs';
@@ -546,7 +546,8 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 	const { common } = params;
 	let response = {} as LaunchResult;
 
-	const idLabels = [`devcontainer.local_folder=${workspaceFolder}`, `devcontainer.is_test_run=true`];
+	const normalizedWorkspaceFolder = normalizeDevContainerLabelPath(process.platform, workspaceFolder);
+	const idLabels = [`devcontainer.local_folder=${normalizedWorkspaceFolder}`, `devcontainer.is_test_run=true`];
 	const options: ProvisionOptions = {
 		...staticProvisionParams,
 		workspaceFolder,
