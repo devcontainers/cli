@@ -53,12 +53,20 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 		return;
 	}
 
-	const newLockfileContentString = JSON.stringify(lockfile, null, 2);
+	const newLockfileContentString = JSON.stringify(lockfile, null, 2) + '\n';
 	const newLockfileContent = Buffer.from(newLockfileContentString);
 	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
-	if (!oldLockfileContent || !newLockfileContent.equals(oldLockfileContent)) {
+	let oldLockfileNormalized: string | undefined;
+	if (oldLockfileContent) {
+		try {
+			oldLockfileNormalized = JSON.stringify(JSON.parse(oldLockfileContent.toString()), null, 2) + '\n';
+		} catch {
+			// Empty or invalid JSON; treat as needing rewrite.
+		}
+	}
+	if (!oldLockfileNormalized || oldLockfileNormalized !== newLockfileContentString) {
 		if (params.experimentalFrozenLockfile) {
 			throw new Error('Lockfile does not match.');
 		}

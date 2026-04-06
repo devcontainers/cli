@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as semver from 'semver';
 import { shellExec } from '../testUtils';
-import { cpLocal, readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { cpLocal, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
 
 const pkg = require('../../../package.json');
 
@@ -276,6 +276,44 @@ describe('Lockfile', function () {
 			assert.strictEqual(response.features['ghcr.io/devcontainers/features/git:1.0'].current, '1.0.4');
 		} finally {
 			process.chdir(originalCwd);
+		}
+	});
+
+	it('lockfile ends with trailing newline', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await rmLocal(lockfilePath, { force: true });
+
+		const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		const response = JSON.parse(res.stdout);
+		assert.equal(response.outcome, 'success');
+		const actual = (await readLocalFile(lockfilePath)).toString();
+		assert.ok(actual.endsWith('\n'), 'Lockfile should end with a trailing newline');
+	});
+
+	it('frozen lockfile matches despite formatting differences', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-frozen');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+
+		// Read the existing lockfile, strip trailing newline to create a byte-different but semantically identical file
+		const original = (await readLocalFile(lockfilePath)).toString();
+		const stripped = original.replace(/\n$/, '');
+		assert.notEqual(original, stripped, 'Test setup: should have removed trailing newline');
+		assert.deepEqual(JSON.parse(original), JSON.parse(stripped), 'Test setup: JSON content should be identical');
+
+		try {
+			await writeLocalFile(lockfilePath, Buffer.from(stripped));
+
+			// Frozen lockfile should succeed because JSON content is the same
+			const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile --experimental-frozen-lockfile`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success', 'Frozen lockfile should not fail when only formatting differs');
+			const actual = (await readLocalFile(lockfilePath)).toString();
+			assert.strictEqual(actual, stripped, 'Frozen lockfile should remain unchanged when only formatting differs');
+		} finally {
+			// Restore original lockfile
+			await writeLocalFile(lockfilePath, Buffer.from(original));
 		}
 	});
 
