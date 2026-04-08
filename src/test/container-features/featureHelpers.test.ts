@@ -57,7 +57,9 @@ describe('validate processFeatureIdentifier', async function () {
 	console.log(`workspaceRoot = ${workspaceRoot}, defaultConfigPath = ${defaultConfigPath}`);
 
 	describe('VALID processFeatureIdentifier examples', async function () {
-		this.timeout('4s');
+		// These cases perform live OCI/GHCR requests, so allow extra time for
+		// registry auth/token exchange and transient network latency in CI.
+		this.timeout('20s');
 
 		it('should process v1 local-cache', async function () {
 			// Parsed out of a user's devcontainer.json
