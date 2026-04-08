@@ -646,13 +646,15 @@ async function findDevContainerByNormalizedLabels(params: DockerResolverParamete
 		.find(container => {
 			const labels = container.Config.Labels || {};
 			const containerWorkspaceFolder = labels[hostFolderLabel];
-			if (!containerWorkspaceFolder || normalizeDevContainerLabelPath('win32', containerWorkspaceFolder) !== normalizedWorkspaceFolder) {
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			if (!normalizedContainerWorkspaceFolder || normalizedContainerWorkspaceFolder !== normalizedWorkspaceFolder) {
 				return false;
 			}
 
 			const containerConfigFile = labels[configFileLabel];
-			return !!containerConfigFile
-				&& normalizeDevContainerLabelPath('win32', containerConfigFile) === normalizedConfigFile;
+			const normalizedContainerConfigFile = containerConfigFile && normalizeDevContainerLabelPath('win32', containerConfigFile);
+			return !!normalizedContainerConfigFile
+				&& normalizedContainerConfigFile === normalizedConfigFile;
 		});
 }
 
@@ -672,11 +674,8 @@ async function findLegacyDevContainerByNormalizedWorkspaceFolder(params: DockerR
 		.find(container => {
 			const labels = container.Config.Labels || {};
 			const containerWorkspaceFolder = labels[hostFolderLabel];
-			if (!containerWorkspaceFolder) {
-				return false;
-			}
-
-			return normalizeDevContainerLabelPath('win32', containerWorkspaceFolder) === normalizedWorkspaceFolder;
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			return normalizedContainerWorkspaceFolder === normalizedWorkspaceFolder;
 		});
 }
 
@@ -690,8 +689,8 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 
 	const normalizedWorkspaceFolder = workspaceFolder ? normalizeDevContainerLabelPath(process.platform, workspaceFolder) : workspaceFolder;
 	const normalizedConfigFile = configFile ? normalizeDevContainerLabelPath(process.platform, configFile) : configFile;
-	const newLabels = [`${hostFolderLabel}=${normalizedWorkspaceFolder}`, `${configFileLabel}=${normalizedConfigFile}`];
 	const oldLabels = [`${hostFolderLabel}=${normalizedWorkspaceFolder}`];
+	const newLabels = [...oldLabels, `${configFileLabel}=${normalizedConfigFile}`];
 
 	let container: ContainerDetails | undefined;
 	if (containerId) {
