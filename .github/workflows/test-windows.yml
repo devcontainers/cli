@@ -19,6 +19,7 @@ jobs:
  tests-matrix:
     name: Tests Matrix (Windows)
     runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

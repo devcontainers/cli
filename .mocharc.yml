@@ -1,0 +1,1 @@
+timeout: 360000 # 6 minutes global safety net; individual suites override via this.timeout()
