@@ -20,7 +20,6 @@ export const configFileLabel = 'devcontainer.config_file';
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common } = params;
 	const { config } = configWithRaw;
-	// let collapsedFeaturesConfig: () => Promise<CollapsedFeaturesConfig | undefined>;
 
 	let container: ContainerDetails | undefined;
 	let containerProperties: ContainerProperties | undefined;
@@ -30,14 +29,7 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 		let imageMetadata: ImageMetadataEntry[];
 		let mergedConfig: MergedDevContainerConfig;
 		if (container) {
-			// let _collapsedFeatureConfig: Promise<CollapsedFeaturesConfig | undefined>;
-			// collapsedFeaturesConfig = async () => {
-			// 	return _collapsedFeatureConfig || (_collapsedFeatureConfig = (async () => {
-			// 		const allLabels = container?.Config.Labels || {};
-			// 		const featuresConfig = await generateFeaturesConfig(params.common, (await createFeaturesTempFolder(params.common)), config, async () => allLabels, getContainerFeaturesFolder);
-			// 		return collapseFeaturesConfig(featuresConfig);
-			// 	})());
-			// };
+
 			await startExistingContainer(params, idLabels, container);
 			imageMetadata = getImageMetadataFromContainer(container, configWithRaw, undefined, idLabels, common.output).config;
 			mergedConfig = mergeConfiguration(config, imageMetadata);
@@ -47,9 +39,6 @@ export async function openDockerfileDevContainer(params: DockerResolverParameter
 			mergedConfig = mergeConfiguration(config, imageMetadata);
 			const { containerUser } = mergedConfig;
 			const updatedImageName = await updateRemoteUserUID(params, mergedConfig, res.updatedImageName[0], res.imageDetails, findUserArg(config.runArgs) || containerUser);
-
-			// collapsedFeaturesConfig = async () => res.collapsedFeaturesConfig;
-
 			try {
 				await spawnDevContainer(params, config, mergedConfig, updatedImageName, idLabels, workspaceConfig.workspaceMount, workspaceConfig.additionalMountString, res.imageDetails, containerUser, res.labels || {});
 			} finally {
@@ -290,7 +279,7 @@ export function findUserArg(runArgs: string[] = []) {
 			return runArgs[i + 1];
 		}
 		if (runArg.startsWith('-u=') || runArg.startsWith('--user=')) {
-			return runArg.substr(runArg.indexOf('=') + 1);
+			return runArg.slice(runArg.indexOf('=') + 1);
 		}
 	}
 	return undefined;
