@@ -498,8 +498,8 @@ export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedCo
 		return '';
 	}
 	const imageMetadataLabelValue = `[${metadata
-		.map(feature => ` \\\n${toLabelString(feature)}`)
-		.join(',')} \\\n]`;
+		.map(feature => `\\\n${toLabelString(feature)}`)
+		.join(',')}\\\n]`;
 	return `LABEL ${imageMetadataLabel}="${imageMetadataLabelValue}"`;
 }
 
