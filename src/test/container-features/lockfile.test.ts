@@ -336,4 +336,68 @@ describe('Lockfile', function () {
 			process.chdir(originalCwd);
 		}
 	});
+
+	it('frozen lockfile fails when lockfile does not exist', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-frozen-no-lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await rmLocal(lockfilePath, { force: true });
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile --experimental-frozen-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+			assert.equal(response.message, 'Lockfile does not exist.');
+		}
+	});
+
+	it('corrupt lockfile causes build error', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		const expectedPath = path.join(workspaceFolder, 'expected.devcontainer-lock.json');
+
+		try {
+			// Write invalid JSON to the lockfile
+			await writeLocalFile(lockfilePath, Buffer.from('this is not valid json{{{'));
+
+			try {
+				throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+			} catch (res) {
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'error');
+			}
+		} finally {
+			// Restore from the known-good expected lockfile
+			await cpLocal(expectedPath, lockfilePath);
+		}
+	});
+
+	it('no lockfile flags and no existing lockfile is a no-op', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		const expectedPath = path.join(workspaceFolder, 'expected.devcontainer-lock.json');
+
+		try {
+			await rmLocal(lockfilePath, { force: true });
+
+			// Build without any lockfile flags
+			const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			// Lockfile should not have been created
+			let exists = true;
+			await readLocalFile(lockfilePath).catch(err => {
+				if (err?.code === 'ENOENT') {
+					exists = false;
+				} else {
+					throw err;
+				}
+			});
+			assert.equal(exists, false, 'Lockfile should not be created when no lockfile flags are set');
+		} finally {
+			// Restore from the known-good expected lockfile
+			await cpLocal(expectedPath, lockfilePath);
+		}
+	});
 });
