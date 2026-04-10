@@ -497,11 +497,9 @@ export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedCo
 	if (!metadata.length) {
 		return '';
 	}
-	const imageMetadataLabelValue = metadata.length !== 1
-		? `[${metadata
-			.map(feature => ` \\\n${toLabelString(feature)}`)
-			.join(',')} \\\n]`
-		: toLabelString(metadata[0]);
+	const imageMetadataLabelValue = `[${metadata
+		.map(feature => ` \\\n${toLabelString(feature)}`)
+		.join(',')} \\\n]`;
 	return `LABEL ${imageMetadataLabel}="${imageMetadataLabelValue}"`;
 }
 
