@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as semver from 'semver';
 import { shellExec } from '../testUtils';
-import { cpLocal, readLocalFile, rmLocal } from '../../spec-utils/pfs';
+import { cpLocal, readLocalFile, rmLocal, writeLocalFile } from '../../spec-utils/pfs';
 
 const pkg = require('../../../package.json');
 
@@ -279,6 +279,44 @@ describe('Lockfile', function () {
 		}
 	});
 
+	it('lockfile ends with trailing newline', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await rmLocal(lockfilePath, { force: true });
+
+		const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+		const response = JSON.parse(res.stdout);
+		assert.equal(response.outcome, 'success');
+		const actual = (await readLocalFile(lockfilePath)).toString();
+		assert.ok(actual.endsWith('\n'), 'Lockfile should end with a trailing newline');
+	});
+
+	it('frozen lockfile matches despite formatting differences', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-frozen');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+
+		// Read the existing lockfile, strip trailing newline to create a byte-different but semantically identical file
+		const original = (await readLocalFile(lockfilePath)).toString();
+		const stripped = original.replace(/\n$/, '');
+		assert.notEqual(original, stripped, 'Test setup: should have removed trailing newline');
+		assert.deepEqual(JSON.parse(original), JSON.parse(stripped), 'Test setup: JSON content should be identical');
+
+		try {
+			await writeLocalFile(lockfilePath, Buffer.from(stripped));
+
+			// Frozen lockfile should succeed because JSON content is the same
+			const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile --experimental-frozen-lockfile`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success', 'Frozen lockfile should not fail when only formatting differs');
+			const actual = (await readLocalFile(lockfilePath)).toString();
+			assert.strictEqual(actual, stripped, 'Frozen lockfile should remain unchanged when only formatting differs');
+		} finally {
+			// Restore original lockfile
+			await writeLocalFile(lockfilePath, Buffer.from(original));
+		}
+	});
+
 	it('upgrade command should work with default workspace folder', async () => {
 		const workspaceFolder = path.join(__dirname, 'configs/lockfile-upgrade-command');
 		const absoluteTmpPath = path.resolve(__dirname, 'tmp');
@@ -296,6 +334,70 @@ describe('Lockfile', function () {
 			assert.equal(actual.toString(), expected.toString());
 		} finally {
 			process.chdir(originalCwd);
+		}
+	});
+
+	it('frozen lockfile fails when lockfile does not exist', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile-frozen-no-lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		await rmLocal(lockfilePath, { force: true });
+
+		try {
+			throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile --experimental-frozen-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+			assert.equal(response.message, 'Lockfile does not exist.');
+		}
+	});
+
+	it('corrupt lockfile causes build error', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		const expectedPath = path.join(workspaceFolder, 'expected.devcontainer-lock.json');
+
+		try {
+			// Write invalid JSON to the lockfile
+			await writeLocalFile(lockfilePath, Buffer.from('this is not valid json{{{'));
+
+			try {
+				throw await shellExec(`${cli} build --workspace-folder ${workspaceFolder} --experimental-lockfile`);
+			} catch (res) {
+				const response = JSON.parse(res.stdout);
+				assert.equal(response.outcome, 'error');
+			}
+		} finally {
+			// Restore from the known-good expected lockfile
+			await cpLocal(expectedPath, lockfilePath);
+		}
+	});
+
+	it('no lockfile flags and no existing lockfile is a no-op', async () => {
+		const workspaceFolder = path.join(__dirname, 'configs/lockfile');
+		const lockfilePath = path.join(workspaceFolder, '.devcontainer-lock.json');
+		const expectedPath = path.join(workspaceFolder, 'expected.devcontainer-lock.json');
+
+		try {
+			await rmLocal(lockfilePath, { force: true });
+
+			// Build without any lockfile flags
+			const res = await shellExec(`${cli} build --workspace-folder ${workspaceFolder}`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			// Lockfile should not have been created
+			let exists = true;
+			await readLocalFile(lockfilePath).catch(err => {
+				if (err?.code === 'ENOENT') {
+					exists = false;
+				} else {
+					throw err;
+				}
+			});
+			assert.equal(exists, false, 'Lockfile should not be created when no lockfile flags are set');
+		} finally {
+			// Restore from the known-good expected lockfile
+			await cpLocal(expectedPath, lockfilePath);
 		}
 	});
 });
