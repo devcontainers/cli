@@ -24,5 +24,15 @@
     ],
     "editor.formatOnSave": true,
     "editor.formatOnSaveMode": "modifications",
-    "editor.insertSpaces": false
+    "editor.insertSpaces": false,
+    "[json]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[jsonc]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.defaultFormatter": "vscode.json-language-features"
+    }
 }
