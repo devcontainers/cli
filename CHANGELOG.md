@@ -2,6 +2,13 @@
 
 Notable changes.
 
+## April 2026
+
+### [0.86.0]
+- Bump basic-ftp from 5.2.0 to 5.2.2. (https://github.com/devcontainers/cli/pull/1201)
+- Always write devcontainer.metadata label as JSON array. (https://github.com/devcontainers/cli/pull/1199)
+- Normalize drive letter to lowercase on Windows to match VSCode. (https://github.com/devcontainers/cli/pull/1183)
+
 ## March 2026
 
 ### [0.85.0]
