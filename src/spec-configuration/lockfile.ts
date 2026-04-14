@@ -61,7 +61,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	}
 	// Normalize the existing lockfile through JSON.parse -> JSON.stringify to produce
 	// the same canonical format as newLockfileContentString, so that the string comparison
-	// below ignores cosmetic differences (indentation, key order, trailing whitespace, etc.).
+	// below ignores cosmetic differences (indentation, trailing whitespace, etc.).
 	let oldLockfileNormalized: string | undefined;
 	if (oldLockfileContent) {
 		try {
