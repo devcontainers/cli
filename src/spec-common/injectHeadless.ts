@@ -849,7 +849,7 @@ async function runUserEnvProbe(userEnvProbe: UserEnvProbe, params: { allowSystem
 
 		// handle popular non-POSIX shells
 		const name = path.posix.basename(systemShellUnix);
-		const command = `echo -n ${mark}; ${cmd}; echo -n ${mark}`;
+		const command = `'echo -n ${mark}; ${cmd}; echo -n ${mark}'`;
 		let shellArgs: string[];
 		if (/^pwsh(-preview)?$/.test(name)) {
 			shellArgs = userEnvProbe === 'loginInteractiveShell' || userEnvProbe === 'loginShell' ?
