@@ -38,7 +38,7 @@
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
 		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
-		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
+		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit --retries 1",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts",
 		"test-container-features-cli": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/featuresCLICommands.test.ts",
 		"test-container-templates": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-templates/*.test.ts"

@@ -16,6 +16,7 @@ jobs:
   cli:
     name: CLI
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-node@v5
@@ -44,6 +45,7 @@ jobs:
   tests-matrix:
     name: Tests Matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -111,6 +113,7 @@ jobs:
     # TODO: This should be expanded to run on different platforms
     #       Most notably to test platform-specific credential helper behavior
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - name: Checkout
       uses: actions/checkout@v6
@@ -145,6 +148,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v6
     - name: Run install.sh tests

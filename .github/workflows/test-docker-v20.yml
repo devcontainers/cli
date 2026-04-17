@@ -13,6 +13,7 @@ jobs:
   test-docker-v20:
     name: Docker v20.10 Compatibility
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     
     steps:
     - uses: actions/checkout@v6
