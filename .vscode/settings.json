@@ -3,13 +3,13 @@
     "search.exclude": {
         "dist": true
     },
-    "typescript.tsc.autoDetect": "off",
+    "js/ts.tsc.autoDetect": "off",
     "eslint.options": {
         "rulePaths": [
             "./build/eslint"
         ]
     },
-    "mochaExplorer.files": "test/**/*.test.ts",
+    "mochaExplorer.files": "src/test/**/*.test.ts",
     "mochaExplorer.require": "ts-node/register",
     "mochaExplorer.env": {
         "TS_NODE_PROJECT": "src/test/tsconfig.json"
@@ -17,7 +17,7 @@
     "files.associations": {
         "devcontainer-features.json": "jsonc"
     },
-    "typescript.tsdk": "node_modules/typescript/lib",
+    "js/ts.tsdk.path": "node_modules/typescript/lib",
     "git.branchProtection": [
         "main",
         "release/*"
