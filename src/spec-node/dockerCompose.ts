@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { copyDockerIgnoreFileIfExists } from './dockerignoreUtils';
 import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
@@ -162,12 +163,13 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	// determine base imageName for generated features build stage(s)
 	let baseName = 'dev_container_auto_added_stage_label';
 	let dockerfile: string | undefined;
+	let sourceDockerfilePath: string | undefined;
 	let imageBuildInfo: ImageBuildInfo;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
-		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		sourceDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
+		const originalDockerfile = (await cliHost.readFile(sourceDockerfilePath)).toString();
 		dockerfile = originalDockerfile;
 		if (target) {
 			// Explictly set build target for the dev container build features on that
@@ -214,6 +216,9 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo.dockerfileContent}`;
 		const finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
+		if (sourceDockerfilePath) {
+			await copyDockerIgnoreFileIfExists(cliHost, sourceDockerfilePath, finalDockerfilePath);
+		}
 		buildOverrideContent += `      dockerfile: ${finalDockerfilePath}\n`;
 		if (serviceInfo.build?.target) {
 			// Replace target. (Only when set because it is only supported with Docker Compose file version 3.4 and later.)
