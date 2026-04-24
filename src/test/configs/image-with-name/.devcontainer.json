@@ -1,0 +1,4 @@
+{
+	"image": "ubuntu:latest",
+	"name": "devcontainer-test-name"
+}

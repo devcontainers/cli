@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUtils';
+import { ContainerDetails } from '../spec-shutdown/dockerUtils';
 
 const pkg = require('../../package.json');
 
@@ -67,6 +68,20 @@ describe('Dev Containers CLI', function () {
 				assert.match(res.message, /Dev container config \(.*\) not found./);
 			}
 			assert.equal(success, false, 'expect non-successful call');
+		});
+
+		describe('for image with name', () => {
+			let upResult: UpResult | null = null;
+			const testFolder = `${__dirname}/configs/image-with-name`;
+			before(async () => {
+				upResult = await devContainerUp(cli, testFolder);
+			});
+			after(async () => await devContainerDown({ containerId: upResult?.containerId }));
+
+			it('should apply the configured container name', async () => {
+				const details = JSON.parse((await shellExec(`docker inspect ${upResult!.containerId}`)).stdout)[0] as ContainerDetails;
+				assert.equal(details.Name, '/devcontainer-test-name');
+			});
 		});
 
 		// docker-compose variations _without_ features are here (under 'up' tests)

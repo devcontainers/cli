@@ -347,6 +347,8 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
 	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
 
+	const containerNameArgs = config.name ? ['--name', config.name] : [];
+
 	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
 	const additionalMount = additionalMountString ? ['--mount', additionalMountString] : [];
 
@@ -399,6 +401,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		'--sig-proxy=false',
 		'-a', 'STDOUT',
 		'-a', 'STDERR',
+		...containerNameArgs,
 		...exposed,
 		...cwdMount,
 		...additionalMount,
