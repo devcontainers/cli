@@ -70,6 +70,8 @@ export interface ProvisionOptions {
 	};
 	experimentalLockfile?: boolean;
 	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
@@ -103,7 +105,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, noLockfile, frozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -248,6 +250,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
 		experimentalLockfile,
 		experimentalFrozenLockfile,
+		noLockfile,
+		frozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		additionalLabels: options.additionalLabels,

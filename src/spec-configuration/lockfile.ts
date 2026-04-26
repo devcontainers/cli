@@ -40,7 +40,11 @@ export async function generateLockfile(featuresConfig: FeaturesConfig): Promise<
 		});
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, lockfile: Lockfile, forceInitLockfile?: boolean): Promise<string | undefined> {
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, lockfile: Lockfile): Promise<string | undefined> {
+	if (params.noLockfile) {
+		return;
+	}
+
 	const lockfilePath = getLockfilePath(config);
 	const oldLockfileContent = await readLocalFile(lockfilePath)
 		.catch(err => {
@@ -49,14 +53,10 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			}
 		});
 
-	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
-		return;
-	}
-
 	// Trailing newline per POSIX convention
 	const newLockfileContentString = JSON.stringify(lockfile, null, 2) + '\n';
 	const newLockfileContent = Buffer.from(newLockfileContentString);
-	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
+	if ((params.frozenLockfile || params.experimentalFrozenLockfile) && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
 	// Normalize the existing lockfile through JSON.parse -> JSON.stringify to produce
@@ -71,7 +71,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 		}
 	}
 	if (!oldLockfileNormalized || oldLockfileNormalized !== newLockfileContentString) {
-		if (params.experimentalFrozenLockfile) {
+		if (params.frozenLockfile || params.experimentalFrozenLockfile) {
 			throw new Error('Lockfile does not match.');
 		}
 		await writeLocalFile(lockfilePath, newLockfileContent);
