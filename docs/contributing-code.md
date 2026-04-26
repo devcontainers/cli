@@ -95,6 +95,14 @@ node devcontainer.js run-user-commands --workspace-folder <path>
 
 Tests use [Mocha](https://mochajs.org/) and [Chai](https://www.chaijs.com/) and require Docker because they create and tear down real containers.
 
+Before running tests, package the CLI into a tarball:
+
+```sh
+npm run package
+```
+
+Tests install the CLI from the generated `devcontainers-cli-<version>.tgz` and shell out to it as a subprocess. You must re-run `npm run package` after any code change so that the tarball reflects your latest changes. Running `npm run compile` alone is **not** sufficient — it builds the JavaScript output but does not create the tarball that the tests depend on.
+
 ```sh
 npm test                          # all tests
 npm run test-container-features   # Features tests only
