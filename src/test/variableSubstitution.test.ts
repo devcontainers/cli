@@ -131,7 +131,7 @@ describe('Variable substitution', function () {
 			env: {
 			},
 		}, raw);
-		assert.strictEqual(result.foo, 'bardefaultbar');
+		assert.strictEqual(result.foo, 'bardefault:a:b:cbar');
 	});
 
 	it(`container environment variables with default value if they do not exist`, async () => {
