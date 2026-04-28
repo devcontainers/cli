@@ -85,6 +85,10 @@
 		"vinyl": "^3.0.1",
 		"vinyl-fs": "^4.0.2"
 	},
+	"overrides": {
+		"diff": "^8.0.4",
+		"serialize-javascript": "^7.0.5"
+	},
 	"dependencies": {
 		"chalk": "^5.6.2",
 		"follow-redirects": "^1.15.11",
