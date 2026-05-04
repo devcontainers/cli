@@ -13,10 +13,15 @@ export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function generateLockfile(featuresConfig: FeaturesConfig): Promise<Lockfile> {
+export async function generateLockfile(featuresConfig: FeaturesConfig, config?: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<Lockfile> {
+	// Features supplied only via `--additional-features` (i.e., not present in `config.features`)
+	// should not be written to the lockfile.
+	const configFeatureKeys = new Set(Object.keys(config?.features || {}));
+	const excludeUserFeatureIds = new Set(Object.keys(additionalFeatures || {}).filter(key => !configFeatureKeys.has(key)));
 	return featuresConfig.featureSets
 		.map(f => [f, f.sourceInformation] as const)
 		.filter((tup): tup is [FeatureSet, OCISourceInformation | DirectTarballSourceInformation] => ['oci', 'direct-tarball'].indexOf(tup[1].type) !== -1)
+		.filter(([, source]) => !excludeUserFeatureIds.has(source.userFeatureId))
 		.map(([set, source]) => {
 			const dependsOn = Object.keys(set.features[0].dependsOn || {});
 			return {
