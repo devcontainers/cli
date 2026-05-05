@@ -508,7 +508,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, dstFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
-	await writeLockfile(params, config, await generateLockfile(featuresConfig), initLockfile);
+	await writeLockfile(params, config, await generateLockfile(featuresConfig, config, additionalFeatures), initLockfile);
 	return featuresConfig;
 }
 
