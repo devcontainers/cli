@@ -56,7 +56,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 	// Trailing newline per POSIX convention
 	const newLockfileContentString = JSON.stringify(lockfile, null, 2) + '\n';
 	const newLockfileContent = Buffer.from(newLockfileContentString);
-	if ((params.frozenLockfile || params.experimentalFrozenLockfile) && !oldLockfileContent) {
+	if (params.frozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
 	// Normalize the existing lockfile through JSON.parse -> JSON.stringify to produce
@@ -71,7 +71,7 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 		}
 	}
 	if (!oldLockfileNormalized || oldLockfileNormalized !== newLockfileContentString) {
-		if (params.frozenLockfile || params.experimentalFrozenLockfile) {
+		if (params.frozenLockfile) {
 			throw new Error('Lockfile does not match.');
 		}
 		await writeLocalFile(lockfilePath, newLockfileContent);

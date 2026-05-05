@@ -127,8 +127,6 @@ export interface DockerResolverParameters {
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
 	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
 	noLockfile?: boolean;
 	frozenLockfile?: boolean;
 	buildxPlatform: string | undefined;

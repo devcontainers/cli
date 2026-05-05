@@ -193,8 +193,6 @@ export interface ContainerFeatureInternalParams {
 	env: NodeJS.ProcessEnv;
 	skipFeatureAutoMapping: boolean;
 	platform: NodeJS.Platform;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
 	noLockfile?: boolean;
 	frozenLockfile?: boolean;
 }

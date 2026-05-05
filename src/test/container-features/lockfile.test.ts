@@ -505,6 +505,39 @@ describe('Lockfile', function () {
 		}
 	});
 
+	it('devcontainer up --frozen-lockfile succeeds with matching lockfile', async () => {
+		const tmpDir = await isolateFixture('lockfile-frozen');
+		const lockfilePath = path.join(tmpDir, '.devcontainer-lock.json');
+		const lockfileBefore = (await readLocalFile(lockfilePath)).toString();
+		const idLabel = `test-lockfile-up-frozen=${process.hrtime.bigint()}`;
+
+		try {
+			const res = await shellExec(`${cli} up --workspace-folder ${tmpDir} --id-label ${idLabel} --frozen-lockfile`);
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'success');
+
+			const lockfileAfter = (await readLocalFile(lockfilePath)).toString();
+			assert.equal(lockfileAfter, lockfileBefore, 'Lockfile should be unchanged');
+		} finally {
+			await shellExec(`docker rm -f $(docker ps -aq --filter label=${idLabel}) 2>/dev/null || true`, undefined, true, true);
+		}
+	});
+
+	it('devcontainer up --frozen-lockfile fails when lockfile missing', async () => {
+		const tmpDir = await isolateFixture('lockfile-no-lockfile');
+		const idLabel = `test-lockfile-up-frozen-fail=${process.hrtime.bigint()}`;
+
+		try {
+			throw await shellExec(`${cli} up --workspace-folder ${tmpDir} --id-label ${idLabel} --frozen-lockfile`);
+		} catch (res) {
+			const response = JSON.parse(res.stdout);
+			assert.equal(response.outcome, 'error');
+			assert.equal(response.message, 'Lockfile does not exist.');
+		} finally {
+			await shellExec(`docker rm -f $(docker ps -aq --filter label=${idLabel}) 2>/dev/null || true`, undefined, true, true);
+		}
+	});
+
 	it('read-only commands do not create a lockfile', async () => {
 		const readConfigTmpDir = await isolateFixture('lockfile-no-lockfile');
 		const readConfigLockfilePath = path.join(readConfigTmpDir, '.devcontainer-lock.json');
