@@ -231,12 +231,7 @@ async function provision({
 	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
 
-	if (experimentalLockfile) {
-		process.stderr.write('Warning: --experimental-lockfile is deprecated. Lockfiles are now enabled by default.\n');
-	}
-	if (experimentalFrozenLockfile) {
-		process.stderr.write('Warning: --experimental-frozen-lockfile is deprecated. Use --frozen-lockfile instead.\n');
-	}
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
 	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
@@ -608,12 +603,7 @@ async function doBuild({
 	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 }: BuildArgs) {
-	if (experimentalLockfile) {
-		process.stderr.write('Warning: --experimental-lockfile is deprecated. Lockfiles are now enabled by default.\n');
-	}
-	if (experimentalFrozenLockfile) {
-		process.stderr.write('Warning: --experimental-frozen-lockfile is deprecated. Use --frozen-lockfile instead.\n');
-	}
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
 	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -1485,5 +1475,14 @@ async function readSecretsFromFile(params: { output?: Log; secretsFile?: string;
 			description: 'Failed to read/parse secrets',
 			originalError: e
 		});
+	}
+}
+
+function warnDeprecatedLockfileFlags(experimentalLockfile: boolean, experimentalFrozenLockfile: boolean) {
+	if (experimentalLockfile) {
+		process.stderr.write('Warning: --experimental-lockfile is deprecated. Lockfiles are now enabled by default.\n');
+	}
+	if (experimentalFrozenLockfile) {
+		process.stderr.write('Warning: --experimental-frozen-lockfile is deprecated. Use --frozen-lockfile instead.\n');
 	}
 }
