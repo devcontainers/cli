@@ -509,7 +509,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	await logFeatureAdvisories(params, featuresConfig);
 	if (!params.noLockfile) {
-		await writeLockfile(params, config, await generateLockfile(featuresConfig));
+		await writeLockfile(params, config, await generateLockfile(featuresConfig, config, additionalFeatures));
 	}
 	return featuresConfig;
 }
