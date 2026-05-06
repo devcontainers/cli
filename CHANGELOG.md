@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## May 2026
+
+### [0.86.1]
+- Do not write features supplied via `--additional-features` to the lockfile. (https://github.com/microsoft/vscode-remote-release/issues/11616)
+
 ## April 2026
 
 ### [0.86.0]
