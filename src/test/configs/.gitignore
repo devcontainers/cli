@@ -1,0 +1,6 @@
+# Lock files will be generated during test runs. Ignore them from git because
+# they can point to different hashes when the feature is updated.
+# To add a lock file when it is required for a test, add it to git with the command:
+#     git add --force devcontainer-lock.json
+devcontainer-lock.json
+.devcontainer-lock.json
