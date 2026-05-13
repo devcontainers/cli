@@ -193,8 +193,8 @@ export interface ContainerFeatureInternalParams {
 	env: NodeJS.ProcessEnv;
 	skipFeatureAutoMapping: boolean;
 	platform: NodeJS.Platform;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 }
 
 // TODO: Move to node layer.
@@ -485,7 +485,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	const { lockfile, initLockfile } = await readLockfile(config);
+	const { lockfile } = params.noLockfile ? { lockfile: undefined } : await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
@@ -508,7 +508,9 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, dstFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
-	await writeLockfile(params, config, await generateLockfile(featuresConfig, config, additionalFeatures), initLockfile);
+	if (!params.noLockfile) {
+		await writeLockfile(params, config, await generateLockfile(featuresConfig, config, additionalFeatures));
+	}
 	return featuresConfig;
 }
 
