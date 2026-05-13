@@ -242,6 +242,52 @@ FROM base-\${TARGETARCH}
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);
     });
+
+    it('preserves metadata declared in Dockerfile labels', async () => {
+        const dockerfile = `FROM ubuntu:latest as base
+LABEL devcontainer.metadata="{\\"id\\":\\"dockerfile-id\\",\\"postCreateCommand\\":\\"echo test\\"}"
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: {
+                    [imageMetadataLabel]: '[{"id":"base-id"}]'
+                },
+                Entrypoint: null,
+                Cmd: null
+            },
+            Os: 'linux',
+            Architecture: 'amd64'
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async () => details, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'arm64' }, { os: 'linux', arch: 'amd64' });
+        assert.strictEqual(info.metadata.raw.length, 2);
+        assert.strictEqual(info.metadata.raw[0].id, 'base-id');
+        assert.strictEqual(info.metadata.raw[1].id, 'dockerfile-id');
+        assert.strictEqual(info.metadata.config[1].id, 'dockerfile-id-substituted');
+    });
+
+    it('parses metadata declared with a quoted label key', async () => {
+        const dockerfile = `FROM ubuntu:latest as base
+LABEL "devcontainer.metadata"='{"id":"dockerfile-id-quoted"}'
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: null,
+                Entrypoint: null,
+                Cmd: null
+            },
+            Os: 'linux',
+            Architecture: 'amd64'
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async () => details, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'arm64' }, { os: 'linux', arch: 'amd64' });
+        assert.strictEqual(info.metadata.raw.length, 1);
+        assert.strictEqual(info.metadata.raw[0].id, 'dockerfile-id-quoted');
+    });
 });
 
 describe('findBaseImage', () => {
