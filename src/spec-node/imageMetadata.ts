@@ -427,7 +427,19 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), globalBuildxPlatformArgs, targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
-	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
+	const baseMetadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
+	const dockerfileMetadata = getDockerfileMetadata(dockerfileText, output);
+	const metadata = dockerfileMetadata.length ? {
+		config: [
+			...baseMetadata.config,
+			...dockerfileMetadata.map(substitute),
+		],
+		raw: [
+			...baseMetadata.raw,
+			...dockerfileMetadata,
+		],
+		substitute,
+	} : baseMetadata;
 	return {
 		user,
 		metadata,
@@ -473,23 +485,63 @@ function internalGetImageMetadata(imageDetails: ImageDetails | ContainerDetails,
 	};
 }
 
-export function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, output: Log) {
-	const str = (imageDetails.Config.Labels || {})[imageMetadataLabel];
-	if (str) {
+function getDockerfileMetadata(dockerfileText: string, output: Log): ImageMetadataEntry[] {
+	const metadataEntries: ImageMetadataEntry[] = [];
+	const dockerfileWithoutLineContinuations = dockerfileText.replace(/\\\r?\n/g, ' ');
+	const labelInstruction = /^\s*LABEL\s+(.+)$/gmi;
+	let labelMatch: RegExpExecArray | null;
+	while ((labelMatch = labelInstruction.exec(dockerfileWithoutLineContinuations))) {
+		const body = labelMatch[1];
+		const devcontainerMetadataValue = extractDevcontainerMetadataValueFromLabel(body);
+		if (!devcontainerMetadataValue) {
+			continue;
+		}
+		metadataEntries.push(...parseImageMetadataLabel(devcontainerMetadataValue, output));
+	}
+	return metadataEntries;
+}
+
+function extractDevcontainerMetadataValueFromLabel(labelInstructionBody: string): string | undefined {
+	const keyValueRegex = /(?:^|\s)(?:"devcontainer\.metadata"|devcontainer\.metadata)\s*=\s*("(?:\\.|[^"])*"|'(?:\\.|[^'])*')/g;
+	const match = keyValueRegex.exec(labelInstructionBody);
+	if (!match) {
+		return undefined;
+	}
+	const token = match[1];
+	if (token.startsWith('"')) {
 		try {
-			const obj = JSON.parse(str);
-			if (Array.isArray(obj)) {
-				return obj as ImageMetadataEntry[];
-			}
-			if (obj && typeof obj === 'object') {
-				return [obj as ImageMetadataEntry];
-			}
-			output.write(`Invalid image metadata: ${str}`);
-		} catch (err) {
-			output.write(`Error parsing image metadata: ${err?.message || err}`);
+			return JSON.parse(token) as string;
+		} catch {
+			return undefined;
 		}
 	}
+	return token.slice(1, -1)
+		.replace(/\\'/g, "'")
+		.replace(/\\\\/g, '\\');
+}
+
+function parseImageMetadataLabel(str: string, output: Log): ImageMetadataEntry[] {
+	try {
+		const obj = JSON.parse(str);
+		if (Array.isArray(obj)) {
+			return obj as ImageMetadataEntry[];
+		}
+		if (obj && typeof obj === 'object') {
+			return [obj as ImageMetadataEntry];
+		}
+		output.write(`Invalid image metadata: ${str}`);
+	} catch (err) {
+		output.write(`Error parsing image metadata: ${err?.message || err}`);
+	}
 	return [];
+}
+
+export function internalGetImageMetadata0(imageDetails: ImageDetails | ContainerDetails, output: Log) {
+	const str = (imageDetails.Config.Labels || {})[imageMetadataLabel];
+	if (!str) {
+		return [];
+	}
+	return parseImageMetadataLabel(str, output);
 }
 
 export function getDevcontainerMetadataLabel(devContainerMetadata: SubstitutedConfig<ImageMetadataEntry[]>) {
