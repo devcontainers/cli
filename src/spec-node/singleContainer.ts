@@ -13,6 +13,7 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
+import { resolveDockerfileIncludesIfNeeded } from './dockerfilePreprocess';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -130,7 +131,8 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 	}
 
-	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+	const resolvedDockerfile = await resolveDockerfileIncludesIfNeeded(cliHost, dockerfilePath);
+	let dockerfile = resolvedDockerfile.effectiveDockerfileContent;
 	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
 	if (config.build?.target) {
@@ -149,7 +151,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
 
-	let finalDockerfilePath = dockerfilePath;
+	let finalDockerfilePath = resolvedDockerfile.effectiveDockerfilePath;
 	const additionalBuildArgs: string[] = [];
 	if (extendImageBuildInfo?.featureBuildInfo) {
 		const { featureBuildInfo } = extendImageBuildInfo;
