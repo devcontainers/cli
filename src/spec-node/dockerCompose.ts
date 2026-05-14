@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { materializeResolvedDockerfileForBuild, resolveDockerfileIncludesIfNeeded } from './dockerfilePreprocess';
 import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
@@ -163,11 +164,16 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	let baseName = 'dev_container_auto_added_stage_label';
 	let dockerfile: string | undefined;
 	let imageBuildInfo: ImageBuildInfo;
+	let preprocessedDockerfilePathForComposeBuild: string | undefined;
+	let disposeMaterializedDockerfile = async () => { };
+	let resolvedBuildDockerfile;
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		const resolvedDockerfile = await resolveDockerfileIncludesIfNeeded(cliHost, resolvedDockerfilePath);
+		resolvedBuildDockerfile = resolvedDockerfile;
+		const originalDockerfile = resolvedDockerfile.effectiveDockerfileContent;
 		dockerfile = originalDockerfile;
 		if (target) {
 			// Explictly set build target for the dev container build features on that
@@ -191,9 +197,18 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const supportsAdditionalBuildContexts = !params.isPodman && version && !isEarlierVersion(version, [2, 17, 0]);
 	const optionalBuildKitParams = supportsAdditionalBuildContexts ? params : { ...params, buildKitVersion: undefined };
 	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
+	if (resolvedBuildDockerfile && !extendImageBuildInfo?.featureBuildInfo) {
+		const materializedDockerfile = await materializeResolvedDockerfileForBuild(cliHost, resolvedBuildDockerfile);
+		preprocessedDockerfilePathForComposeBuild = materializedDockerfile.dockerfilePath;
+		disposeMaterializedDockerfile = materializedDockerfile.dispose;
+	}
 
 	let overrideImageName: string | undefined;
 	let buildOverrideContent = '';
+	if (preprocessedDockerfilePathForComposeBuild && !extendImageBuildInfo?.featureBuildInfo) {
+		buildOverrideContent += '    build:\n';
+		buildOverrideContent += `      dockerfile: ${preprocessedDockerfilePathForComposeBuild}\n`;
+	}
 	if (extendImageBuildInfo?.featureBuildInfo) {
 		// Avoid retagging a previously pulled image.
 		if (!serviceInfo.build) {
@@ -264,7 +279,8 @@ ${cacheFromOverrideContent}
 		args.push('-f', composeOverrideFile);
 	}
 
-	if (!noBuild) {
+	try {
+		if (!noBuild) {
 		args.push('build');
 		if (noCache) {
 			args.push('--no-cache');
@@ -294,6 +310,9 @@ ${cacheFromOverrideContent}
 
 			throw err instanceof ContainerError ? err : new ContainerError({ description: 'An error occurred building the Docker Compose images.', originalError: err, data: { fileWithError: localComposeFiles[0] } });
 		}
+		}
+	} finally {
+		await disposeMaterializedDockerfile();
 	}
 
 	return {

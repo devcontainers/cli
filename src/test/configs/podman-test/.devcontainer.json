@@ -1,0 +1,10 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}

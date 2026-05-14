@@ -1,0 +1,16 @@
+#define BASE_IMAGE ubuntu:20.04
+#define INSTALL_NODE
+#define INSTALL_PYTHON
+
+FROM BASE_IMAGE
+
+#ifdef INSTALL_NODE
+RUN apt-get update && apt-get install -y nodejs
+#endif
+
+#ifdef INSTALL_PYTHON
+RUN apt-get update && apt-get install -y python3
+#endif
+
+#include "common.Dockerfile"
+#include "tools.Dockerfile"
