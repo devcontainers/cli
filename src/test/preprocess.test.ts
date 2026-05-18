@@ -10,12 +10,13 @@ import * as path from 'path';
 import { ExecFunction, plainExec } from '../spec-common/commonUtils';
 import { nullLog } from '../spec-utils/log';
 import { ensureDockerfileHasFinalStageName, preprocessDockerfileIn } from '../spec-node/dockerfileUtils';
+import { shellExec } from './testUtils';
 
 describe('preprocessDockerfileIn', () => {
     // Use the actual Dockerfile.in from the podman-with-cpp config directory.
     // It defines BASE_IMAGE, INSTALL_NODE, and INSTALL_PYTHON macros, uses
     // #ifdef/#endif blocks, and #includes common.Dockerfile and tools.Dockerfile.
-    const configDir = path.join(__dirname, 'configs', 'podman-with-cpp');
+    const configDir = path.join(__dirname, 'configs', 'preprocessdocker-with-cpp');
     const dockerfileInPath = path.join(configDir, 'Dockerfile.in');
 
     let tmpDir: string;
@@ -116,5 +117,49 @@ describe('preprocessDockerfileIn', () => {
             assert.isDefined(caughtError);
             assert.include(caughtError!.message, 'cpp');
         });
+    });
+});
+
+describe('preprocess Docker Compose config', function () {
+    this.timeout('240s');
+
+    const cli = 'node ./dist/spec-node/devContainersSpecCLI.js';
+    const containerEngine = 'docker';
+    const workspaceFolder = path.join(__dirname, 'configs', 'preprocessdockercompose-with-cpp');
+
+    let containerId: string | undefined;
+    let composeProjectName: string | undefined;
+    let outcome: string | undefined;
+
+    before(async () => {
+        const res = await shellExec(`${cli} up --workspace-folder ${workspaceFolder}`);
+        const response = JSON.parse(res.stdout);
+
+        outcome = response.outcome;
+        containerId = response.containerId;
+        composeProjectName = response.composeProjectName;
+    });
+
+    after(async () => {
+        if (composeProjectName) {
+            await shellExec(`${containerEngine} compose --project-name ${composeProjectName} down -v`, undefined, true, true);
+        }
+        if (containerId) {
+            await shellExec(`${containerEngine} rm -f ${containerId}`, undefined, true, true);
+        }
+    });
+
+    it('should execute successfully for a docker-compose config that builds from Dockerfile.in', () => {
+        assert.equal(outcome, 'success');
+        assert.isDefined(containerId);
+        assert.isDefined(composeProjectName);
+    });
+
+    it('should build the service from preprocessed Dockerfile.in content', async () => {
+        const res = await shellExec(`${containerEngine} exec ${containerId} sh -lc \"command -v python3 && command -v curl && command -v wget\"`);
+
+        assert.include(res.stdout, 'python3');
+        assert.include(res.stdout, 'curl');
+        assert.include(res.stdout, 'wget');
     });
 });
