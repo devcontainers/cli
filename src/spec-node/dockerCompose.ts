@@ -18,7 +18,7 @@ import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeature
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, preprocessDockerfileIn } from './dockerfileUtils';
 import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
@@ -167,7 +167,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
-		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		let originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+		if (params.isPodman && resolvedDockerfilePath.endsWith('.in')) {
+			originalDockerfile = await preprocessDockerfileIn(resolvedDockerfilePath, cliHost.exec, output);
+		}
 		dockerfile = originalDockerfile;
 		if (target) {
 			// Explictly set build target for the dev container build features on that
