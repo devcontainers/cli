@@ -168,7 +168,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		const { context, dockerfilePath, target } = serviceInfo.build;
 		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
 		let originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-		if (params.isPodman && resolvedDockerfilePath.endsWith('.in')) {
+		if (resolvedDockerfilePath.endsWith('.in')) {
 			originalDockerfile = await preprocessDockerfileIn(resolvedDockerfilePath, cliHost.exec, output);
 		}
 		dockerfile = originalDockerfile;

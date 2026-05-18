@@ -274,17 +274,16 @@ export async function preprocessDockerfileIn(dockerfilePath: string, exec: ExecF
 			exec,
 			cmd: 'cpp',
 			// -undef:               do not predefine platform/compiler macros
-			// -fdirectives-only:    only process directives, do not expand macros
 			// -w:                   suppress warnings
 			// -P:                   suppress linemarker output lines
-			args: ['-undef', '-fdirectives-only', '-w', '-P', dockerfilePath],
+			args: ['-P', dockerfilePath],
 			output,
 		});
 	} catch (err: any) {
 		if (err?.code === 'ENOENT' || err?.message?.includes('ENOENT')) {
 			throw new Error(
 				`Preprocessing '${dockerfilePath}' requires 'cpp', but it was not found on the host. ` +
-				`Please install cpp (e.g. "sudo apt-get install cpp") to use Dockerfile.in files with Podman.`
+				`Please install cpp (e.g. "sudo apt-get install cpp") to use Dockerfile.in files with devcontainers.`
 			);
 		}
 		const stderrText = err?.stderr ? `\n${(err.stderr as Buffer).toString()}` : '';

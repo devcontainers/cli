@@ -131,7 +131,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
-	if (buildParams.isPodman && dockerfilePath.endsWith('.in')) {
+	if (dockerfilePath.endsWith('.in')) {
 		dockerfile = await preprocessDockerfileIn(dockerfilePath, cliHost.exec, output);
 	}
 	const originalDockerfile = dockerfile;
