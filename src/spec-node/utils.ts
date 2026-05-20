@@ -10,6 +10,7 @@ import * as os from 'os';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
+import { delay } from '../spec-common/async';
 
 import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
@@ -109,6 +110,7 @@ export interface DockerResolverParameters {
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
 	isPodman: boolean;
+	isWslc: boolean;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
@@ -170,6 +172,9 @@ export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntr
 }
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
+	if (params.isWslc) {
+		return startEventSeenPolling(params, labels, canceled, output, trace);
+	}
 	const eventsProcess = await getEvents(params, { event: ['start'] });
 	return {
 		started: new Promise<void>((resolve, reject) => {
@@ -205,6 +210,36 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 					}
 				}
 			});
+		})
+	};
+}
+
+// Polling-based fallback for runtimes that don't support `events` (e.g., wslc).
+function startEventSeenPolling(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
+	let stopped = false;
+	canceled.catch(() => { stopped = true; });
+	const labelFilters = Object.entries(labels).map(([k, v]) => `${k}=${v}`);
+	return {
+		started: new Promise<void>((resolve, reject) => {
+			canceled.catch(reject);
+			const poll = async () => {
+				while (!stopped) {
+					try {
+						const containers = await listContainers(params, false, labelFilters);
+						if (trace) {
+							output.write(`Log: startEventSeenPolling found ${containers.length} container(s)\r\n`);
+						}
+						if (containers.length > 0) {
+							resolve();
+							return;
+						}
+					} catch (e) {
+						// Ignore transient errors during polling.
+					}
+					await delay(500);
+				}
+			};
+			poll();
 		})
 	};
 }

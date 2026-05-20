@@ -347,8 +347,8 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
 	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
 
-	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
-	const additionalMount = additionalMountString ? ['--mount', additionalMountString] : [];
+	const cwdMount = workspaceMount ? (params.isWslc ? convertMountToVolume(workspaceMount) : ['--mount', workspaceMount]) : [];
+	const additionalMount = additionalMountString ? (params.isWslc ? convertMountToVolume(additionalMountString) : ['--mount', additionalMountString]) : [];
 
 	const envObj = mergedConfig.containerEnv || {};
 	const containerEnv = Object.keys(envObj)
@@ -360,24 +360,30 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
 	const featureArgs: string[] = [];
-	if (mergedConfig.init) {
+	// wslc does not support --init, --privileged, --cap-add, or --security-opt
+	if (mergedConfig.init && !params.isWslc) {
 		featureArgs.push('--init');
 	}
-	if (mergedConfig.privileged) {
+	if (mergedConfig.privileged && !params.isWslc) {
 		featureArgs.push('--privileged');
 	}
-	for (const cap of mergedConfig.capAdd || []) {
-		featureArgs.push('--cap-add', cap);
-	}
-	for (const securityOpt of mergedConfig.securityOpt || []) {
-		featureArgs.push('--security-opt', securityOpt);
+	if (!params.isWslc) {
+		for (const cap of mergedConfig.capAdd || []) {
+			featureArgs.push('--cap-add', cap);
+		}
+		for (const securityOpt of mergedConfig.securityOpt || []) {
+			featureArgs.push('--security-opt', securityOpt);
+		}
 	}
 
 	const featureMounts = ([] as string[]).concat(
 		...[
 			...mergedConfig.mounts || [],
 			...params.additionalMounts,
-		].map(m => generateMountCommand(m))
+		].map(m => {
+			const mountArgs = generateMountCommand(m);
+			return params.isWslc ? convertMountArgsToVolume(mountArgs) : mountArgs;
+		})
 	);
 
 	const customEntrypoints = mergedConfig.entrypoints || [];
@@ -396,9 +402,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 
 	const args = [
 		'run',
-		'--sig-proxy=false',
-		'-a', 'STDOUT',
-		'-a', 'STDERR',
+		...(params.isWslc ? [] : ['--sig-proxy=false', '-a', 'STDOUT', '-a', 'STDERR']),
 		...exposed,
 		...cwdMount,
 		...additionalMount,
@@ -444,6 +448,32 @@ async function getPodmanArgs(params: DockerResolverParameters, config: DevContai
 		return args;
 	}
 	return [];
+}
+
+// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached") to -v syntax for wslc.
+function convertMountToVolume(mountStr: string): string[] {
+	const parts = new Map(mountStr.split(',').map(p => {
+		const eq = p.indexOf('=');
+		return eq === -1 ? [p, ''] : [p.substring(0, eq), p.substring(eq + 1)];
+	}));
+	const source = parts.get('source') || parts.get('src') || '';
+	const target = parts.get('target') || parts.get('dst') || parts.get('destination') || '';
+	if (source && target) {
+		return ['-v', `${source}:${target}`];
+	}
+	if (target) {
+		return ['-v', target];
+	}
+	// Fallback: pass as --mount and let the runtime handle it.
+	return ['--mount', mountStr];
+}
+
+// Convert --mount args array (e.g., ['--mount', 'type=bind,...']) to -v syntax for wslc.
+function convertMountArgsToVolume(args: string[]): string[] {
+	if (args.length === 2 && args[0] === '--mount') {
+		return convertMountToVolume(args[1]);
+	}
+	return args;
 }
 
 function getLabels(labels: string[]): string[] {

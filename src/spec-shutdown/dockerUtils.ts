@@ -171,6 +171,7 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 }
 
 export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string) {
+	const useEvents = !('isWslc' in params && params.isWslc);
 	let eventsProcess: Exec | undefined;
 	let removedSeenP: Promise<void> | undefined;
 	try {
@@ -184,7 +185,7 @@ export async function removeContainer(params: DockerCLIParameters | PartialExecP
 				if (i === n - 1 || !stderr.includes('already in progress')) {
 					throw err;
 				}
-				if (!removedSeenP) {
+				if (useEvents && !removedSeenP) {
 					eventsProcess = await getEvents(params, {
 						container: [nameOrId],
 						event: ['destroy'],
@@ -197,7 +198,7 @@ export async function removeContainer(params: DockerCLIParameters | PartialExecP
 						});
 					});
 				}
-				await Promise.race([removedSeenP, delay(1000)]);
+				await Promise.race([removedSeenP || delay(1000), delay(1000)]);
 			}
 		}
 	} finally {
@@ -260,13 +261,16 @@ export async function dockerBuildKitVersion(params: DockerCLIParameters | Partia
 	}
 }
 
-export async function dockerEngineVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters): Promise<{ versionString: string; versionMatch?: string } | undefined> {
+export async function dockerEngineVersion(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, options?: { useSimpleVersion?: boolean }): Promise<{ versionString: string; versionMatch?: string } | undefined> {
     try {
         const execParams = {
             ...toExecParameters(params),
             print: true,
         };
-        const result = await dockerCLI(execParams, 'version', '--format', '{{.Server.Version}}');
+        const args: string[] = options?.useSimpleVersion
+            ? ['version']
+            : ['version', '--format', '{{.Server.Version}}'];
+        const result = await dockerCLI(execParams, ...args);
         const versionString = result.stdout.toString().trim();
         const versionMatch = versionString.match(/(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)/);
         if (!versionMatch) {
@@ -290,6 +294,15 @@ export async function isPodman(params: PartialExecParameters) {
 	try {
 		const { stdout } = await dockerCLI(params, '-v');
 		return stdout.toString().toLowerCase().indexOf('podman') !== -1;
+	} catch (err) {
+		return false;
+	}
+}
+
+export async function isWslc(params: PartialExecParameters) {
+	try {
+		const { stdout } = await dockerCLI(params, '-v');
+		return stdout.toString().toLowerCase().indexOf('wslc') !== -1;
 	} catch (err) {
 		return false;
 	}
