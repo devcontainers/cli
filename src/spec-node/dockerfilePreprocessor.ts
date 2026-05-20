@@ -49,6 +49,23 @@ export async function preprocessDockerExtensionFile(
 	const inputPath = dockerfilePath;
 	const outputPath = cliOutputPath;
 	const generatedOutputPath = generatedDockerfile ? path.resolve(workdirPath, generatedDockerfile) : outputPath;
+	const staleOutputPaths = generatedOutputPath === outputPath ? [outputPath] : [outputPath, generatedOutputPath];
+	for (const stalePath of staleOutputPaths) {
+		if (!await cliHost.isFile(stalePath)) {
+			continue;
+		}
+		const cleanupCommand = cliHost.platform === 'win32'
+			? { cmd: 'cmd', args: ['/d', '/s', '/c', `del /f /q "${stalePath}"`] }
+			: { cmd: 'rm', args: ['-f', stalePath] };
+		await runCommandNoPty({
+			exec: cliHost.exec,
+			cmd: cleanupCommand.cmd,
+			args: cleanupCommand.args,
+			cwd: workdirPath,
+			env: cliHost.env,
+			output: infoOutput,
+		});
+	}
 
 	// Strict contract: the CLI owns the final output path. Direct-transform
 	// tools can write to the CLI-provided output argument; workspace generators

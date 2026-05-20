@@ -3,11 +3,12 @@
 		"dockerfile": "Dockerfile.in"
 	},
 	"dockerfilePreprocessor": {
-		"commands": [
-			"autoconf",
-			"./configure"
+		"tool": "sh",
+		"args": [
+			"-c",
+			"autoconf && ./configure"
 		],
-		"output": "Dockerfile"
+		"generatedDockerfile": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

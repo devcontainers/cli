@@ -87,31 +87,6 @@ describe('dockerfilePreprocessor', function () {
 		assert.strictEqual(outputContent, 'FROM busybox\n');
 	});
 
-	it('promotes generatedDockerfile to the CLI-owned output path', async function () {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
-		const inputPath = path.join(tmpDir, 'Dockerfile.in');
-		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
-		const generatedPath = path.join(tmpDir, 'build', 'Dockerfile');
-		const scriptPath = path.join(tmpDir, 'write-generated.sh');
-		await fs.mkdir(path.join(tmpDir, 'build'), { recursive: true });
-		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
-		await fs.writeFile(scriptPath, '#!/bin/sh\nset -eu\nmkdir -p "$3/build"\nprintf "FROM debian:bookworm\\n" > "$3/build/Dockerfile"\n');
-		await fs.chmod(scriptPath, 0o755);
-
-		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
-		const result = await preprocessDockerExtensionFile(
-			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { tool: './write-generated.sh', generatedDockerfile: 'build/Dockerfile' } },
-			inputPath
-		);
-
-		assert.strictEqual(result, outputPath);
-		assert.strictEqual(await fs.stat(outputPath).then(() => true, () => false), true);
-		assert.strictEqual(await fs.stat(generatedPath).then(() => true, () => false), false);
-		const outputContent = (await fs.readFile(outputPath)).toString();
-		assert.strictEqual(outputContent, 'FROM debian:bookworm\n');
-	});
-
 	it('throws when a preprocessor command fails', async () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
@@ -135,6 +110,29 @@ describe('dockerfilePreprocessor', function () {
 			preprocessDockerExtensionFile(
 				{ cliHost, output: nullLog },
 				{ dockerfilePreprocessor: { tool: 'true' } },
+				inputPath
+			),
+			(err: unknown) => {
+				assert.ok(err instanceof ContainerError);
+				assert.match((err as ContainerError).description, /did not produce/i);
+				return true;
+			}
+		);
+	});
+
+	it('does not treat stale CLI output as generated output', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
+		await fs.mkdir(path.dirname(outputPath), { recursive: true });
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+		await fs.writeFile(outputPath, 'FROM stale:old\n');
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		await assert.rejects(
+			preprocessDockerExtensionFile(
+				{ cliHost, output: nullLog },
+				{ dockerfilePreprocessor: { tool: 'true', outputMode: 'single-file' } },
 				inputPath
 			),
 			(err: unknown) => {
@@ -173,6 +171,7 @@ describe('dockerfilePreprocessor', function () {
 	const cli = `npx --prefix ${tmp} devcontainer`;
 	const cleanupByFixture = new Map<string, string[]>([
 		['dockerfile-cpp-preprocessor', ['Dockerfile', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+		['dockercomposefile-cpp-preprocessor', ['Dockerfile', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
 		['dockerfile-cmake-preprocessor', ['Dockerfile', 'build', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
 		['dockerfile-cmake2-preprocessor', ['Dockerfile', 'build', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
 		['dockerfile-autoconf-preprocessor', ['Dockerfile', 'configure', 'config.log', 'config.status', 'autom4te.cache', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
@@ -221,6 +220,22 @@ describe('dockerfilePreprocessor', function () {
 				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
+
+	it('should preprocess a Dockerfile.in during up docker compose cpp', async function () {
+		if (!cppAvailable) {
+			this.skip();
+		}
+		const testFolder = `${__dirname}/configs/dockercomposefile-cpp-preprocessor`;
+		await cleanupGeneratedArtifacts(testFolder);
+		let containerId: string | undefined;
+		try {
+			containerId = (await devContainerUp(cli, testFolder)).containerId;
+			await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v nodejs && command -v python3 && command -v curl && command -v wget && command -v vim && test -f /usr/local/bin/test.sh'`);
+		} finally {
+			await devContainerDown({ containerId, doNotThrow: true });
+			await cleanupGeneratedArtifacts(testFolder);
+		}
+	});
 
 		it('should preprocess a Dockerfile.in during up cmake', async function (){
 			if (!cmakeAvailable){
