@@ -1,0 +1,16 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"dockerfilePreprocessor": {
+		"commands": [
+			"meson setup build --reconfigure || meson setup build"
+		],
+		"output": "build/Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}

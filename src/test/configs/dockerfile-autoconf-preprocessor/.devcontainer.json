@@ -1,0 +1,17 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"dockerfilePreprocessor": {
+		"commands": [
+			"autoconf",
+			"./configure"
+		],
+		"output": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}

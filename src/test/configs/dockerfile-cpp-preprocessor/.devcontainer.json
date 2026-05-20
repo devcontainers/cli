@@ -1,0 +1,16 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"dockerfilePreprocessor": {
+		"commands": [
+			"cpp -P \"$DEVCONTAINER_DOCKERFILE_PREPROCESSOR_INPUT\" > \"$DEVCONTAINER_DOCKERFILE_PREPROCESSOR_OUTPUT\""
+		],
+		"output": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}
