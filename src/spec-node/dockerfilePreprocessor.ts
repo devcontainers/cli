@@ -6,7 +6,8 @@
 import * as path from 'path';
 import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig } from '../spec-configuration/configuration';
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { CLIHost, runCommandNoPty } from '../spec-common/commonUtils';
+import { CLIHost } from '../spec-common/cliHost';
+import { runCommandNoPty } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog } from '../spec-utils/log';
 
 function dockerfilePreprocessorToolDocs(): string {
@@ -54,17 +55,7 @@ export async function preprocessDockerExtensionFile(
 		if (!await cliHost.isFile(stalePath)) {
 			continue;
 		}
-		const cleanupCommand = cliHost.platform === 'win32'
-			? { cmd: 'cmd', args: ['/d', '/s', '/c', `del /f /q "${stalePath}"`] }
-			: { cmd: 'rm', args: ['-f', stalePath] };
-		await runCommandNoPty({
-			exec: cliHost.exec,
-			cmd: cleanupCommand.cmd,
-			args: cleanupCommand.args,
-			cwd: workdirPath,
-			env: cliHost.env,
-			output: infoOutput,
-		});
+		await cliHost.remove(stalePath);
 	}
 
 	// Strict contract: the CLI owns the final output path. Direct-transform
@@ -128,7 +119,8 @@ export async function preprocessDockerExtensionFile(
 	}
 
 	if (generatedOutputPath !== outputPath) {
-		await cliHost.rename(generatedOutputPath, outputPath);
+		await cliHost.copyFile(generatedOutputPath, outputPath);
+		await cliHost.remove(generatedOutputPath);
 	}
 
 	infoOutput.write(`Preprocessed Dockerfile written to '${cliOutputPath}'`);
