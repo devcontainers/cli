@@ -21,18 +21,18 @@ describe('dockerfilePreprocessor', function () {
 	});
 
 	it('returns preprocessed path for .in Dockerfile', () => {
-		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/Dockerfile.in'), '/tmp/Dockerfile');
+		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/Dockerfile.in'), '/tmp/.devcontainer-preprocessed/Dockerfile');
 	});
 
-	it('returns configured relative output path', () => {
-		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/folder/Dockerfile.in', 'generated/Dockerfile'), '/tmp/folder/generated/Dockerfile');
+	it('returns fixed CLI-owned output path for .in Dockerfile', () => {
+		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/folder/Dockerfile.in'), '/tmp/folder/.devcontainer-preprocessed/Dockerfile');
 	});
 
 	it('returns undefined for non-.in Dockerfile even when output is configured', () => {
-		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/folder/Dockerfile', 'generated/Dockerfile'), undefined);
+		assert.strictEqual(getDockerfilePreprocessedPath('/tmp/folder/Dockerfile'), undefined);
 	});
 
-	it('throws when dockerfilePreprocessor.commands is missing for .in Dockerfile', async () => {
+	it('throws when dockerfilePreprocessor.tool is missing for .in Dockerfile', async () => {
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		await assert.rejects(
 			preprocessDockerExtensionFile(
@@ -42,22 +42,22 @@ describe('dockerfilePreprocessor', function () {
 			),
 			(err: unknown) => {
 				assert.ok(err instanceof ContainerError);
-				assert.match((err as ContainerError).description, /dockerfilePreprocessor\.commands/i);
+				assert.match((err as ContainerError).description, /dockerfilePreprocessor\.tool/i);
 				return true;
 			}
 		);
 	});
 
-	it('runs commands and produces Dockerfile output', async function () {
+	it('runs tool and produces Dockerfile output at the CLI-owned path', async function () {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
-		const outputPath = path.join(tmpDir, 'Dockerfile');
+		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
 		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
 
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		const result = await preprocessDockerExtensionFile(
 			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { commands: ['cat "$input_file" > "$output_file"'] } },
+			{ dockerfilePreprocessor: { tool: 'cp', outputMode: 'single-file' } },
 			inputPath
 		);
 
@@ -66,23 +66,50 @@ describe('dockerfilePreprocessor', function () {
 		assert.strictEqual(outputContent, 'FROM alpine:3.20\n');
 	});
 
-	it('runs ordered commands and writes configured output file', async function () {
+	it('passes the CLI-owned output path to the tool', async function () {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
-		const outputPath = path.join(tmpDir, 'generated', 'Dockerfile');
-		await fs.mkdir(path.dirname(outputPath), { recursive: true });
+		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
+		const scriptPath = path.join(tmpDir, 'write-output.sh');
 		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+		await fs.writeFile(scriptPath, '#!/bin/sh\nset -eu\nprintf "FROM busybox\\n" > "$2"\n');
+		await fs.chmod(scriptPath, 0o755);
 
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		const result = await preprocessDockerExtensionFile(
 			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { commands: ['cp "$input_file" "$output_file"'], output: 'generated/Dockerfile' } },
+			{ dockerfilePreprocessor: { tool: './write-output.sh', outputMode: 'build-tree' } },
 			inputPath
 		);
 
 		assert.strictEqual(result, outputPath);
 		const outputContent = (await fs.readFile(outputPath)).toString();
-		assert.strictEqual(outputContent, 'FROM alpine:3.20\n');
+		assert.strictEqual(outputContent, 'FROM busybox\n');
+	});
+
+	it('promotes generatedDockerfile to the CLI-owned output path', async function () {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
+		const generatedPath = path.join(tmpDir, 'build', 'Dockerfile');
+		const scriptPath = path.join(tmpDir, 'write-generated.sh');
+		await fs.mkdir(path.join(tmpDir, 'build'), { recursive: true });
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+		await fs.writeFile(scriptPath, '#!/bin/sh\nset -eu\nmkdir -p "$3/build"\nprintf "FROM debian:bookworm\\n" > "$3/build/Dockerfile"\n');
+		await fs.chmod(scriptPath, 0o755);
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		const result = await preprocessDockerExtensionFile(
+			{ cliHost, output: nullLog },
+			{ dockerfilePreprocessor: { tool: './write-generated.sh', generatedDockerfile: 'build/Dockerfile' } },
+			inputPath
+		);
+
+		assert.strictEqual(result, outputPath);
+		assert.strictEqual(await fs.stat(outputPath).then(() => true, () => false), true);
+		assert.strictEqual(await fs.stat(generatedPath).then(() => true, () => false), false);
+		const outputContent = (await fs.readFile(outputPath)).toString();
+		assert.strictEqual(outputContent, 'FROM debian:bookworm\n');
 	});
 
 	it('throws when a preprocessor command fails', async () => {
@@ -93,12 +120,12 @@ describe('dockerfilePreprocessor', function () {
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		await assert.rejects(preprocessDockerExtensionFile(
 			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { commands: ['this-command-should-not-exist-xyz123'] } },
+			{ dockerfilePreprocessor: { tool: 'this-command-should-not-exist-xyz123' } },
 			inputPath
 		));
 	});
 
-	it('throws when commands succeed but output Dockerfile is not generated', async () => {
+	it('throws when tool succeeds but output Dockerfile is not generated', async () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
 		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
@@ -107,12 +134,32 @@ describe('dockerfilePreprocessor', function () {
 		await assert.rejects(
 			preprocessDockerExtensionFile(
 				{ cliHost, output: nullLog },
-				{ dockerfilePreprocessor: { commands: ['true'] } },
+				{ dockerfilePreprocessor: { tool: 'true' } },
 				inputPath
 			),
 			(err: unknown) => {
 				assert.ok(err instanceof ContainerError);
 				assert.match((err as ContainerError).description, /did not produce/i);
+				return true;
+			}
+		);
+	});
+
+	it('throws when generatedDockerfile is configured but not produced', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		await assert.rejects(
+			preprocessDockerExtensionFile(
+				{ cliHost, output: nullLog },
+				{ dockerfilePreprocessor: { tool: 'true', generatedDockerfile: 'build/Dockerfile' } },
+				inputPath
+			),
+			(err: unknown) => {
+				assert.ok(err instanceof ContainerError);
+				assert.match((err as ContainerError).description, /generatedDockerfile/i);
 				return true;
 			}
 		);
@@ -124,10 +171,26 @@ describe('dockerfilePreprocessor', function () {
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
+	const cleanupByFixture = new Map<string, string[]>([
+		['dockerfile-cpp-preprocessor', ['Dockerfile', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+		['dockerfile-cmake-preprocessor', ['Dockerfile', 'build', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+		['dockerfile-cmake2-preprocessor', ['Dockerfile', 'build', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+		['dockerfile-autoconf-preprocessor', ['Dockerfile', 'configure', 'config.log', 'config.status', 'autom4te.cache', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+		['dockerfile-meson-preprocessor', ['Dockerfile', 'build', '.devcontainer-lock.json', '.devcontainer-preprocessed']],
+	]);
 	let cppAvailable = false;
 	let cmakeAvailable = false;
 	let mesonAvailable = false;
 	let autoconfAvailable = false;
+
+	const cleanupGeneratedArtifacts = async (testFolder: string) => {
+		const fixture = path.basename(testFolder);
+		const generated = cleanupByFixture.get(fixture);
+		if (!generated?.length) {
+			return;
+		}
+		await Promise.all(generated.map(relative => fs.rm(path.join(testFolder, relative), { recursive: true, force: true })));
+	};
 
 	before('Install', async () => {
 		await shellExec(`rm -rf ${tmp}/node_modules`);
@@ -148,12 +211,14 @@ describe('dockerfilePreprocessor', function () {
 				this.skip();
 			}
 			const testFolder = `${__dirname}/configs/dockerfile-cpp-preprocessor`;
+			await cleanupGeneratedArtifacts(testFolder);
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v nodejs && command -v python3 && command -v curl && command -v wget && command -v vim && test -f /usr/local/bin/test.sh'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
+				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
 
@@ -162,6 +227,7 @@ describe('dockerfilePreprocessor', function () {
 				this.skip();
 			}
 			const testFolder = `${__dirname}/configs/dockerfile-cmake-preprocessor`;
+			await cleanupGeneratedArtifacts(testFolder);
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
@@ -169,6 +235,7 @@ describe('dockerfilePreprocessor', function () {
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
+				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
 
@@ -177,6 +244,7 @@ describe('dockerfilePreprocessor', function () {
 				this.skip();
 			}
 			const testFolder = `${__dirname}/configs/dockerfile-cmake2-preprocessor`;
+			await cleanupGeneratedArtifacts(testFolder);
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
@@ -184,6 +252,7 @@ describe('dockerfilePreprocessor', function () {
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
+				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
 
@@ -192,12 +261,14 @@ describe('dockerfilePreprocessor', function () {
 				this.skip();
 			}
 			const testFolder = `${__dirname}/configs/dockerfile-autoconf-preprocessor`;
+			await cleanupGeneratedArtifacts(testFolder);
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
+				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
 
@@ -206,6 +277,7 @@ describe('dockerfilePreprocessor', function () {
 				this.skip();
 			}
 			const testFolder = `${__dirname}/configs/dockerfile-meson-preprocessor`;
+			await cleanupGeneratedArtifacts(testFolder);
 			
 			let containerId: string | undefined;
 			try {
@@ -213,6 +285,7 @@ describe('dockerfilePreprocessor', function () {
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
+				await cleanupGeneratedArtifacts(testFolder);
 			}
 		});
 });

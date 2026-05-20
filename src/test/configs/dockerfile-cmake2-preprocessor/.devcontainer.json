@@ -3,10 +3,14 @@
 		"dockerfile": "Dockerfile.in"
 	},
 	"dockerfilePreprocessor": {
-		"commands": [
-			"cmake -S . -B build"
+		"tool": "cmake",
+		"args": [
+			"-S",
+			".",
+			"-B",
+			"build"
 		],
-		"output": ""
+		"generatedDockerfile": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

@@ -1,0 +1,2 @@
+/workspaces/cli/src/test/configs/dockerfile-cmake-preprocessor/build/CMakeFiles/edit_cache.dir
+/workspaces/cli/src/test/configs/dockerfile-cmake-preprocessor/build/CMakeFiles/rebuild_cache.dir

@@ -3,10 +3,12 @@
 		"dockerfile": "Dockerfile.in"
 	},
 	"dockerfilePreprocessor": {
-		"commands": [
-			"meson setup build --reconfigure || meson setup build"
+		"tool": "meson",
+		"args": [
+			"setup",
+			"build"
 		],
-		"output": "build/Dockerfile"
+		"generatedDockerfile": "build/Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

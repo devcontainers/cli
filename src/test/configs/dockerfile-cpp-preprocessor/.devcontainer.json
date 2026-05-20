@@ -3,10 +3,11 @@
 		"dockerfile": "Dockerfile.in"
 	},
 	"dockerfilePreprocessor": {
-		"commands": [
-			"cpp -P \"$DEVCONTAINER_DOCKERFILE_PREPROCESSOR_INPUT\" > \"$DEVCONTAINER_DOCKERFILE_PREPROCESSOR_OUTPUT\""
-		],
-		"output": "Dockerfile"
+		"tool": "cpp",
+		"outputMode": "single-file",
+		"args": [
+			"-P"
+		]
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {
