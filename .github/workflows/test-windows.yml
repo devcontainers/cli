@@ -41,6 +41,7 @@ jobs:
           # "src/test/container-templates/containerTemplatesOCI.test.ts",
           # "src/test/container-templates/templatesCLICommands.test.ts",
           # "src/test/dockerComposeUtils.test.ts",
+          "src/test/dockerfilePreprocessorWindows.test.ts",
           # "src/test/dockerfileUtils.test.ts",
           # "src/test/dockerUtils.test.ts",
           # "src/test/imageMetadata.test.ts",
