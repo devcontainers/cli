@@ -16,7 +16,7 @@ import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectContainers, inspectImage, getEvents, listContainers, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectContainers, inspectImage, getEvents, listContainers, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -109,8 +109,7 @@ export interface DockerResolverParameters {
 	common: ResolverParameters;
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
-	isPodman: boolean;
-	isWslc: boolean;
+	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
@@ -172,7 +171,7 @@ export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntr
 }
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
-	if (params.isWslc) {
+	if (params.cliVariant === CLIVariant.Wslc) {
 		return startEventSeenPolling(params, labels, canceled, output, trace);
 	}
 	const eventsProcess = await getEvents(params, { event: ['start'] });

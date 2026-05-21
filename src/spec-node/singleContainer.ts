@@ -7,7 +7,7 @@
 import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, isBuildxCacheToInline } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -347,8 +347,8 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
 	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
 
-	const cwdMount = workspaceMount ? (params.isWslc ? convertMountToVolume(workspaceMount) : ['--mount', workspaceMount]) : [];
-	const additionalMount = additionalMountString ? (params.isWslc ? convertMountToVolume(additionalMountString) : ['--mount', additionalMountString]) : [];
+	const cwdMount = workspaceMount ? (params.cliVariant === CLIVariant.Wslc ? convertMountToVolume(workspaceMount) : ['--mount', workspaceMount]) : [];
+	const additionalMount = additionalMountString ? (params.cliVariant === CLIVariant.Wslc ? convertMountToVolume(additionalMountString) : ['--mount', additionalMountString]) : [];
 
 	const envObj = mergedConfig.containerEnv || {};
 	const containerEnv = Object.keys(envObj)
@@ -361,13 +361,13 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const featureArgs: string[] = [];
 	// wslc does not support --init, --privileged, --cap-add, or --security-opt
-	if (mergedConfig.init && !params.isWslc) {
+	if (mergedConfig.init && params.cliVariant !== CLIVariant.Wslc) {
 		featureArgs.push('--init');
 	}
-	if (mergedConfig.privileged && !params.isWslc) {
+	if (mergedConfig.privileged && params.cliVariant !== CLIVariant.Wslc) {
 		featureArgs.push('--privileged');
 	}
-	if (!params.isWslc) {
+	if (params.cliVariant !== CLIVariant.Wslc) {
 		for (const cap of mergedConfig.capAdd || []) {
 			featureArgs.push('--cap-add', cap);
 		}
@@ -382,7 +382,7 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 			...params.additionalMounts,
 		].map(m => {
 			const mountArgs = generateMountCommand(m);
-			return params.isWslc ? convertMountArgsToVolume(mountArgs) : mountArgs;
+			return params.cliVariant === CLIVariant.Wslc ? convertMountArgsToVolume(mountArgs) : mountArgs;
 		})
 	);
 
@@ -402,7 +402,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 
 	const args = [
 		'run',
-		...(params.isWslc ? [] : ['--sig-proxy=false', '-a', 'STDOUT', '-a', 'STDERR']),
+		...(params.cliVariant === CLIVariant.Wslc ? [] : ['--sig-proxy=false', '-a', 'STDOUT', '-a', 'STDERR']),
 		...exposed,
 		...cwdMount,
 		...additionalMount,
@@ -436,7 +436,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 }
 
 async function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageDetails: () => Promise<ImageDetails>): Promise<string[]> {
-	if (params.isPodman && params.common.cliHost.platform === 'linux') {
+	if (params.cliVariant === CLIVariant.Podman && params.common.cliHost.platform === 'linux') {
 		const args = ['--security-opt', 'label=disable'];
 		const hasIdMapping = (config.runArgs || []).some(arg => /--[ug]idmap(=|$)/.test(arg));
 		if (!hasIdMapping) {

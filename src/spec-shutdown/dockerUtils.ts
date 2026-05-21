@@ -77,7 +77,7 @@ export interface PartialPtyExecParameters {
 
 interface DockerResolverParameters {
 	dockerCLI: string;
-	isPodman: boolean;
+	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	common: {
@@ -171,7 +171,7 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 }
 
 export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string) {
-	const useEvents = !('isWslc' in params && params.isWslc);
+	const useEvents = !('cliVariant' in params && params.cliVariant === CLIVariant.Wslc);
 	let eventsProcess: Exec | undefined;
 	let removedSeenP: Promise<void> | undefined;
 	try {
@@ -216,7 +216,7 @@ export async function getEvents(params: DockerCLIParameters | PartialExecParamet
 			filterArgs.push('--filter', `${filter}=${value}`);
 		}
 	}
-	const format = 'isPodman' in params && params.isPodman ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
+	const format = 'cliVariant' in params && params.cliVariant === CLIVariant.Podman ? 'json' : '{{json .}}'; // https://github.com/containers/libpod/issues/5981
 	const combinedArgs = (args || []).concat(['events', '--format', format, ...filterArgs]);
 
 	const p = await exec({
@@ -290,22 +290,26 @@ export async function dockerCLI(params: DockerCLIParameters | PartialExecParamet
 	});
 }
 
-export async function isPodman(params: PartialExecParameters) {
-	try {
-		const { stdout } = await dockerCLI(params, '-v');
-		return stdout.toString().toLowerCase().indexOf('podman') !== -1;
-	} catch (err) {
-		return false;
-	}
+export enum CLIVariant {
+	Docker = 'docker',
+	Podman = 'podman',
+	Wslc = 'wslc',
 }
 
-export async function isWslc(params: PartialExecParameters) {
+export async function lookupCLIVariant(params: PartialExecParameters): Promise<CLIVariant> {
 	try {
 		const { stdout } = await dockerCLI(params, '-v');
-		return stdout.toString().toLowerCase().indexOf('wslc') !== -1;
-	} catch (err) {
-		return false;
+		const lower = stdout.toString().toLowerCase();
+		if (lower.indexOf('wslc') !== -1) {
+			return CLIVariant.Wslc;
+		}
+		if (lower.indexOf('podman') !== -1) {
+			return CLIVariant.Podman;
+		}
+	} catch (_err) {
+		// fall through
 	}
+	return CLIVariant.Docker;
 }
 
 export async function dockerPtyCLI(params: PartialPtyExecParameters | DockerResolverParameters | DockerCLIParameters, ...args: string[]) {
