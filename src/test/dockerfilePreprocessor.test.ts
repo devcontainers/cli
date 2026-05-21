@@ -134,6 +134,7 @@ describe('dockerfilePreprocessor', function () {
 		const generatedPath = path.join(tmpDir, 'build', 'Dockerfile');
 		const scriptPath = path.join(tmpDir, 'write-output.sh');
 		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+		await fs.mkdir(path.dirname(generatedPath), { recursive: true });
 		await fs.writeFile(scriptPath, '#!/bin/sh\nset -eu\nprintf "FROM busybox\\n" > "$2"\n');
 		await fs.chmod(scriptPath, 0o755);
 
