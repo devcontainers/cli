@@ -1,2 +1,2 @@
-RUN apt-get update && apt-get install -y vim
-COPY ./test.sh /usr/local/bin/test.sh
+RUN Write-Host "Installing vim"
+COPY ./test.ps1 C:/usr/local/bin/test.ps1

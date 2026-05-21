@@ -1,15 +1,17 @@
-#define BASE_IMAGE ubuntu:20.04
+#define BASE_IMAGE mcr.microsoft.com/windows/nanoserver:ltsc2022
 #define INSTALL_NODE
 #define INSTALL_PYTHON
 
 FROM BASE_IMAGE
 
+SHELL ["powershell", "-NoLogo", "-NoProfile", "-Command"]
+
 #ifdef INSTALL_NODE
-RUN apt-get update && apt-get install -y nodejs
+RUN Write-Host "Installing Node.js"
 #endif
 
 #ifdef INSTALL_PYTHON
-RUN apt-get update && apt-get install -y python3
+RUN Write-Host "Installing Python"
 #endif
 
 #include "common.Dockerfile"

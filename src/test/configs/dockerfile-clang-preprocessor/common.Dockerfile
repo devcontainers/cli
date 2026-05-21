@@ -1,4 +1,4 @@
-RUN apt-get update && apt-get install -y curl wget
+RUN Write-Host "Installing curl and wget"
 
 ENV APP_ENV=development
 ENV APP_DEBUG=true

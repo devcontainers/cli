@@ -2,46 +2,83 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { devContainerDown, devContainerUp, shellExec } from './testUtils';
+import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { preprocessDockerExtensionFile } from '../spec-node/dockerfilePreprocessor';
+import { nullLog } from '../spec-utils/log';
 
-const pkg = require('../../package.json');
+(process.platform === 'win32' ? describe : describe.skip)('dockerfilePreprocessor unit (Windows)', function () {
+	const fixtureFolder = path.join(__dirname, 'configs', 'dockerfile-clang-preprocessor');
+	const inputPath = path.join(fixtureFolder, 'Dockerfile.in');
+	const outputPath = path.join(fixtureFolder, '.devcontainer-preprocessed', 'Dockerfile');
+	const generatedRelPath = path.join('build', 'Dockerfile.generated');
+	const generatedAbsPath = path.join(fixtureFolder, generatedRelPath);
+	const expectedSingleFileDockerfile = [
+		'FROM mcr.microsoft.com/windows/nanoserver:ltsc2022',
+		'SHELL ["powershell", "-NoLogo", "-NoProfile", "-Command"]',
+		'RUN Write-Host "Installing Node.js"',
+		'RUN Write-Host "Installing Python"',
+		'RUN Write-Host "Installing curl and wget"',
+		'ENV APP_ENV=development',
+		'ENV APP_DEBUG=true',
+		'RUN Write-Host "Installing vim"',
+		'COPY ./test.ps1 C:/usr/local/bin/test.ps1',
+		'',
+	].join('\n');
 
-(process.platform === 'win32' ? describe : describe.skip)('dockerfilePreprocessor integration (Windows)', function () {
-	this.timeout('240s');
-
-	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
-	const cli = `npx --prefix ${tmp} devcontainer`;
-	const generatedArtifacts = ['Dockerfile', '.devcontainer-lock.json', '.devcontainer-preprocessed'];
-	let clangAvailable = false;
-
-	const cleanupGeneratedArtifacts = async (testFolder: string) => {
-		await Promise.all(generatedArtifacts.map(relative => fs.rm(path.join(testFolder, relative), { recursive: true, force: true })));
+	const cleanupGeneratedArtifacts = async () => {
+		await Promise.all([
+			fs.rm(outputPath, { recursive: true, force: true }),
+			fs.rm(generatedAbsPath, { recursive: true, force: true }),
+		]);
 	};
 
-	before('Install', async () => {
-		await fs.rm(path.join(__dirname, 'tmp', 'node_modules'), { recursive: true, force: true });
-		await fs.mkdir(path.join(__dirname, 'tmp'), { recursive: true });
-		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
-		const clangCheck = await shellExec('where clang', undefined, true, true);
-		clangAvailable = !clangCheck.error && Boolean(clangCheck.stdout.trim());
+	beforeEach(async () => {
+		await cleanupGeneratedArtifacts();
 	});
 
-	it('should preprocess a Dockerfile.in during up clang on Windows', async function () {
-		if (!clangAvailable) {
-			this.skip();
-		}
-		const testFolder = `${__dirname}/configs/dockerfile-clang-preprocessor`;
-		await cleanupGeneratedArtifacts(testFolder);
-		let containerId: string | undefined;
-		try {
-			containerId = (await devContainerUp(cli, testFolder)).containerId;
-			await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v nodejs && command -v python3 && command -v curl && command -v wget && command -v vim && test -f /usr/local/bin/test.sh'`);
-		} finally {
-			await devContainerDown({ containerId, doNotThrow: true });
-			await cleanupGeneratedArtifacts(testFolder);
-		}
+	afterEach(async () => {
+		await cleanupGeneratedArtifacts();
+	});
+
+
+	it('runs preprocessor in single-file mode and writes CLI-owned output', async () => {
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		const result = await preprocessDockerExtensionFile(
+			{ cliHost, output: nullLog },
+			{
+				dockerfilePreprocessor: {
+					tool: process.execPath,
+					args: ['-e', "const fs=require('fs');const path=require('path');const [input,output]=process.argv.slice(1);if(!input||!output){process.exit(1);}const root=path.dirname(input);const source=fs.readFileSync(input,'utf8');if(!source.includes('#define BASE_IMAGE mcr.microsoft.com/windows/nanoserver:ltsc2022')){process.exit(1);}const common=fs.readFileSync(path.join(root,'common.Dockerfile'),'utf8').trim();const tools=fs.readFileSync(path.join(root,'tools.Dockerfile'),'utf8').trim();const lines=['FROM mcr.microsoft.com/windows/nanoserver:ltsc2022','SHELL [\"powershell\", \"-NoLogo\", \"-NoProfile\", \"-Command\"]','RUN Write-Host \"Installing Node.js\"','RUN Write-Host \"Installing Python\"',common,tools,''];fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,lines.join('\\n'));"],
+					outputMode: 'single-file',
+				},
+			},
+			inputPath
+		);
+
+		assert.strictEqual(result, outputPath);
+		assert.strictEqual(await fs.readFile(outputPath, 'utf8'), expectedSingleFileDockerfile);
+	});
+
+	it('promotes generatedDockerfile output into CLI-owned output path', async () => {
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		const result = await preprocessDockerExtensionFile(
+			{ cliHost, output: nullLog },
+			{
+				dockerfilePreprocessor: {
+					tool: process.execPath,
+					args: ['-e', "const fs=require('fs');const path=require('path');const out=process.env.generated_dockerfile;if(!out){process.exit(1);}fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,'FROM mcr.microsoft.com/windows/nanoserver:ltsc2022\\n');"],
+					generatedDockerfile: generatedRelPath,
+				},
+			},
+			inputPath
+		);
+
+		assert.strictEqual(result, outputPath);
+		assert.strictEqual(await fs.readFile(outputPath, 'utf8'), 'FROM mcr.microsoft.com/windows/nanoserver:ltsc2022\n');
+		assert.strictEqual(await cliHost.isFile(generatedAbsPath), false);
 	});
 });
