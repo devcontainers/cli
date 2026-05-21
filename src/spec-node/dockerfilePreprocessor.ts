@@ -11,7 +11,7 @@ import { runCommandNoPty } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog } from '../spec-utils/log';
 
 function dockerfilePreprocessorToolDocs(): string {
-	return "Set 'dockerfilePreprocessor.tool' and optional 'dockerfilePreprocessor.args' in devcontainer.json. Use 'outputMode' to choose whether the tool runs in 'single-file' mode or 'build-tree' mode. Use 'generatedDockerfile' for tools that write the final Dockerfile to a predictable workspace-relative path instead of the CLI-provided output argument.";
+	return "Set 'dockerfilePreprocessor.tool' and optional 'dockerfilePreprocessor.args' in devcontainer.json. 'outputMode' controls CLI invocation shape: 'single-file' passes input/output and 'build-tree' passes input/output/workdir. When using 'build-tree', set 'generatedDockerfile' to the tool's produced Dockerfile path so the CLI can verify and synchronize outputs.";
 }
 
 export function getDockerfilePreprocessedPath(dockerfilePath: string): string | undefined {
@@ -38,6 +38,18 @@ export async function preprocessDockerExtensionFile(
 	if (!tool) {
 		throw new ContainerError({
 			description: `A Dockerfile preprocessor tool is required to build from '${dockerfilePath}'. ${dockerfilePreprocessorToolDocs()}`,
+			data: { fileWithError: dockerfilePath },
+		});
+	}
+	if (outputMode === 'single-file' && generatedDockerfile) {
+		throw new ContainerError({
+			description: `dockerfilePreprocessor.outputMode 'single-file' cannot be used with 'dockerfilePreprocessor.generatedDockerfile'. Omit generatedDockerfile in single-file mode. ${dockerfilePreprocessorToolDocs()}`,
+			data: { fileWithError: dockerfilePath },
+		});
+	}
+	if (outputMode === 'build-tree' && !generatedDockerfile) {
+		throw new ContainerError({
+			description: `dockerfilePreprocessor.outputMode 'build-tree' requires 'dockerfilePreprocessor.generatedDockerfile' to be set. ${dockerfilePreprocessorToolDocs()}`,
 			data: { fileWithError: dockerfilePath },
 		});
 	}
@@ -75,7 +87,7 @@ export async function preprocessDockerExtensionFile(
 	const directOutputArgs = outputMode === 'single-file'
 		? [inputPath, outputPath]
 		: [inputPath, outputPath, workdirPath];
-	const invocationArgs = generatedDockerfile ? args : [...args, ...directOutputArgs];
+	const invocationArgs = [...args, ...directOutputArgs];
 
 	try {
 		infoOutput.write(`Preprocessing '${dockerfilePath}' -> '${cliOutputPath}'`);
@@ -109,6 +121,11 @@ export async function preprocessDockerExtensionFile(
 		});
 	}
 
+	if (generatedDockerfile && generatedOutputPath !== outputPath && !await cliHost.isFile(generatedOutputPath) && await cliHost.isFile(outputPath)) {
+		infoOutput.write(`No generated Dockerfile found at '${generatedOutputPath}', copying from CLI output '${outputPath}' to keep generated output consistent.`);
+		await cliHost.copyFile(outputPath, generatedOutputPath);
+	}
+
 	if (!await cliHost.isFile(generatedOutputPath)) {
 		throw new ContainerError({
 			description: generatedDockerfile
@@ -120,7 +137,6 @@ export async function preprocessDockerExtensionFile(
 
 	if (generatedOutputPath !== outputPath) {
 		await cliHost.copyFile(generatedOutputPath, outputPath);
-		await cliHost.remove(generatedOutputPath);
 	}
 
 	infoOutput.write(`Preprocessed Dockerfile written to '${cliOutputPath}'`);

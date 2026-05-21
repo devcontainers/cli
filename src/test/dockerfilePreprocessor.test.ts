@@ -66,7 +66,7 @@ describe('dockerfilePreprocessor', function () {
 		assert.strictEqual(outputContent, 'FROM alpine:3.20\n');
 	});
 
-	it('passes the CLI-owned output path to the tool', async function () {
+	it('passes the CLI-owned output path to the tool in single-file mode', async function () {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
 		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
@@ -78,13 +78,75 @@ describe('dockerfilePreprocessor', function () {
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		const result = await preprocessDockerExtensionFile(
 			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { tool: './write-output.sh', outputMode: 'build-tree' } },
+			{ dockerfilePreprocessor: { tool: './write-output.sh', outputMode: 'single-file' } },
 			inputPath
 		);
 
 		assert.strictEqual(result, outputPath);
 		const outputContent = (await fs.readFile(outputPath)).toString();
 		assert.strictEqual(outputContent, 'FROM busybox\n');
+	});
+
+	it('requires generatedDockerfile when outputMode is build-tree', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		await assert.rejects(
+			preprocessDockerExtensionFile(
+				{ cliHost, output: nullLog },
+				{ dockerfilePreprocessor: { tool: 'true', outputMode: 'build-tree' } },
+				inputPath
+			),
+			(err: unknown) => {
+				assert.ok(err instanceof ContainerError);
+				assert.match((err as ContainerError).description, /build-tree.*generatedDockerfile/i);
+				return true;
+			}
+		);
+	});
+
+	it('rejects generatedDockerfile when outputMode is single-file', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		await assert.rejects(
+			preprocessDockerExtensionFile(
+				{ cliHost, output: nullLog },
+				{ dockerfilePreprocessor: { tool: 'true', outputMode: 'single-file', generatedDockerfile: 'build/Dockerfile' } },
+				inputPath
+			),
+			(err: unknown) => {
+				assert.ok(err instanceof ContainerError);
+				assert.match((err as ContainerError).description, /single-file.*generatedDockerfile/i);
+				return true;
+			}
+		);
+	});
+
+	it('build-tree mode keeps generatedDockerfile authoritative and syncs CLI output', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
+		const inputPath = path.join(tmpDir, 'Dockerfile.in');
+		const outputPath = path.join(tmpDir, '.devcontainer-preprocessed', 'Dockerfile');
+		const generatedPath = path.join(tmpDir, 'build', 'Dockerfile');
+		const scriptPath = path.join(tmpDir, 'write-output.sh');
+		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
+		await fs.writeFile(scriptPath, '#!/bin/sh\nset -eu\nprintf "FROM busybox\\n" > "$2"\n');
+		await fs.chmod(scriptPath, 0o755);
+
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
+		const result = await preprocessDockerExtensionFile(
+			{ cliHost, output: nullLog },
+			{ dockerfilePreprocessor: { tool: './write-output.sh', outputMode: 'build-tree', generatedDockerfile: 'build/Dockerfile' } },
+			inputPath
+		);
+
+		assert.strictEqual(result, outputPath);
+		assert.strictEqual((await fs.readFile(generatedPath)).toString(), 'FROM busybox\n');
+		assert.strictEqual((await fs.readFile(outputPath)).toString(), 'FROM busybox\n');
 	});
 
 	it('throws when a preprocessor command fails', async () => {
@@ -95,7 +157,7 @@ describe('dockerfilePreprocessor', function () {
 		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
 		await assert.rejects(preprocessDockerExtensionFile(
 			{ cliHost, output: nullLog },
-			{ dockerfilePreprocessor: { tool: 'this-command-should-not-exist-xyz123' } },
+			{ dockerfilePreprocessor: { tool: 'this-command-should-not-exist-xyz123', outputMode: 'single-file' } },
 			inputPath
 		));
 	});
@@ -109,7 +171,7 @@ describe('dockerfilePreprocessor', function () {
 		await assert.rejects(
 			preprocessDockerExtensionFile(
 				{ cliHost, output: nullLog },
-				{ dockerfilePreprocessor: { tool: 'true' } },
+				{ dockerfilePreprocessor: { tool: 'true', outputMode: 'single-file' } },
 				inputPath
 			),
 			(err: unknown) => {
