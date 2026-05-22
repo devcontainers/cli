@@ -8,7 +8,7 @@
 			"-c",
 			"autoconf && ./configure"
 		],
-		"generatedDockerfile": "Dockerfile"
+		"generatedDockerfilePath": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

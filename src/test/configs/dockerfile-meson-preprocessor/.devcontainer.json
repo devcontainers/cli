@@ -8,7 +8,7 @@
 			"setup",
 			"build"
 		],
-		"generatedDockerfile": "build/Dockerfile"
+		"generatedDockerfilePath": "build/Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

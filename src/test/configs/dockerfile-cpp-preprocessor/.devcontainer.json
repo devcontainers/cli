@@ -4,10 +4,12 @@
 	},
 	"dockerfilePreprocessor": {
 		"tool": "cpp",
-		"outputMode": "single-file",
 		"args": [
-			"-P"
-		]
+			"-P",
+			"./Dockerfile.in",
+			"Dockerfile"
+		],
+		"generatedDockerfilePath": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {

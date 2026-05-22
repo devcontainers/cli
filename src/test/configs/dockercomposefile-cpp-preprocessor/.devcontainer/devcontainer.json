@@ -5,14 +5,14 @@
 	"workspaceFolder": "/workspace",
 	"dockerfilePreprocessor": {
 		"tool": "cpp",
-		"outputMode": "single-file",
+		"generatedDockerfilePath": "Dockerfile",
 		"args": [
-			"-P"
+			"-P",
+			"Dockerfile.in",
+			"Dockerfile"
 		]
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/github-cli:1": {
-			"version": "latest"
-		}
+		"ghcr.io/devcontainers/features/git": "latest"
 	}
 }

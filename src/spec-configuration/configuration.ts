@@ -38,17 +38,10 @@ export interface DevContainerFeature {
 	options: boolean | string | Record<string, boolean | string | undefined>;
 }
 
-// Dockerfile preprocessing always produces a CLI-owned final Dockerfile path.
-// Users provide the preprocessor tool and optional arguments.
-// For direct file transforms, users can select whether the tool behaves like a
-// single-file transform or expects a build-tree style workspace argument.
-// For workspace-style generators, users can instead set generatedDockerfile to
-// tell the CLI which file to promote to the final Dockerfile after the tool runs.
 export interface DockerfilePreprocessor {
 	tool?: string;
 	args?: string[];
-	outputMode?: 'single-file' | 'build-tree';
-	generatedDockerfile?: string;
+	generatedDockerfilePath?: string;
 }
 
 export interface DevContainerFromImageConfig {
