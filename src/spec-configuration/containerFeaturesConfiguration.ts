@@ -10,6 +10,7 @@ import * as tar from 'tar';
 import * as crypto from 'crypto';
 import * as semver from 'semver';
 import * as os from 'os';
+import * as fs from 'fs';
 
 import { DevContainerConfig, DevContainerFeature, VSCodeCustomizations } from './configuration';
 import { mkdirpLocal, readLocalFile, rmLocal, writeLocalFile, cpDirectoryLocal, isLocalFile } from '../spec-utils/pfs';
@@ -192,8 +193,8 @@ export interface ContainerFeatureInternalParams {
 	env: NodeJS.ProcessEnv;
 	skipFeatureAutoMapping: boolean;
 	platform: NodeJS.Platform;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 }
 
 // TODO: Move to node layer.
@@ -484,7 +485,7 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 
 	const ociCacheDir = await prepareOCICache(dstFolder);
 
-	const { lockfile, initLockfile } = await readLockfile(config);
+	const { lockfile } = params.noLockfile ? { lockfile: undefined } : await readLockfile(config);
 
 	const processFeature = async (_userFeature: DevContainerFeature) => {
 		return await processFeatureIdentifier(params, configPath, workspaceRoot, _userFeature, lockfile);
@@ -507,7 +508,9 @@ export async function generateFeaturesConfig(params: ContainerFeatureInternalPar
 	await fetchFeatures(params, featuresConfig, dstFolder, ociCacheDir, lockfile);
 
 	await logFeatureAdvisories(params, featuresConfig);
-	await writeLockfile(params, config, await generateLockfile(featuresConfig), initLockfile);
+	if (!params.noLockfile) {
+		await writeLockfile(params, config, await generateLockfile(featuresConfig, config, additionalFeatures));
+	}
 	return featuresConfig;
 }
 
@@ -1097,7 +1100,7 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 		}
 
 		// Filter what gets emitted from the tar.extract().
-		const filter = (file: string, _: tar.FileStat) => {
+		const filter = (file: string, _: fs.Stats | tar.ReadEntry) => {
 			// Don't include .dotfiles or the archive itself.
 			if (file.startsWith('./.') || file === `./${V1_ASSET_NAME}` || file === './.') {
 				return false;
@@ -1128,7 +1131,7 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 			{
 				file: tempTarballPath,
 				cwd: featCachePath,
-				filter: (path: string, _: tar.FileStat) => {
+				filter: (path, _) => {
 					return path === `./${metadataFile}`;
 				}
 			});

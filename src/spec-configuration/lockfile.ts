@@ -13,10 +13,15 @@ export interface Lockfile {
 	features: Record<string, { version: string; resolved: string; integrity: string }>;
 }
 
-export async function generateLockfile(featuresConfig: FeaturesConfig): Promise<Lockfile> {
+export async function generateLockfile(featuresConfig: FeaturesConfig, config?: DevContainerConfig, additionalFeatures?: Record<string, string | boolean | Record<string, string | boolean>>): Promise<Lockfile> {
+	// Features supplied only via `--additional-features` (i.e., not present in `config.features`)
+	// should not be written to the lockfile.
+	const configFeatureKeys = new Set(Object.keys(config?.features || {}));
+	const excludeUserFeatureIds = new Set(Object.keys(additionalFeatures || {}).filter(key => !configFeatureKeys.has(key)));
 	return featuresConfig.featureSets
 		.map(f => [f, f.sourceInformation] as const)
 		.filter((tup): tup is [FeatureSet, OCISourceInformation | DirectTarballSourceInformation] => ['oci', 'direct-tarball'].indexOf(tup[1].type) !== -1)
+		.filter(([, source]) => !excludeUserFeatureIds.has(source.userFeatureId))
 		.map(([set, source]) => {
 			const dependsOn = Object.keys(set.features[0].dependsOn || {});
 			return {
@@ -40,7 +45,11 @@ export async function generateLockfile(featuresConfig: FeaturesConfig): Promise<
 		});
 }
 
-export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, lockfile: Lockfile, forceInitLockfile?: boolean): Promise<string | undefined> {
+export async function writeLockfile(params: ContainerFeatureInternalParams, config: DevContainerConfig, lockfile: Lockfile): Promise<string | undefined> {
+	if (params.noLockfile) {
+		return;
+	}
+
 	const lockfilePath = getLockfilePath(config);
 	const oldLockfileContent = await readLocalFile(lockfilePath)
 		.catch(err => {
@@ -49,17 +58,25 @@ export async function writeLockfile(params: ContainerFeatureInternalParams, conf
 			}
 		});
 
-	if (!forceInitLockfile && !oldLockfileContent && !params.experimentalLockfile && !params.experimentalFrozenLockfile) {
-		return;
-	}
-
-	const newLockfileContentString = JSON.stringify(lockfile, null, 2);
+	// Trailing newline per POSIX convention
+	const newLockfileContentString = JSON.stringify(lockfile, null, 2) + '\n';
 	const newLockfileContent = Buffer.from(newLockfileContentString);
-	if (params.experimentalFrozenLockfile && !oldLockfileContent) {
+	if (params.frozenLockfile && !oldLockfileContent) {
 		throw new Error('Lockfile does not exist.');
 	}
-	if (!oldLockfileContent || !newLockfileContent.equals(oldLockfileContent)) {
-		if (params.experimentalFrozenLockfile) {
+	// Normalize the existing lockfile through JSON.parse -> JSON.stringify to produce
+	// the same canonical format as newLockfileContentString, so that the string comparison
+	// below ignores cosmetic differences (indentation, trailing whitespace, etc.).
+	let oldLockfileNormalized: string | undefined;
+	if (oldLockfileContent) {
+		try {
+			oldLockfileNormalized = JSON.stringify(JSON.parse(oldLockfileContent.toString()), null, 2) + '\n';
+		} catch {
+			// Empty or invalid JSON; treat as needing rewrite.
+		}
+	}
+	if (!oldLockfileNormalized || oldLockfileNormalized !== newLockfileContentString) {
+		if (params.frozenLockfile) {
 			throw new Error('Lockfile does not match.');
 		}
 		await writeLocalFile(lockfilePath, newLockfileContent);

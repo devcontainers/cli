@@ -21,7 +21,7 @@ describe('validate generateFeaturesConfig()', function () {
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
-    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform };
+    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform, noLockfile: true };
 
     it('should correctly return a featuresConfig with v2 local features', async function () {
         const version = 'unittest';
@@ -88,7 +88,7 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
     });
 
     it('should correctly return featuresConfig with customizations', async function () {
-        this.timeout('20s');
+        this.timeout('40s');
         const version = 'unittest';
         const tmpFolder: string = path.join(await getLocalCacheFolder(), 'container-features', `${version}-${Date.now()}`);
         await mkdirpLocal(tmpFolder);

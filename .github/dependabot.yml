@@ -17,21 +17,15 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "@stylistic/eslint-plugin"
-        update-types: ["version-update:semver-major"] # stylistic 3 to avoid esm
       - dependency-name: "@types/chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
       - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"] # Keep Node 18 compatibility
-      - dependency-name: "@types/tar"
-        update-types: ["version-update:semver-major"] # tar 6 for source compatibility
+        update-types: ["version-update:semver-major"] # Keep Node 20 compatibility
       - dependency-name: "chai"
         update-types: ["version-update:semver-major"] # chai 4 to avoid esm
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"] # eslint 8 for `--rulesdir`
-      - dependency-name: "rimraf"
-        update-types: ["version-update:semver-major"] # rimraf 5 for Node 18 compatibility
-      - dependency-name: "tar"
-        update-types: ["version-update:semver-major"] # tar 6 for source compatibility
+      - dependency-name: "yargs"
+        update-types: ["version-update:semver-major"] # yargs 17 for esbuild CJS bundling
+      - dependency-name: "node-pty"
+        update-types: ["version-update:semver-minor"] # node-pty 1.1 has broken spawn-helper permissions (microsoft/node-pty#866)
     schedule:
       interval: "weekly"

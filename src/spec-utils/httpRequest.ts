@@ -87,7 +87,7 @@ export async function requestResolveHeaders(options: { type: string; url: string
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions & tls.CommonConnectionOptions & FollowOptions<any> = {
 			hostname: parsed.hostname,
-			maxBodyLength: 100 * 1024 * 1024,
+			maxBodyLength: Infinity,
 			port: parsed.port,
 			path: parsed.pathname + parsed.search,
 			method: options.type,

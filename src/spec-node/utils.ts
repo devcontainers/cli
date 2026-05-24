@@ -15,7 +15,7 @@ import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, 
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectContainers, inspectImage, getEvents, listContainers, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -93,6 +93,13 @@ export async function logUMask(params: DockerResolverParameters): Promise<string
 	}
 }
 
+export function isBuildxCacheToInline(buildxCacheTo: string | undefined): boolean {
+	if (!buildxCacheTo) {
+		return false;
+	}
+	return /type\s*=\s*inline/i.test(buildxCacheTo);
+}
+
 export type ParsedAuthority = DevContainerAuthority;
 
 export type UpdateRemoteUserUIDDefault = 'never' | 'on' | 'off';
@@ -107,6 +114,7 @@ export interface DockerResolverParameters {
 	workspaceMountConsistencyDefault: BindMountConsistency;
 	gpuAvailability: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
+	mountGitWorktreeCommonDir: boolean;
 	updateRemoteUserUIDOnMacOS: boolean;
 	cacheMount: 'volume' | 'bind' | 'none';
 	removeOnStartup?: boolean | string;
@@ -119,14 +127,15 @@ export interface DockerResolverParameters {
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
 	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	additionalLabels: string[];
 	buildxOutput: string | undefined;
 	buildxCacheTo: string | undefined;
-	platformInfo: PlatformInfo;
+	buildPlatformInfo: PlatformInfo;
+	targetPlatformInfo: PlatformInfo;
 }
 
 export interface ResolverResult {
@@ -235,28 +244,42 @@ export function isBuildKitImagePolicyError(err: any): boolean {
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
-	} catch (err) {
-		if (!pullImageOnError) {
-			throw err;
-		}
+	} catch (inspectErr) {
 		const output = 'cliHost' in params ? params.output : params.common.output;
+		if (!pullImageOnError) {
+			logErrorStdoutStderr(inspectErr, output);
+			throw inspectErr;
+		}
 		try {
-			return await inspectImageInRegistry(output, params.platformInfo, imageName);
-		} catch (err2) {
-			output.write(`Error fetching image details: ${err2?.message}`);
+			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName);
+		} catch (inspectErr2) {
+			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
 		try {
 			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
-		} catch (_err) {
-			if (err.stdout) {
-				output.write(err.stdout.toString());
-			}
-			if (err.stderr) {
-				output.write(toErrorText(err.stderr.toString()));
-			}
-			throw err;
+		} catch (pullErr) {
+			logErrorStdoutStderr(inspectErr, output);
+			logErrorStdoutStderr(pullErr, output);
+			throw pullErr;
 		}
-		return inspectImage(params, imageName);
+		try {
+			return await inspectImage(params, imageName);
+		} catch (inspectErr3) {
+			logErrorStdoutStderr(inspectErr3, output);
+			throw inspectErr3;
+		}
+	}
+}
+
+function logErrorStdoutStderr(err: any, output: Log) {
+	if (err?.message) {
+		output.write(err.message, LogLevel.Error);
+	}
+	if (err?.stdout) {
+		output.write(err.stdout.toString(), LogLevel.Error);
+	}
+	if (err?.stderr) {
+		output.write(toErrorText(err.stderr.toString()), LogLevel.Error);
 	}
 }
 
@@ -347,24 +370,58 @@ export async function getHostMountFolder(cliHost: CLIHost, folderPath: string, m
 export interface WorkspaceConfiguration {
 	workspaceMount: string | undefined;
 	workspaceFolder: string | undefined;
+	additionalMountString: string | undefined;
 }
 
-export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
+export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Workspace | undefined, config: DevContainerConfig, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency): Promise<WorkspaceConfiguration> {
 	if ('dockerComposeFile' in config) {
 		return {
 			workspaceFolder: getRemoteWorkspaceFolder(config),
 			workspaceMount: undefined,
+			additionalMountString: undefined,
 		};
 	}
 	let { workspaceFolder, workspaceMount } = config;
+	let additionalMountString: string | undefined;
 	if (workspace && (!workspaceFolder || !('workspaceMount' in config))) {
 		const hostMountFolder = await getHostMountFolder(cliHost, workspace.rootFolderPath, mountWorkspaceGitRoot, output);
+
+		// Check if .git is a file (worktree) with a relative gitdir path
+		let containerMountFolder = path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
+		if (mountWorkspaceGitRoot && mountGitWorktreeCommonDir) {
+			const dotGitPath = cliHost.path.join(hostMountFolder, '.git');
+			if (await cliHost.isFile(dotGitPath)) {
+				const dotGitContent = (await cliHost.readFile(dotGitPath)).toString();
+				const match = /^gitdir:\s*(.+)$/m.exec(dotGitContent);
+				if (match) {
+					const gitdir = match[1];
+					// Only handle if gitdir is a relative path
+					if (!cliHost.path.isAbsolute(gitdir)) {
+						// gitdir points to .git/worktrees/<name>/, common dir is .git/ (two levels up)
+						const gitCommonDir = cliHost.path.resolve(hostMountFolder, gitdir, '..', '..');
+						// Collect path segments from hostMountFolder up to the parent of gitCommonDir
+						const segments: string[] = [];
+						for (let current = hostMountFolder; !gitCommonDir.startsWith(current + cliHost.path.sep) && current !== cliHost.path.dirname(current); current = cliHost.path.dirname(current)) {
+							segments.unshift(cliHost.path.basename(current));
+						}
+						containerMountFolder = path.posix.join('/workspaces', ...segments);
+						// Calculate where the common dir should be mounted in the container
+						const containerGitdir = cliHost.platform === 'win32' ? gitdir.replace(/\\/g, '/') : gitdir;
+						const containerGitCommonDir = path.posix.resolve(containerMountFolder, containerGitdir, '..', '..');
+						const cons = cliHost.platform !== 'linux' ? `,consistency=${consistency || 'consistent'}` : '';
+						const srcQuote = gitCommonDir.indexOf(',') !== -1 ? '"' : '';
+						const tgtQuote = containerGitCommonDir.indexOf(',') !== -1 ? '"' : '';
+						additionalMountString = `type=bind,${srcQuote}source=${gitCommonDir}${srcQuote},${tgtQuote}target=${containerGitCommonDir}${tgtQuote}${cons}`;
+					}
+				}
+			}
+		}
+
 		if (!workspaceFolder) {
-			const rel = cliHost.path.relative(cliHost.path.dirname(hostMountFolder), workspace.rootFolderPath);
-			workspaceFolder = `/workspaces/${cliHost.platform === 'win32' ? rel.replace(/\\/g, '/') : rel}`;
+			const rel = cliHost.path.relative(hostMountFolder, workspace.rootFolderPath);
+			workspaceFolder = path.posix.join(containerMountFolder, cliHost.platform === 'win32' ? rel.replace(/\\/g, '/') : rel);
 		}
 		if (!('workspaceMount' in config)) {
-			const containerMountFolder = `/workspaces/${cliHost.path.basename(hostMountFolder)}`;
 			const cons = cliHost.platform !== 'linux' ? `,consistency=${consistency || 'consistent'}` : ''; // Podman does not tolerate consistency=
 			const srcQuote = hostMountFolder.indexOf(',') !== -1 ? '"' : '';
 			const tgtQuote = containerMountFolder.indexOf(',') !== -1 ? '"' : '';
@@ -374,6 +431,7 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 	return {
 		workspaceFolder,
 		workspaceMount,
+		additionalMountString,
 	};
 }
 
@@ -556,6 +614,71 @@ export function getEmptyContextFolder(common: ResolverParameters) {
 	return common.cliHost.path.join(common.persistedFolder, 'empty-folder');
 }
 
+export function normalizeDevContainerLabelPath(platform: NodeJS.Platform, value: string): string {
+	if (platform !== 'win32') {
+		return value;
+	}
+
+	// Normalize separators and dot segments, then explicitly lowercase the drive
+	// letter because devcontainer.local_folder / devcontainer.config_file labels
+	// should compare case-insensitively on Windows.
+	const normalized = path.win32.normalize(value);
+	if (normalized.length >= 2 && normalized[1] === ':') {
+		return normalized[0].toLowerCase() + normalized.slice(1);
+	}
+
+	return normalized;
+}
+
+async function findDevContainerByNormalizedLabels(params: DockerResolverParameters | DockerCLIParameters, normalizedWorkspaceFolder: string, normalizedConfigFile: string) {
+	if (process.platform !== 'win32') {
+		return undefined;
+	}
+
+	const ids = await listContainers(params, true, [hostFolderLabel]);
+	if (!ids.length) {
+		return undefined;
+	}
+
+	const details = await inspectContainers(params, ids);
+	return details
+		.filter(container => container.State.Status !== 'removing')
+		.find(container => {
+			const labels = container.Config.Labels || {};
+			const containerWorkspaceFolder = labels[hostFolderLabel];
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			if (!normalizedContainerWorkspaceFolder || normalizedContainerWorkspaceFolder !== normalizedWorkspaceFolder) {
+				return false;
+			}
+
+			const containerConfigFile = labels[configFileLabel];
+			const normalizedContainerConfigFile = containerConfigFile && normalizeDevContainerLabelPath('win32', containerConfigFile);
+			return !!normalizedContainerConfigFile
+				&& normalizedContainerConfigFile === normalizedConfigFile;
+		});
+}
+
+async function findLegacyDevContainerByNormalizedWorkspaceFolder(params: DockerResolverParameters | DockerCLIParameters, normalizedWorkspaceFolder: string) {
+	if (process.platform !== 'win32') {
+		return undefined;
+	}
+
+	const ids = await listContainers(params, true, [hostFolderLabel]);
+	if (!ids.length) {
+		return undefined;
+	}
+
+	const details = await inspectContainers(params, ids);
+	return details
+		.filter(container => container.State.Status !== 'removing')
+		.find(container => {
+			const labels = container.Config.Labels || {};
+			const containerWorkspaceFolder = labels[hostFolderLabel];
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			return normalizedContainerWorkspaceFolder === normalizedWorkspaceFolder;
+		});
+}
+
 export async function findContainerAndIdLabels(params: DockerResolverParameters | DockerCLIParameters, containerId: string | undefined, providedIdLabels: string[] | undefined, workspaceFolder: string | undefined, configFile: string | undefined, removeContainerWithOldLabels?: boolean | string) {
 	if (providedIdLabels) {
 		return {
@@ -563,14 +686,26 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 			idLabels: providedIdLabels,
 		};
 	}
+
+	const normalizedWorkspaceFolder = workspaceFolder ? normalizeDevContainerLabelPath(process.platform, workspaceFolder) : workspaceFolder;
+	const normalizedConfigFile = configFile ? normalizeDevContainerLabelPath(process.platform, configFile) : configFile;
+	const oldLabels = [`${hostFolderLabel}=${normalizedWorkspaceFolder}`];
+	const newLabels = [...oldLabels, `${configFileLabel}=${normalizedConfigFile}`];
+
 	let container: ContainerDetails | undefined;
 	if (containerId) {
 		container = await inspectContainer(params, containerId);
-	} else if (workspaceFolder && configFile) {
-		container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`]);
+	} else if (normalizedWorkspaceFolder && normalizedConfigFile) {
+		container = await findDevContainer(params, newLabels);
+		if (!container) {
+			container = await findDevContainerByNormalizedLabels(params, normalizedWorkspaceFolder, normalizedConfigFile);
+		}
 		if (!container) {
 			// Fall back to old labels.
-			container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`]);
+			container = await findDevContainer(params, oldLabels);
+			if (!container) {
+				container = await findLegacyDevContainerByNormalizedWorkspaceFolder(params, normalizedWorkspaceFolder);
+			}
 			if (container) {
 				if (container.Config.Labels?.[configFileLabel]) {
 					// But ignore containers with new labels.
@@ -587,9 +722,7 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 	}
 	return {
 		container,
-		idLabels: !container || container.Config.Labels?.[configFileLabel] ?
-			[`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`] :
-			[`${hostFolderLabel}=${workspaceFolder}`],
+		idLabels: !container || container.Config.Labels?.[configFileLabel] ? newLabels : oldLabels,
 	};
 }
 

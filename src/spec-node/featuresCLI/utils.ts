@@ -40,6 +40,7 @@ export const staticExecParams = {
     'terminal-columns': undefined,
     'container-id': undefined,
     'mount-workspace-git-root': true,
+    'mount-git-worktree-common-dir': false,
     'log-level': 'info' as 'info',
     'log-format': 'text' as 'text',
     'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',

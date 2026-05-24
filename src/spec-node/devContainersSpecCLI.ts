@@ -113,10 +113,11 @@ function provisionOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --id-label, --override-config, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'workspace-mount-consistency': { choices: ['consistent' as 'consistent', 'cached' as 'cached', 'delegated' as 'delegated'], default: 'cached' as 'cached', description: 'Workspace mount consistency.' },
 		'gpu-availability': { choices: ['all' as 'all', 'detect' as 'detect', 'none' as 'none'], default: 'detect' as 'detect', description: 'Availability of GPUs in case the dev container requires any. `all` expects a GPU to be available.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. These will be set on the container and used to query for an existing container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'override-config': { type: 'string', description: 'devcontainer.json path to override any devcontainer.json in the workspace folder (or built-in configuration). This is required when there is no devcontainer.json otherwise.' },
@@ -149,6 +150,8 @@ function provisionOptions(y: Argv) {
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'no-lockfile': { type: 'boolean', default: false, description: 'Disable lockfile generation and verification.' },
+		'frozen-lockfile': { type: 'boolean', default: false, description: 'Ensure lockfile exists and remains unchanged; fail otherwise.' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
@@ -158,11 +161,9 @@ function provisionOptions(y: Argv) {
 			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
-			if (!(argv['workspace-folder'] || argv['id-label'])) {
-				throw new Error('Missing required argument: workspace-folder or id-label');
-			}
-			if (!(argv['workspace-folder'] || argv['override-config'])) {
-				throw new Error('Missing required argument: workspace-folder or override-config');
+			// Default workspace-folder to current directory if not provided and no id-label or override-config
+			if (!argv['workspace-folder'] && !argv['id-label'] && !argv['override-config']) {
+				argv['workspace-folder'] = process.cwd();
 			}
 			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
 			if (mounts?.some(mount => !mountRegex.test(mount))) {
@@ -171,6 +172,15 @@ function provisionOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			if (argv['no-lockfile'] && argv['frozen-lockfile']) {
+				throw new Error('--no-lockfile and --frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-frozen-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-lockfile are mutually exclusive.');
 			}
 			return true;
 		});
@@ -192,6 +202,7 @@ async function provision({
 	'workspace-mount-consistency': workspaceMountConsistency,
 	'gpu-availability': gpuAvailability,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'id-label': idLabel,
 	config,
 	'override-config': overrideConfig,
@@ -223,10 +234,15 @@ async function provision({
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'no-lockfile': noLockfile,
+	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
+
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
+	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
@@ -247,6 +263,7 @@ async function provision({
 		workspaceMountConsistency,
 		gpuAvailability,
 		mountWorkspaceGitRoot,
+		mountGitWorktreeCommonDir,
 		configFile: config ? URI.file(path.resolve(process.cwd(), config)) : undefined,
 		overrideConfigFile: overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined,
 		logLevel: mapLogLevel(logLevel),
@@ -291,8 +308,8 @@ async function provision({
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata,
-		experimentalLockfile,
-		experimentalFrozenLockfile,
+		noLockfile,
+		frozenLockfile: effectiveFrozenLockfile,
 		omitSyntaxDirective,
 		includeConfig,
 		includeMergedConfig,
@@ -430,6 +447,7 @@ async function doSetUp({
 			containerSystemDataFolder,
 			workspaceFolder: undefined,
 			mountWorkspaceGitRoot: false,
+			mountGitWorktreeCommonDir: false,
 			configFile,
 			overrideConfigFile: undefined,
 			logLevel: mapLogLevel(logLevel),
@@ -466,7 +484,7 @@ async function doSetUp({
 
 		const { common } = params;
 		const { cliHost, output } = common;
-		const configs = configFile && await readDevContainerConfigFile(cliHost, undefined, configFile, params.mountWorkspaceGitRoot, output, undefined, undefined);
+		const configs = configFile && await readDevContainerConfigFile(cliHost, undefined, configFile, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, undefined);
 		if (configFile && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) not found.` });
 		}
@@ -517,7 +535,7 @@ function buildOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If not provided, defaults to the current directory.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
 		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
@@ -535,8 +553,22 @@ function buildOptions(y: Argv) {
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'no-lockfile': { type: 'boolean', default: false, description: 'Disable lockfile generation and verification.' },
+		'frozen-lockfile': { type: 'boolean', default: false, description: 'Ensure lockfile exists and remains unchanged; fail otherwise.' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
-	});
+	})
+		.check(argv => {
+			if (argv['no-lockfile'] && argv['frozen-lockfile']) {
+				throw new Error('--no-lockfile and --frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-frozen-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-lockfile are mutually exclusive.');
+			}
+			return true;
+		});
 }
 
 type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
@@ -577,14 +609,19 @@ async function doBuild({
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'no-lockfile': noLockfile,
+	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 }: BuildArgs) {
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
+	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
+
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -596,6 +633,7 @@ async function doBuild({
 			containerSystemDataFolder: undefined,
 			workspaceFolder,
 			mountWorkspaceGitRoot: false,
+			mountGitWorktreeCommonDir: false,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -624,8 +662,8 @@ async function doBuild({
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
-			experimentalLockfile,
-			experimentalFrozenLockfile,
+			noLockfile,
+			frozenLockfile: effectiveFrozenLockfile,
 			omitSyntaxDirective,
 		}, disposables);
 
@@ -636,7 +674,7 @@ async function doBuild({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -648,7 +686,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, platformInfo: params.platformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -762,8 +800,9 @@ function runUserCommandsOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path.The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -795,7 +834,7 @@ function runUserCommandsOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
@@ -824,6 +863,7 @@ async function doRunUserCommands({
 	'container-system-data-folder': containerSystemDataFolder,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'container-id': containerId,
 	'id-label': idLabel,
 	config: configParam,
@@ -867,6 +907,7 @@ async function doRunUserCommands({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
+			mountGitWorktreeCommonDir,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -910,7 +951,7 @@ async function doRunUserCommands({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -964,8 +1005,9 @@ function readConfigurationOptions(y: Argv) {
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -985,7 +1027,7 @@ function readConfigurationOptions(y: Argv) {
 				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
@@ -1003,6 +1045,7 @@ async function readConfiguration({
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	config: configParam,
 	'override-config': overrideConfig,
 	'container-id': containerId,
@@ -1043,7 +1086,7 @@ async function readConfiguration({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1060,16 +1103,18 @@ async function readConfiguration({
 			env: cliHost.env,
 			output,
 		}, dockerCLI, dockerComposePath || 'docker-compose');
+		const buildPlatformInfo = {
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		};
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI,
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
-			platformInfo: {
-				os: mapNodeOSToGOOS(cliHost.platform),
-				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
-			}
+			buildPlatformInfo,
+			targetPlatformInfo: buildPlatformInfo
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
@@ -1117,7 +1162,7 @@ async function readConfiguration({
 function outdatedOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'workspace-folder': { type: 'string', required: true, description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --workspace-folder is not provided, defaults to the current directory.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 		'output-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text', description: 'Output format.' },
 		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level for the --terminal-log-file. When set to trace, the log level for --log-file will also be set to trace.' },
@@ -1149,7 +1194,7 @@ async function outdated({
 	};
 	let output: Log | undefined;
 	try {
-		const workspaceFolder = path.resolve(process.cwd(), workspaceFolderArg);
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const cliHost = await getCLIHost(workspaceFolder, loadNativeModule, logFormat === 'text');
 		const extensionPath = path.join(__dirname, '..', '..');
@@ -1164,7 +1209,7 @@ async function outdated({
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath);
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, output) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, true, false, output) || undefined;
 		if (!configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1383,8 +1428,9 @@ function execOptions(y: Argv) {
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
-		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
+		'mount-git-worktree-common-dir': { type: 'boolean', default: false, description: 'Mount the Git worktree common dir for Git operations to work in the container. This requires the worktree to be created with relative paths (`git worktree add --relative-paths`).' },
 		'container-id': { type: 'string', description: 'Id of the container to run the user commands for.' },
 		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -1417,7 +1463,7 @@ function execOptions(y: Argv) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
 			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
-				throw new Error('Missing required argument: One of --container-id, --id-label or --workspace-folder is required.');
+				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
 		});
@@ -1446,6 +1492,7 @@ export async function doExec({
 	'container-system-data-folder': containerSystemDataFolder,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
+	'mount-git-worktree-common-dir': mountGitWorktreeCommonDir,
 	'container-id': containerId,
 	'id-label': idLabel,
 	config: configParam,
@@ -1478,6 +1525,7 @@ export async function doExec({
 			containerSystemDataFolder,
 			workspaceFolder,
 			mountWorkspaceGitRoot,
+			mountGitWorktreeCommonDir,
 			configFile,
 			overrideConfigFile,
 			logLevel: mapLogLevel(logLevel),
@@ -1518,7 +1566,7 @@ export async function doExec({
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
 				|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
 			: overrideConfigFile;
-		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, output, undefined, overrideConfigFile) || undefined;
+		const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
 		if ((configFile || workspaceFolder || overrideConfigFile) && !configs) {
 			throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile || getDefaultDevContainerConfigPath(cliHost, workspace!.configFolderPath), cliHost.platform)}) not found.` });
 		}
@@ -1838,5 +1886,14 @@ async function downContainers(params: DockerCLIParameters, options: { all?: bool
 			removedVolumes: [],
 			containersFound: 0,
 		};
+	}
+}
+
+function warnDeprecatedLockfileFlags(experimentalLockfile: boolean, experimentalFrozenLockfile: boolean) {
+	if (experimentalLockfile) {
+		process.stderr.write('Warning: --experimental-lockfile is deprecated. Lockfiles are now enabled by default.\n');
+	}
+	if (experimentalFrozenLockfile) {
+		process.stderr.write('Warning: --experimental-frozen-lockfile is deprecated. Use --frozen-lockfile instead.\n');
 	}
 }

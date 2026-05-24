@@ -307,7 +307,7 @@ registry`;
 //  NOTE: 
 //  Test depends on https://github.com/orgs/codspace/packages/container/non-empty-config-layer%2Fcolor/225254837?tag=1.0.0
 describe('Test OCI Push Helper Functions', function () {
-	this.timeout('10s');
+	this.timeout('20s');
 	it('Generates the correct tgz manifest layer', async () => {
 
 		const dataBytes = fs.readFileSync(`${testAssetsDir}/devcontainer-feature-color.tgz`);

@@ -8,15 +8,20 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   cli:
     name: CLI
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-node@v5
       with:
-        node-version: '18.x'
+        node-version: '20.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - name: Install Dependencies
@@ -33,13 +38,14 @@ jobs:
         echo "TGZ=devcontainers-cli-${VERSION}.tgz" | tee -a $GITHUB_ENV
         echo "TGZ_UPLOAD=devcontainers-cli-${VERSION}-${GITHUB_SHA:0:8}.tgz" | tee -a $GITHUB_ENV
     - name: Store TGZ
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ env.TGZ_UPLOAD }}
         path: ${{ env.TGZ }}
   tests-matrix:
     name: Tests Matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -66,9 +72,23 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '18.x'
+        node-version: '20.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
+    - name: Disable containerd image store
+      run: |
+        # Workaround for https://github.com/moby/moby/issues/52050
+        DAEMON_JSON="/etc/docker/daemon.json"
+        if [ -f "$DAEMON_JSON" ]; then
+          sudo jq '. + {"features": {"containerd-snapshotter": false}}' "$DAEMON_JSON" \
+            | sudo tee "${DAEMON_JSON}.tmp" > /dev/null
+          sudo mv "${DAEMON_JSON}.tmp" "$DAEMON_JSON"
+        else
+          echo '{"features": {"containerd-snapshotter": false}}' \
+            | sudo tee "$DAEMON_JSON" > /dev/null
+        fi
+        cat "$DAEMON_JSON"
+        sudo systemctl restart docker
     - name: Tools Info
       run: |
         docker info
@@ -93,13 +113,14 @@ jobs:
     # TODO: This should be expanded to run on different platforms
     #       Most notably to test platform-specific credential helper behavior
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '18.x'
+        node-version: '20.x'
         registry-url: 'https://npm.pkg.github.com'
         scope: '@microsoft'
     - name: Install Dependencies
@@ -120,9 +141,22 @@ jobs:
         FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL: ${{ secrets.FEATURES_TEST__AZURE_REGISTRY_SCOPED_CREDENTIAL }}
 
 
+  install-script:
+    name: Install Script
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run install.sh tests
+      run: sh scripts/install.test.sh
+
   tests:
     name: Tests
-    needs: [tests-matrix, features-registry-compatibility]
+    needs: [tests-matrix, features-registry-compatibility, install-script]
     runs-on: ubuntu-latest
     steps:
     - name: Done

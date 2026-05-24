@@ -432,6 +432,22 @@ describe('Image Metadata', function () {
 			assert.strictEqual(label.replace(/ \\\n/g, ''), `LABEL devcontainer.metadata="${JSON.stringify(expected).replace(/"/g, '\\"')}"`);
 		});
 
+		it('should create array label for single metadata entry (docker-compose with Dockerfile, no features)', () => {
+			// When there is only one metadata entry, the label should still be a JSON array.
+			// Regression test for https://github.com/devcontainers/cli/issues/1054
+			const label = getDevcontainerMetadataLabel(configWithRaw([
+				{
+					remoteUser: 'testUser',
+				}
+			]));
+			const expected = [
+				{
+					remoteUser: 'testUser',
+				}
+			];
+			assert.strictEqual(label.replace(/ \\\n/g, ''), `LABEL devcontainer.metadata="${JSON.stringify(expected).replace(/"/g, '\\"')}"`);
+		});
+
 		it('should merge metadata from devcontainer.json and features', () => {
 			const merged = mergeConfiguration({
 				configFilePath: URI.parse('file:///devcontainer.json'),

@@ -178,7 +178,7 @@ FROM ubuntu:latest as dev
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'arm64' }, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(info.user, 'imageUser');
         assert.strictEqual(info.metadata.config.length, 1);
         assert.strictEqual(info.metadata.config[0].id, 'testid-substituted');
@@ -206,8 +206,39 @@ USER dockerfileUserB
         const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
             assert.strictEqual(imageName, 'ubuntu:latest');
             return details;
-        }, dockerfile, {}, undefined, testSubstitute, nullLog, false);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'arm64' }, { os: 'linux', arch: 'amd64' });
         assert.strictEqual(info.user, 'dockerfileUserB');
+        assert.strictEqual(info.metadata.config.length, 0);
+        assert.strictEqual(info.metadata.raw.length, 0);
+    });
+
+    it('for a USER in a multiarch image', async () => {
+        const dockerfile = `
+FROM ubuntu:latest as base-amd64
+USER amd64_user
+
+FROM ubuntu:latest as base-arm64
+USER arm64_user
+
+FROM base-\${TARGETARCH}
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: null,
+                Entrypoint: null,
+                Cmd: null
+            },
+						Os: 'linux',
+						Architecture: 'amd64'
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
+            return details;
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'arm64' }, { os: 'linux', arch: 'amd64' });
+        assert.strictEqual(info.user, 'amd64_user');
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);
     });
@@ -391,7 +422,7 @@ describe('findUserStatement', () => {
 USER user1
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -401,7 +432,7 @@ ARG IMAGE_USER=user2
 USER $IMAGE_USER
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -413,7 +444,7 @@ USER $IMAGE_USER
         const extracted = extractDockerfile(dockerfile);
         const user = findUserStatement(extracted, {
             IMAGE_USER: 'user3'
-        }, {}, undefined);
+        }, {}, {}, undefined);
         assert.strictEqual(user, 'user3');
     });
 
@@ -429,7 +460,7 @@ FROM image4 as stage4
 USER user4
 `;
         const extracted = extractDockerfile(dockerfile);
-        const image = findUserStatement(extracted, {}, {}, 'stage2');
+        const image = findUserStatement(extracted, {}, {}, {}, 'stage2');
         assert.strictEqual(image, 'user3_2');
     });
 
@@ -441,7 +472,7 @@ ARG USERNAME=user2
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -455,7 +486,7 @@ FROM one as two
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -466,7 +497,7 @@ FROM debian
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -478,7 +509,7 @@ ARG USERNAME
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -488,7 +519,7 @@ FROM debian
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, undefined);
     });
 
@@ -500,7 +531,7 @@ ENV USERNAME=user2
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user2');
     });
 
@@ -512,7 +543,7 @@ ENV USERNAME2=\${USERNAME1}
 USER \${USERNAME2}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 
@@ -524,7 +555,7 @@ ENV USERNAME2=user2
 USER A\${USERNAME1}A\${USERNAME2}A
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, {}, undefined);
+        const user = findUserStatement(extracted, {}, {}, {}, undefined);
         assert.strictEqual(user, 'Auser1Auser2A');
     });
 
@@ -534,7 +565,7 @@ FROM mybase
 USER \${USERNAME}
 `;
         const extracted = extractDockerfile(dockerfile);
-        const user = findUserStatement(extracted, {}, { USERNAME: 'user1' }, undefined);
+        const user = findUserStatement(extracted, {}, { USERNAME: 'user1' }, {}, undefined);
         assert.strictEqual(user, 'user1');
     });
 });

@@ -30,6 +30,7 @@ export interface ProvisionOptions {
 	workspaceMountConsistency?: BindMountConsistency;
 	gpuAvailability?: GPUAvailability;
 	mountWorkspaceGitRoot: boolean;
+	mountGitWorktreeCommonDir: boolean;
 	configFile: URI | undefined;
 	overrideConfigFile: URI | undefined;
 	logLevel: LogLevel;
@@ -67,8 +68,8 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
@@ -102,7 +103,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, noLockfile, frozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -171,7 +172,12 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output: common.output,
 	}, dockerPath, dockerComposePath);
 
-	const platformInfo = (() => {
+	const buildPlatformInfo = {
+		os: mapNodeOSToGOOS(cliHost.platform),
+		arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+	};
+
+	const targetPlatformInfo = (() => {
 		if (common.buildxPlatform) {
 			const slash1 = common.buildxPlatform.indexOf('/');
 			const slash2 = common.buildxPlatform.indexOf('/', slash1 + 1);
@@ -203,7 +209,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	}));
 
 	const dockerEngineVer = await dockerEngineVersion({
@@ -212,7 +219,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	});	
 
 	return {
@@ -225,6 +233,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
 		gpuAvailability: gpuAvailability || 'detect',
 		mountWorkspaceGitRoot,
+		mountGitWorktreeCommonDir,
 		updateRemoteUserUIDOnMacOS: false,
 		cacheMount: 'bind',
 		removeOnStartup: options.removeExistingContainer,
@@ -237,14 +246,15 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildKitVersion,
 		dockerEngineVersion: dockerEngineVer,
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
-		experimentalLockfile,
-		experimentalFrozenLockfile,
+		noLockfile,
+		frozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		additionalLabels: options.additionalLabels,
 		buildxOutput: common.buildxOutput,
 		buildxCacheTo: common.buildxCacheTo,
-		platformInfo
+		buildPlatformInfo,
+		targetPlatformInfo
 	};
 }
 
