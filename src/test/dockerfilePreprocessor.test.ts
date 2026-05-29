@@ -280,7 +280,7 @@ describe('dockerfilePreprocessor', function () {
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
-				// Check that the expected base image and port are set in the running container
+				// Check that the expected tools are available in the running container
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
@@ -297,7 +297,7 @@ describe('dockerfilePreprocessor', function () {
 			let containerId: string | undefined;
 			try {
 				containerId = (await devContainerUp(cli, testFolder)).containerId;
-				// Check that the expected base image and port are set in the running container
+				// Check that the expected tools are available in the running container
 				await shellExec(`${cli} exec --workspace-folder ${testFolder} sh -lc 'command -v node && command -v npm'`);
 			} finally {
 				await devContainerDown({ containerId, doNotThrow: true });
