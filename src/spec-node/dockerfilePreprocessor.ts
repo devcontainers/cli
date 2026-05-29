@@ -42,12 +42,8 @@ export async function preprocessDockerExtensionFile(
 	const generatedOutputPath = path.resolve(workdirPath, generatedDockerfilePath);
 	const generatedOutputDir = path.dirname(generatedOutputPath);
 	await cliHost.mkdirp(generatedOutputDir);
-	const staleOutputPaths = [generatedOutputPath];
-	for (const stalePath of staleOutputPaths) {
-		if (!await cliHost.isFile(stalePath)) {
-			continue;
-		}
-		await cliHost.remove(stalePath);
+	if (await cliHost.isFile(generatedOutputPath)) {
+		await cliHost.remove(generatedOutputPath);
 	}
 
 	// Minimal contract: tool args are user-controlled and run in the Dockerfile

@@ -99,6 +99,10 @@ jobs:
       run: |
         yarn install --frozen-lockfile
         docker run --privileged --rm tonistiigi/binfmt --install all
+    - name: Install Dockerfile preprocessor tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cpp cmake meson autoconf
     - name: Type-Check
       run: yarn type-check
     - name: Package

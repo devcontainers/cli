@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
@@ -95,25 +96,6 @@ describe('dockerfilePreprocessor', function () {
 		);
 	});
 
-	it('requires configured generatedDockerfile path to be produced', async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
-		const inputPath = path.join(tmpDir, 'Dockerfile.in');
-		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
-
-		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
-		await assert.rejects(
-			preprocessDockerExtensionFile(
-				{ cliHost, output: nullLog },
-				{ dockerfilePreprocessor: { tool: 'true', generatedDockerfilePath: 'build/Dockerfile' } },
-				inputPath
-			),
-			(err: unknown) => {
-				assert.ok(err instanceof ContainerError);
-				assert.match((err as ContainerError).description, /generatedDockerfilePath/i);
-				return true;
-			}
-		);
-	});
 
 	it('passes paths via environment variables without positional args', async () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
@@ -148,7 +130,7 @@ describe('dockerfilePreprocessor', function () {
 		));
 	});
 
-	it('throws when tool succeeds but generated Dockerfile is not produced', async () => {
+	it('throws when generatedDockerfilePath is configured but generated Dockerfile is not produced', async () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
 		const inputPath = path.join(tmpDir, 'Dockerfile.in');
 		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
@@ -163,6 +145,7 @@ describe('dockerfilePreprocessor', function () {
 			(err: unknown) => {
 				assert.ok(err instanceof ContainerError);
 				assert.match((err as ContainerError).description, /did not produce/i);
+				assert.match((err as ContainerError).description, /generatedDockerfile(?:Path| path)/i);
 				return true;
 			}
 		);
@@ -191,29 +174,11 @@ describe('dockerfilePreprocessor', function () {
 		);
 	});
 
-	it('throws when generatedDockerfilePath is configured but not produced', async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcontainer-preprocess-'));
-		const inputPath = path.join(tmpDir, 'Dockerfile.in');
-		await fs.writeFile(inputPath, 'FROM alpine:3.20\n');
-
-		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, true);
-		await assert.rejects(
-			preprocessDockerExtensionFile(
-				{ cliHost, output: nullLog },
-				{ dockerfilePreprocessor: { tool: 'true', generatedDockerfilePath: 'build/Dockerfile' } },
-				inputPath
-			),
-			(err: unknown) => {
-				assert.ok(err instanceof ContainerError);
-				assert.match((err as ContainerError).description, /generatedDockerfilePath/i);
-				return true;
-			}
-		);
-	});
 });
 
 (process.platform === 'linux' ? describe : describe.skip)('dockerfilePreprocessor integration', function () {
 	this.timeout('240s');
+	const runningInCI = /^(true|1)$/i.test(process.env.CI || '');
 
 	const tmp = path.relative(process.cwd(), path.join(__dirname, 'tmp'));
 	const cli = `npx --prefix ${tmp} devcontainer`;
@@ -251,6 +216,27 @@ describe('dockerfilePreprocessor', function () {
 		mesonAvailable = Boolean(mesonCheck.stdout.trim());
 		const autoconfCheck = await shellExec('command -v autoconf', undefined, true, true);
 		autoconfAvailable = Boolean(autoconfCheck.stdout.trim());
+
+		if (runningInCI) {
+			const missingTools: string[] = [];
+			if (!cppAvailable) {
+				missingTools.push('cpp');
+			}
+			if (!cmakeAvailable) {
+				missingTools.push('cmake');
+			}
+			if (!mesonAvailable) {
+				missingTools.push('meson');
+			}
+			if (!autoconfAvailable) {
+				missingTools.push('autoconf');
+			}
+			assert.strictEqual(
+				missingTools.length,
+				0,
+				`Missing required preprocessor tools on CI: ${missingTools.join(', ')}. Refusing to skip integration tests in CI.`
+			);
+		}
 	});
 
 		it('should preprocess a Dockerfile.in during up cpp', async function () {
