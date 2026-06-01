@@ -188,6 +188,30 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.deepEqual(featureSet?.sourceInformation, { type: 'file-path', resolvedFilePath: path.join(workspaceRoot, '.devcontainer', 'featureB'), userFeatureId: './.devcontainer/featureB' });
 		});
 
+		it('local-path should parse when config file is outside the workspace .devcontainer folder', async function () {
+			// Regression: when `--config` points to a devcontainer.json that lives
+			// outside `${workspaceRoot}/.devcontainer/`, local-path features
+			// resolved relative to that config must still be accepted. Previously
+			// the parent-escape check was anchored at `${workspaceRoot}/.devcontainer`,
+			// which rejected every local feature in this layout.
+			const userFeature: DevContainerFeature = {
+				userFeatureId: './featureA',
+				options: {},
+			};
+
+			const externalConfigDir = '/some/other/place';
+			const customConfigPath = path.join(externalConfigDir, 'devcontainer.json');
+
+			const featureSet = await processFeatureIdentifier(params, customConfigPath, workspaceRoot, userFeature);
+			assert.exists(featureSet);
+			assert.strictEqual(featureSet?.features[0].id, 'featureA');
+			assert.deepEqual(featureSet?.sourceInformation, {
+				type: 'file-path',
+				resolvedFilePath: path.join(externalConfigDir, 'featureA'),
+				userFeatureId: './featureA',
+			});
+		});
+
 		it('should process oci registry (without tag)', async function () {
 			const userFeature: DevContainerFeature = {
 				userFeatureId: 'ghcr.io/codspace/features/ruby',
