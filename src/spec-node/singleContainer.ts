@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, isBuildxCacheToInline } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, isBuildxCacheToInline, platformInfoFromBuildxPlatform } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
@@ -20,6 +20,17 @@ export const configFileLabel = 'devcontainer.config_file';
 export async function openDockerfileDevContainer(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, workspaceConfig: WorkspaceConfiguration, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common } = params;
 	const { config } = configWithRaw;
+
+	// Image-based dev containers have no `build.options` to carry a platform, so when the --platform flag is
+	// not set, fall back to the platform from runArgs (e.g. ["--platform=linux/amd64"]) to resolve the image
+	// for the same platform it will run on. Only the resolve platform is affected here; runArgs already pins
+	// `docker run`. Dockerfile builds are left untouched (they specify platform via build.options or --platform).
+	if (!params.buildxPlatform && !isDockerFileConfig(config)) {
+		const runArgsPlatform = findPlatformArg(config.runArgs);
+		if (runArgsPlatform) {
+			params.targetPlatformInfo = platformInfoFromBuildxPlatform(runArgsPlatform);
+		}
+	}
 
 	let container: ContainerDetails | undefined;
 	let containerProperties: ContainerProperties | undefined;
@@ -285,6 +296,35 @@ export function findUserArg(runArgs: string[] = []) {
 	return undefined;
 }
 
+export function findPlatformArg(runArgs: string[] = []) {
+	for (let i = runArgs.length - 1; i >= 0; i--) {
+		const runArg = runArgs[i];
+		if (runArg === '--platform' && i + 1 < runArgs.length) {
+			return runArgs[i + 1];
+		}
+		if (runArg.startsWith('--platform=')) {
+			return runArg.slice(runArg.indexOf('=') + 1);
+		}
+	}
+	return undefined;
+}
+
+export function removePlatformArg(runArgs: string[] = []) {
+	const result: string[] = [];
+	for (let i = 0; i < runArgs.length; i++) {
+		const runArg = runArgs[i];
+		if (runArg === '--platform') {
+			i++; // Skip the following value as well.
+			continue;
+		}
+		if (runArg.startsWith('--platform=')) {
+			continue;
+		}
+		result.push(runArg);
+	}
+	return result;
+}
+
 export async function findExistingContainer(params: DockerResolverParameters, labels: string[]) {
 	const { common } = params;
 	let container = await findDevContainer(params, labels);
@@ -359,6 +399,11 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
+	// The --platform flag (params.buildxPlatform) takes precedence over any --platform in runArgs.
+	const runArgs = params.buildxPlatform ?
+		['--platform', params.buildxPlatform, ...removePlatformArg(config.runArgs)] :
+		(config.runArgs || []);
+
 	const featureArgs: string[] = [];
 	if (mergedConfig.init) {
 		featureArgs.push('--init');
@@ -407,7 +452,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...containerEnv,
 		...containerUserArgs,
 		...await getPodmanArgs(params, config, mergedConfig, imageDetails),
-		...(config.runArgs || []),
+		...runArgs,
 		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
 		...entrypoint,

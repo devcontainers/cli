@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
+import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo, GoOS, GoARCH } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 
 import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
@@ -241,6 +241,23 @@ export function isBuildKitImagePolicyError(err: any): boolean {
 		|| (errStderr && typeof errStderr === 'string' && (errStderr.includes(imagePolicyErrorString) || errStderr.includes(sourceDeniedString)));
 }
 
+// Parses a buildx/docker platform string (e.g. `linux/amd64` or `linux/arm64/v8`) into PlatformInfo.
+export function platformInfoFromBuildxPlatform(buildxPlatform: string): PlatformInfo {
+	const slash1 = buildxPlatform.indexOf('/');
+	const slash2 = buildxPlatform.indexOf('/', slash1 + 1);
+	if (slash2 !== -1) {
+		return {
+			os: <GoOS>buildxPlatform.slice(0, slash1),
+			arch: <GoARCH>buildxPlatform.slice(slash1 + 1, slash2),
+			variant: buildxPlatform.slice(slash2 + 1),
+		};
+	}
+	return {
+		os: <GoOS>buildxPlatform.slice(0, slash1),
+		arch: <GoARCH>buildxPlatform.slice(slash1 + 1),
+	};
+}
+
 export async function inspectDockerImage(params: DockerResolverParameters | DockerCLIParameters, imageName: string, pullImageOnError: boolean) {
 	try {
 		return await inspectImage(params, imageName);
@@ -256,7 +273,8 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
 		try {
-			await retry(async () => dockerPtyCLI(params, 'pull', imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
+			const platformArgs = 'buildxPlatform' in params && params.buildxPlatform ? ['--platform', params.buildxPlatform] : [];
+			await retry(async () => dockerPtyCLI(params, 'pull', ...platformArgs, imageName), { maxRetries: 5, retryIntervalMilliseconds: 1000, output });
 		} catch (pullErr) {
 			logErrorStdoutStderr(inspectErr, output);
 			logErrorStdoutStderr(pullErr, output);
