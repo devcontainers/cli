@@ -273,7 +273,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
 			useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
 				syntax ? `# syntax=${syntax}` : ''}
-	ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
