@@ -203,12 +203,14 @@ export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string
 
 #{nonBuildKitFeatureContentFallback}
 
-FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+
+FROM \${_DEV_CONTAINERS_BASE_IMAGE:-scratch} AS dev_containers_feature_content_normalize
 USER root
 COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, 'devcontainer-features.builtin.env')} /tmp/build-features/
 RUN chmod -R 0755 /tmp/build-features/
 
-FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
+FROM \${_DEV_CONTAINERS_BASE_IMAGE:-scratch} AS dev_containers_target_stage
 
 USER root
 
@@ -1122,7 +1124,7 @@ export async function fetchContentsAtTarballUri(params: { output: Log; env: Node
 
 		// No 'metadataFile' to look for.
 		if (!metadataFile) {
-		await cleanupIterationFetchAndMerge(tempTarballPath, output);
+			await cleanupIterationFetchAndMerge(tempTarballPath, output);
 			return { computedDigest, metadata: undefined };
 		}
 
