@@ -203,9 +203,9 @@ async function getImageBuildOptions(params: DockerResolverParameters, config: Su
 FROM \${_DEV_CONTAINERS_BASE_IMAGE:-scratch} AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
-		overrideTarget: 'dev_containers_target_stage',
-		dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
-	ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+	overrideTarget: 'dev_containers_target_stage',
+	dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
 		buildArgs: {
 			_DEV_CONTAINERS_BASE_IMAGE: baseName,
