@@ -424,7 +424,7 @@ set -e
 # Handle both direct execution and symlinked scenarios
 if [ -L "$0" ]; then
     # Follow symlink
-    SCRIPT_PATH="$(readlink "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")"
+    SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || readlink "$0" 2>/dev/null || echo "$0")"
 else
     SCRIPT_PATH="$0"
 fi

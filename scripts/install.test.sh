@@ -447,6 +447,37 @@ test_wrapper_via_symlink() {
     teardown
 }
 
+# ── Tests: wrapper via relative symlink from different directory ──
+
+test_wrapper_via_relative_symlink() {
+    printf '%b\n' "${C_BOLD}Wrapper works via relative symlink from different directory${C_RESET}"
+    setup
+
+    prefix="$TEST_TMPDIR/devcontainers"
+    cli_version="0.75.0"
+
+    sh "$INSTALL_SCRIPT" --prefix "$prefix" --version "$cli_version" >/dev/null 2>&1
+
+    # Create a RELATIVE symlink in a different directory
+    link_dir="$TEST_TMPDIR/bin"
+    mkdir -p "$link_dir"
+    
+    # Create relative symlink that points back to the wrapper
+    ln -s ../devcontainers/bin/devcontainer "$link_dir/devcontainer"
+    assert_symlink "$link_dir/devcontainer" "relative symlink created"
+
+    # Call from a different directory
+    cwd_before=$(pwd)
+    cd "$TEST_TMPDIR"
+    version_output=$("$link_dir/devcontainer" --version 2>/dev/null) && wrc=0 || wrc=$?
+    
+    cd "$cwd_before"
+    assert_exit_code "0" "$wrc" "relative symlink works from different directory"
+    assert_contains "$version_output" "$cli_version" "relative symlink wrapper reports version"
+
+    teardown
+}
+
 # ── Tests: install to path with spaces ────────────────────────────
 
 test_path_with_spaces() {
