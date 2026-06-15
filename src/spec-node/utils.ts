@@ -383,11 +383,20 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 	}
 	let { workspaceFolder, workspaceMount } = config;
 	let additionalMountString: string | undefined;
-	if (workspace && (!workspaceFolder || !('workspaceMount' in config))) {
+	if (workspace && (!workspaceFolder || !('workspaceMount' in config) || (mountWorkspaceGitRoot && mountGitWorktreeCommonDir))) {
 		const hostMountFolder = await getHostMountFolder(cliHost, workspace.rootFolderPath, mountWorkspaceGitRoot, output);
 
+		// When the user provides a custom workspaceMount, derive containerMountFolder from its
+		// target= value so that the worktree common-dir path is computed correctly.
+		let containerMountFolder: string;
+		if ('workspaceMount' in config && config.workspaceMount) {
+			const targetMatch = /(?:^|,)(?:dst|destination|target)=(?:"([^"]+)"|([^,]+))/.exec(config.workspaceMount);
+			containerMountFolder = targetMatch ? (targetMatch[1] ?? targetMatch[2]) : path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
+		} else {
+			containerMountFolder = path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
+		}
+
 		// Check if .git is a file (worktree) with a relative gitdir path
-		let containerMountFolder = path.posix.join('/workspaces', cliHost.path.basename(hostMountFolder));
 		if (mountWorkspaceGitRoot && mountGitWorktreeCommonDir) {
 			const dotGitPath = cliHost.path.join(hostMountFolder, '.git');
 			if (await cliHost.isFile(dotGitPath)) {
@@ -399,12 +408,16 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 					if (!cliHost.path.isAbsolute(gitdir)) {
 						// gitdir points to .git/worktrees/<name>/, common dir is .git/ (two levels up)
 						const gitCommonDir = cliHost.path.resolve(hostMountFolder, gitdir, '..', '..');
-						// Collect path segments from hostMountFolder up to the parent of gitCommonDir
-						const segments: string[] = [];
-						for (let current = hostMountFolder; !gitCommonDir.startsWith(current + cliHost.path.sep) && current !== cliHost.path.dirname(current); current = cliHost.path.dirname(current)) {
-							segments.unshift(cliHost.path.basename(current));
+						// Only recompute containerMountFolder when the workspace mount is auto-generated;
+						// when the user supplied workspaceMount, keep the target they specified.
+						if (!('workspaceMount' in config)) {
+							// Collect path segments from hostMountFolder up to the parent of gitCommonDir
+							const segments: string[] = [];
+							for (let current = hostMountFolder; !gitCommonDir.startsWith(current + cliHost.path.sep) && current !== cliHost.path.dirname(current); current = cliHost.path.dirname(current)) {
+								segments.unshift(cliHost.path.basename(current));
+							}
+							containerMountFolder = path.posix.join('/workspaces', ...segments);
 						}
-						containerMountFolder = path.posix.join('/workspaces', ...segments);
 						// Calculate where the common dir should be mounted in the container
 						const containerGitdir = cliHost.platform === 'win32' ? gitdir.replace(/\\/g, '/') : gitdir;
 						const containerGitCommonDir = path.posix.resolve(containerMountFolder, containerGitdir, '..', '..');
