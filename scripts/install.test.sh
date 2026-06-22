@@ -592,6 +592,8 @@ test_wrapper_missing_cli
 printf '\n'
 test_wrapper_via_symlink
 printf '\n'
+test_wrapper_via_relative_symlink
+printf '\n'
 test_path_with_spaces
 printf '\n'
 test_version_equals_form
