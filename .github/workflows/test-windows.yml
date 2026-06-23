@@ -18,7 +18,7 @@ permissions:
 jobs:
  tests-matrix:
     name: Tests Matrix (Windows)
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 15
     strategy:
       fail-fast: false
