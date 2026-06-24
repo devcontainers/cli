@@ -2,6 +2,11 @@
 
 Notable changes.
 
+## June 2026
+
+### [0.88.0]
+- Add WSLc support (https://github.com/devcontainers/cli/pull/1249)
+
 ## May 2026
 
 ### [0.87.0]

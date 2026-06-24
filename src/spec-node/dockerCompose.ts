@@ -11,7 +11,7 @@ import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
 import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-common/commonUtils';
-import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
 import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -188,7 +188,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 
 	// determine whether we need to extend with features
 	const version = parseVersion((await params.dockerComposeCLI()).version);
-	const supportsAdditionalBuildContexts = !params.isPodman && version && !isEarlierVersion(version, [2, 17, 0]);
+	const supportsAdditionalBuildContexts = params.cliVariant === CLIVariant.Docker && version && !isEarlierVersion(version, [2, 17, 0]);
 	const optionalBuildKitParams = supportsAdditionalBuildContexts ? params : { ...params, buildKitVersion: undefined };
 	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
 
