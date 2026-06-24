@@ -361,13 +361,13 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 
 	const featureArgs: string[] = [];
 	// wslc does not support --init, --privileged, --cap-add, or --security-opt
-	if (mergedConfig.init && params.cliVariant !== CLIVariant.Wslc) {
-		featureArgs.push('--init');
-	}
-	if (mergedConfig.privileged && params.cliVariant !== CLIVariant.Wslc) {
-		featureArgs.push('--privileged');
-	}
 	if (params.cliVariant !== CLIVariant.Wslc) {
+		if (mergedConfig.init) {
+			featureArgs.push('--init');
+		}
+		if (mergedConfig.privileged) {
+			featureArgs.push('--privileged');
+		}
 		for (const cap of mergedConfig.capAdd || []) {
 			featureArgs.push('--cap-add', cap);
 		}

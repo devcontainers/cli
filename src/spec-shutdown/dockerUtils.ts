@@ -198,7 +198,11 @@ export async function removeContainer(params: DockerCLIParameters | PartialExecP
 						});
 					});
 				}
-				await Promise.race([removedSeenP || delay(1000), delay(1000)]);
+				if (removedSeenP) {
+					await Promise.race([removedSeenP, delay(1000)]);
+				} else {
+					await delay(1000);
+				}
 			}
 		}
 	} finally {
