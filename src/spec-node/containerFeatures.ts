@@ -174,8 +174,7 @@ export function generateContainerEnvsV1(featuresConfig: FeaturesConfig) {
 	let result = '';
 	for (const fSet of featuresConfig.featureSets) {
 		// We only need to generate this ENV references for the initial features specification.
-		if (fSet.internalVersion !== '2')
-		{
+		if (fSet.internalVersion !== '2') {
 			result += '\n';
 			result += fSet.features
 				.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
@@ -197,23 +196,23 @@ export interface ImageBuildOptions {
 }
 
 async function getImageBuildOptions(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, dstFolder: string, baseName: string, imageBuildInfo: ImageBuildInfo): Promise<ImageBuildOptions> {
-    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-    return {
-        dstFolder,
-        dockerfileContent: `
-FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage
+	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+	return {
+		dstFolder,
+		dockerfileContent: `
+FROM \${_DEV_CONTAINERS_BASE_IMAGE:-scratch} AS dev_containers_target_stage
 ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, config, { featureSets: [] }, [], getOmitDevcontainerPropertyOverride(params.common)))}
 `,
-        overrideTarget: 'dev_containers_target_stage',
-        dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
-    ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+	overrideTarget: 'dev_containers_target_stage',
+	dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
+ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `,
-        buildArgs: {
-            _DEV_CONTAINERS_BASE_IMAGE: baseName,
-        } as Record<string, string>,
-        buildKitContexts: {} as Record<string, string>,
-        securityOpts: [],
-    };
+		buildArgs: {
+			_DEV_CONTAINERS_BASE_IMAGE: baseName,
+		} as Record<string, string>,
+		buildKitContexts: {} as Record<string, string>,
+		securityOpts: [],
+	};
 }
 
 function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEnvFromMetadata?: boolean }): (keyof DevContainerConfig & keyof ImageMetadataEntry)[] {
@@ -244,10 +243,10 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
-    // Access Docker engine version
-    const dockerEngineVersionParsed = params.dockerEngineVersion?.versionMatch ? parseVersion(params.dockerEngineVersion.versionMatch) : undefined;
-    const minDockerEngineVersion = [23, 0, 0];
-    const skipDefaultSyntax = dockerEngineVersionParsed ? !isEarlierVersion(dockerEngineVersionParsed, minDockerEngineVersion) : false;
+	// Access Docker engine version
+	const dockerEngineVersionParsed = params.dockerEngineVersion?.versionMatch ? parseVersion(params.dockerEngineVersion.versionMatch) : undefined;
+	const minDockerEngineVersion = [23, 0, 0];
+	const skipDefaultSyntax = dockerEngineVersionParsed ? !isEarlierVersion(dockerEngineVersionParsed, minDockerEngineVersion) : false;
 	const omitPropertyOverride = params.common.skipPersistingCustomizationsFromFeatures ? ['customizations'] : [];
 	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
@@ -268,22 +267,20 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 		.replace('#{devcontainerMetadata}', getDevcontainerMetadataLabel(imageMetadata))
 		.replace('#{containerEnvMetadata}', generateContainerEnvs(devContainerConfig.config.containerEnv, true))
 		;
-    const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
-    const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
-    const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
-        skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
-        useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
-        syntax ? `# syntax=${syntax}` : ''}
+	const syntax = imageBuildInfo.dockerfile?.preamble.directives.syntax;
+	const omitSyntaxDirective = common.omitSyntaxDirective; // Can be removed when https://github.com/moby/buildkit/issues/4556 is fixed
+	const dockerfilePrefixContent = `${omitSyntaxDirective ? '' :
+		skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
+			useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
+				syntax ? `# syntax=${syntax}` : ''}
 ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 `;
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder
 	for await (const fSet of featuresConfig.featureSets) {
-		if (fSet.internalVersion === '2')
-		{
+		if (fSet.internalVersion === '2') {
 			for await (const fe of fSet.features) {
-				if (fe.cachePath)
-				{
+				if (fe.cachePath) {
 					fe.internalVersion = '2';
 					const envPath = cliHost.path.join(fe.cachePath, 'devcontainer-features.env');
 					const variables = getFeatureEnvVariables(fe);
@@ -305,17 +302,17 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
 				cliHost.writeFile(envPath, Buffer.from(featuresEnv)),
 				...fSet.features
 					.filter(f => (includeAllConfiguredFeatures || f.included) && f.value)
-				.map(f => {
-					const consecutiveId = f.consecutiveId;
-					if (!consecutiveId) {
-						throw new Error('consecutiveId is undefined for Feature ' + f.id);
-					}
-					const featuresEnv = [
-						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', consecutiveId)}`
-					]
-						.join('\n');
-					const envPath = cliHost.path.join(dstFolder, consecutiveId, 'devcontainer-features.env'); // next to bin/acquire
+					.map(f => {
+						const consecutiveId = f.consecutiveId;
+						if (!consecutiveId) {
+							throw new Error('consecutiveId is undefined for Feature ' + f.id);
+						}
+						const featuresEnv = [
+							...getFeatureEnvVariables(f),
+							`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', consecutiveId)}`
+						]
+							.join('\n');
+						const envPath = cliHost.path.join(dstFolder, consecutiveId, 'devcontainer-features.env'); // next to bin/acquire
 						return cliHost.writeFile(envPath, Buffer.from(featuresEnv));
 					})
 			]);
@@ -378,7 +375,7 @@ async function isUsingSELinuxLabels(params: DockerResolverParameters): Promise<b
 	} catch {
 		// If we can't run the commands, assume SELinux is not enabled.
 		return false;
-		
+
 	}
 }
 
@@ -395,8 +392,7 @@ function getFeatureEnvVariables(f: Feature) {
 	const idSafe = getSafeId(f.id);
 	const variables = [];
 
-	if(f.internalVersion !== '2')
-	{
+	if (f.internalVersion !== '2') {
 		if (values) {
 			variables.push(...Object.keys(values)
 				.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
