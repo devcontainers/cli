@@ -843,13 +843,18 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 		}
 		const featureFolderPath = path.join(path.dirname(configPath), userFeature.userFeatureId);
 
-		// Ensure we aren't escaping .devcontainer folder
-		const parent = path.join(_workspaceRoot, '.devcontainer');
+		// Ensure we aren't escaping the directory containing the devcontainer config.
+		// The local-features spec resolves paths relative to the config file's directory
+		// (see `featureFolderPath` above), so the escape check must be anchored there
+		// rather than at `${workspaceRoot}/.devcontainer`. Otherwise, configs supplied
+		// via `--config` that live outside the workspace's `.devcontainer/` folder would
+		// reject all of their own sibling features.
+		const parent = path.dirname(configPath);
 		const child = featureFolderPath;
 		const relative = path.relative(parent, child);
 		output.write(`${parent} -> ${child}:   Relative Distance = '${relative}'`, LogLevel.Trace);
 		if (relative.indexOf('..') !== -1) {
-			output.write(`Local file path parse error. Resolved path must be a child of the .devcontainer/ folder.  Parsed: ${featureFolderPath}`, LogLevel.Error);
+			output.write(`Local file path parse error. Resolved path must be a child of the config file's folder.  Parsed: ${featureFolderPath}`, LogLevel.Error);
 			return undefined;
 		}
 
