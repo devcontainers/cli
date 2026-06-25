@@ -15,7 +15,7 @@ export function isLocalFile(filepath: string): Promise<boolean> {
 }
 
 export function isLocalFolder(filepath: string): Promise<boolean> {
-	return new Promise(r => fs.stat(filepath, (err, stat) => r(!err && stat.isDirectory())));
+	return new Promise(r => fs.realpath(filepath, (err,rpath) => r(!err && fs.stat(rpath, (err, stat) => (!err && stat.isDirectory())))));
 }
 
 export const readLocalFile = promisify(fs.readFile);
