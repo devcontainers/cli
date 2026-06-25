@@ -302,7 +302,7 @@ export function plainExec(defaultCwd: string | undefined): ExecFunction {
 		const cwd = params.cwd || defaultCwd;
 		const env = params.env ? { ...process.env, ...params.env } : process.env;
 		const exec = await findLocalWindowsExecutable(cmd, cwd, env, output);
-		const p = cp.spawn(exec, args, { cwd, env, stdio: stdio as any, windowsHide: true });
+		const p = cp.spawn(exec, args ?? [], { cwd, env, stdio: stdio as any, windowsHide: true });
 
 		return {
 			stdin: p.stdin,
