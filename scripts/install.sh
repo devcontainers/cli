@@ -422,16 +422,26 @@ set -e
 
 # Resolve the installation directory
 # Handle both direct execution and symlinked scenarios
-if [ -L "$0" ]; then
-    # Follow symlink
-    SCRIPT_PATH="$(readlink "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")"
-else
-    SCRIPT_PATH="$0"
-fi
+# Uses portable shell built-ins instead of GNU-specific readlink -f and realpath
+# Ignores inherited CDPATH, then resolves the script directory and its parent path
+SCRIPT_DIR="$(
+    CDPATH=
+    self=$0
 
-# Get absolute path to script directory
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
+    # follow the symlink chain one hop at a time so relative targets resolve correctly
+    while [ -L "$self" ]; do
+        cd -- "${self%/*}" >/dev/null || :
+        self=$(readlink "${self##*/}")
+    done
+
+    case "$self" in
+        (*/*) ;;
+        (*) self=./$self ;;
+    esac
+
+    cd -P -- "${self%/*}" >/dev/null && pwd
+)"
+INSTALL_DIR="$(dirname -- "$SCRIPT_DIR")"
 
 # Paths to bundled components
 NODE_BIN="$INSTALL_DIR/node/current/bin/node"
