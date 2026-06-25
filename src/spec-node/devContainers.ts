@@ -8,9 +8,9 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
-import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder, GPUAvailability } from './utils';
+import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder, GPUAvailability, platformInfoFromBuildxPlatform } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
-import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
+import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
 import { resolve } from './configContainer';
 import { URI } from 'vscode-uri';
 import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminalLog, Log, makeLog, LogFormat, createJSONLog, createPlainLog, LogHandler, replaceAllLog } from '../spec-utils/log';
@@ -177,31 +177,13 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		arch: mapNodeArchitectureToGOARCH(cliHost.arch),
 	};
 
-	const targetPlatformInfo = (() => {
-		if (common.buildxPlatform) {
-			const slash1 = common.buildxPlatform.indexOf('/');
-			const slash2 = common.buildxPlatform.indexOf('/', slash1 + 1);
-			// `--platform linux/amd64/v3` `--platform linux/arm64/v8`
-			if (slash2 !== -1) {
-				return {
-					os: <GoOS> common.buildxPlatform.slice(0, slash1),
-					arch: <GoARCH> common.buildxPlatform.slice(slash1 + 1, slash2),
-					variant: common.buildxPlatform.slice(slash2 + 1),
-				};
-			}
-			// `--platform linux/amd64` and `--platform linux/arm64`
-			return {
-				os: <GoOS> common.buildxPlatform.slice(0, slash1),
-				arch: <GoARCH> common.buildxPlatform.slice(slash1 + 1),
-			};
-		} else {
+	const targetPlatformInfo = common.buildxPlatform ?
+		platformInfoFromBuildxPlatform(common.buildxPlatform) :
+		{
 			// `--platform` omitted
-			return {
-				os: mapNodeOSToGOOS(cliHost.platform),
-				arch: mapNodeArchitectureToGOARCH(cliHost.arch),
-			};
-		}
-	})();
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		};
 
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
