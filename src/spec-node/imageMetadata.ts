@@ -12,6 +12,7 @@ import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shu
 import { Log, LogLevel } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
 import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
+import { resolveDockerfileIncludesIfNeeded } from './dockerfilePreprocess';
 import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath, envListToObj } from './utils';
 
 const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
@@ -342,7 +343,8 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 		if (!cliHost.isFile(dockerfilePath)) {
 			throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 		}
-		const dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+		const resolvedDockerfile = await resolveDockerfileIncludesIfNeeded(cliHost, dockerfilePath);
+		const dockerfile = resolvedDockerfile.effectiveDockerfileContent;
 		return getImageBuildInfoFromDockerfile(params, dockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
 
 	} else if ('dockerComposeFile' in config) {
@@ -363,7 +365,8 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 		if (serviceInfo.build) {
 			const { context, dockerfilePath } = serviceInfo.build;
 			const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
-			const dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
+			const resolvedDockerfile = await resolveDockerfileIncludesIfNeeded(cliHost, resolvedDockerfilePath);
+			const dockerfile = resolvedDockerfile.effectiveDockerfileContent;
 			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute);
 		} else {
 			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
