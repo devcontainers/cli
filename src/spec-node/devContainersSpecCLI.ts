@@ -17,6 +17,8 @@ import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-util
 import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
 import { dockerCLI, DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
+import { KubeCLIParameters } from '../spec-shutdown/kubeUtils';
+import { createK8sContainerProperties } from './kubernetesContainer';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
 import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
@@ -1268,6 +1270,12 @@ function execOptions(y: Argv) {
 		'default-user-env-probe': { choices: ['none' as 'none', 'loginInteractiveShell' as 'loginInteractiveShell', 'interactiveShell' as 'interactiveShell', 'loginShell' as 'loginShell'], default: defaultDefaultUserEnvProbe, description: 'Default value for the devcontainer.json\'s "userEnvProbe".' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
+		'kubectl-path': { type: 'string', default: 'kubectl', description: 'kubectl CLI path.' },
+		'k8s-context': { type: 'string', description: 'Kubernetes context to use (from kubeconfig).' },
+		'k8s-kubeconfig': { type: 'string', description: 'Path to kubeconfig file (for custom CA certificates or non-default configs).' },
+		'k8s-namespace': { type: 'string', description: 'Kubernetes namespace of the target pod.' },
+		'k8s-pod': { type: 'string', description: 'Kubernetes pod name to exec into.' },
+		'k8s-container': { type: 'string', description: 'Kubernetes container name within the pod.' },
 	})
 		.positional('cmd', {
 			type: 'string',
@@ -1288,7 +1296,15 @@ function execOptions(y: Argv) {
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
 			}
-			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+			const isK8s = !!(argv['k8s-pod']);
+			if (isK8s) {
+				if (!argv['k8s-namespace']) {
+					throw new Error('--k8s-namespace is required when using --k8s-pod');
+				}
+				if (!argv['k8s-container']) {
+					throw new Error('--k8s-container is required when using --k8s-pod');
+				}
+			} else if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
 				argv['workspace-folder'] = process.cwd();
 			}
 			return true;
@@ -1330,6 +1346,12 @@ export async function doExec({
 	'default-user-env-probe': defaultUserEnvProbe,
 	'remote-env': addRemoteEnv,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'kubectl-path': kubectlPath,
+	'k8s-context': k8sContext,
+	'k8s-kubeconfig': k8sKubeconfig,
+	'k8s-namespace': k8sNamespace,
+	'k8s-pod': k8sPod,
+	'k8s-container': k8sContainer,
 	_: restArgs,
 }: ExecArgs & { _?: string[] }) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -1387,6 +1409,50 @@ export async function doExec({
 		const { common } = params;
 		const { cliHost } = common;
 		output = common.output;
+
+		// Kubernetes exec path — bypass Docker container discovery entirely.
+		if (k8sPod && k8sNamespace && k8sContainer) {
+			const kubeParams: KubeCLIParameters = {
+				cliHost,
+				kubectlCLI: kubectlPath || 'kubectl',
+				context: k8sContext,
+				kubeconfig: k8sKubeconfig,
+				namespace: k8sNamespace,
+				pod: k8sPod,
+				container: k8sContainer,
+				env: cliHost.env,
+				output,
+			};
+
+			// Optionally load devcontainer.json for remoteUser/remoteEnv/workspaceFolder.
+			const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
+			const configPath = configFile ? configFile : workspace
+				? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
+					|| (overrideConfigFile ? getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath) : undefined))
+				: overrideConfigFile;
+			const configs = configPath && await readDevContainerConfigFile(cliHost, workspace, configPath, params.mountWorkspaceGitRoot, params.mountGitWorktreeCommonDir, output, undefined, overrideConfigFile) || undefined;
+
+			const remoteUser = configs?.config.config.remoteUser;
+			const remoteWorkspaceFolder = configs?.workspaceConfig.workspaceFolder || configs?.config.config.workspaceFolder;
+
+			const containerProperties = await createK8sContainerProperties(common, kubeParams, remoteWorkspaceFolder, remoteUser);
+
+			// Probe remote environment (shell init scripts, userEnvProbe setting)
+			// and merge with devcontainer.json remoteEnv + CLI --remote-env.
+			const k8sConfig = {
+				...(configs?.config.config || {}),
+				remoteEnv: { ...(configs?.config.config.remoteEnv || {}), ...envListToObj(addRemoteEnvs) },
+			};
+			const remoteEnv = probeRemoteEnv(common, containerProperties, k8sConfig);
+			const remoteCwd = containerProperties.remoteWorkspaceFolder || containerProperties.homeFolder;
+			await runRemoteCommand({ ...common, output, stdin: process.stdin, ...(logFormat !== 'json' ? { stdout: process.stdout, stderr: process.stderr } : {}) }, containerProperties, restArgs || [], remoteCwd, { remoteEnv: await remoteEnv, pty: isTTY, print: 'continuous' });
+			return {
+				code: 0,
+				dispose,
+			};
+		}
+
+		// Docker exec path.
 		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
