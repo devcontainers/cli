@@ -167,7 +167,7 @@ export interface FeatureSet {
 
 export interface FeaturesConfig {
 	featureSets: FeatureSet[];
-	dstFolder?: string; // set programatically
+	dstFolder?: string; // set programmatically
 }
 
 export interface GitHubApiReleaseInfo {
@@ -1029,7 +1029,7 @@ async function fetchFeatures(params: { extensionPath: string; cwd: string; outpu
 					if (authenticatedGithubTarballUri) {
 						tarballUris.push(authenticatedGithubTarballUri);
 					} else {
-						output.write('Failed to generate autenticated tarball URI for provided feature, despite a GitHub token present', LogLevel.Warning);
+						output.write('Failed to generate authenticated tarball URI for provided feature, despite a GitHub token present', LogLevel.Warning);
 					}
 					headers.Accept = 'Accept: application/octet-stream';
 				}

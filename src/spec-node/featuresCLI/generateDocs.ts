@@ -12,7 +12,7 @@ export function featuresGenerateDocsOptions(y: Argv) {
 		.options({
 			'project-folder': { type: 'string', alias: 'p', default: '.', description: 'Path to folder containing \'src\' and \'test\' sub-folders. This is likely the git root of the project.' },
 			'registry': { type: 'string', alias: 'r', default: 'ghcr.io', description: 'Name of the OCI registry.' },
-			'namespace': { type: 'string', alias: 'n', require: true, description: `Unique indentifier for the collection of features. Example: <owner>/<repo>` },
+			'namespace': { type: 'string', alias: 'n', require: true, description: `Unique identifier for the collection of features. Example: <owner>/<repo>` },
 			'github-owner': { type: 'string', default: '', description: `GitHub owner for docs.` },
 			'github-repo': { type: 'string', default: '', description: `GitHub repo for docs.` },
 			'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' }

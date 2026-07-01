@@ -147,7 +147,7 @@ function extractInstructions(stageStr: string) {
 }
 
 function getExpressionValue(option: string, isSet: boolean, word: string, value: string) {
-	const operations: Record<string, Function> = { 
+	const operations: Record<string, Function> = {
 		'-': (isSet: boolean, word: string, value: string) => isSet ? value : word,
 		'+': (isSet: boolean, word: string, value: string) => isSet ? word : value,
 	};
@@ -155,7 +155,7 @@ function getExpressionValue(option: string, isSet: boolean, word: string, value:
 	return operations[option](isSet, word, value).replace(/^['"]|['"]$/g, ''); // remove quotes from start and end of the string
 }
 
-function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, globalBuildxPlatformArgs: Record<string, string> = {}, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {			
+function replaceVariables(dockerfile: Dockerfile, buildArgs: Record<string, string>, baseImageEnv: Record<string, string>, globalBuildxPlatformArgs: Record<string, string> = {}, str: string, stage: { from?: From; instructions: Instruction[] }, beforeInstructionIndex: number) {
 	return [...str.matchAll(argumentExpression)]
 		.map(match => {
 			const variable = match.groups!.variable;
@@ -225,7 +225,7 @@ function findLastIndex<T>(array: T[], predicate: (value: T, index: number, obj: 
 // not expected to be called externally (exposed for testing)
 export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLastStageName: string): { lastStageName: string; modifiedDockerfile: string | undefined } {
 
-	// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+	// Find the last line that starts with "FROM" (possibly preceded by white-space)
 	const fromLines = [...dockerfile.matchAll(findFromLines)];
 	if (fromLines.length === 0) {
 		throw new Error('Error parsing Dockerfile: Dockerfile contains no FROM instructions');
@@ -273,9 +273,9 @@ export function supportsBuildContexts(dockerfile: Dockerfile) {
 }
 
 /**
- * Convert mount command' arguments to string 
- * @param mount 
- * @returns mount command string 
+ * Convert mount command' arguments to string
+ * @param mount
+ * @returns mount command string
  */
 export function generateMountCommand(mount: Mount | string): string[] {
 	const command: string = '--mount';
