@@ -322,7 +322,7 @@ export async function getManifest(params: CommonParams, url: string, ref: OCIRef
 	// Per the specification:
 	// https://github.com/opencontainers/distribution-spec/blob/v1.0.1/spec.md#pulling-manifests
 	// The registry server SHOULD return the canonical content digest in a header, but it's not required to.
-	// That is useful to have, so if the server doesn't provide it, recalculate it outselves.
+	// That is useful to have, so if the server doesn't provide it, recalculate it ourselves.
 	// Headers are always automatically downcased by node.
 	let contentDigest = headers['docker-content-digest'];
 	if (!contentDigest || expectedDigest) {

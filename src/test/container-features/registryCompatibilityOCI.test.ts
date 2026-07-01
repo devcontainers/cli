@@ -24,7 +24,7 @@ interface TestPlan {
 	testFeatureId: string;
 	testCommand?: string;
 	testCommandResult?: RegExp;
-	// Optionally tell the test to set up with a specfic auth strategy.
+	// Optionally tell the test to set up with a specific auth strategy.
 	// If not set, the test will run with anonymous.
 	// NOTE: These will be skipped unless the environment has the relevant 'authStrategyKey' set in the environment.
 	//       This data is specific to each strategy and parsed about below accordingly.

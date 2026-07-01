@@ -220,13 +220,13 @@ describe('Dev Container Features E2E (local-path)', function () {
         beforeEach(async () => containerId = (await devContainerUp(cli, testFolder, { 'logLevel': 'trace' })).containerId);
         afterEach(async () => await devContainerDown({ containerId }));
 
-        it('should exec the color commmand', async () => {
+        it('should exec the color command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} color`);
             assert.isNull(res.error);
             assert.match(res.stdout, /my favorite color is gold/);
         });
 
-        it('should exec the helloworld commmand', async () => {
+        it('should exec the helloworld command', async () => {
             const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} hello`);
             assert.isNull(res.error);
             assert.match(res.stdout, /Hello there, vscode!!!!/);
