@@ -19,11 +19,12 @@ import { ShellServer } from '../spec-common/shellServer';
 import { inspectContainer, inspectContainers, inspectImage, getEvents, listContainers, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
+import { substitute } from '../spec-common/variableSubstitution';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, getConfigFilePath, getDockerfilePath } from '../spec-configuration/configuration';
 import { StringDecoder } from 'string_decoder';
 import { Event } from '../spec-utils/event';
-import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
+import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
@@ -417,7 +418,7 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 	}
 	let { workspaceFolder, workspaceMount } = config;
 	let additionalMountString: string | undefined;
-	if (workspace && (!workspaceFolder || !('workspaceMount' in config))) {
+	if (workspace && (!workspaceFolder || !('workspaceMount' in config) || (mountWorkspaceGitRoot && mountGitWorktreeCommonDir))) {
 		const hostMountFolder = await getHostMountFolder(cliHost, workspace.rootFolderPath, mountWorkspaceGitRoot, output);
 
 		// Check if .git is a file (worktree) with a relative gitdir path
@@ -439,9 +440,17 @@ export async function getWorkspaceConfiguration(cliHost: CLIHost, workspace: Wor
 							segments.unshift(cliHost.path.basename(current));
 						}
 						containerMountFolder = path.posix.join('/workspaces', ...segments);
+						// A custom workspaceMount defines where the worktree is mounted in the container; resolve the
+						// common dir relative to that (substituted) target so the relative gitdir resolves correctly.
+						// additionalMountString is not part of the later substitution pass, so substitute here.
+						// Otherwise fall back to the computed containerMountFolder.
+						const customMountTarget = 'workspaceMount' in config && config.workspaceMount ?
+							substitute({ platform: cliHost.platform, localWorkspaceFolder: workspace.rootFolderPath, env: cliHost.env }, parseMount(config.workspaceMount)).target :
+							undefined;
+						const worktreeContainerFolder = customMountTarget || containerMountFolder;
 						// Calculate where the common dir should be mounted in the container
 						const containerGitdir = cliHost.platform === 'win32' ? gitdir.replace(/\\/g, '/') : gitdir;
-						const containerGitCommonDir = path.posix.resolve(containerMountFolder, containerGitdir, '..', '..');
+						const containerGitCommonDir = path.posix.resolve(worktreeContainerFolder, containerGitdir, '..', '..');
 						const cons = cliHost.platform !== 'linux' ? `,consistency=${consistency || 'consistent'}` : '';
 						const srcQuote = gitCommonDir.indexOf(',') !== -1 ? '"' : '';
 						const tgtQuote = containerGitCommonDir.indexOf(',') !== -1 ? '"' : '';
