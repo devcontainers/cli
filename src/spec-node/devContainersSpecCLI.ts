@@ -140,6 +140,8 @@ function provisionOptions(y: Argv) {
 		'secrets-file': { type: 'string', description: 'Path to a json file containing secret environment variables as key-value pairs.' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'no-lockfile': { type: 'boolean', default: false, description: 'Disable lockfile generation and verification.' },
+		'frozen-lockfile': { type: 'boolean', default: false, description: 'Ensure lockfile exists and remains unchanged; fail otherwise.' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 		'include-configuration': { type: 'boolean', default: false, description: 'Include configuration in result.' },
 		'include-merged-configuration': { type: 'boolean', default: false, description: 'Include merged configuration in result.' },
@@ -160,6 +162,15 @@ function provisionOptions(y: Argv) {
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
 				throw new Error('Unmatched argument format: remote-env must match <name>=<value>');
+			}
+			if (argv['no-lockfile'] && argv['frozen-lockfile']) {
+				throw new Error('--no-lockfile and --frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-frozen-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-lockfile are mutually exclusive.');
 			}
 			return true;
 		});
@@ -213,10 +224,15 @@ async function provision({
 	'secrets-file': secretsFile,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'no-lockfile': noLockfile,
+	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
 }: ProvisionArgs) {
+
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
+	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
 
 	const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
 	const addRemoteEnvs = addRemoteEnv ? (Array.isArray(addRemoteEnv) ? addRemoteEnv as string[] : [addRemoteEnv]) : [];
@@ -282,8 +298,8 @@ async function provision({
 		containerSessionDataFolder,
 		skipPersistingCustomizationsFromFeatures: false,
 		omitConfigRemotEnvFromMetadata,
-		experimentalLockfile,
-		experimentalFrozenLockfile,
+		noLockfile,
+		frozenLockfile: effectiveFrozenLockfile,
 		omitSyntaxDirective,
 		includeConfig,
 		includeMergedConfig,
@@ -527,8 +543,22 @@ function buildOptions(y: Argv) {
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
 		'experimental-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Write lockfile' },
 		'experimental-frozen-lockfile': { type: 'boolean', default: false, hidden: true, description: 'Ensure lockfile remains unchanged' },
+		'no-lockfile': { type: 'boolean', default: false, description: 'Disable lockfile generation and verification.' },
+		'frozen-lockfile': { type: 'boolean', default: false, description: 'Ensure lockfile exists and remains unchanged; fail otherwise.' },
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
-	});
+	})
+		.check(argv => {
+			if (argv['no-lockfile'] && argv['frozen-lockfile']) {
+				throw new Error('--no-lockfile and --frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-frozen-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-frozen-lockfile are mutually exclusive.');
+			}
+			if (argv['no-lockfile'] && argv['experimental-lockfile']) {
+				throw new Error('--no-lockfile and --experimental-lockfile are mutually exclusive.');
+			}
+			return true;
+		});
 }
 
 type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
@@ -569,8 +599,13 @@ async function doBuild({
 	'skip-persisting-customizations-from-features': skipPersistingCustomizationsFromFeatures,
 	'experimental-lockfile': experimentalLockfile,
 	'experimental-frozen-lockfile': experimentalFrozenLockfile,
+	'no-lockfile': noLockfile,
+	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 }: BuildArgs) {
+	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
+	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
+
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
@@ -617,8 +652,8 @@ async function doBuild({
 			skipPostAttach: true,
 			skipPersistingCustomizationsFromFeatures: skipPersistingCustomizationsFromFeatures,
 			dotfiles: {},
-			experimentalLockfile,
-			experimentalFrozenLockfile,
+			noLockfile,
+			frozenLockfile: effectiveFrozenLockfile,
 			omitSyntaxDirective,
 		}, disposables);
 
@@ -1440,5 +1475,14 @@ async function readSecretsFromFile(params: { output?: Log; secretsFile?: string;
 			description: 'Failed to read/parse secrets',
 			originalError: e
 		});
+	}
+}
+
+function warnDeprecatedLockfileFlags(experimentalLockfile: boolean, experimentalFrozenLockfile: boolean) {
+	if (experimentalLockfile) {
+		process.stderr.write('Warning: --experimental-lockfile is deprecated. Lockfiles are now enabled by default.\n');
+	}
+	if (experimentalFrozenLockfile) {
+		process.stderr.write('Warning: --experimental-frozen-lockfile is deprecated. Use --frozen-lockfile instead.\n');
 	}
 }

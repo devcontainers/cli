@@ -138,7 +138,7 @@ async function featuresUpgrade({
 		const lockfilePath = getLockfilePath(config);
 		await writeLocalFile(lockfilePath, '');
 		// Update lockfile
-		await writeLockfile(params, config, lockfile, true);
+		await writeLockfile(params, config, lockfile);
 	} catch (err) {
 		if (output) {
 			output.write(err && (err.stack || err.message) || String(err));

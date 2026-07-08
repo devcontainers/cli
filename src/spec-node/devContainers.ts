@@ -17,7 +17,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { dockerBuildKitVersion, dockerEngineVersion, isPodman } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion, dockerEngineVersion, lookupCLIVariant, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
 
@@ -68,8 +68,8 @@ export interface ProvisionOptions {
 		installCommand?: string;
 		targetPath?: string;
 	};
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
@@ -103,7 +103,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 }
 
 export async function createDockerParams(options: ProvisionOptions, disposables: (() => Promise<unknown> | undefined)[]): Promise<DockerResolverParameters> {
-	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, experimentalLockfile, experimentalFrozenLockfile, omitLoggerHeader, secretsP } = options;
+	const { persistedFolder, additionalMounts, updateRemoteUserUIDDefault, containerDataFolder, containerSystemDataFolder, workspaceMountConsistency, gpuAvailability, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, remoteEnv, noLockfile, frozenLockfile, omitLoggerHeader, secretsP } = options;
 	let parsedAuthority: DevContainerAuthority | undefined;
 	if (options.workspaceFolder) {
 		parsedAuthority = { hostPath: options.workspaceFolder } as DevContainerAuthority;
@@ -213,6 +213,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		targetPlatformInfo
 	}));
 
+	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output });
+
 	const dockerEngineVer = await dockerEngineVersion({
 		cliHost,
 		dockerCLI: dockerPath,
@@ -221,13 +223,13 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output,
 		buildPlatformInfo,
 		targetPlatformInfo
-	});	
+	}, { useSimpleVersion: cliVariant === CLIVariant.Wslc });	
 
 	return {
 		common,
 		parsedAuthority,
 		dockerCLI: dockerPath,
-		isPodman: await isPodman({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output }),
+		cliVariant,
 		dockerComposeCLI: dockerComposeCLI,
 		dockerEnv: cliHost.env,
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
@@ -246,8 +248,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		buildKitVersion,
 		dockerEngineVersion: dockerEngineVer,
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
-		experimentalLockfile,
-		experimentalFrozenLockfile,
+		noLockfile,
+		frozenLockfile,
 		buildxPlatform: common.buildxPlatform,
 		buildxPush: common.buildxPush,
 		additionalLabels: options.additionalLabels,

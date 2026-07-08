@@ -255,7 +255,9 @@ describe('getRef()', async function () {
 });
 
 describe('Test OCI Pull', async function () {
-    this.timeout('10s');
+    // These tests fetch manifests/blobs from a live OCI registry, so allow
+    // extra time for auth/token exchange and transient network latency in CI.
+    this.timeout('60s');
 
     it('Parse OCI identifier', async function () {
         const feat = getRef(output, 'ghcr.io/codspace/features/ruby:1');

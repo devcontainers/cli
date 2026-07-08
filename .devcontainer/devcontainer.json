@@ -7,7 +7,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": { 
-			"VARIANT": "18-bookworm"
+			"VARIANT": "20-bookworm"
 		}
 	},
 	"mounts": [
@@ -27,7 +27,8 @@
 		"vscode": {
 			"extensions": [
 				"dbaeumer.vscode-eslint",
-				"GitHub.vscode-pull-request-github"
+				"GitHub.vscode-pull-request-github",
+				"hbenl.vscode-mocha-test-adapter"
 			]
 		},
 		"codespaces": {

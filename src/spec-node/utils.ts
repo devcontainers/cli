@@ -10,12 +10,13 @@ import * as os from 'os';
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
 import { Log, LogLevel, makeLog, nullLog } from '../spec-utils/log';
+import { delay } from '../spec-common/async';
 
 import { CommonDevContainerConfig, ContainerProperties, getContainerProperties, LifecycleCommand, ResolverParameters } from '../spec-common/injectHeadless';
 import { Workspace } from '../spec-utils/workspaces';
 import { URI } from 'vscode-uri';
 import { ShellServer } from '../spec-common/shellServer';
-import { inspectContainer, inspectImage, getEvents, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer } from '../spec-shutdown/dockerUtils';
+import { inspectContainer, inspectContainers, inspectImage, getEvents, listContainers, ContainerDetails, DockerCLIParameters, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, toDockerImageName, DockerComposeCLI, ImageDetails, dockerCLI, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { getRemoteWorkspaceFolder } from './dockerCompose';
 import { findGitRootFolder } from '../spec-common/git';
 import { parentURI, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
@@ -108,7 +109,7 @@ export interface DockerResolverParameters {
 	common: ResolverParameters;
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
-	isPodman: boolean;
+	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
 	workspaceMountConsistencyDefault: BindMountConsistency;
@@ -127,8 +128,8 @@ export interface DockerResolverParameters {
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
 	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
-	experimentalLockfile?: boolean;
-	experimentalFrozenLockfile?: boolean;
+	noLockfile?: boolean;
+	frozenLockfile?: boolean;
 	buildxPlatform: string | undefined;
 	buildxPush: boolean;
 	additionalLabels: string[];
@@ -170,6 +171,9 @@ export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntr
 }
 
 export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
+	if (params.cliVariant === CLIVariant.Wslc) {
+		return startEventSeenPolling(params, labels, canceled, output, trace);
+	}
 	const eventsProcess = await getEvents(params, { event: ['start'] });
 	return {
 		started: new Promise<void>((resolve, reject) => {
@@ -205,6 +209,36 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 					}
 				}
 			});
+		})
+	};
+}
+
+// Polling-based fallback for runtimes that don't support `events` (e.g., wslc).
+function startEventSeenPolling(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
+	let stopped = false;
+	canceled.catch(() => { stopped = true; });
+	const labelFilters = Object.entries(labels).map(([k, v]) => `${k}=${v}`);
+	return {
+		started: new Promise<void>((resolve, reject) => {
+			canceled.catch(reject);
+			const poll = async () => {
+				while (!stopped) {
+					try {
+						const containers = await listContainers(params, false, labelFilters);
+						if (trace) {
+							output.write(`Log: startEventSeenPolling found ${containers.length} container(s)\r\n`);
+						}
+						if (containers.length > 0) {
+							resolve();
+							return;
+						}
+					} catch (e) {
+						// Ignore transient errors during polling.
+					}
+					await delay(500);
+				}
+			};
+			poll();
 		})
 	};
 }
@@ -614,6 +648,71 @@ export function getEmptyContextFolder(common: ResolverParameters) {
 	return common.cliHost.path.join(common.persistedFolder, 'empty-folder');
 }
 
+export function normalizeDevContainerLabelPath(platform: NodeJS.Platform, value: string): string {
+	if (platform !== 'win32') {
+		return value;
+	}
+
+	// Normalize separators and dot segments, then explicitly lowercase the drive
+	// letter because devcontainer.local_folder / devcontainer.config_file labels
+	// should compare case-insensitively on Windows.
+	const normalized = path.win32.normalize(value);
+	if (normalized.length >= 2 && normalized[1] === ':') {
+		return normalized[0].toLowerCase() + normalized.slice(1);
+	}
+
+	return normalized;
+}
+
+async function findDevContainerByNormalizedLabels(params: DockerResolverParameters | DockerCLIParameters, normalizedWorkspaceFolder: string, normalizedConfigFile: string) {
+	if (process.platform !== 'win32') {
+		return undefined;
+	}
+
+	const ids = await listContainers(params, true, [hostFolderLabel]);
+	if (!ids.length) {
+		return undefined;
+	}
+
+	const details = await inspectContainers(params, ids);
+	return details
+		.filter(container => container.State.Status !== 'removing')
+		.find(container => {
+			const labels = container.Config.Labels || {};
+			const containerWorkspaceFolder = labels[hostFolderLabel];
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			if (!normalizedContainerWorkspaceFolder || normalizedContainerWorkspaceFolder !== normalizedWorkspaceFolder) {
+				return false;
+			}
+
+			const containerConfigFile = labels[configFileLabel];
+			const normalizedContainerConfigFile = containerConfigFile && normalizeDevContainerLabelPath('win32', containerConfigFile);
+			return !!normalizedContainerConfigFile
+				&& normalizedContainerConfigFile === normalizedConfigFile;
+		});
+}
+
+async function findLegacyDevContainerByNormalizedWorkspaceFolder(params: DockerResolverParameters | DockerCLIParameters, normalizedWorkspaceFolder: string) {
+	if (process.platform !== 'win32') {
+		return undefined;
+	}
+
+	const ids = await listContainers(params, true, [hostFolderLabel]);
+	if (!ids.length) {
+		return undefined;
+	}
+
+	const details = await inspectContainers(params, ids);
+	return details
+		.filter(container => container.State.Status !== 'removing')
+		.find(container => {
+			const labels = container.Config.Labels || {};
+			const containerWorkspaceFolder = labels[hostFolderLabel];
+			const normalizedContainerWorkspaceFolder = containerWorkspaceFolder && normalizeDevContainerLabelPath('win32', containerWorkspaceFolder);
+			return normalizedContainerWorkspaceFolder === normalizedWorkspaceFolder;
+		});
+}
+
 export async function findContainerAndIdLabels(params: DockerResolverParameters | DockerCLIParameters, containerId: string | undefined, providedIdLabels: string[] | undefined, workspaceFolder: string | undefined, configFile: string | undefined, removeContainerWithOldLabels?: boolean | string) {
 	if (providedIdLabels) {
 		return {
@@ -621,14 +720,26 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 			idLabels: providedIdLabels,
 		};
 	}
+
+	const normalizedWorkspaceFolder = workspaceFolder ? normalizeDevContainerLabelPath(process.platform, workspaceFolder) : workspaceFolder;
+	const normalizedConfigFile = configFile ? normalizeDevContainerLabelPath(process.platform, configFile) : configFile;
+	const oldLabels = [`${hostFolderLabel}=${normalizedWorkspaceFolder}`];
+	const newLabels = [...oldLabels, `${configFileLabel}=${normalizedConfigFile}`];
+
 	let container: ContainerDetails | undefined;
 	if (containerId) {
 		container = await inspectContainer(params, containerId);
-	} else if (workspaceFolder && configFile) {
-		container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`]);
+	} else if (normalizedWorkspaceFolder && normalizedConfigFile) {
+		container = await findDevContainer(params, newLabels);
+		if (!container) {
+			container = await findDevContainerByNormalizedLabels(params, normalizedWorkspaceFolder, normalizedConfigFile);
+		}
 		if (!container) {
 			// Fall back to old labels.
-			container = await findDevContainer(params, [`${hostFolderLabel}=${workspaceFolder}`]);
+			container = await findDevContainer(params, oldLabels);
+			if (!container) {
+				container = await findLegacyDevContainerByNormalizedWorkspaceFolder(params, normalizedWorkspaceFolder);
+			}
 			if (container) {
 				if (container.Config.Labels?.[configFileLabel]) {
 					// But ignore containers with new labels.
@@ -645,9 +756,7 @@ export async function findContainerAndIdLabels(params: DockerResolverParameters 
 	}
 	return {
 		container,
-		idLabels: !container || container.Config.Labels?.[configFileLabel] ?
-			[`${hostFolderLabel}=${workspaceFolder}`, `${configFileLabel}=${configFile}`] :
-			[`${hostFolderLabel}=${workspaceFolder}`],
+		idLabels: !container || container.Config.Labels?.[configFileLabel] ? newLabels : oldLabels,
 	};
 }
 

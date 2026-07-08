@@ -13,6 +13,7 @@ jobs:
   test-docker-v29:
     name: Docker v29.0.0 Compatibility
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     
     steps:
     - uses: actions/checkout@v6

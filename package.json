@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.84.1",
+	"version": "0.88.0",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -38,7 +38,7 @@
 		"clean-dist": "rimraf dist",
 		"clean-built": "rimraf built",
 		"test": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/*.test.ts",
-		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit",
+		"test-matrix": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit --retries 1",
 		"test-container-features": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/*.test.ts",
 		"test-container-features-cli": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-features/featuresCLICommands.test.ts",
 		"test-container-templates": "env TS_NODE_PROJECT=src/test/tsconfig.json mocha -r ts-node/register --exit src/test/container-templates/*.test.ts"
@@ -71,7 +71,7 @@
 		"@typescript-eslint/parser": "^8.56.1",
 		"chai": "^4.5.0",
 		"copyfiles": "^2.4.1",
-		"esbuild": "^0.27.3",
+		"esbuild": "^0.28.1",
 		"eslint": "^10.0.2",
 		"event-stream": "^4.0.1",
 		"minimatch": "^10.2.4",
@@ -102,5 +102,8 @@
 		"text-table": "^0.2.0",
 		"vscode-uri": "^3.1.0",
 		"yargs": "~17.7.2"
+	},
+	"resolutions": {
+		"serialize-javascript": "^7.0.5"
 	}
 }
