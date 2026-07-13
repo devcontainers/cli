@@ -7,7 +7,7 @@
 import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, getDockerfilePath, getDockerContextPath, DockerResolverParameters, isDockerFileConfig, uriToWSLFsPath, WorkspaceConfiguration, getFolderImageName, inspectDockerImage, logUMask, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, isBuildxCacheToInline } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress, ResolverParameters } from '../spec-common/injectHeadless';
 import { ContainerError, toErrorText } from '../spec-common/errors';
-import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer } from '../spec-shutdown/dockerUtils';
+import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
@@ -347,8 +347,8 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const exposedPorts = typeof appPort === 'number' || typeof appPort === 'string' ? [appPort] : appPort || [];
 	const exposed = (<string[]>[]).concat(...exposedPorts.map(port => ['-p', typeof port === 'number' ? `127.0.0.1:${port}:${port}` : port]));
 
-	const cwdMount = workspaceMount ? ['--mount', workspaceMount] : [];
-	const additionalMount = additionalMountString ? ['--mount', additionalMountString] : [];
+	const cwdMount = workspaceMount ? (params.cliVariant === CLIVariant.Wslc ? convertMountToVolume(workspaceMount) : ['--mount', workspaceMount]) : [];
+	const additionalMount = additionalMountString ? (params.cliVariant === CLIVariant.Wslc ? convertMountToVolume(additionalMountString) : ['--mount', additionalMountString]) : [];
 
 	const envObj = mergedConfig.containerEnv || {};
 	const containerEnv = Object.keys(envObj)
@@ -360,24 +360,30 @@ export async function spawnDevContainer(params: DockerResolverParameters, config
 	const containerUserArgs = containerUser ? ['-u', containerUser] : [];
 
 	const featureArgs: string[] = [];
-	if (mergedConfig.init) {
-		featureArgs.push('--init');
-	}
-	if (mergedConfig.privileged) {
-		featureArgs.push('--privileged');
-	}
-	for (const cap of mergedConfig.capAdd || []) {
-		featureArgs.push('--cap-add', cap);
-	}
-	for (const securityOpt of mergedConfig.securityOpt || []) {
-		featureArgs.push('--security-opt', securityOpt);
+	// wslc does not support --init, --privileged, --cap-add, or --security-opt
+	if (params.cliVariant !== CLIVariant.Wslc) {
+		if (mergedConfig.init) {
+			featureArgs.push('--init');
+		}
+		if (mergedConfig.privileged) {
+			featureArgs.push('--privileged');
+		}
+		for (const cap of mergedConfig.capAdd || []) {
+			featureArgs.push('--cap-add', cap);
+		}
+		for (const securityOpt of mergedConfig.securityOpt || []) {
+			featureArgs.push('--security-opt', securityOpt);
+		}
 	}
 
 	const featureMounts = ([] as string[]).concat(
 		...[
 			...mergedConfig.mounts || [],
 			...params.additionalMounts,
-		].map(m => generateMountCommand(m))
+		].map(m => {
+			const mountArgs = generateMountCommand(m);
+			return params.cliVariant === CLIVariant.Wslc ? convertMountArgsToVolume(mountArgs) : mountArgs;
+		})
 	);
 
 	const customEntrypoints = mergedConfig.entrypoints || [];
@@ -396,9 +402,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 
 	const args = [
 		'run',
-		'--sig-proxy=false',
-		'-a', 'STDOUT',
-		'-a', 'STDERR',
+		...(params.cliVariant === CLIVariant.Wslc ? [] : ['--sig-proxy=false', '-a', 'STDOUT', '-a', 'STDERR']),
 		...exposed,
 		...cwdMount,
 		...additionalMount,
@@ -432,7 +436,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 }
 
 async function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageDetails: () => Promise<ImageDetails>): Promise<string[]> {
-	if (params.isPodman && params.common.cliHost.platform === 'linux') {
+	if (params.cliVariant === CLIVariant.Podman && params.common.cliHost.platform === 'linux') {
 		const args = ['--security-opt', 'label=disable'];
 		const hasIdMapping = (config.runArgs || []).some(arg => /--[ug]idmap(=|$)/.test(arg));
 		if (!hasIdMapping) {
@@ -444,6 +448,32 @@ async function getPodmanArgs(params: DockerResolverParameters, config: DevContai
 		return args;
 	}
 	return [];
+}
+
+// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached") to -v syntax for wslc.
+function convertMountToVolume(mountStr: string): string[] {
+	const parts = new Map(mountStr.split(',').map(p => {
+		const eq = p.indexOf('=');
+		return eq === -1 ? [p, ''] : [p.substring(0, eq), p.substring(eq + 1)];
+	}));
+	const source = parts.get('source') || parts.get('src') || '';
+	const target = parts.get('target') || parts.get('dst') || parts.get('destination') || '';
+	if (source && target) {
+		return ['-v', `${source}:${target}`];
+	}
+	if (target) {
+		return ['-v', target];
+	}
+	// Fallback: pass as --mount and let the runtime handle it.
+	return ['--mount', mountStr];
+}
+
+// Convert --mount args array (e.g., ['--mount', 'type=bind,...']) to -v syntax for wslc.
+function convertMountArgsToVolume(args: string[]): string[] {
+	if (args.length === 2 && args[0] === '--mount') {
+		return convertMountToVolume(args[1]);
+	}
+	return args;
 }
 
 function getLabels(labels: string[]): string[] {

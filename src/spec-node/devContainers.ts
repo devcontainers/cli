@@ -17,7 +17,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { dockerBuildKitVersion, dockerEngineVersion, isPodman } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion, dockerEngineVersion, lookupCLIVariant, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
 
@@ -213,6 +213,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		targetPlatformInfo
 	}));
 
+	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output });
+
 	const dockerEngineVer = await dockerEngineVersion({
 		cliHost,
 		dockerCLI: dockerPath,
@@ -221,13 +223,13 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		output,
 		buildPlatformInfo,
 		targetPlatformInfo
-	});	
+	}, { useSimpleVersion: cliVariant === CLIVariant.Wslc });	
 
 	return {
 		common,
 		parsedAuthority,
 		dockerCLI: dockerPath,
-		isPodman: await isPodman({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output }),
+		cliVariant,
 		dockerComposeCLI: dockerComposeCLI,
 		dockerEnv: cliHost.env,
 		workspaceMountConsistencyDefault: workspaceMountConsistency,
