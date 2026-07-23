@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 jobs:
   main:
@@ -18,7 +19,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '24.x'
         registry-url: 'https://registry.npmjs.org'
         scope: '@devcontainers'
     - name: Verify Versions
@@ -46,5 +47,3 @@ jobs:
         path: .
     - name: Publish TGZ
       run: npm publish ${TGZ} --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
