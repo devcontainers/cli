@@ -422,7 +422,7 @@ set -e
 
 # Resolve the installation directory
 # Handle both direct execution and symlinked scenarios
-# Uses portable shell built-ins instead of GNU-specific readlink -f and realpath
+# Uses POSIX shell syntax and avoids GNU-specific readlink -f/realpath (requires readlink(1))
 # Ignores inherited CDPATH, then resolves the script directory and its parent path
 SCRIPT_DIR="$(
     CDPATH=
@@ -430,8 +430,9 @@ SCRIPT_DIR="$(
 
     # follow the symlink chain one hop at a time so relative targets resolve correctly
     while [ -L "$self" ]; do
-        cd -- "${self%/*}" >/dev/null || :
-        self=$(readlink "${self##*/}")
+        dir=${self%/*}; [ "$dir" = "$self" ] && dir=.
+        cd "$dir" >/dev/null 2>&1 || exit 1
+        self=$(readlink "${self##*/}") || exit 1
     done
 
     case "$self" in
