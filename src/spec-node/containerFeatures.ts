@@ -206,7 +206,7 @@ ${getDevcontainerMetadataLabel(getDevcontainerMetadata(imageBuildInfo.metadata, 
 `,
         overrideTarget: 'dev_containers_target_stage',
         dockerfilePrefixContent: `${syntax ? `# syntax=${syntax}` : ''}
-    ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+    ARG _DEV_CONTAINERS_BASE_IMAGE=scratch
 `,
         buildArgs: {
             _DEV_CONTAINERS_BASE_IMAGE: baseName,
@@ -274,7 +274,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
         skipDefaultSyntax ? (syntax ? `# syntax=${syntax}` : '') :
         useBuildKitBuildContexts && !(imageBuildInfo.dockerfile && supportsBuildContexts(imageBuildInfo.dockerfile)) ? '# syntax=docker/dockerfile:1.4' :
         syntax ? `# syntax=${syntax}` : ''}
-ARG _DEV_CONTAINERS_BASE_IMAGE=placeholder
+ARG _DEV_CONTAINERS_BASE_IMAGE=scratch
 `;
 
 	// Build devcontainer-features.env and devcontainer-features-install.sh file(s) for each features source folder

@@ -203,6 +203,8 @@ export function getContainerFeaturesBaseDockerFile(contentSourceRootPath: string
 
 #{nonBuildKitFeatureContentFallback}
 
+ARG _DEV_CONTAINERS_BASE_IMAGE=scratch
+
 FROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_feature_content_normalize
 USER root
 COPY --from=dev_containers_feature_content_source ${path.posix.join(contentSourceRootPath, 'devcontainer-features.builtin.env')} /tmp/build-features/

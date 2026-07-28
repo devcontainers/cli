@@ -1,11 +1,11 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, getContainerFeaturesBaseDockerFile, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { mkdirpLocal } from '../../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
@@ -134,5 +134,53 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
         assert.includeMembers(javaExtensions, ['vscjava.vscode-java-pack']);
         const javaSettings = java?.features[0]?.customizations?.vscode?.settings;
         assert.isObject(javaSettings);
+    });
+});
+
+// returns the names of any ARGs used in a `FROM` that lack a default declared before them.
+function findFromArgsWithoutDefault(dockerfile: string): string[] {
+    const argsWithDefault = new Set<string>();
+    const offenders: string[] = [];
+
+    for (const raw of dockerfile.split('\n')) {
+        const line = raw.trim();
+
+        // ARG NAME=value  -> has a default
+        const argWithDefault = /^ARG\s+([A-Za-z0-9_]+)\s*=\s*\S+/.exec(line);
+        if (argWithDefault) {
+            argsWithDefault.add(argWithDefault[1]);
+            continue;
+        }
+        // ARG NAME        -> no default (does NOT satisfy the linter)
+        if (/^ARG\s+[A-Za-z0-9_]+\s*$/.test(line)) {
+            continue;
+        }
+        // FROM $NAME or FROM ${NAME...}
+        const fromMatch = /^FROM\s+\$\{?([A-Za-z0-9_]+)/.exec(line);
+        if (fromMatch && !argsWithDefault.has(fromMatch[1])) {
+            offenders.push(fromMatch[1]);
+        }
+    }
+    return offenders;
+}
+
+describe('validate generated Dockerfiles avoid InvalidDefaultArgInFrom', function () {
+
+    it('feature base Dockerfile declares _DEV_CONTAINERS_BASE_IMAGE with a default before FROM', function () {
+        const dockerfile = getContainerFeaturesBaseDockerFile('/tmp/build-features');
+        assert.match(dockerfile, /ARG _DEV_CONTAINERS_BASE_IMAGE=\S+/, 'ARG should have a default value');
+        assert.match(dockerfile, /FROM \$_DEV_CONTAINERS_BASE_IMAGE\b/, 'FROM should reference the ARG directly');
+        assert.notMatch(dockerfile, /FROM \$\{_DEV_CONTAINERS_BASE_IMAGE:-/, 'should not rely on ${VAR:-default} shell fallback');
+        assert.deepStrictEqual(findFromArgsWithoutDefault(dockerfile), []);
+    });
+
+    it('updateUID.Dockerfile declares BASE_IMAGE with a default before FROM', async function () {
+        const content = (await readLocalFile('scripts/updateUID.Dockerfile')).toString();
+        assert.match(content, /ARG BASE_IMAGE=\S+/, 'BASE_IMAGE ARG should have a default value');
+        assert.deepStrictEqual(
+            findFromArgsWithoutDefault(content),
+            [],
+            'updateUID.Dockerfile FROM references an ARG without a default'
+        );
     });
 });
