@@ -174,7 +174,7 @@ describe('validate generated Dockerfiles avoid InvalidDefaultArgInFrom', functio
         assert.deepStrictEqual(findFromArgsWithoutDefault(dockerfile), []);
     });
 
-    it('updateUID.Dockerfile declares BASE_IMAGE with a default before FROM', async function () {
+    it('validate that updateUID.Dockerfile declares BASE_IMAGE with a default before FROM', async function () {
         const content = (await readLocalFile('scripts/updateUID.Dockerfile')).toString();
         assert.match(content, /ARG BASE_IMAGE=\S+/, 'BASE_IMAGE ARG should have a default value');
         assert.deepStrictEqual(
