@@ -9,7 +9,7 @@ import { mkdirpLocal, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
-import { shellExec } from '../testUtils';
+import { findFromArgsWithoutDefault, shellExec } from '../testUtils';
 import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -136,33 +136,6 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
         assert.isObject(javaSettings);
     });
 });
-
-// returns the names of any ARGs used in a `FROM` that lack a default declared before them.
-function findFromArgsWithoutDefault(dockerfile: string): string[] {
-    const argsWithDefault = new Set<string>();
-    const offenders: string[] = [];
-
-    for (const raw of dockerfile.split('\n')) {
-        const line = raw.trim();
-
-        // ARG NAME=value  -> has a default
-        const argWithDefault = /^ARG\s+([A-Za-z0-9_]+)\s*=\s*\S+/.exec(line);
-        if (argWithDefault) {
-            argsWithDefault.add(argWithDefault[1]);
-            continue;
-        }
-        // ARG NAME        -> no default (does NOT satisfy the linter)
-        if (/^ARG\s+[A-Za-z0-9_]+\s*$/.test(line)) {
-            continue;
-        }
-        // FROM $NAME or FROM ${NAME...}
-        const fromMatch = /^FROM\s+\$\{?([A-Za-z0-9_]+)/.exec(line);
-        if (fromMatch && !argsWithDefault.has(fromMatch[1])) {
-            offenders.push(fromMatch[1]);
-        }
-    }
-    return offenders;
-}
 
 describe('validate generated Dockerfiles avoid InvalidDefaultArgInFrom', function () {
 
