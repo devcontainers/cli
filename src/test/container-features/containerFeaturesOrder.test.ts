@@ -674,7 +674,8 @@ describe('Feature Dependencies', function () {
                 }
             });
 
-            assert.deepStrictEqual(actual.length, 3);
+            // The deprecated terraform shorthand resolves to terraform:1, which has github-cli as a hard dependency.
+            assert.deepStrictEqual(actual.length, 4);
             assert.deepStrictEqual(actual,
                 [
                     {
@@ -685,6 +686,12 @@ describe('Feature Dependencies', function () {
                         id: 'codspace/myfeatures/helloworld',
                         options: {
                             greeting: 'howdy'
+                        }
+                    },
+                    {
+                        id: 'ghcr.io/devcontainers/features/github-cli',
+                        options: {
+                            version: 'latest'
                         }
                     },
                     {
