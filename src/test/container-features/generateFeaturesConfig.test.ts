@@ -14,10 +14,10 @@ import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-// Test fetching/generating the devcontainer-features.json config
+// Testing fetching/generating the devcontainer-features.json config
 describe('validate generateFeaturesConfig()', function () {
 
-    // Setup
+    // Setup for tests
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
