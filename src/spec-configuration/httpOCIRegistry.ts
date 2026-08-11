@@ -483,20 +483,26 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		output.write(`[httpOci] Attempting to fetch bearer token from:  ${httpOptions.url}`, LogLevel.Trace);
 	}
 
-	let res = await requestResolveHeadersNoRedirects(httpOptions, output);
-	if (sentCredentials && (res.statusCode === 401 || res.statusCode === 403)) {
-		output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
-		const body = res.resBody?.toString();
-		if (body) {
-			output.write(`${res.resBody.toString()}.`, LogLevel.Info);
-		}
-
-		// Build a fresh GET so neither an Authorization header nor a refresh-token POST body is reused.
-		httpOptions = createGetHttpOptions();
+	let res: Awaited<ReturnType<typeof requestResolveHeadersNoRedirects>>;
+	try {
 		res = await requestResolveHeadersNoRedirects(httpOptions, output);
+		if (sentCredentials && (res.statusCode === 401 || res.statusCode === 403)) {
+			output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
+			const body = res.resBody?.toString();
+			if (body) {
+				output.write(`${res.resBody.toString()}.`, LogLevel.Info);
+			}
+
+			// Build a fresh GET so neither an Authorization header nor a refresh-token POST body is reused.
+			httpOptions = createGetHttpOptions();
+			res = await requestResolveHeadersNoRedirects(httpOptions, output);
+		}
+	} catch (err) {
+		output.write(`[httpOci] Failed to request bearer token for '${service}': ${err}`, LogLevel.Error);
+		return;
 	}
 
-	if (!res || res.statusCode > 299 || !res.resBody) {
+	if (res.statusCode > 299 || !res.resBody) {
 		output.write(`[httpOci] ${res.statusCode}: Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
 		return;
 	}

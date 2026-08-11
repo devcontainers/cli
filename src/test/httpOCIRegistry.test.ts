@@ -152,21 +152,16 @@ describe('OCI registry authentication', () => {
 				version: 'latest',
 			};
 
-			let error: NodeJS.ErrnoException | undefined;
-			try {
-				await requestEnsureAuthenticated({
-					env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
-					output: nullLog,
-				}, {
-					type: 'GET',
-					url: `http://${registry}/v2/test/features/manifests/latest`,
-					headers: {},
-				}, ociRef);
-			} catch (err) {
-				error = err;
-			}
+			const result = await requestEnsureAuthenticated({
+				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
+				output: nullLog,
+			}, {
+				type: 'GET',
+				url: `http://${registry}/v2/test/features/manifests/latest`,
+				headers: {},
+			}, ociRef);
 
-			assert.equal(error?.code, 'ERR_FR_TOO_MANY_REDIRECTS');
+			assert.isUndefined(result);
 			assert.equal(registryRequests, 2);
 			assert.equal(redirectTargetRequests, 0);
 		} finally {
