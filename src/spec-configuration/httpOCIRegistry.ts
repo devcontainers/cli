@@ -86,7 +86,7 @@ function isAllowedSameAuthorityRealm(registryUrl: URL, realmUrl: URL) {
 		|| realmUrl.protocol === 'http:' && realmUrl.hostname.toLowerCase() === 'localhost';
 }
 
-function canForwardCredentialToTokenServiceForPolicy(realm: string, registryUrl: URL, credentialType: RegistryCredentialType, crossOriginAuthHosts: Map<string, Set<string>>): boolean {
+function canForwardCredentialToTokenServiceForPolicy(realm: string, registryUrl: URL, crossOriginAuthHosts: Map<string, Set<string>>): boolean {
 	let realmUrl: URL;
 	try {
 		realmUrl = new URL(realm);
@@ -98,14 +98,12 @@ function canForwardCredentialToTokenServiceForPolicy(realm: string, registryUrl:
 		return true;
 	}
 
-	return credentialType === 'basic'
-		&& realmUrl.protocol === 'https:'
+	return realmUrl.protocol === 'https:'
 		&& isConfiguredCrossOriginAuthHost(registryUrl, realmUrl, crossOriginAuthHosts);
 }
 
-// Endpoint admission and credential forwarding are separate policies. Refresh tokens
-// never cross an origin boundary, even when Basic authentication is explicitly allowed.
-export function canForwardCredentialToTokenService(realm: string, registryUrl: string, credentialType: RegistryCredentialType, configuredEntries: readonly string[] = []): boolean {
+// A trusted registry-to-auth-host pair authorizes the registry's complete token exchange.
+export function canForwardCredentialToTokenService(realm: string, registryUrl: string, _credentialType: RegistryCredentialType, configuredEntries: readonly string[] = []): boolean {
 	let parsedRegistryUrl: URL;
 	try {
 		parsedRegistryUrl = new URL(registryUrl);
@@ -116,7 +114,6 @@ export function canForwardCredentialToTokenService(realm: string, registryUrl: s
 	return canForwardCredentialToTokenServiceForPolicy(
 		realm,
 		parsedRegistryUrl,
-		credentialType,
 		parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...configuredEntries])
 	);
 }
@@ -488,8 +485,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	const userCredential = canUseRegistryCredentials ? await getCredential(params, ociRef) : undefined;
 	const basicAuthCredential = userCredential?.base64EncodedCredential;
 	const refreshToken = userCredential?.refreshToken;
-	const canForwardBasicCredential = canForwardCredentialToTokenServiceForPolicy(realm, registryUrl, 'basic', crossOriginAuthHosts);
-	const canForwardRefreshToken = canForwardCredentialToTokenServiceForPolicy(realm, registryUrl, 'refreshToken', crossOriginAuthHosts);
+	const canForwardCredential = canForwardCredentialToTokenServiceForPolicy(realm, registryUrl, crossOriginAuthHosts);
 
 	let httpOptions: { type: string; url: string; headers: Record<string, string>; data?: Buffer };
 	let sentCredentials = false;
@@ -514,16 +510,16 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		};
 	};
 
-	if (refreshToken && !canForwardRefreshToken) {
+	if (refreshToken && !canForwardCredential) {
 		output.write(`[httpOci] Refusing to send refresh token to bearer token realm '${realm}' for registry '${ociRef.registry}'.`, LogLevel.Warning);
 	}
-	if (basicAuthCredential && !canForwardBasicCredential) {
+	if (basicAuthCredential && !canForwardCredential) {
 		output.write(`[httpOci] Refusing to send Basic credential to bearer token realm '${realm}' for registry '${ociRef.registry}'.`, LogLevel.Warning);
 	}
 
 	// There are several different ways registries expect to handle the oauth token exchange. 
 	// Depending on the type of credential available, use the most reasonable method.
-	if (refreshToken && canForwardRefreshToken) {
+	if (refreshToken && canForwardCredential) {
 		const form_url_encoded = new URLSearchParams();
 		form_url_encoded.append('client_id', 'devcontainer');
 		form_url_encoded.append('grant_type', 'refresh_token');
@@ -550,7 +546,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		// scope="repository:samalba/my-app:pull,push"
 		// Example:
 		// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
-		const authorization = basicAuthCredential && canForwardBasicCredential
+		const authorization = basicAuthCredential && canForwardCredential
 			? `Basic ${basicAuthCredential}`
 			: undefined;
 		httpOptions = createGetHttpOptions(authorization);

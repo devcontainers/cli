@@ -1,5 +1,8 @@
 import * as http from 'http';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { AddressInfo } from 'net';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 import { assert } from 'chai';
 
@@ -64,18 +67,18 @@ describe('OCI registry authentication', () => {
 			assert.isFalse(canForwardCredentialToTokenService(realm, 'https://registry.example/v2/', 'refreshToken'));
 		});
 
-		it('allows only Basic credentials for the Docker Hub token service', () => {
+		it('allows Basic and refresh credentials for the Docker Hub token service', () => {
 			const realm = 'https://auth.docker.io/token';
 			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://registry-1.docker.io/v2/', 'basic'));
-			assert.isFalse(canForwardCredentialToTokenService(realm, 'https://registry-1.docker.io/v2/', 'refreshToken'));
+			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://registry-1.docker.io/v2/', 'refreshToken'));
 		});
 
-		it('allows only Basic credentials for an explicitly configured mapping', () => {
+		it('allows Basic and refresh credentials for an explicitly configured mapping', () => {
 			const realm = 'https://auth.example/token';
 			const registryUrl = 'https://registry.example/v2/';
 			const configured = ['registry.example=auth.example'];
 			assert.isTrue(canForwardCredentialToTokenService(realm, registryUrl, 'basic', configured));
-			assert.isFalse(canForwardCredentialToTokenService(realm, registryUrl, 'refreshToken', configured));
+			assert.isTrue(canForwardCredentialToTokenService(realm, registryUrl, 'refreshToken', configured));
 		});
 
 		it('rejects credentials for token services owned by another registry', () => {
@@ -148,14 +151,25 @@ describe('OCI registry authentication', () => {
 		}
 	});
 
-	it('uses an explicitly configured registry-to-auth-host mapping', async () => {
+	it('forwards a refresh token to an explicitly configured auth host', async () => {
 		const token = 'registry-token';
+		const refreshToken = 'registry-refresh-token';
 		const bearerScheme = ['Bear', 'er'].join('');
 		let tokenRequests = 0;
-		const tokenServer = http.createServer((request, response) => {
+		const tokenServer = http.createServer(async (request, response) => {
 			tokenRequests++;
-			assert.equal(request.headers.authorization, `Basic ${Buffer.from('user:token').toString('base64')}`);
-			response.end(JSON.stringify({ token }));
+			try {
+				const chunks: Buffer[] = [];
+				for await (const chunk of request) {
+					chunks.push(chunk as Buffer);
+				}
+				const body = new URLSearchParams(Buffer.concat(chunks).toString());
+				assert.equal(request.method, 'POST');
+				assert.equal(body.get('refresh_token'), refreshToken);
+				response.end(JSON.stringify({ token }));
+			} catch (err) {
+				response.destroy(err as Error);
+			}
 		});
 		const tokenPort = await listen(tokenServer);
 
@@ -174,6 +188,17 @@ describe('OCI registry authentication', () => {
 		});
 		const registryPort = await listen(registryServer);
 		const registry = `localhost:${registryPort}`;
+		const dockerConfig = await mkdtemp(join(tmpdir(), 'devcontainers-oci-auth-'));
+		await writeFile(join(dockerConfig, 'config.json'), JSON.stringify({
+			auths: {
+				[registry]: {
+					auth: '',
+					identitytoken: refreshToken,
+				},
+			},
+		}));
+		const previousDockerConfig = process.env.DOCKER_CONFIG;
+		process.env.DOCKER_CONFIG = dockerConfig;
 
 		try {
 			const ociRef: OCICollectionRef = {
@@ -185,7 +210,7 @@ describe('OCI registry authentication', () => {
 			};
 
 			const result = await requestEnsureAuthenticated({
-				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
+				env: {},
 				output: nullLog,
 				allowedCrossOriginAuthHosts: [`${registry}=localhost:${tokenPort}`],
 			}, {
@@ -198,6 +223,12 @@ describe('OCI registry authentication', () => {
 			assert.equal(registryRequests, 2);
 			assert.equal(tokenRequests, 1);
 		} finally {
+			if (previousDockerConfig === undefined) {
+				delete process.env.DOCKER_CONFIG;
+			} else {
+				process.env.DOCKER_CONFIG = previousDockerConfig;
+			}
+			await rm(dockerConfig, { recursive: true });
 			await Promise.all([close(registryServer), close(tokenServer)]);
 		}
 	});
