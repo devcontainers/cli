@@ -74,6 +74,7 @@ export interface ProvisionOptions {
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
 	includeMergedConfig?: boolean;
+	allowedCrossOriginAuthHosts?: string[];
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -162,6 +163,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 			targetPath: options.dotfiles.targetPath || '~/dotfiles',
 		},
 		omitSyntaxDirective: options.omitSyntaxDirective,
+		allowedCrossOriginAuthHosts: options.allowedCrossOriginAuthHosts,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

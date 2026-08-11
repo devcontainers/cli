@@ -195,6 +195,7 @@ export interface ContainerFeatureInternalParams {
 	platform: NodeJS.Platform;
 	noLockfile?: boolean;
 	frozenLockfile?: boolean;
+	allowedCrossOriginAuthHosts?: string[];
 }
 
 // TODO: Move to node layer.

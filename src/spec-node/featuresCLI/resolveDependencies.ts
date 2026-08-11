@@ -3,7 +3,7 @@ import { Argv } from 'yargs';
 import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { isLocalFile } from '../../spec-utils/pfs';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { buildDependencyGraph, computeDependsOnInstallationOrder, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
@@ -34,7 +34,7 @@ export function featuresResolveDependenciesOptions(y: Argv) {
 		});
 }
 
-export type featuresResolveDependenciesArgs = UnpackArgv<ReturnType<typeof featuresResolveDependenciesOptions>>;
+export type featuresResolveDependenciesArgs = UnpackArgv<ReturnType<typeof featuresResolveDependenciesOptions>> & OciAuthArgs;
 
 export function featuresResolveDependenciesHandler(args: featuresResolveDependenciesArgs) {
 	runAsyncHandler(featuresResolveDependencies.bind(null, args));
@@ -43,6 +43,7 @@ export function featuresResolveDependenciesHandler(args: featuresResolveDependen
 async function featuresResolveDependencies({
 	'workspace-folder': workspaceFolderArg,
 	'log-level': inputLogLevel,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: featuresResolveDependenciesArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -73,6 +74,7 @@ async function featuresResolveDependencies({
 	const params = {
 		output,
 		env: process.env,
+		allowedCrossOriginAuthHosts,
 	};
 
 	const cwd = workspaceFolder || process.cwd();

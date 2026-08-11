@@ -5,7 +5,7 @@ import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
@@ -22,7 +22,7 @@ export function templatesPublishOptions(y: Argv) {
     return publishOptions(y, 'template');
 }
 
-export type TemplatesPublishArgs = UnpackArgv<ReturnType<typeof templatesPublishOptions>>;
+export type TemplatesPublishArgs = UnpackArgv<ReturnType<typeof templatesPublishOptions>> & OciAuthArgs;
 
 export function templatesPublishHandler(args: TemplatesPublishArgs) {
 	runAsyncHandler(templatesPublish.bind(null, args));
@@ -32,7 +32,8 @@ async function templatesPublish({
     'target': targetFolder,
     'log-level': inputLogLevel,
     'registry': registry,
-    'namespace': namespace
+    'namespace': namespace,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: TemplatesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
@@ -50,7 +51,7 @@ async function templatesPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts };
 
     // Package templates
     const outputDir = path.join(os.tmpdir(), `/templates-output-${Date.now()}`);

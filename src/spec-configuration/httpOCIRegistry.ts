@@ -37,8 +37,6 @@ const scopeRegex = /scope="([^"]+)"/;
 
 type RegistryCredentialType = 'basic' | 'refreshToken';
 
-export const allowCrossOriginAuthHostEnv = 'DEVCONTAINERS_INTERNAL_ALLOW_CROSS_ORIGIN_AUTH_HOST';
-
 const builtInCrossOriginAuthHosts = [
 	'registry-1.docker.io=auth.docker.io',
 	'registry.docker.io=auth.docker.io',
@@ -74,19 +72,6 @@ export function parseCrossOriginAuthHosts(entries: readonly string[]): Map<strin
 		result.set(registry, authHosts);
 	}
 	return result;
-}
-
-function getCrossOriginAuthHosts(env: NodeJS.ProcessEnv) {
-	const configured = env[allowCrossOriginAuthHostEnv];
-	let configuredEntries: string[] = [];
-	if (configured) {
-		const parsed: unknown = JSON.parse(configured);
-		if (!Array.isArray(parsed) || parsed.some(entry => typeof entry !== 'string')) {
-			throw new Error(`Invalid ${allowCrossOriginAuthHostEnv} value.`);
-		}
-		configuredEntries = parsed;
-	}
-	return parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...configuredEntries]);
 }
 
 function isConfiguredCrossOriginAuthHost(registryUrl: URL, realmUrl: URL, crossOriginAuthHosts: Map<string, Set<string>>) {
@@ -235,7 +220,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			}
 			let crossOriginAuthHosts: Map<string, Set<string>>;
 			try {
-				crossOriginAuthHosts = getCrossOriginAuthHosts(params.env);
+				crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
 			} catch (err) {
 				output.write(`[httpOci] ERR: ${err}`, LogLevel.Error);
 				return;

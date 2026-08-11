@@ -54,6 +54,7 @@ export interface DockerCLIParameters {
 	output: Log;
 	buildPlatformInfo: PlatformInfo;
 	targetPlatformInfo: PlatformInfo;
+	allowedCrossOriginAuthHosts?: string[];
 }
 
 export interface PartialExecParameters {

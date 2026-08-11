@@ -45,7 +45,7 @@ import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './feat
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
-import { allowCrossOriginAuthHostEnv, parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
+import { parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -70,14 +70,14 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		.option('allow-cross-origin-auth-host', {
 			type: 'string',
 			array: true,
+			nargs: 1,
 			global: true,
 			description: 'Allow an OCI registry to use a cross-origin HTTPS authentication host. Format: <registry-host>=<auth-host>. May be repeated.',
 		})
-		.middleware(args => {
-			const entries = args['allow-cross-origin-auth-host'] || [];
-			parseCrossOriginAuthHosts(entries);
-			process.env[allowCrossOriginAuthHostEnv] = JSON.stringify(entries);
-		}, true)
+		.check(args => {
+			parseCrossOriginAuthHosts(getAllowedCrossOriginAuthHosts(args as OciAuthArgs));
+			return true;
+		})
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
 	y.command('up', 'Create and run dev container', provisionOptions, provisionHandler);
@@ -108,6 +108,11 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 })().catch(console.error);
 
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
+export type OciAuthArgs = { 'allow-cross-origin-auth-host'?: string[] };
+
+export function getAllowedCrossOriginAuthHosts(args: OciAuthArgs) {
+	return args['allow-cross-origin-auth-host'] || [];
+}
 
 function provisionOptions(y: Argv) {
 	return y.options({
@@ -188,7 +193,7 @@ function provisionOptions(y: Argv) {
 		});
 }
 
-type ProvisionArgs = UnpackArgv<ReturnType<typeof provisionOptions>>;
+type ProvisionArgs = UnpackArgv<ReturnType<typeof provisionOptions>> & OciAuthArgs;
 
 function provisionHandler(args: ProvisionArgs) {
 	runAsyncHandler(provision.bind(null, args));
@@ -241,6 +246,7 @@ async function provision({
 	'omit-syntax-directive': omitSyntaxDirective,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: ProvisionArgs) {
 
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
@@ -315,6 +321,7 @@ async function provision({
 		omitSyntaxDirective,
 		includeConfig,
 		includeMergedConfig,
+		allowedCrossOriginAuthHosts,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -395,7 +402,7 @@ function setUpOptions(y: Argv) {
 		});
 }
 
-type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>>;
+type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>> & OciAuthArgs;
 
 function setUpHandler(args: SetUpArgs) {
 	runAsyncHandler(setUp.bind(null, args));
@@ -432,6 +439,7 @@ async function doSetUp({
 	'container-session-data-folder': containerSessionDataFolder,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: SetUpArgs) {
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -482,6 +490,7 @@ async function doSetUp({
 				installCommand: dotfilesInstallCommand,
 				targetPath: dotfilesTargetPath,
 			},
+			allowedCrossOriginAuthHosts,
 		}, disposables);
 
 		const { common } = params;
@@ -573,7 +582,7 @@ function buildOptions(y: Argv) {
 		});
 }
 
-type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
+type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>> & OciAuthArgs;
 
 function buildHandler(args: BuildArgs) {
 	runAsyncHandler(build.bind(null, args));
@@ -614,6 +623,7 @@ async function doBuild({
 	'no-lockfile': noLockfile,
 	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: BuildArgs) {
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
 	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
@@ -667,6 +677,7 @@ async function doBuild({
 			noLockfile,
 			frozenLockfile: effectiveFrozenLockfile,
 			omitSyntaxDirective,
+			allowedCrossOriginAuthHosts,
 		}, disposables);
 
 		const { common, dockerComposeCLI } = params;
@@ -842,7 +853,7 @@ function runUserCommandsOptions(y: Argv) {
 		});
 }
 
-type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>>;
+type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>> & OciAuthArgs;
 
 function runUserCommandsHandler(args: RunUserCommandsArgs) {
 	runAsyncHandler(runUserCommands.bind(null, args));
@@ -1035,7 +1046,7 @@ function readConfigurationOptions(y: Argv) {
 		});
 }
 
-type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>>;
+type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>> & OciAuthArgs;
 
 function readConfigurationHandler(args: ReadConfigurationArgs) {
 	runAsyncHandler(readConfiguration.bind(null, args));
@@ -1060,6 +1071,7 @@ async function readConfiguration({
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1116,7 +1128,8 @@ async function readConfiguration({
 			env: cliHost.env,
 			output,
 			buildPlatformInfo,
-			targetPlatformInfo: buildPlatformInfo
+			targetPlatformInfo: buildPlatformInfo,
+			allowedCrossOriginAuthHosts,
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
@@ -1174,7 +1187,7 @@ function outdatedOptions(y: Argv) {
 	});
 }
 
-type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
+type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>> & OciAuthArgs;
 
 function outdatedHandler(args: OutdatedArgs) {
 	runAsyncHandler(outdated.bind(null, args));
@@ -1189,6 +1202,7 @@ async function outdated({
 	'log-format': logFormat,
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: OutdatedArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1225,6 +1239,7 @@ async function outdated({
 			env: cliHost.env,
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
+			allowedCrossOriginAuthHosts,
 		};
 
 		const outdated = await loadVersionInfo(params, configs.config.config);

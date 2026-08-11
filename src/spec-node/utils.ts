@@ -285,7 +285,8 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			throw inspectErr;
 		}
 		try {
-			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName);
+			const allowedCrossOriginAuthHosts = 'cliHost' in params ? params.allowedCrossOriginAuthHosts : params.common.allowedCrossOriginAuthHosts;
+			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName, allowedCrossOriginAuthHosts);
 		} catch (inspectErr2) {
 			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
@@ -317,9 +318,9 @@ function logErrorStdoutStderr(err: any, output: Log) {
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string, allowedCrossOriginAuthHosts?: string[]): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
-	const params = { output, env: process.env };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts };
 	const ref = getRef(output, resourceAndVersion);
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);

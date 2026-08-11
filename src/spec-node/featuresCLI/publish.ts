@@ -5,7 +5,7 @@ import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { rmLocal } from '../../spec-utils/pfs';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { doFeaturesPackageCommand } from './packageCommandImpl';
 import { getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
@@ -21,7 +21,7 @@ export function featuresPublishOptions(y: Argv) {
     return publishOptions(y, 'feature');
 }
 
-export type FeaturesPublishArgs = UnpackArgv<ReturnType<typeof featuresPublishOptions>>;
+export type FeaturesPublishArgs = UnpackArgv<ReturnType<typeof featuresPublishOptions>> & OciAuthArgs;
 
 export function featuresPublishHandler(args: FeaturesPublishArgs) {
 	runAsyncHandler(featuresPublish.bind(null, args));
@@ -31,7 +31,8 @@ async function featuresPublish({
     'target': targetFolder,
     'log-level': inputLogLevel,
     'registry': registry,
-    'namespace': namespace
+    'namespace': namespace,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: FeaturesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
@@ -49,7 +50,7 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts };
 
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);

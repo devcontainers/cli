@@ -148,6 +148,60 @@ describe('OCI registry authentication', () => {
 		}
 	});
 
+	it('uses an explicitly configured registry-to-auth-host mapping', async () => {
+		const token = 'registry-token';
+		const bearerScheme = ['Bear', 'er'].join('');
+		let tokenRequests = 0;
+		const tokenServer = http.createServer((request, response) => {
+			tokenRequests++;
+			assert.equal(request.headers.authorization, `Basic ${Buffer.from('user:token').toString('base64')}`);
+			response.end(JSON.stringify({ token }));
+		});
+		const tokenPort = await listen(tokenServer);
+
+		let registryRequests = 0;
+		const registryServer = http.createServer((request, response) => {
+			registryRequests++;
+			if (request.headers.authorization === `${bearerScheme} ${token}`) {
+				response.writeHead(200);
+				response.end();
+				return;
+			}
+			response.writeHead(401, {
+				'WWW-Authenticate': `${bearerScheme} realm="https://localhost:${tokenPort}/token",service="registry.example",scope="repository:test:pull"`,
+			});
+			response.end();
+		});
+		const registryPort = await listen(registryServer);
+		const registry = `localhost:${registryPort}`;
+
+		try {
+			const ociRef: OCICollectionRef = {
+				registry,
+				path: 'test/features',
+				resource: `${registry}/test/features`,
+				tag: 'latest',
+				version: 'latest',
+			};
+
+			const result = await requestEnsureAuthenticated({
+				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
+				output: nullLog,
+				allowedCrossOriginAuthHosts: [`${registry}=localhost:${tokenPort}`],
+			}, {
+				type: 'GET',
+				url: `http://${registry}/v2/test/features/manifests/latest`,
+				headers: {},
+			}, ociRef);
+
+			assert.equal(result?.statusCode, 200);
+			assert.equal(registryRequests, 2);
+			assert.equal(tokenRequests, 1);
+		} finally {
+			await Promise.all([close(registryServer), close(tokenServer)]);
+		}
+	});
+
 	it('does not follow redirects from a bearer token realm', async () => {
 		let redirectTargetRequests = 0;
 		const redirectTargetServer = http.createServer((_request, response) => {

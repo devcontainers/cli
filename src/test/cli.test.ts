@@ -27,6 +27,11 @@ describe('Dev Containers CLI', function () {
 		assert.ok(res.stdout.indexOf('run-user-commands'), 'Help text is not mentioning run-user-commands.');
 	});
 
+	it('Global options consume exactly one argument', async () => {
+		const res = await shellExec(`${cli} --allow-cross-origin-auth-host registry.example=auth.example features info --help`);
+		assert.ok(res.stdout.includes('devcontainer features info <mode> <feature>'));
+	});
+
 	describe('Command run-user-commands', () => {
 		describe('with valid config', () => {
 			let containerId: string | null = null;

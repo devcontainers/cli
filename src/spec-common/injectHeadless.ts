@@ -69,6 +69,7 @@ export interface ResolverParameters {
 	omitConfigRemotEnvFromMetadata?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
+	allowedCrossOriginAuthHosts?: string[];
 }
 
 export interface LifecycleHook {

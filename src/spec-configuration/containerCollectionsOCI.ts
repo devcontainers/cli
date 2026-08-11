@@ -18,6 +18,7 @@ export interface CommonParams {
 	env: NodeJS.ProcessEnv;
 	output: Log;
 	cachedAuthHeader?: Record<string, string>; // <registry, authHeader>
+	allowedCrossOriginAuthHosts?: string[];
 }
 
 // Represents the unique OCI identifier for a Feature or Template.

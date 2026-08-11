@@ -3,7 +3,7 @@ import { OCIManifest, OCIRef, fetchOCIManifestIfExists, getPublishedTags, getRef
 import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { buildDependencyGraph, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
@@ -19,7 +19,7 @@ export function featuresInfoOptions(y: Argv) {
 		.positional('feature', { type: 'string', demandOption: true, description: 'Feature Identifier' });
 }
 
-export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>>;
+export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>> & OciAuthArgs;
 
 export function featuresInfoHandler(args: FeaturesInfoArgs) {
 	runAsyncHandler(featuresInfo.bind(null, args));
@@ -36,6 +36,7 @@ async function featuresInfo({
 	'feature': featureId,
 	'log-level': inputLogLevel,
 	'output-format': outputFormat,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: FeaturesInfoArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -51,7 +52,7 @@ async function featuresInfo({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const params = { output, env: process.env, outputFormat };
+	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts };
 
 	const jsonOutput: InfoJsonOutput = {};
 

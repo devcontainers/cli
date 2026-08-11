@@ -1,5 +1,5 @@
 import { Argv } from 'yargs';
-import { UnpackArgv } from './devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from './devContainersSpecCLI';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Log, LogLevel, mapLogLevel } from '../spec-utils/log';
 import { createLog } from './devContainers';
@@ -47,7 +47,7 @@ export function featuresUpgradeOptions(y: Argv) {
 		});
 }
 
-export type FeaturesUpgradeArgs = UnpackArgv<ReturnType<typeof featuresUpgradeOptions>>;
+export type FeaturesUpgradeArgs = UnpackArgv<ReturnType<typeof featuresUpgradeOptions>> & OciAuthArgs;
 
 export function featuresUpgradeHandler(args: FeaturesUpgradeArgs) {
 	runAsyncHandler(featuresUpgrade.bind(null, args));
@@ -62,6 +62,7 @@ async function featuresUpgrade({
 	'dry-run': dryRun,
 	feature: feature,
 	'target-version': targetVersion,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -98,6 +99,7 @@ async function featuresUpgrade({
 			output,
 			buildPlatformInfo,
 			targetPlatformInfo: buildPlatformInfo,
+			allowedCrossOriginAuthHosts,
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
@@ -112,6 +114,7 @@ async function featuresUpgrade({
 			env: cliHost.env,
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
+			allowedCrossOriginAuthHosts,
 		};
 
 		if (feature && targetVersion) {
