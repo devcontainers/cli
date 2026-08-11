@@ -337,6 +337,16 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
+	const registryHostname = ref.registry.startsWith('[')
+		? ref.registry.slice(1, ref.registry.indexOf(']'))
+		: ref.registry.split(':', 1)[0];
+	// Preserve legacy owner/repository/feature IDs while allowing explicit local and IP registries.
+	if (!registryHostname.includes('.')
+		&& registryHostname !== 'localhost'
+		&& isIP(registryHostname) === 0) {
+		return;
+	}
+
 	// TODO: Always use the manifest digest (the canonical digest)
 	//       instead of the `ref.version` by referencing some lock file (if available).
 	let reference = ref.version;

@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { getRef, getManifest, getBlob, getCollectionRef } from '../../spec-configuration/containerCollectionsOCI';
+import { fetchOCIManifestIfExists, getRef, getManifest, getBlob, getCollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -72,6 +72,14 @@ describe('getCollectionRef()', async function () {
 
 describe('getRef()', async function () {
     this.timeout('120s');
+
+    it('does not fetch an OCI manifest for a legacy single-label Feature ID', async () => {
+        const featureRef = getRef(output, 'codspace/myfeatures/helloworld');
+        assert.isDefined(featureRef);
+
+        const manifest = await fetchOCIManifestIfExists({ env: {}, output }, featureRef!);
+        assert.isUndefined(manifest);
+    });
 
     it('valid getRef() with a tag', async () => {
         const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker:latest');
