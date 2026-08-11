@@ -88,7 +88,8 @@ describe('Dev Container Features E2E (remote)', function () {
                 const response = JSON.parse(res.stdout);
                 console.log(res.stderr);
 
-                assert.strictEqual(response.featuresConfiguration?.featureSets.length, 3);
+                // The deprecated terraform shorthand resolves to terraform:1, which has github-cli as a hard dependency.
+                assert.strictEqual(response.featuresConfiguration?.featureSets.length, 4);
 
                 const dind = response?.featuresConfiguration.featureSets.find((f: FeatureSet) => f?.features[0]?.id === 'docker-in-docker');
                 assert.exists(dind);
