@@ -46,6 +46,18 @@ describe('getCollectionRef()', async function () {
         assert.equal(collectionRef.tag, collectionRef.version);
     });
 
+    it('valid getCollectionRef() with localhost and IP registries', async () => {
+        assert.equal(getCollectionRef(output, 'localhost:5000', 'devcontainers/templates')?.registry, 'localhost:5000');
+        assert.equal(getCollectionRef(output, '127.0.0.1:5000', 'devcontainers/templates')?.registry, '127.0.0.1:5000');
+        assert.equal(getCollectionRef(output, '[::1]:5000', 'devcontainers/templates')?.registry, '[::1]:5000');
+    });
+
+    it('invalid getCollectionRef() with malformed registry authorities', async () => {
+        for (const registry of ['https://ghcr.io', 'user@ghcr.io', 'ghcr.io/path', '.ghcr.io', 'ghcr..io', 'ghcr_io', 'ghcr.io:', 'ghcr.io:0', 'ghcr.io:65536']) {
+            assert.isUndefined(getCollectionRef(output, registry, 'devcontainers/templates'), registry);
+        }
+    });
+
     it('invalid getCollectionRef() with an invalid character in path', async () => {
         const collectionRef = getCollectionRef(output, 'ghcr.io', 'devcont%ainers/templates');
         assert.isUndefined(collectionRef);
@@ -210,6 +222,18 @@ describe('getRef()', async function () {
         assert.equal(feat.path, 'a/b/c');
         assert.equal(feat.tag, 'latest'); // Defaults to 'latest' if not version supplied. 
         assert.equal(feat.tag, feat.version);
+    });
+
+    it('valid getRef() with localhost and IP registries', async () => {
+        assert.equal(getRef(output, 'localhost:5000/a/b/c')?.registry, 'localhost:5000');
+        assert.equal(getRef(output, '127.0.0.1:5000/a/b/c')?.registry, '127.0.0.1:5000');
+        assert.equal(getRef(output, '[::1]:5000/a/b/c')?.registry, '[::1]:5000');
+    });
+
+    it('invalid getRef() with malformed registry authorities', async () => {
+        for (const registry of ['user@ghcr.io', '.ghcr.io', 'ghcr..io', 'ghcr_io', 'ghcr.io:', 'ghcr.io:0', 'ghcr.io:65536']) {
+            assert.isUndefined(getRef(output, `${registry}/a/b/c`), registry);
+        }
     });
 
     it('invalid getRef() with duplicate version tags', async () => {
