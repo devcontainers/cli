@@ -79,11 +79,27 @@ export async function headRequest(options: { url: string; headers: Record<string
 	});
 }
 
+type RequestResolveHeadersOptions = {
+	type: string;
+	url: string;
+	headers: Record<string, string>;
+	data?: Buffer;
+};
+
 // Send HTTP Request.
 // Does not throw on status code, but rather always returns 'statusCode', 'resHeaders', and 'resBody'.
-export async function requestResolveHeaders(options: { type: string; url: string; headers: Record<string, string>; data?: Buffer }, output: Log) {
+export async function requestResolveHeaders(options: RequestResolveHeadersOptions, output: Log) {
+	return requestResolveHeadersInternal(options, output);
+}
+
+// Token endpoints must not redirect around their validated authority boundary.
+export async function requestResolveHeadersNoRedirects(options: RequestResolveHeadersOptions, output: Log) {
+	return requestResolveHeadersInternal(options, output, 0);
+}
+
+async function requestResolveHeadersInternal(options: RequestResolveHeadersOptions, output: Log, maxRedirects?: number) {
 	const secureContext = await secureContextWithExtraCerts(output);
-	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer }>((resolve, reject) => {
+	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer; responseUrl: string }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions & tls.CommonConnectionOptions & FollowOptions<any> = {
 			hostname: parsed.hostname,
@@ -95,6 +111,9 @@ export async function requestResolveHeaders(options: { type: string; url: string
 			agent: new ProxyAgent(),
 			secureContext,
 		};
+		if (maxRedirects !== undefined) {
+			reqOptions.maxRedirects = maxRedirects;
+		}
 
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
 		if (plainHTTP) {
@@ -111,7 +130,8 @@ export async function requestResolveHeaders(options: { type: string; url: string
 				resolve({
 					statusCode: res.statusCode!,
 					resHeaders: res.headers! as Record<string, string>,
-					resBody: Buffer.concat(chunks)
+					resBody: Buffer.concat(chunks),
+					responseUrl: res.responseUrl,
 				});
 			});
 		});

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 
 import { runCommandNoPty, plainExec } from '../spec-common/commonUtils';
-import { requestResolveHeaders } from '../spec-utils/httpRequest';
+import { requestResolveHeaders, requestResolveHeadersNoRedirects } from '../spec-utils/httpRequest';
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
@@ -34,6 +34,139 @@ interface CredentialHelperResult {
 const realmRegex = /realm="([^"]+)"/;
 const serviceRegex = /service="([^"]+)"/;
 const scopeRegex = /scope="([^"]+)"/;
+
+type RegistryCredentialType = 'basic' | 'refreshToken';
+
+export const allowCrossOriginAuthHostEnv = 'DEVCONTAINERS_INTERNAL_ALLOW_CROSS_ORIGIN_AUTH_HOST';
+
+const builtInCrossOriginAuthHosts = [
+	'registry-1.docker.io=auth.docker.io',
+	'registry.docker.io=auth.docker.io',
+	'docker.io=auth.docker.io',
+	'index.docker.io=auth.docker.io',
+	'registry.gitlab.com=gitlab.com',
+];
+
+function normalizeHttpsAuthority(authority: string): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(`https://${authority}`);
+	} catch {
+		throw new Error(`Invalid authority '${authority}'.`);
+	}
+	if (parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+		throw new Error(`Invalid authority '${authority}'.`);
+	}
+	return parsed.host.toLowerCase();
+}
+
+export function parseCrossOriginAuthHosts(entries: readonly string[]): Map<string, Set<string>> {
+	const result = new Map<string, Set<string>>();
+	for (const entry of entries) {
+		const separator = entry.indexOf('=');
+		if (separator <= 0 || separator !== entry.lastIndexOf('=') || separator === entry.length - 1) {
+			throw new Error(`Invalid cross-origin auth host '${entry}'. Expected '<registry-host>=<auth-host>'.`);
+		}
+		const registry = normalizeHttpsAuthority(entry.slice(0, separator));
+		const authHost = normalizeHttpsAuthority(entry.slice(separator + 1));
+		const authHosts = result.get(registry) || new Set<string>();
+		authHosts.add(authHost);
+		result.set(registry, authHosts);
+	}
+	return result;
+}
+
+function getCrossOriginAuthHosts(env: NodeJS.ProcessEnv) {
+	const configured = env[allowCrossOriginAuthHostEnv];
+	let configuredEntries: string[] = [];
+	if (configured) {
+		const parsed: unknown = JSON.parse(configured);
+		if (!Array.isArray(parsed) || parsed.some(entry => typeof entry !== 'string')) {
+			throw new Error(`Invalid ${allowCrossOriginAuthHostEnv} value.`);
+		}
+		configuredEntries = parsed;
+	}
+	return parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...configuredEntries]);
+}
+
+function isConfiguredCrossOriginAuthHost(registryUrl: URL, realmUrl: URL, crossOriginAuthHosts: Map<string, Set<string>>) {
+	return crossOriginAuthHosts.get(registryUrl.host.toLowerCase())?.has(realmUrl.host.toLowerCase()) || false;
+}
+
+function isAllowedSameAuthorityRealm(registryUrl: URL, realmUrl: URL) {
+	if (registryUrl.host.toLowerCase() !== realmUrl.host.toLowerCase()) {
+		return false;
+	}
+	return realmUrl.protocol === 'https:'
+		|| realmUrl.protocol === 'http:' && realmUrl.hostname.toLowerCase() === 'localhost';
+}
+
+function canForwardCredentialToTokenServiceForPolicy(realm: string, registryUrl: URL, credentialType: RegistryCredentialType, crossOriginAuthHosts: Map<string, Set<string>>): boolean {
+	let realmUrl: URL;
+	try {
+		realmUrl = new URL(realm);
+	} catch {
+		return false;
+	}
+
+	if (isAllowedSameAuthorityRealm(registryUrl, realmUrl)) {
+		return true;
+	}
+
+	return credentialType === 'basic'
+		&& realmUrl.protocol === 'https:'
+		&& isConfiguredCrossOriginAuthHost(registryUrl, realmUrl, crossOriginAuthHosts);
+}
+
+// Endpoint admission and credential forwarding are separate policies. Refresh tokens
+// never cross an origin boundary, even when Basic authentication is explicitly allowed.
+export function canForwardCredentialToTokenService(realm: string, registryUrl: string, credentialType: RegistryCredentialType, configuredEntries: readonly string[] = []): boolean {
+	let parsedRegistryUrl: URL;
+	try {
+		parsedRegistryUrl = new URL(registryUrl);
+	} catch {
+		return false;
+	}
+
+	return canForwardCredentialToTokenServiceForPolicy(
+		realm,
+		parsedRegistryUrl,
+		credentialType,
+		parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...configuredEntries])
+	);
+}
+
+function isAllowedTokenServiceRealmForPolicy(realm: string, registryUrl: URL, crossOriginAuthHosts: Map<string, Set<string>>): boolean {
+	let realmUrl: URL;
+	try {
+		realmUrl = new URL(realm);
+	} catch {
+		return false;
+	}
+
+	if (isAllowedSameAuthorityRealm(registryUrl, realmUrl)) {
+		return true;
+	}
+
+	return realmUrl.protocol === 'https:'
+		&& isConfiguredCrossOriginAuthHost(registryUrl, realmUrl, crossOriginAuthHosts);
+}
+
+// Pin registry-directed token requests to the registry authority or an explicitly trusted auth host.
+export function isAllowedTokenServiceRealm(realm: string, registryUrl: string, configuredEntries: readonly string[] = []): boolean {
+	let parsedRegistryUrl: URL;
+	try {
+		parsedRegistryUrl = new URL(registryUrl);
+	} catch {
+		return false;
+	}
+
+	return isAllowedTokenServiceRealmForPolicy(
+		realm,
+		parsedRegistryUrl,
+		parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...configuredEntries])
+	);
+}
 
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
 export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef) {
@@ -100,6 +233,30 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				output.write(`[httpOci] WWW-Authenticate header is not in expected format. Got:  ${wwwAuthenticate}`, LogLevel.Trace);
 				return;
 			}
+			let crossOriginAuthHosts: Map<string, Set<string>>;
+			try {
+				crossOriginAuthHosts = getCrossOriginAuthHosts(params.env);
+			} catch (err) {
+				output.write(`[httpOci] ERR: ${err}`, LogLevel.Error);
+				return;
+			}
+			const registryUrl = new URL(initialAttemptRes.responseUrl);
+			// Reject the challenge before credential lookup or token-endpoint I/O.
+			if (!isAllowedTokenServiceRealmForPolicy(realmGroup[1], registryUrl, crossOriginAuthHosts)) {
+				delete cachedAuthHeader[ociRef.registry];
+				const realmUrl = (() => {
+					try {
+						return new URL(realmGroup[1]);
+					} catch {
+						return undefined;
+					}
+				})();
+				const allowHint = realmUrl?.protocol === 'https:'
+					? ` Use '--allow-cross-origin-auth-host ${registryUrl.host}=${realmUrl.host}' to trust this registry-to-auth-host mapping.`
+					: '';
+				output.write(`[httpOci] ERR: Registry '${registryUrl.host}' requested authentication from untrusted realm '${realmGroup[1]}'.${allowHint}`, LogLevel.Error);
+				return;
+			}
 
 			const wwwAuthenticateData = {
 				realm: realmGroup[1],
@@ -107,7 +264,9 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				scope: scopeGroup ? scopeGroup[1] : '',
 			};
 
-			const bearerToken = await fetchRegistryBearerToken(params, ociRef, wwwAuthenticateData);
+			const requestedRegistryUrl = new URL(httpOptions.url);
+			const canUseRegistryCredentials = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+			const bearerToken = await fetchRegistryBearerToken(params, ociRef, registryUrl, crossOriginAuthHosts, canUseRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
 				return;
@@ -331,18 +490,9 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, wwwAuthenticateData: { realm: string; service: string; scope: string }): Promise<string | undefined> {
+async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, registryUrl: URL, crossOriginAuthHosts: Map<string, Set<string>>, canUseRegistryCredentials: boolean, wwwAuthenticateData: { realm: string; service: string; scope: string }): Promise<string | undefined> {
 	const { output } = params;
 	const { realm, service, scope } = wwwAuthenticateData;
-
-	// TODO: Remove this.
-	if (realm.includes('mcr.microsoft.com')) {
-		return undefined;
-	}
-
-	const headers: HEADERS = {
-		'user-agent': 'devcontainer'
-	};
 
 	// The token server should first attempt to authenticate the client using any authentication credentials provided with the request.
 	// From Docker 1.11 the Docker engine supports both Basic Authentication and OAuth2 for getting tokens. 
@@ -350,15 +500,45 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	// If an attempt to authenticate to the token server fails, the token server should return a 401 Unauthorized response 
 	// indicating that the provided credentials are invalid.
 	// > https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-	const userCredential = await getCredential(params, ociRef);
+	const userCredential = canUseRegistryCredentials ? await getCredential(params, ociRef) : undefined;
 	const basicAuthCredential = userCredential?.base64EncodedCredential;
 	const refreshToken = userCredential?.refreshToken;
+	const canForwardBasicCredential = canForwardCredentialToTokenServiceForPolicy(realm, registryUrl, 'basic', crossOriginAuthHosts);
+	const canForwardRefreshToken = canForwardCredentialToTokenServiceForPolicy(realm, registryUrl, 'refreshToken', crossOriginAuthHosts);
 
 	let httpOptions: { type: string; url: string; headers: Record<string, string>; data?: Buffer };
+	let sentCredentials = false;
+
+	const createGetHttpOptions = (authorization?: string) => {
+		// URLSearchParams preserves existing realm parameters and encodes challenge values.
+		const url = new URL(realm);
+		url.searchParams.set('service', service);
+		url.searchParams.set('scope', scope);
+
+		const headers: Record<string, string> = {
+			'user-agent': 'devcontainer',
+		};
+		if (authorization) {
+			headers.authorization = authorization;
+		}
+
+		return {
+			type: 'GET',
+			url: url.toString(),
+			headers,
+		};
+	};
+
+	if (refreshToken && !canForwardRefreshToken) {
+		output.write(`[httpOci] Refusing to send refresh token to bearer token realm '${realm}' for registry '${ociRef.registry}'.`, LogLevel.Warning);
+	}
+	if (basicAuthCredential && !canForwardBasicCredential) {
+		output.write(`[httpOci] Refusing to send Basic credential to bearer token realm '${realm}' for registry '${ociRef.registry}'.`, LogLevel.Warning);
+	}
 
 	// There are several different ways registries expect to handle the oauth token exchange. 
 	// Depending on the type of credential available, use the most reasonable method.
-	if (refreshToken) {
+	if (refreshToken && canForwardRefreshToken) {
 		const form_url_encoded = new URLSearchParams();
 		form_url_encoded.append('client_id', 'devcontainer');
 		form_url_encoded.append('grant_type', 'refresh_token');
@@ -366,51 +546,53 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		form_url_encoded.append('scope', scope);
 		form_url_encoded.append('refresh_token', refreshToken);
 
-		headers['content-type'] = 'application/x-www-form-urlencoded';
-
 		const url = realm;
 		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
 
 		httpOptions = {
 			type: 'POST',
 			url,
-			headers: headers,
+			headers: {
+				'user-agent': 'devcontainer',
+				'content-type': 'application/x-www-form-urlencoded',
+			},
 			data: Buffer.from(form_url_encoded.toString())
 		};
+		sentCredentials = true;
 	} else {
-		if (basicAuthCredential) {
-			headers['authorization'] = `Basic ${basicAuthCredential}`;
-		}
-
 		// realm="https://auth.docker.io/token"
 		// service="registry.docker.io"
 		// scope="repository:samalba/my-app:pull,push"
 		// Example:
 		// https://auth.docker.io/token?service=registry.docker.io&scope=repository:samalba/my-app:pull,push
-		const url = `${realm}?service=${service}&scope=${scope}`;
-		output.write(`[httpOci] Attempting to fetch bearer token from:  ${url}`, LogLevel.Trace);
-
-		httpOptions = {
-			type: 'GET',
-			url: url,
-			headers: headers,
-		};
+		const authorization = basicAuthCredential && canForwardBasicCredential
+			? `Basic ${basicAuthCredential}`
+			: undefined;
+		httpOptions = createGetHttpOptions(authorization);
+		sentCredentials = !!authorization;
+		output.write(`[httpOci] Attempting to fetch bearer token from:  ${httpOptions.url}`, LogLevel.Trace);
 	}
 
-	let res = await requestResolveHeaders(httpOptions, output);
-	if (res && res.statusCode === 401 || res.statusCode === 403) {
-		output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
-		const body = res.resBody?.toString();
-		if (body) {
-			output.write(`${res.resBody.toString()}.`, LogLevel.Info);
+	let res: Awaited<ReturnType<typeof requestResolveHeadersNoRedirects>>;
+	try {
+		res = await requestResolveHeadersNoRedirects(httpOptions, output);
+		if (sentCredentials && (res.statusCode === 401 || res.statusCode === 403)) {
+			output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
+			const body = res.resBody?.toString();
+			if (body) {
+				output.write(`${res.resBody.toString()}.`, LogLevel.Info);
+			}
+
+			// Build a fresh GET so neither an Authorization header nor a refresh-token POST body is reused.
+			httpOptions = createGetHttpOptions();
+			res = await requestResolveHeadersNoRedirects(httpOptions, output);
 		}
-
-		// Try again without user credentials. If we're here, their creds are likely expired.
-		delete headers['authorization'];
-		res = await requestResolveHeaders(httpOptions, output);
+	} catch (err) {
+		output.write(`[httpOci] Failed to request bearer token for '${service}': ${err}`, LogLevel.Error);
+		return;
 	}
 
-	if (!res || res.statusCode > 299 || !res.resBody) {
+	if (res.statusCode > 299 || !res.resBody) {
 		output.write(`[httpOci] ${res.statusCode}: Failed to fetch bearer token for '${service}': ${res.resBody.toString()}`, LogLevel.Error);
 		return;
 	}

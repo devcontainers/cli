@@ -45,6 +45,7 @@ import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './feat
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
+import { allowCrossOriginAuthHostEnv, parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -66,6 +67,17 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		.scriptName('devcontainer')
 		.version(version)
 		.demandCommand()
+		.option('allow-cross-origin-auth-host', {
+			type: 'string',
+			array: true,
+			global: true,
+			description: 'Allow an OCI registry to use a cross-origin HTTPS authentication host. Format: <registry-host>=<auth-host>. May be repeated.',
+		})
+		.middleware(args => {
+			const entries = args['allow-cross-origin-auth-host'] || [];
+			parseCrossOriginAuthHosts(entries);
+			process.env[allowCrossOriginAuthHostEnv] = JSON.stringify(entries);
+		}, true)
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
 	y.command('up', 'Create and run dev container', provisionOptions, provisionHandler);
