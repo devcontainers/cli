@@ -165,6 +165,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			}
 			// Reject the challenge before credential lookup or token-endpoint I/O.
 			if (!isAllowedTokenServiceRealm(realmGroup[1], ociRef.registry)) {
+				delete cachedAuthHeader[ociRef.registry];
 				output.write(`[httpOci] ERR: Refusing bearer token realm '${realmGroup[1]}' for registry '${ociRef.registry}'.`, LogLevel.Error);
 				return;
 			}
