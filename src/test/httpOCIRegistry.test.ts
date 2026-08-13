@@ -154,7 +154,7 @@ describe('OCI registry authentication', () => {
 	it('forwards a refresh token to an explicitly configured auth host', async () => {
 		const token = 'registry-token';
 		const refreshToken = 'registry-refresh-token';
-		const bearerScheme = ['Bear', 'er'].join('');
+		const bearerScheme = 'Bearer';
 		let tokenRequests = 0;
 		const tokenServer = http.createServer(async (request, response) => {
 			tokenRequests++;
