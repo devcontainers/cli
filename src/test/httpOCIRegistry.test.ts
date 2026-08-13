@@ -7,7 +7,7 @@ import { join } from 'path';
 import { assert } from 'chai';
 
 import { OCICollectionRef } from '../spec-configuration/containerCollectionsOCI';
-import { canForwardCredentialToTokenService, isAllowedTokenServiceRealm, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
+import { isAllowedTokenServiceRealm, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { nullLog } from '../spec-utils/log';
 
 describe('OCI registry authentication', () => {
@@ -51,40 +51,6 @@ describe('OCI registry authentication', () => {
 				'https://registry.example/v2/',
 				['registry.example=auth.example'],
 			));
-		});
-	});
-
-	describe('canForwardCredentialToTokenService', () => {
-		it('allows Basic and refresh credentials for exact HTTP localhost authority', () => {
-			const realm = 'http://localhost:5000/token';
-			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://localhost:5000/v2/', 'basic'));
-			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://localhost:5000/v2/', 'refreshToken'));
-		});
-
-		it('rejects credentials over remote HTTP even for the same authority', () => {
-			const realm = 'http://registry.example/token';
-			assert.isFalse(canForwardCredentialToTokenService(realm, 'https://registry.example/v2/', 'basic'));
-			assert.isFalse(canForwardCredentialToTokenService(realm, 'https://registry.example/v2/', 'refreshToken'));
-		});
-
-		it('allows Basic and refresh credentials for the Docker Hub token service', () => {
-			const realm = 'https://auth.docker.io/token';
-			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://registry-1.docker.io/v2/', 'basic'));
-			assert.isTrue(canForwardCredentialToTokenService(realm, 'https://registry-1.docker.io/v2/', 'refreshToken'));
-		});
-
-		it('allows Basic and refresh credentials for an explicitly configured mapping', () => {
-			const realm = 'https://auth.example/token';
-			const registryUrl = 'https://registry.example/v2/';
-			const configured = ['registry.example=auth.example'];
-			assert.isTrue(canForwardCredentialToTokenService(realm, registryUrl, 'basic', configured));
-			assert.isTrue(canForwardCredentialToTokenService(realm, registryUrl, 'refreshToken', configured));
-		});
-
-		it('rejects credentials for token services owned by another registry', () => {
-			assert.isFalse(canForwardCredentialToTokenService('https://auth.docker.io/token', 'https://attacker.example/v2/', 'basic'));
-			assert.isFalse(canForwardCredentialToTokenService('https://ghcr.io/token', 'https://attacker.example/v2/', 'basic'));
-			assert.isFalse(canForwardCredentialToTokenService('https://registry.azurecr.io/token', 'https://attacker.example/v2/', 'refreshToken'));
 		});
 	});
 
