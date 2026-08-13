@@ -197,8 +197,8 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			};
 
 			const requestedRegistryUrl = new URL(httpOptions.url);
-			const canUseRegistryCredentials = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
-			const bearerToken = await fetchRegistryBearerToken(params, ociRef, canUseRegistryCredentials, wwwAuthenticateData);
+			const challengeCanUseRequestedRegistryCredentials = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+			const bearerToken = await fetchRegistryBearerToken(params, ociRef, challengeCanUseRequestedRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
 				return;
@@ -422,7 +422,7 @@ async function getCredentialFromHelper(params: CommonParams, registry: string, c
 }
 
 // https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, canUseRegistryCredentials: boolean, wwwAuthenticateData: { realm: URL; service: string; scope: string }): Promise<string | undefined> {
+async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | OCICollectionRef, challengeCanUseRequestedRegistryCredentials: boolean, wwwAuthenticateData: { realm: URL; service: string; scope: string }): Promise<string | undefined> {
 	const { output } = params;
 	const { realm, service, scope } = wwwAuthenticateData;
 
@@ -432,7 +432,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	// If an attempt to authenticate to the token server fails, the token server should return a 401 Unauthorized response 
 	// indicating that the provided credentials are invalid.
 	// > https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-	const userCredential = canUseRegistryCredentials ? await getCredential(params, ociRef) : undefined;
+	const userCredential = challengeCanUseRequestedRegistryCredentials ? await getCredential(params, ociRef) : undefined;
 	const basicAuthCredential = userCredential?.base64EncodedCredential;
 	const refreshToken = userCredential?.refreshToken;
 
