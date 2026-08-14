@@ -63,6 +63,7 @@ async function featuresUpgrade({
 	feature: feature,
 	'target-version': targetVersion,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -100,6 +101,7 @@ async function featuresUpgrade({
 			buildPlatformInfo,
 			targetPlatformInfo: buildPlatformInfo,
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
@@ -115,6 +117,7 @@ async function featuresUpgrade({
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		};
 
 		if (feature && targetVersion) {

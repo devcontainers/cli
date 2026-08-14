@@ -19,6 +19,7 @@ export interface CommonParams {
 	output: Log;
 	cachedAuthHeader?: Record<string, string>; // <registry, authHeader>
 	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
 }
 
 // Represents the unique OCI identifier for a Feature or Template.

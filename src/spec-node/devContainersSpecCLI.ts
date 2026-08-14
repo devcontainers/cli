@@ -67,6 +67,12 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		.scriptName('devcontainer')
 		.version(version)
 		.demandCommand()
+		.option('oci-auth-hardening', {
+			type: 'boolean',
+			default: false,
+			global: true,
+			description: 'Restrict OCI bearer authentication realms, registry credential forwarding, and token redirects.',
+		})
 		.option('allow-cross-origin-auth-host', {
 			type: 'string',
 			array: true,
@@ -75,7 +81,12 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 			description: 'Allow an OCI registry to use a cross-origin HTTPS authentication host. Format: <registry-host>=<auth-host>. May be repeated.',
 		})
 		.check(args => {
-			parseCrossOriginAuthHosts(getAllowedCrossOriginAuthHosts(args as OciAuthArgs));
+			const ociAuthArgs = args as OciAuthArgs;
+			const allowedCrossOriginAuthHosts = getAllowedCrossOriginAuthHosts(ociAuthArgs);
+			if (allowedCrossOriginAuthHosts.length && !ociAuthArgs['oci-auth-hardening']) {
+				throw new Error('--allow-cross-origin-auth-host requires --oci-auth-hardening.');
+			}
+			parseCrossOriginAuthHosts(allowedCrossOriginAuthHosts);
 			return true;
 		})
 		.strict();
@@ -108,7 +119,10 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 })().catch(console.error);
 
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
-export type OciAuthArgs = { 'allow-cross-origin-auth-host'?: string[] };
+export type OciAuthArgs = {
+	'allow-cross-origin-auth-host'?: string[];
+	'oci-auth-hardening'?: boolean;
+};
 
 export function getAllowedCrossOriginAuthHosts(args: OciAuthArgs) {
 	return args['allow-cross-origin-auth-host'] || [];
@@ -247,6 +261,7 @@ async function provision({
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: ProvisionArgs) {
 
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
@@ -322,6 +337,7 @@ async function provision({
 		includeConfig,
 		includeMergedConfig,
 		allowedCrossOriginAuthHosts,
+		ociAuthHardening,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -440,6 +456,7 @@ async function doSetUp({
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: SetUpArgs) {
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -491,6 +508,7 @@ async function doSetUp({
 				targetPath: dotfilesTargetPath,
 			},
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		}, disposables);
 
 		const { common } = params;
@@ -624,6 +642,7 @@ async function doBuild({
 	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: BuildArgs) {
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
 	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
@@ -678,6 +697,7 @@ async function doBuild({
 			frozenLockfile: effectiveFrozenLockfile,
 			omitSyntaxDirective,
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		}, disposables);
 
 		const { common, dockerComposeCLI } = params;
@@ -1072,6 +1092,7 @@ async function readConfiguration({
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1130,6 +1151,7 @@ async function readConfiguration({
 			buildPlatformInfo,
 			targetPlatformInfo: buildPlatformInfo,
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
@@ -1203,6 +1225,7 @@ async function outdated({
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: OutdatedArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1240,6 +1263,7 @@ async function outdated({
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
 			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		};
 
 		const outdated = await loadVersionInfo(params, configs.config.config);

@@ -75,6 +75,7 @@ export interface ProvisionOptions {
 	includeConfig?: boolean;
 	includeMergedConfig?: boolean;
 	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -164,6 +165,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		},
 		omitSyntaxDirective: options.omitSyntaxDirective,
 		allowedCrossOriginAuthHosts: options.allowedCrossOriginAuthHosts,
+		ociAuthHardening: options.ociAuthHardening,
 	};
 
 	const dockerPath = options.dockerPath || 'docker';

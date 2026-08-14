@@ -28,7 +28,7 @@ describe('Dev Containers CLI', function () {
 	});
 
 	it('Global options consume exactly one argument', async () => {
-		const res = await shellExec(`${cli} --allow-cross-origin-auth-host registry.example=auth.example features info --help`);
+		const res = await shellExec(`${cli} --oci-auth-hardening --allow-cross-origin-auth-host registry.example=auth.example features info --help`);
 		assert.ok(res.stdout.includes('devcontainer features info <mode> <feature>'));
 	});
 

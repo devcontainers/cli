@@ -44,6 +44,7 @@ async function featuresResolveDependencies({
 	'workspace-folder': workspaceFolderArg,
 	'log-level': inputLogLevel,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: featuresResolveDependenciesArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -75,6 +76,7 @@ async function featuresResolveDependencies({
 		output,
 		env: process.env,
 		allowedCrossOriginAuthHosts,
+		ociAuthHardening,
 	};
 
 	const cwd = workspaceFolder || process.cwd();

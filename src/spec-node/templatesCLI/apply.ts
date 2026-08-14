@@ -39,6 +39,7 @@ async function templateApply({
 	'tmp-dir': userProvidedTmpDir,
 	'omit-paths': omitPathsArg,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: TemplateApplyArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -88,7 +89,7 @@ async function templateApply({
 		omitPaths,
 	};
 
-	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
+	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {
 		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
 		process.exit(1);

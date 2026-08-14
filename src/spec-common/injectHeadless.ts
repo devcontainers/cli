@@ -70,6 +70,7 @@ export interface ResolverParameters {
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
 	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
 }
 
 export interface LifecycleHook {

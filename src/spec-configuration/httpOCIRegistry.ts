@@ -176,14 +176,16 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			try {
 				realmUrl = new URL(realmGroup[1]);
 				registryUrl = new URL(initialAttemptRes.responseUrl);
-				const crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
-				if (!isAllowedTokenServiceRealmForPolicy(realmUrl, registryUrl, crossOriginAuthHosts)) {
-					delete cachedAuthHeader[ociRef.registry];
-					const allowHint = realmUrl.protocol === 'https:'
-						? ` Use '--allow-cross-origin-auth-host ${registryUrl.host}=${realmUrl.host}' to trust this registry-to-auth-host mapping.`
-						: '';
-					output.write(`[httpOci] ERR: Registry '${registryUrl.host}' requested authentication from untrusted realm '${realmGroup[1]}'.${allowHint}`, LogLevel.Error);
-					return;
+				if (params.ociAuthHardening) {
+					const crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
+					if (!isAllowedTokenServiceRealmForPolicy(realmUrl, registryUrl, crossOriginAuthHosts)) {
+						delete cachedAuthHeader[ociRef.registry];
+						const allowHint = realmUrl.protocol === 'https:'
+							? ` Use '--allow-cross-origin-auth-host ${registryUrl.host}=${realmUrl.host}' to trust this registry-to-auth-host mapping.`
+							: '';
+						output.write(`[httpOci] ERR: Registry '${registryUrl.host}' requested authentication from untrusted realm '${realmGroup[1]}'.${allowHint}`, LogLevel.Error);
+						return;
+					}
 				}
 			} catch (err) {
 				output.write(`[httpOci] ERR: ${err}`, LogLevel.Error);
@@ -197,7 +199,8 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 			};
 
 			const requestedRegistryUrl = new URL(httpOptions.url);
-			const challengeCanUseRequestedRegistryCredentials = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening
+				|| requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, challengeCanUseRequestedRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
@@ -496,9 +499,10 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 		output.write(`[httpOci] Attempting to fetch bearer token from:  ${httpOptions.url}`, LogLevel.Trace);
 	}
 
-	let res: Awaited<ReturnType<typeof requestResolveHeadersNoRedirects>>;
+	const requestToken = params.ociAuthHardening ? requestResolveHeadersNoRedirects : requestResolveHeaders;
+	let res: Awaited<ReturnType<typeof requestResolveHeaders>>;
 	try {
-		res = await requestResolveHeadersNoRedirects(httpOptions, output);
+		res = await requestToken(httpOptions, output);
 		if (sentCredentials && (res.statusCode === 401 || res.statusCode === 403)) {
 			output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
 			const body = res.resBody?.toString();
@@ -508,7 +512,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 
 			// Build a fresh GET so neither an Authorization header nor a refresh-token POST body is reused.
 			httpOptions = createGetHttpOptions();
-			res = await requestResolveHeadersNoRedirects(httpOptions, output);
+			res = await requestToken(httpOptions, output);
 		}
 	} catch (err) {
 		output.write(`[httpOci] Failed to request bearer token for '${service}': ${err}`, LogLevel.Error);

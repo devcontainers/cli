@@ -33,6 +33,7 @@ async function featuresPublish({
     'registry': registry,
     'namespace': namespace,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+    'oci-auth-hardening': ociAuthHardening,
 }: FeaturesPublishArgs) {
     const disposables: (() => Promise<unknown> | undefined)[] = [];
     const dispose = async () => {
@@ -50,7 +51,7 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env, allowedCrossOriginAuthHosts };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening };
 
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);

@@ -102,7 +102,7 @@ describe('OCI registry authentication', () => {
 			};
 			const cachedAuthHeader: Record<string, string> = {};
 
-			const result = await requestEnsureAuthenticated({ env: {}, output: nullLog, cachedAuthHeader }, {
+			const result = await requestEnsureAuthenticated({ env: {}, output: nullLog, cachedAuthHeader, ociAuthHardening: true }, {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,
 				headers: {},
@@ -114,6 +114,61 @@ describe('OCI registry authentication', () => {
 			assert.notProperty(cachedAuthHeader, registry);
 		} finally {
 			await Promise.all([close(registryServer), close(tokenServer)]);
+		}
+	});
+
+	it('uses cross-origin realms and follows token redirects when hardening is disabled', async () => {
+		const token = 'registry-token';
+		const bearerScheme = 'Bearer';
+		let redirectTargetRequests = 0;
+		const redirectTargetServer = http.createServer((_request, response) => {
+			redirectTargetRequests++;
+			response.end(JSON.stringify({ token }));
+		});
+		const redirectTargetPort = await listen(redirectTargetServer);
+
+		let tokenRequests = 0;
+		const tokenServer = http.createServer((_request, response) => {
+			tokenRequests++;
+			response.writeHead(307, {
+				location: `http://localhost:${redirectTargetPort}/token`,
+			});
+			response.end();
+		});
+		const tokenPort = await listen(tokenServer);
+
+		let registryRequests = 0;
+		const registryServer = http.createServer((_request, response) => {
+			registryRequests++;
+			response.writeHead(401, {
+				'WWW-Authenticate': `${bearerScheme} realm="http://localhost:${tokenPort}/token",service="attacker.example",scope="repository:test:pull"`,
+			});
+			response.end();
+		});
+		const registryPort = await listen(registryServer);
+		const registry = `127.0.0.1:${registryPort}`;
+
+		try {
+			const ociRef: OCICollectionRef = {
+				registry,
+				path: 'test/features',
+				resource: `${registry}/test/features`,
+				tag: 'latest',
+				version: 'latest',
+			};
+
+			const result = await requestEnsureAuthenticated({ env: {}, output: nullLog }, {
+				type: 'GET',
+				url: `http://${registry}/v2/test/features/manifests/latest`,
+				headers: {},
+			}, ociRef);
+
+			assert.equal(result?.statusCode, 401);
+			assert.equal(registryRequests, 2);
+			assert.equal(tokenRequests, 1);
+			assert.equal(redirectTargetRequests, 1);
+		} finally {
+			await Promise.all([close(registryServer), close(tokenServer), close(redirectTargetServer)]);
 		}
 	});
 
@@ -179,6 +234,7 @@ describe('OCI registry authentication', () => {
 				env: {},
 				output: nullLog,
 				allowedCrossOriginAuthHosts: [`${registry}=localhost:${tokenPort}`],
+				ociAuthHardening: true,
 			}, {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,
@@ -237,6 +293,7 @@ describe('OCI registry authentication', () => {
 			const result = await requestEnsureAuthenticated({
 				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
 				output: nullLog,
+				ociAuthHardening: true,
 			}, {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,

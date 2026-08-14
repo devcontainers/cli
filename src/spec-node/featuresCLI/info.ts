@@ -37,6 +37,7 @@ async function featuresInfo({
 	'log-level': inputLogLevel,
 	'output-format': outputFormat,
 	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: FeaturesInfoArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -52,7 +53,7 @@ async function featuresInfo({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts };
+	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts, ociAuthHardening };
 
 	const jsonOutput: InfoJsonOutput = {};
 

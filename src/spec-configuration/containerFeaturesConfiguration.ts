@@ -196,6 +196,7 @@ export interface ContainerFeatureInternalParams {
 	noLockfile?: boolean;
 	frozenLockfile?: boolean;
 	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
 }
 
 // TODO: Move to node layer.
