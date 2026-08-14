@@ -197,6 +197,44 @@ describe('OCI registry authentication', () => {
 		}
 	});
 
+	it('ignores cross-origin redirects that do not produce an auth challenge', async () => {
+		const contentServer = http.createServer((_request, response) => {
+			response.writeHead(200);
+			response.end('blob');
+		});
+		const contentPort = await listen(contentServer);
+		const registryServer = http.createServer((_request, response) => {
+			response.writeHead(307, {
+				location: `http://localhost:${contentPort}/blob`,
+			});
+			response.end();
+		});
+		const registryPort = await listen(registryServer);
+		const registry = `127.0.0.1:${registryPort}`;
+
+		try {
+			const ociRef: OCICollectionRef = {
+				registry,
+				path: 'test/features',
+				resource: `${registry}/test/features`,
+				tag: 'latest',
+				version: 'latest',
+			};
+			const params = createTestCommonParams(nullLog, {});
+
+			const result = await requestEnsureAuthenticated(params, {
+				type: 'GET',
+				url: `http://${registry}/v2/test/features/blobs/sha256:test`,
+				headers: {},
+			}, ociRef);
+
+			assert.equal(result?.statusCode, 200);
+			assert.isFalse(params.ociAuthDiagnostics.registryRedirectWouldPreventCredentialForwarding);
+		} finally {
+			await Promise.all([close(registryServer), close(contentServer)]);
+		}
+	});
+
 	it('forwards a refresh token to an explicitly configured auth host', async () => {
 		const token = 'registry-token';
 		const refreshToken = 'registry-refresh-token';

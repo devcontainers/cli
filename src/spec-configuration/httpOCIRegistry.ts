@@ -153,9 +153,6 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	const requestedRegistryUrl = new URL(httpOptions.url);
 	const registryUrl = new URL(initialAttemptRes.responseUrl);
 	const challengeFromRequestedRegistry = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
-	if (!challengeFromRequestedRegistry) {
-		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Registry redirect from '${requestedRegistryUrl.host}' to '${registryUrl.host}' would prevent forwarding the requested registry's credentials with OCI auth hardening.`);
-	}
 
 	// For anything except a 401 (invalid/no token) or 403 (insufficient scope)
 	// response simply return the original response to the caller.
@@ -165,6 +162,9 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	}
 
 	// -- 'responseAttempt' status code was 401 or 403 at this point.
+	if (!challengeFromRequestedRegistry) {
+		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Registry redirect from '${requestedRegistryUrl.host}' to '${registryUrl.host}' would prevent forwarding the requested registry's credentials with OCI auth hardening.`);
+	}
 
 	// Attempt to authenticate via WWW-Authenticate Header.
 	const wwwAuthenticate = initialAttemptRes.resHeaders['WWW-Authenticate'] || initialAttemptRes.resHeaders['www-authenticate'];
