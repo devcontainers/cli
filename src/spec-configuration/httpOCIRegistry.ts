@@ -7,6 +7,7 @@ import { requestResolveHeaders, requestResolveHeadersNoRedirects } from '../spec
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
+import { OCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'Accept'?: string; 'content-length'?: string };
 
@@ -106,6 +107,31 @@ export function isAllowedTokenServiceRealm(realm: string, registryUrl: string, c
 	}
 }
 
+function recordOCIAuthDiagnostic(params: CommonParams, key: keyof OCIAuthDiagnostics, message: string) {
+	if (!params.ociAuthDiagnostics[key]) {
+		params.ociAuthDiagnostics[key] = true;
+		params.output.write(`[httpOci] OCI auth diagnostics: ${message}`, LogLevel.Info);
+	}
+}
+
+function withOCIAuthDiagnostics<T extends object>(params: CommonParams, result: T) {
+	return {
+		...result,
+		ociAuthDiagnostics: { ...params.ociAuthDiagnostics },
+	};
+}
+
+function recordAuthServerRedirect(params: CommonParams, requestedUrl: string, response: { responseUrl: string; redirected: boolean }) {
+	if (response.redirected) {
+		const requestedOrigin = new URL(requestedUrl).origin;
+		const responseOrigin = new URL(response.responseUrl).origin;
+		const redirectDescription = requestedOrigin === responseOrigin
+			? `within origin '${requestedOrigin}'`
+			: `from origin '${requestedOrigin}' to '${responseOrigin}'`;
+		recordOCIAuthDiagnostic(params, 'authServerRedirect', `Authentication server redirected a token request ${redirectDescription}.`);
+	}
+}
+
 // https://docs.docker.com/registry/spec/auth/token/#how-to-authenticate
 export async function requestEnsureAuthenticated(params: CommonParams, httpOptions: { type: string; url: string; headers: HEADERS; data?: Buffer }, ociRef: OCIRef | OCICollectionRef) {
 	// If needed, Initialize the Authorization header cache.
@@ -124,12 +150,18 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	}
 
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
+	const requestedRegistryUrl = new URL(httpOptions.url);
+	const registryUrl = new URL(initialAttemptRes.responseUrl);
+	const challengeFromRequestedRegistry = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+	if (!challengeFromRequestedRegistry) {
+		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Registry redirect from '${requestedRegistryUrl.host}' to '${registryUrl.host}' would prevent forwarding the requested registry's credentials with OCI auth hardening.`);
+	}
 
 	// For anything except a 401 (invalid/no token) or 403 (insufficient scope)
 	// response simply return the original response to the caller.
 	if (initialAttemptRes.statusCode !== 401 && initialAttemptRes.statusCode !== 403) {
 		output.write(`[httpOci] ${initialAttemptRes.statusCode} (${maybeCachedAuthHeader ? 'Cached' : 'NoAuth'}): ${httpOptions.url}`, LogLevel.Trace);
-		return initialAttemptRes;
+		return withOCIAuthDiagnostics(params, initialAttemptRes);
 	}
 
 	// -- 'responseAttempt' status code was 401 or 403 at this point.
@@ -172,13 +204,13 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				return;
 			}
 			let realmUrl: URL;
-			let registryUrl: URL;
 			try {
 				realmUrl = new URL(realmGroup[1]);
-				registryUrl = new URL(initialAttemptRes.responseUrl);
-				if (params.ociAuthHardening) {
-					const crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
-					if (!isAllowedTokenServiceRealmForPolicy(realmUrl, registryUrl, crossOriginAuthHosts)) {
+				const crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
+				const authLookupWouldBeBlocked = !isAllowedTokenServiceRealmForPolicy(realmUrl, registryUrl, crossOriginAuthHosts);
+				if (authLookupWouldBeBlocked) {
+					recordOCIAuthDiagnostic(params, 'authLookupWouldBeBlocked', `Authentication lookup from registry '${registryUrl.host}' to realm origin '${realmUrl.origin}' would be blocked by OCI auth hardening.`);
+					if (params.ociAuthHardening) {
 						delete cachedAuthHeader[ociRef.registry];
 						const allowHint = realmUrl.protocol === 'https:'
 							? ` Use '--allow-cross-origin-auth-host ${registryUrl.host}=${realmUrl.host}' to trust this registry-to-auth-host mapping.`
@@ -198,9 +230,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				scope: scopeGroup ? scopeGroup[1] : '',
 			};
 
-			const requestedRegistryUrl = new URL(httpOptions.url);
-			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening
-				|| requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening || challengeFromRequestedRegistry;
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, challengeCanUseRequestedRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
@@ -224,7 +254,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 		params.cachedAuthHeader[ociRef.registry] = httpOptions.headers.authorization;
 	}
 
-	return reattemptRes;
+	return withOCIAuthDiagnostics(params, reattemptRes);
 }
 
 // Attempts to get the Basic auth credentials for the provided registry.
@@ -503,6 +533,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 	let res: Awaited<ReturnType<typeof requestResolveHeaders>>;
 	try {
 		res = await requestToken(httpOptions, output);
+		recordAuthServerRedirect(params, httpOptions.url, res);
 		if (sentCredentials && (res.statusCode === 401 || res.statusCode === 403)) {
 			output.write(`[httpOci] ${res.statusCode}: Credentials for '${service}' may be expired. Attempting request anonymously.`, LogLevel.Info);
 			const body = res.resBody?.toString();
@@ -513,6 +544,7 @@ async function fetchRegistryBearerToken(params: CommonParams, ociRef: OCIRef | O
 			// Build a fresh GET so neither an Authorization header nor a refresh-token POST body is reused.
 			httpOptions = createGetHttpOptions();
 			res = await requestToken(httpOptions, output);
+			recordAuthServerRedirect(params, httpOptions.url, res);
 		}
 	} catch (err) {
 		output.write(`[httpOci] Failed to request bearer token for '${service}': ${err}`, LogLevel.Error);

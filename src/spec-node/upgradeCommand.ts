@@ -19,6 +19,7 @@ import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -92,6 +93,7 @@ async function featuresUpgrade({
 			os: mapNodeOSToGOOS(cliHost.platform),
 			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
 		};
+		const ociAuthDiagnostics = createOCIAuthDiagnostics();
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,
@@ -102,6 +104,7 @@ async function featuresUpgrade({
 			targetPlatformInfo: buildPlatformInfo,
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
+			ociAuthDiagnostics,
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
@@ -118,6 +121,7 @@ async function featuresUpgrade({
 			platform: cliHost.platform,
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
+			ociAuthDiagnostics,
 		};
 
 		if (feature && targetVersion) {

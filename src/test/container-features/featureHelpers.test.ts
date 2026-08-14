@@ -7,10 +7,11 @@ import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
 import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
+import { createTestCommonParams } from '../testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-const params = { output, env: process.env };
+const params = createTestCommonParams(output);
 
 describe('getIdSafe should return safe environment variable name', function () {
 

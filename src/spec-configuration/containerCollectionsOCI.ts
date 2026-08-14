@@ -8,6 +8,7 @@ import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { requestEnsureAuthenticated } from './httpOCIRegistry';
 import { GoARCH, GoOS, PlatformInfo } from '../spec-common/commonUtils';
+import { OCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export const DEVCONTAINER_MANIFEST_MEDIATYPE = 'application/vnd.devcontainers';
 export const DEVCONTAINER_TAR_LAYER_MEDIATYPE = 'application/vnd.devcontainers.layer.v1+tar';
@@ -20,6 +21,7 @@ export interface CommonParams {
 	cachedAuthHeader?: Record<string, string>; // <registry, authHeader>
 	allowedCrossOriginAuthHosts?: string[];
 	ociAuthHardening?: boolean;
+	ociAuthDiagnostics: OCIAuthDiagnostics;
 }
 
 // Represents the unique OCI identifier for a Feature or Template.

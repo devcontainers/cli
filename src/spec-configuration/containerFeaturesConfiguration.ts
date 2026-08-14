@@ -19,6 +19,7 @@ import { request } from '../spec-utils/httpRequest';
 import { fetchOCIFeature, tryGetOCIFeatureSet, fetchOCIFeatureManifestIfExistsFromUserIdentifier } from './containerFeaturesOCI';
 import { uriToFsPath } from './configurationCommonUtils';
 import { CommonParams, ManifestContainer, OCIManifest, OCIRef, getRef, getVersionsStrictSorted } from './containerCollectionsOCI';
+import { OCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { Lockfile, generateLockfile, readLockfile, writeLockfile } from './lockfile';
 import { computeDependsOnInstallationOrder } from './containerFeaturesOrder';
 import { logFeatureAdvisories } from './featureAdvisories';
@@ -197,6 +198,7 @@ export interface ContainerFeatureInternalParams {
 	frozenLockfile?: boolean;
 	allowedCrossOriginAuthHosts?: string[];
 	ociAuthHardening?: boolean;
+	ociAuthDiagnostics: OCIAuthDiagnostics;
 }
 
 // TODO: Move to node layer.
@@ -391,7 +393,7 @@ const cleanupIterationFetchAndMerge = async (tempTarballPath: string, output: Lo
 	}
 };
 
-function getRequestHeaders(params: CommonParams, sourceInformation: SourceInformation) {
+function getRequestHeaders(params: { env: NodeJS.ProcessEnv; output: Log }, sourceInformation: SourceInformation) {
 	const { env, output } = params;
 	let headers: { 'user-agent': string; 'Authorization'?: string; 'Accept'?: string } = {
 		'user-agent': 'devcontainer'
@@ -957,7 +959,7 @@ export async function processFeatureIdentifier(params: CommonParams, configPath:
 	// throw new Error(`Unsupported feature source type: ${type}`);
 }
 
-async function fetchFeatures(params: { extensionPath: string; cwd: string; output: Log; env: NodeJS.ProcessEnv }, featuresConfig: FeaturesConfig, dstFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
+async function fetchFeatures(params: ContainerFeatureInternalParams, featuresConfig: FeaturesConfig, dstFolder: string, ociCacheDir: string, lockfile: Lockfile | undefined) {
 	const featureSets = featuresConfig.featureSets;
 	for (let idx = 0; idx < featureSets.length; idx++) { // Index represents the previously computed installation order.
 		const featureSet = featureSets[idx];

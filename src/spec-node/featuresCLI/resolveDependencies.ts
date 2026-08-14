@@ -17,6 +17,7 @@ import { uriToFsPath } from '../../spec-configuration/configurationCommonUtils';
 import { workspaceFromPath } from '../../spec-utils/workspaces';
 import { readDevContainerConfigFile } from '../configContainer';
 import { URI } from 'vscode-uri';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 
 interface JsonOutput {
@@ -77,6 +78,7 @@ async function featuresResolveDependencies({
 		env: process.env,
 		allowedCrossOriginAuthHosts,
 		ociAuthHardening,
+		ociAuthDiagnostics: createOCIAuthDiagnostics(),
 	};
 
 	const cwd = workspaceFolder || process.cwd();

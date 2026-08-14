@@ -7,6 +7,7 @@ import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { fetchTemplate, SelectedTemplate, TemplateFeatureOption, TemplateOptions } from '../../spec-configuration/containerTemplatesOCI';
 import { runAsyncHandler } from '../utils';
 import path from 'path';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 export function templateApplyOptions(y: Argv) {
 	return y
@@ -89,7 +90,7 @@ async function templateApply({
 		omitPaths,
 	};
 
-	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
+	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {
 		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
 		process.exit(1);

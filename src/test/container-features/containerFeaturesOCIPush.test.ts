@@ -3,7 +3,7 @@ import { DEVCONTAINER_TAR_LAYER_MEDIATYPE, getRef } from '../../spec-configurati
 import { fetchOCIFeatureManifestIfExistsFromUserIdentifier } from '../../spec-configuration/containerFeaturesOCI';
 import { calculateDataLayer, checkIfBlobExists, calculateManifestAndContentDigest } from '../../spec-configuration/containerCollectionsOCIPush';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
-import { ExecResult, shellExec } from '../testUtils';
+import { createTestCommonParams, ExecResult, shellExec } from '../testUtils';
 import * as path from 'path';
 import * as fs from 'fs';
 import { readLocalFile, writeLocalFile } from '../../spec-utils/pfs';
@@ -352,7 +352,7 @@ describe('Test OCI Push Helper Functions', function () {
 	});
 
 	it('Can fetch an artifact from a digest reference', async () => {
-		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier({ output, env: process.env }, 'ghcr.io/codspace/non-empty-config-layer/color', 'sha256:dd328c25cc7382aaf4e9ee10104425d9a2561b47fe238407f6c0f77b3f8409fc');
+		const manifest = await fetchOCIFeatureManifestIfExistsFromUserIdentifier(createTestCommonParams(output), 'ghcr.io/codspace/non-empty-config-layer/color', 'sha256:dd328c25cc7382aaf4e9ee10104425d9a2561b47fe238407f6c0f77b3f8409fc');
 		assert.strictEqual(manifest?.manifestObj.layers[0].annotations['org.opencontainers.image.title'], 'devcontainer-feature-color.tgz');
 	});
 
@@ -363,13 +363,14 @@ describe('Test OCI Push Helper Functions', function () {
 		}
 
 
-		const tarLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1');
+		const params = createTestCommonParams(output);
+		const tarLayerBlobExists = await checkIfBlobExists(params, ociFeatureRef, 'sha256:0bb92d2da46d760c599d0a41ed88d52521209408b529761417090b62ee16dfd1');
 		assert.isTrue(tarLayerBlobExists);
 
-		const configLayerBlobExists = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
+		const configLayerBlobExists = await checkIfBlobExists(params, ociFeatureRef, 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
 		assert.isTrue(configLayerBlobExists);
 
-		const randomStringDoesNotExist = await checkIfBlobExists({ output, env: process.env }, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3');
+		const randomStringDoesNotExist = await checkIfBlobExists(params, ociFeatureRef, 'sha256:41af286dc0b172ed2f1ca934fd2278de4a1192302ffa07087cea2682e7d372e3');
 		assert.isFalse(randomStringDoesNotExist);
 	});
 });

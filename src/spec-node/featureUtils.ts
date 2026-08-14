@@ -20,5 +20,6 @@ export async function readFeaturesConfig(params: DockerCLIParameters, pkg: Packa
 		noLockfile: true,
 		allowedCrossOriginAuthHosts: params.allowedCrossOriginAuthHosts,
 		ociAuthHardening: params.ociAuthHardening,
+		ociAuthDiagnostics: params.ociAuthDiagnostics,
 	}, featuresTmpFolder, config, additionalFeatures);
 }

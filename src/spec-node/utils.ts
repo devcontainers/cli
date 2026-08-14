@@ -27,6 +27,7 @@ import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics, OCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
@@ -287,7 +288,8 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 		try {
 			const allowedCrossOriginAuthHosts = 'cliHost' in params ? params.allowedCrossOriginAuthHosts : params.common.allowedCrossOriginAuthHosts;
 			const ociAuthHardening = 'cliHost' in params ? params.ociAuthHardening : params.common.ociAuthHardening;
-			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName, allowedCrossOriginAuthHosts, ociAuthHardening);
+			const ociAuthDiagnostics = 'cliHost' in params ? params.ociAuthDiagnostics : params.common.ociAuthDiagnostics;
+			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics);
 		} catch (inspectErr2) {
 			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
@@ -319,9 +321,9 @@ function logErrorStdoutStderr(err: any, output: Log) {
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string, allowedCrossOriginAuthHosts?: string[], ociAuthHardening?: boolean): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string, allowedCrossOriginAuthHosts?: string[], ociAuthHardening?: boolean, ociAuthDiagnostics: OCIAuthDiagnostics = createOCIAuthDiagnostics()): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
-	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics };
 	const ref = getRef(output, resourceAndVersion);
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);

@@ -9,6 +9,7 @@ import { assert } from 'chai';
 import { OCICollectionRef } from '../spec-configuration/containerCollectionsOCI';
 import { isAllowedTokenServiceRealm, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { nullLog } from '../spec-utils/log';
+import { createTestCommonParams } from './testUtils';
 
 describe('OCI registry authentication', () => {
 	describe('isAllowedTokenServiceRealm', () => {
@@ -101,8 +102,9 @@ describe('OCI registry authentication', () => {
 				version: 'latest',
 			};
 			const cachedAuthHeader: Record<string, string> = {};
+			const params = createTestCommonParams(nullLog, {});
 
-			const result = await requestEnsureAuthenticated({ env: {}, output: nullLog, cachedAuthHeader, ociAuthHardening: true }, {
+			const result = await requestEnsureAuthenticated({ ...params, cachedAuthHeader, ociAuthHardening: true }, {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,
 				headers: {},
@@ -112,12 +114,13 @@ describe('OCI registry authentication', () => {
 			assert.equal(registryRequests, 1);
 			assert.equal(tokenRequests, 0);
 			assert.notProperty(cachedAuthHeader, registry);
+			assert.isTrue(params.ociAuthDiagnostics.authLookupWouldBeBlocked);
 		} finally {
 			await Promise.all([close(registryServer), close(tokenServer)]);
 		}
 	});
 
-	it('uses cross-origin realms and follows token redirects when hardening is disabled', async () => {
+	it('surfaces shadow diagnostics when hardening is disabled', async () => {
 		const token = 'registry-token';
 		const bearerScheme = 'Bearer';
 		let redirectTargetRequests = 0;
@@ -137,16 +140,31 @@ describe('OCI registry authentication', () => {
 		});
 		const tokenPort = await listen(tokenServer);
 
-		let registryRequests = 0;
-		const registryServer = http.createServer((_request, response) => {
-			registryRequests++;
+		let challengeRegistryRequests = 0;
+		const challengeRegistryServer = http.createServer((_request, response) => {
+			challengeRegistryRequests++;
 			response.writeHead(401, {
 				'WWW-Authenticate': `${bearerScheme} realm="http://localhost:${tokenPort}/token",service="attacker.example",scope="repository:test:pull"`,
 			});
 			response.end();
 		});
+		const challengeRegistryPort = await listen(challengeRegistryServer);
+
+		let registryRequests = 0;
+		const registryServer = http.createServer((request, response) => {
+			registryRequests++;
+			response.writeHead(307, {
+				location: `http://localhost:${challengeRegistryPort}${request.url}`,
+			});
+			response.end();
+		});
 		const registryPort = await listen(registryServer);
 		const registry = `127.0.0.1:${registryPort}`;
+		const logMessages: string[] = [];
+		const output = {
+			...nullLog,
+			write: (text: string) => logMessages.push(text),
+		};
 
 		try {
 			const ociRef: OCICollectionRef = {
@@ -157,7 +175,7 @@ describe('OCI registry authentication', () => {
 				version: 'latest',
 			};
 
-			const result = await requestEnsureAuthenticated({ env: {}, output: nullLog }, {
+			const result = await requestEnsureAuthenticated(createTestCommonParams(output, {}), {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,
 				headers: {},
@@ -165,10 +183,17 @@ describe('OCI registry authentication', () => {
 
 			assert.equal(result?.statusCode, 401);
 			assert.equal(registryRequests, 2);
+			assert.equal(challengeRegistryRequests, 2);
 			assert.equal(tokenRequests, 1);
 			assert.equal(redirectTargetRequests, 1);
+			assert.deepEqual(result?.ociAuthDiagnostics, {
+				authLookupWouldBeBlocked: true,
+				registryRedirectWouldPreventCredentialForwarding: true,
+				authServerRedirect: true,
+			});
+			assert.lengthOf(logMessages.filter(message => message.includes('OCI auth diagnostics:')), 3);
 		} finally {
-			await Promise.all([close(registryServer), close(tokenServer), close(redirectTargetServer)]);
+			await Promise.all([close(registryServer), close(challengeRegistryServer), close(tokenServer), close(redirectTargetServer)]);
 		}
 	});
 
@@ -231,8 +256,7 @@ describe('OCI registry authentication', () => {
 			};
 
 			const result = await requestEnsureAuthenticated({
-				env: {},
-				output: nullLog,
+				...createTestCommonParams(nullLog, {}),
 				allowedCrossOriginAuthHosts: [`${registry}=localhost:${tokenPort}`],
 				ociAuthHardening: true,
 			}, {
@@ -244,6 +268,11 @@ describe('OCI registry authentication', () => {
 			assert.equal(result?.statusCode, 200);
 			assert.equal(registryRequests, 2);
 			assert.equal(tokenRequests, 1);
+			assert.deepEqual(result?.ociAuthDiagnostics, {
+				authLookupWouldBeBlocked: false,
+				registryRedirectWouldPreventCredentialForwarding: false,
+				authServerRedirect: false,
+			});
 		} finally {
 			if (previousDockerConfig === undefined) {
 				delete process.env.DOCKER_CONFIG;
@@ -291,8 +320,7 @@ describe('OCI registry authentication', () => {
 			};
 
 			const result = await requestEnsureAuthenticated({
-				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
-				output: nullLog,
+				...createTestCommonParams(nullLog, { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` }),
 				ociAuthHardening: true,
 			}, {
 				type: 'GET',
@@ -352,8 +380,7 @@ describe('OCI registry authentication', () => {
 			};
 
 			const result = await requestEnsureAuthenticated({
-				env: { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` },
-				output: nullLog,
+				...createTestCommonParams(nullLog, { DEVCONTAINERS_OCI_AUTH: `${registry}|user|token` }),
 			}, {
 				type: 'GET',
 				url: `http://${registry}/v2/test/features/manifests/latest`,

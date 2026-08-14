@@ -15,6 +15,7 @@ import { publishOptions } from '../collectionCommonUtils/publish';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 import { runAsyncHandler } from '../utils';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 const collectionType = 'feature';
 export function featuresPublishOptions(y: Argv) {
@@ -51,7 +52,7 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
 
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);

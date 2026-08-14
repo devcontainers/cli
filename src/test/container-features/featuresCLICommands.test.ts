@@ -3,7 +3,7 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
-import { ExecResult, shellExec } from '../testUtils';
+import { createTestCommonParams, ExecResult, shellExec } from '../testUtils';
 import { getSemanticTags } from '../../spec-node/collectionCommonUtils/publishCommandImpl';
 import { getRef, getPublishedTags, getVersionsStrictSorted } from '../../spec-configuration/containerCollectionsOCI';
 import { generateFeaturesDocumentation } from '../../spec-node/collectionCommonUtils/generateDocsCommandImpl';
@@ -661,13 +661,14 @@ describe('test function getSermanticVersions', () => {
 });
 
 describe('test functions getVersionsStrictSorted and getPublishedTags', async () => {
+	const params = createTestCommonParams(output);
 	it('should list published versions', async () => {
 		const resource = 'ghcr.io/devcontainers/features/node';
 		const featureRef = getRef(output, resource);
 		if (!featureRef) {
 			assert.fail('featureRef should not be undefined');
 		}
-		const publishedTags = await getPublishedTags({ output, env: process.env }, featureRef) ?? [];
+		const publishedTags = await getPublishedTags(params, featureRef) ?? [];
 		assert.includeMembers(publishedTags, ['1', '1.0', '1.0.0', 'latest']);
 	});
 
@@ -678,7 +679,7 @@ describe('test functions getVersionsStrictSorted and getPublishedTags', async ()
 		if (!ref) {
 			assert.fail('ref should not be undefined');
 		}
-		const versionsList = await getVersionsStrictSorted({ output, env: process.env }, ref) ?? [];
+		const versionsList = await getVersionsStrictSorted(params, ref) ?? [];
 		console.log(versionsList);
 		const expectedVersions = [
 			'0.0.0',
@@ -722,7 +723,7 @@ describe('test functions getVersionsStrictSorted and getPublishedTags', async ()
 		assert.deepStrictEqual(versionsList, expectedVersions);
 
 
-		const publishedTags = await getPublishedTags({ output, env: process.env }, ref) ?? [];
+		const publishedTags = await getPublishedTags(params, ref) ?? [];
 		const expectedTags = [
 			'latest',
 			'0',

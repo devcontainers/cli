@@ -15,6 +15,7 @@ import { packageTemplates } from './packageImpl';
 import { getCollectionRef, getRef, OCICollectionRef } from '../../spec-configuration/containerCollectionsOCI';
 import { doPublishCommand, doPublishMetadata } from '../collectionCommonUtils/publishCommandImpl';
 import { runAsyncHandler } from '../utils';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 const collectionType = 'template';
 
@@ -52,7 +53,7 @@ async function templatesPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
 
     // Package templates
     const outputDir = path.join(os.tmpdir(), `/templates-output-${Date.now()}`);

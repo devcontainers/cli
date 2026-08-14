@@ -99,7 +99,7 @@ export async function requestResolveHeadersNoRedirects(options: RequestResolveHe
 
 async function requestResolveHeadersInternal(options: RequestResolveHeadersOptions, output: Log, maxRedirects?: number) {
 	const secureContext = await secureContextWithExtraCerts(output);
-	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer; responseUrl: string }>((resolve, reject) => {
+	return new Promise<{ statusCode: number; resHeaders: Record<string, string>; resBody: Buffer; responseUrl: string; redirected: boolean }>((resolve, reject) => {
 		const parsed = new url.URL(options.url);
 		const reqOptions: RequestOptions & tls.CommonConnectionOptions & FollowOptions<any> = {
 			hostname: parsed.hostname,
@@ -110,6 +110,7 @@ async function requestResolveHeadersInternal(options: RequestResolveHeadersOptio
 			headers: options.headers,
 			agent: new ProxyAgent(),
 			secureContext,
+			trackRedirects: true,
 		};
 		if (maxRedirects !== undefined) {
 			reqOptions.maxRedirects = maxRedirects;
@@ -132,6 +133,7 @@ async function requestResolveHeadersInternal(options: RequestResolveHeadersOptio
 					resHeaders: res.headers! as Record<string, string>,
 					resBody: Buffer.concat(chunks),
 					responseUrl: res.responseUrl,
+					redirected: res.redirects.length > 1,
 				});
 			});
 		});

@@ -44,6 +44,7 @@ import { readFeaturesConfig } from './featureUtils';
 import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './featuresCLI/generateDocs';
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
 import { parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
 
@@ -719,7 +720,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: params.common.ociAuthDiagnostics };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -806,6 +807,7 @@ async function doBuild({
 		return {
 			outcome: 'success' as 'success',
 			imageName: imageNameResult,
+			ociAuthDiagnostics: params.common.ociAuthDiagnostics,
 			dispose,
 		};
 	} catch (originalError) {
@@ -1152,6 +1154,7 @@ async function readConfiguration({
 			targetPlatformInfo: buildPlatformInfo,
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
@@ -1181,6 +1184,7 @@ async function readConfiguration({
 				workspace: configs?.workspaceConfig,
 				featuresConfiguration,
 				mergedConfiguration: mergedConfig,
+				ociAuthDiagnostics: params.ociAuthDiagnostics,
 			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
@@ -1264,6 +1268,7 @@ async function outdated({
 			platform: cliHost.platform,
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
 		};
 
 		const outdated = await loadVersionInfo(params, configs.config.config);
