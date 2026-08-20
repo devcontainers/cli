@@ -126,6 +126,36 @@ export async function pathExists(cli: string, workspaceFolder: string, location:
         return false;
     }
 }
+
+export function findFromArgsWithoutDefault(dockerfile: string): string[] {
+    const preambleArgsWithDefault = new Set<string>();
+    const offenders: string[] = [];
+    let beforeFirstFrom = true;
+
+    for (const rawLine of dockerfile.split('\n')) {
+        const line = rawLine.trim();
+
+        const argWithDefault = /^ARG\s+([A-Za-z0-9_]+)\s*=\s*\S+/.exec(line);
+        if (argWithDefault) {
+            if (beforeFirstFrom) {
+                preambleArgsWithDefault.add(argWithDefault[1]);
+            }
+            continue;
+        }
+
+        const fromMatch = /^FROM(?:\s+--platform=\S+)?\s+\$\{?([A-Za-z0-9_]+)/i.exec(line);
+        if (fromMatch && !preambleArgsWithDefault.has(fromMatch[1])) {
+            offenders.push(fromMatch[1]);
+        }
+
+        if (/^FROM\b/i.test(line)) {
+            beforeFirstFrom = false;
+        }
+    }
+
+    return offenders;
+}
+
 export async function commandMarkerTests(cli: string, workspaceFolder: string, expected: { postCreate: boolean; postStart: boolean; postAttach: boolean }, message: string) {
     const actual = {
         postCreate: await pathExists(cli, workspaceFolder, '/tmp/postCreateCommand.testmarker'),
