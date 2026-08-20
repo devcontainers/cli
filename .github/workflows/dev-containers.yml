@@ -89,6 +89,19 @@ jobs:
         fi
         cat "$DAEMON_JSON"
         sudo systemctl restart docker
+    - name: Install Podman 5.5.2
+      if: matrix.mocha-args == 'src/test/cli.podman.test.ts'
+      run: |
+        docker build \
+          --build-arg PODMAN_VERSION=v5.5.2 \
+          --target podman \
+          --tag podman-5.5.2-builder \
+          'https://github.com/mgoltzsche/podman-static.git#9ccf992536ecf0a4a3b82ac27fc708f00ab141ab'
+        container_id=$(docker create podman-5.5.2-builder)
+        docker cp "${container_id}:/usr/local/bin/podman" podman
+        docker rm "${container_id}"
+        sudo install -m 0755 podman /usr/local/bin/podman
+        podman --version
     - name: Tools Info
       run: |
         docker info
