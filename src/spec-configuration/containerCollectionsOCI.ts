@@ -3,6 +3,7 @@ import * as semver from 'semver';
 import * as tar from 'tar';
 import * as jsonc from 'jsonc-parser';
 import * as crypto from 'crypto';
+import { isIP } from 'net';
 
 import { Log, LogLevel } from '../spec-utils/log';
 import { isLocalFile, mkdirpLocal, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
@@ -116,6 +117,55 @@ const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*
 // MUST be at most 128 characters in length and MUST match the following regular expression:
 const regexForVersionOrDigest = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 
+// Validate authority syntax only; local and private registries remain supported by policy.
+function isValidRegistryAuthority(registry: string): boolean {
+	let hostname = registry;
+	let port: string | undefined;
+
+	if (registry.startsWith('[')) {
+		// IPv6 literals must use bracketed URL-authority form so the port is unambiguous.
+		const match = /^\[([^\]]+)\](?::([0-9]+))?$/.exec(registry);
+		if (!match || isIP(match[1]) !== 6) {
+			return false;
+		}
+		hostname = match[1];
+		port = match[2];
+	} else {
+		const firstColon = registry.indexOf(':');
+		if (firstColon !== -1) {
+			if (firstColon !== registry.lastIndexOf(':')) {
+				return false;
+			}
+			hostname = registry.slice(0, firstColon);
+			port = registry.slice(firstColon + 1);
+		}
+
+		if (isIP(hostname) === 0) {
+			if (hostname.length === 0 || hostname.length > 253) {
+				return false;
+			}
+			const labels = hostname.split('.');
+			if (!labels.every(label => label.length > 0
+				&& label.length <= 63
+				&& /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) {
+				return false;
+			}
+		}
+	}
+
+	if (port !== undefined) {
+		if (!/^[0-9]+$/.test(port)) {
+			return false;
+		}
+		const portNumber = Number(port);
+		if (portNumber < 1 || portNumber > 65535) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
 export function mapNodeArchitectureToGOARCH(arch: NodeJS.Architecture): GoARCH {
@@ -214,6 +264,10 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	const namespace = splitOnSlash.slice(1, -1).join('/');
 
 	const path = `${namespace}/${id}`;
+	if (!isValidRegistryAuthority(registry)) {
+		output.write(`Registry '${registry}' for input '${input}' failed validation.`, LogLevel.Error);
+		return;
+	}
 
 	if (!regexForPath.exec(path)) {
 		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
@@ -252,6 +306,10 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 	// Normalize input by downcasing entire string
 	registry = registry.toLowerCase();
 	namespace = namespace.toLowerCase();
+	if (!isValidRegistryAuthority(registry)) {
+		output.write(`Registry '${registry}' failed validation.`, LogLevel.Error);
+		return;
+	}
 
 	const path = namespace;
 	const resource = `${registry}/${path}`;
@@ -279,9 +337,13 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef | OCICollectionRef, manifestDigest?: string): Promise<ManifestContainer | undefined> {
 	const { output } = params;
 
-	// Simple mechanism to avoid making a DNS request for
-	// something that is not a domain name.
-	if (ref.registry.indexOf('.') < 0 && !ref.registry.startsWith('localhost')) {
+	const registryHostname = ref.registry.startsWith('[')
+		? ref.registry.slice(1, ref.registry.indexOf(']'))
+		: ref.registry.split(':', 1)[0];
+	// Preserve legacy owner/repository/feature IDs while allowing explicit local and IP registries.
+	if (!registryHostname.includes('.')
+		&& registryHostname !== 'localhost'
+		&& isIP(registryHostname) === 0) {
 		return;
 	}
 
