@@ -6,6 +6,7 @@ Notable changes.
 
 ### [0.88.0]
 - Add WSLc support (https://github.com/devcontainers/cli/pull/1249)
+- Derive the `--userns=keep-id` mapping from the remote user's actual UID/GID when using Podman, so the container user is mapped to the host user even when their UIDs differ (e.g. high UIDs from AD/SSSD). (https://github.com/devcontainers/cli/issues/1284)
 
 ## May 2026
 
