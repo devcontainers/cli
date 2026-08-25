@@ -1,23 +1,23 @@
 import { assert } from 'chai';
-import { generateFeaturesConfig, getFeatureLayers, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
+import { generateFeaturesConfig, getFeatureLayers, getContainerFeaturesBaseDockerFile, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { mkdirpLocal } from '../../spec-utils/pfs';
+import { mkdirpLocal, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
-import { createTestCommonParams, shellExec } from '../testUtils';
+import { createTestCommonParams, findFromArgsWithoutDefault, shellExec } from '../testUtils';
 import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-// Test fetching/generating the devcontainer-features.json config
+// Testing fetching/generating the devcontainer-features.json config
 describe('validate generateFeaturesConfig()', function () {
 
-    // Setup
+    // Setup for tests
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
@@ -134,5 +134,26 @@ RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
         assert.includeMembers(javaExtensions, ['vscjava.vscode-java-pack']);
         const javaSettings = java?.features[0]?.customizations?.vscode?.settings;
         assert.isObject(javaSettings);
+    });
+});
+
+describe('validate generated Dockerfiles avoid InvalidDefaultArgInFrom', function () {
+
+    it('feature base Dockerfile declares _DEV_CONTAINERS_BASE_IMAGE with a default before FROM', function () {
+        const dockerfile = getContainerFeaturesBaseDockerFile('/tmp/build-features');
+        assert.match(dockerfile, /ARG _DEV_CONTAINERS_BASE_IMAGE=\S+/, 'ARG should have a default value');
+        assert.match(dockerfile, /FROM \$_DEV_CONTAINERS_BASE_IMAGE\b/, 'FROM should reference the ARG directly');
+        assert.notMatch(dockerfile, /FROM \$\{_DEV_CONTAINERS_BASE_IMAGE:-/, 'should not rely on ${VAR:-default} shell fallback');
+        assert.deepStrictEqual(findFromArgsWithoutDefault(dockerfile), []);
+    });
+
+    it('validate that updateUID.Dockerfile declares BASE_IMAGE with a default before FROM', async function () {
+        const content = (await readLocalFile('scripts/updateUID.Dockerfile')).toString();
+        assert.match(content, /ARG BASE_IMAGE=\S+/, 'BASE_IMAGE ARG should have a default value');
+        assert.deepStrictEqual(
+            findFromArgsWithoutDefault(content),
+            [],
+            'updateUID.Dockerfile FROM references an ARG without a default'
+        );
     });
 });
