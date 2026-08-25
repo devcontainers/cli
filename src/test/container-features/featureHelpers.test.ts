@@ -634,6 +634,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',
@@ -718,6 +719,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',
@@ -805,6 +807,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',
