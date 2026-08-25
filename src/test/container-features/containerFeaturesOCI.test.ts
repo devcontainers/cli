@@ -5,6 +5,22 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
+describe('registry scheme', () => {
+	const cases = [
+		{ identifier: 'localhost/owner/features/test', expected: 'http' },
+		{ identifier: 'localhost:5000/owner/features/test', expected: 'http' },
+		{ identifier: 'LOCALHOST:5000/owner/features/test', expected: 'http' },
+		{ identifier: '127.0.0.1:5000/owner/features/test', expected: 'https' },
+		{ identifier: 'registry.example:5000/owner/features/test', expected: 'https' },
+	];
+
+	for (const { identifier, expected } of cases) {
+		it(`uses '${expected}' for '${identifier}'`, () => {
+			assert.equal(getRef(output, identifier)?.scheme, expected);
+		});
+	}
+});
+
 describe('getCollectionRef()', async function () {
     this.timeout('240s');
 

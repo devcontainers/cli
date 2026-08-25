@@ -29,6 +29,7 @@ export interface CommonParams {
 // eg:  ghcr.io/devcontainers/features/go@sha256:fe73f123927bd9ed1abda190d3009c4d51d0e17499154423c5913cf344af15a3
 // Constructed by 'getRef()'
 export interface OCIRef {
+	scheme: 'http' | 'https';
 	registry: string; 		// 'ghcr.io'
 	owner: string;			// 'devcontainers'
 	namespace: string;		// 'devcontainers/features'
@@ -45,6 +46,7 @@ export interface OCIRef {
 // eg:  ghcr.io/devcontainers/features:latest
 // Constructed by 'getCollectionRef()'
 export interface OCICollectionRef {
+	scheme: 'http' | 'https';
 	registry: string;		// 'ghcr.io'
 	path: string;			// 'devcontainers/features'
 	resource: string;		// 'ghcr.io/devcontainers/features'
@@ -119,6 +121,10 @@ const regexForPath = /^[a-z0-9]+([._-][a-z0-9]+)*(\/[a-z0-9]+([._-][a-z0-9]+)*)*
 // MUST be either (a) the digest of the manifest or (b) a tag
 // MUST be at most 128 characters in length and MUST match the following regular expression:
 const regexForVersionOrDigest = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
+
+function getRegistryScheme(registry: string): OCIRef['scheme'] {
+	return new URL(`https://${registry}`).hostname.toLowerCase() === 'localhost' ? 'http' : 'https';
+}
 
 // https://go.dev/doc/install/source#environment
 // Expected by OCI Spec as seen here: https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions
@@ -240,6 +246,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	output.write(`> digest?: ${digest}`, LogLevel.Trace);
 
 	return {
+		scheme: getRegistryScheme(registry),
 		id,
 		owner,
 		namespace,
@@ -270,6 +277,7 @@ export function getCollectionRef(output: Log, registry: string, namespace: strin
 	}
 
 	return {
+		scheme: getRegistryScheme(registry),
 		registry,
 		path,
 		resource,
@@ -295,7 +303,7 @@ export async function fetchOCIManifestIfExists(params: CommonParams, ref: OCIRef
 	if (manifestDigest) {
 		reference = manifestDigest;
 	}
-	const manifestUrl = `https://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
+	const manifestUrl = `${ref.scheme}://${ref.registry}/v2/${ref.path}/manifests/${reference}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
 	const expectedDigest = manifestDigest || ('digest' in ref ? ref.digest : undefined);
 	const manifestContainer = await getManifest(params, manifestUrl, ref, undefined, expectedDigest);
@@ -471,7 +479,7 @@ export async function getVersionsStrictSorted(params: CommonParams, ref: OCIRef)
 export async function getPublishedTags(params: CommonParams, ref: OCIRef): Promise<string[] | undefined> {
 	const { output } = params;
 	try {
-		const url = `https://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
+		const url = `${ref.scheme}://${ref.registry}/v2/${ref.namespace}/${ref.id}/tags/list`;
 
 		const headers = {
 			'Accept': 'application/json',

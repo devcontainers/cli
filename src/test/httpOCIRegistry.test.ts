@@ -133,6 +133,7 @@ describe('OCI registry authentication', () => {
 		try {
 			const registry = `127.0.0.1:${registryPort}`;
 			const ociRef: OCICollectionRef = {
+				scheme: 'http',
 				registry,
 				path: 'test/features',
 				resource: `${registry}/test/features`,
@@ -206,6 +207,7 @@ describe('OCI registry authentication', () => {
 
 		try {
 			const ociRef: OCICollectionRef = {
+				scheme: 'http',
 				registry,
 				path: 'test/features',
 				resource: `${registry}/test/features`,
@@ -252,6 +254,7 @@ describe('OCI registry authentication', () => {
 
 		try {
 			const ociRef: OCICollectionRef = {
+				scheme: 'http',
 				registry,
 				path: 'test/features',
 				resource: `${registry}/test/features`,
@@ -381,6 +384,7 @@ describe('OCI registry authentication', () => {
 
 		try {
 			const ociRef: OCICollectionRef = {
+				scheme: 'http',
 				registry,
 				path: 'test/features',
 				resource: `${registry}/test/features`,
@@ -441,6 +445,7 @@ describe('OCI registry authentication', () => {
 
 		try {
 			const ociRef: OCICollectionRef = {
+				scheme: 'http',
 				registry,
 				path: 'test/features',
 				resource: `${registry}/test/features`,

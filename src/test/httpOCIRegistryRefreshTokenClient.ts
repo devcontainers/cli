@@ -14,6 +14,7 @@ function requiredEnvironmentVariable(name: string) {
 const registry = requiredEnvironmentVariable('TEST_REGISTRY');
 const tokenPort = requiredEnvironmentVariable('TEST_TOKEN_PORT');
 const ociRef: OCICollectionRef = {
+	scheme: 'http',
 	registry,
 	path: 'test/features',
 	resource: `${registry}/test/features`,

@@ -330,7 +330,8 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 	}
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
-	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
+	const registryOrigin = `${ref.scheme}://${registryServer}`;
+	const manifestUrl = `${registryOrigin}/v2/${ref.path}/manifests/${ref.version}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
 
 	let targetDigest: string | undefined = undefined;
@@ -342,7 +343,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 		// Spec: https://github.com/opencontainers/image-spec/blob/main/image-index.md
 		const imageIndexEntry = await getImageIndexEntryForPlatform(params, manifestUrl, ref, platformInfo);
 		if (imageIndexEntry) {
-			const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
+			const manifestUrl = `${registryOrigin}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
 			const a = await getManifest(params, manifestUrl, ref);
 			if (a) {
 				targetDigest = a.manifestObj.config.digest;
@@ -354,7 +355,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 		throw new Error(`No manifest found for ${resourceAndVersion}.`);
 	}
 
-	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${targetDigest}`;
+	const blobUrl = `${registryOrigin}/v2/${ref.path}/blobs/${targetDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const httpOptions = {

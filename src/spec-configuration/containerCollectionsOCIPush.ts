@@ -167,7 +167,7 @@ async function putManifestWithTags(params: CommonParams, manifest: ManifestConta
 	const { manifestBuffer, contentDigest } = manifest;
 
 	for await (const tag of tags) {
-		const url = `https://${ociRef.registry}/v2/${ociRef.path}/manifests/${tag}`;
+		const url = `${ociRef.scheme}://${ociRef.registry}/v2/${ociRef.path}/manifests/${tag}`;
 		output.write(`PUT -> '${url}'`, LogLevel.Trace);
 
 		const httpOptions = {
@@ -232,7 +232,7 @@ async function putBlob(params: CommonParams, blobPutLocationUriPath: string, oci
 	if (blobPutLocationUriPath.startsWith('https://') || blobPutLocationUriPath.startsWith('http://')) {
 		url = blobPutLocationUriPath;
 	} else {
-		url = `https://${ociRef.registry}${blobPutLocationUriPath}`;
+		url = `${ociRef.scheme}://${ociRef.registry}${blobPutLocationUriPath}`;
 	}
 
 	// The <location> MAY contain critical query parameters.
@@ -332,7 +332,7 @@ export async function calculateDataLayer(output: Log, data: Buffer, basename: st
 export async function checkIfBlobExists(params: CommonParams, ociRef: OCIRef | OCICollectionRef, digest: string): Promise<boolean> {
 	const { output } = params;
 	
-	const url = `https://${ociRef.registry}/v2/${ociRef.path}/blobs/${digest}`;
+	const url = `${ociRef.scheme}://${ociRef.registry}/v2/${ociRef.path}/blobs/${digest}`;
 	const res = await requestEnsureAuthenticated(params, { type: 'HEAD', url, headers: {} }, ociRef);
 	if (!res) {
 		output.write('Request failed', LogLevel.Error);
@@ -349,7 +349,7 @@ export async function checkIfBlobExists(params: CommonParams, ociRef: OCIRef | O
 async function postUploadSessionId(params: CommonParams, ociRef: OCIRef | OCICollectionRef): Promise<string | undefined> {
 	const { output } = params;
 
-	const url = `https://${ociRef.registry}/v2/${ociRef.path}/blobs/uploads/`;
+	const url = `${ociRef.scheme}://${ociRef.registry}/v2/${ociRef.path}/blobs/uploads/`;
 	output.write(`Generating Upload URL -> ${url}`, LogLevel.Trace);
 	const res = await requestEnsureAuthenticated(params, { type: 'POST', url, headers: {} }, ociRef);
 

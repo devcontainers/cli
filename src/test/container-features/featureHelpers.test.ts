@@ -206,6 +206,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',
@@ -242,6 +243,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'devcontainers',
 				namespace: 'devcontainers/features',
@@ -278,6 +280,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',
