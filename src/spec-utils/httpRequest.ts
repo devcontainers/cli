@@ -25,7 +25,7 @@ export async function request(options: { type: string; url: string; headers: Rec
 			secureContext,
 		};
 
-		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		const plainHTTP = parsed.protocol === 'http:';
 		if (plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}
@@ -64,7 +64,7 @@ export async function headRequest(options: { url: string; headers: Record<string
 			secureContext,
 		};
 
-		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		const plainHTTP = parsed.protocol === 'http:';
 		if (plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}
@@ -116,7 +116,7 @@ async function requestResolveHeadersInternal(options: RequestResolveHeadersOptio
 			reqOptions.maxRedirects = maxRedirects;
 		}
 
-		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
+		const plainHTTP = parsed.protocol === 'http:';
 		if (plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
 		}

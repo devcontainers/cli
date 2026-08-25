@@ -1,8 +1,11 @@
+import { execFile } from 'child_process';
 import * as http from 'http';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import * as https from 'https';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { promisify } from 'util';
 
 import { assert } from 'chai';
 
@@ -10,6 +13,41 @@ import { OCICollectionRef } from '../spec-configuration/containerCollectionsOCI'
 import { isAllowedTokenServiceRealm, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { nullLog } from '../spec-utils/log';
 import { createTestCommonParams } from './testUtils';
+
+const execFileAsync = promisify(execFile);
+const certificateFolder = join(__dirname, 'fixtures');
+const certificatePath = join(certificateFolder, 'localhost-cert.pem');
+const privateKeyPath = join(certificateFolder, 'localhost-key.pem');
+
+async function getLocalhostCertificate() {
+	try {
+		return {
+			cert: await readFile(certificatePath),
+			key: await readFile(privateKeyPath),
+		};
+	} catch (error) {
+		if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+			throw error;
+		}
+	}
+
+	await mkdir(certificateFolder, { recursive: true });
+	await execFileAsync('openssl', [
+		'req',
+		'-x509',
+		'-newkey', 'rsa:2048',
+		'-nodes',
+		'-keyout', privateKeyPath,
+		'-out', certificatePath,
+		'-days', '3650',
+		'-subj', '/CN=localhost',
+		'-addext', 'subjectAltName=DNS:localhost',
+	]);
+	return {
+		cert: await readFile(certificatePath),
+		key: await readFile(privateKeyPath),
+	};
+}
 
 describe('OCI registry authentication', () => {
 	describe('isAllowedTokenServiceRealm', () => {
@@ -240,7 +278,7 @@ describe('OCI registry authentication', () => {
 		const refreshToken = 'registry-refresh-token';
 		const bearerScheme = 'Bearer';
 		let tokenRequests = 0;
-		const tokenServer = http.createServer(async (request, response) => {
+		const tokenServer = https.createServer(await getLocalhostCertificate(), async (request, response) => {
 			tokenRequests++;
 			try {
 				const chunks: Buffer[] = [];
@@ -281,42 +319,35 @@ describe('OCI registry authentication', () => {
 				},
 			},
 		}));
-		const previousDockerConfig = process.env.DOCKER_CONFIG;
-		process.env.DOCKER_CONFIG = dockerConfig;
 
 		try {
-			const ociRef: OCICollectionRef = {
-				registry,
-				path: 'test/features',
-				resource: `${registry}/test/features`,
-				tag: 'latest',
-				version: 'latest',
-			};
+			const { stdout } = await execFileAsync(process.execPath, [
+				'-r',
+				'ts-node/register',
+				join(__dirname, 'httpOCIRegistryRefreshTokenClient.ts'),
+			], {
+				cwd: join(__dirname, '..', '..'),
+				encoding: 'utf8',
+				env: {
+					...process.env,
+					DOCKER_CONFIG: dockerConfig,
+					NODE_EXTRA_CA_CERTS: certificatePath,
+					TEST_REGISTRY: registry,
+					TEST_TOKEN_PORT: `${tokenPort}`,
+					TS_NODE_PROJECT: join(__dirname, 'tsconfig.json'),
+				},
+			});
+			const result = JSON.parse(stdout);
 
-			const result = await requestEnsureAuthenticated({
-				...createTestCommonParams(nullLog, {}),
-				allowedCrossOriginAuthHosts: [`${registry}=localhost:${tokenPort}`],
-				ociAuthHardening: true,
-			}, {
-				type: 'GET',
-				url: `http://${registry}/v2/test/features/manifests/latest`,
-				headers: {},
-			}, ociRef);
-
-			assert.equal(result?.statusCode, 200);
+			assert.equal(result.statusCode, 200);
 			assert.equal(registryRequests, 2);
 			assert.equal(tokenRequests, 1);
-			assert.deepEqual(result?.ociAuthDiagnostics, {
+			assert.deepEqual(result.ociAuthDiagnostics, {
 				authLookupWouldBeBlocked: false,
 				registryRedirectWouldPreventCredentialForwarding: false,
 				authServerRedirect: false,
 			});
 		} finally {
-			if (previousDockerConfig === undefined) {
-				delete process.env.DOCKER_CONFIG;
-			} else {
-				process.env.DOCKER_CONFIG = previousDockerConfig;
-			}
 			await rm(dockerConfig, { recursive: true });
 			await Promise.all([close(registryServer), close(tokenServer)]);
 		}

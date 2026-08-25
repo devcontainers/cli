@@ -16,3 +16,5 @@ src/test/container-features/configs/temp_lifecycle-hooks-alternative-order
 test-secrets-temp.json
 src/test/container-*/**/src/**/README.md
 !src/test/container-features/assets/*.tgz
+src/test/fixtures/localhost-cert.pem
+src/test/fixtures/localhost-key.pem
