@@ -65,6 +65,7 @@ describe('Docker utils', function () {
 
 	it('parses Docker path arguments', () => {
 		assert.deepStrictEqual(parseDockerPathArgs('["--session","MyApp"]'), ['--session', 'MyApp']);
+		assert.deepStrictEqual(parseDockerPathArgs('[]'), []);
 		assert.strictEqual(parseDockerPathArgs(undefined), undefined);
 		assert.throws(() => parseDockerPathArgs('{'), /JSON array of strings/);
 		assert.throws(() => parseDockerPathArgs('{}'), /JSON array of strings/);

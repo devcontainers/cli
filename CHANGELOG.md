@@ -6,6 +6,7 @@ Notable changes.
 
 ### [0.88.0]
 - Add WSLc support (https://github.com/devcontainers/cli/pull/1249)
+- Add an internal Docker CLI argument-prefix option for provider-specific target selection.
 
 ## May 2026
 
