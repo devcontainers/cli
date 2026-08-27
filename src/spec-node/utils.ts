@@ -109,6 +109,7 @@ export interface DockerResolverParameters {
 	common: ResolverParameters;
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
+	dockerPathArgs?: string[];
 	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;

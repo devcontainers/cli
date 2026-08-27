@@ -25,9 +25,9 @@ const projectLabel = 'com.docker.compose.project';
 const serviceLabel = 'com.docker.compose.service';
 
 export async function openDockerComposeDevContainer(params: DockerResolverParameters, workspace: Workspace, config: SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
-	const { common, dockerCLI, dockerComposeCLI } = params;
+	const { common, dockerCLI, dockerPathArgs, dockerComposeCLI } = params;
 	const { cliHost, env, output } = common;
-	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerPathArgs, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 	return _openDockerComposeDevContainer(params, buildParams, workspace, config, getRemoteWorkspaceFolder(config.config), idLabels, additionalFeatures);
 }
 
@@ -151,11 +151,11 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 
 export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean) {
 
-	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
+	const { common, dockerCLI, dockerPathArgs, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
 	const { config } = configWithRaw;
 
-	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerPathArgs, dockerComposeCLI: dockerComposeCLIFunc, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
 	const composeService = composeConfig.services[config.service];
 
@@ -705,16 +705,18 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
+			const { args: dockerPathArgs, ...baseParams } = params;
 			let v2 = true;
 			let stdout: Buffer;
 			try {
 				stdout = (await dockerComposeCLI({
-					...params,
+					...baseParams,
 					cmd: dockerCLICmd,
+					args: dockerPathArgs,
 				}, 'compose', 'version', '--short')).stdout;
 			} catch (err) {
 				stdout = (await dockerComposeCLI({
-					...params,
+					...baseParams,
 					cmd: dockerComposeCLICmd,
 				}, 'version', '--short')).stdout;
 				v2 = false;

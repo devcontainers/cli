@@ -8,6 +8,7 @@ import { inspectImageInRegistry, qualifyImageName } from '../spec-node/utils';
 import assert from 'assert';
 import { dockerCLI, listContainers, PartialExecParameters, removeContainer, toExecParameters } from '../spec-shutdown/dockerUtils';
 import { createCLIParams } from './testUtils';
+import { parseDockerPathArgs } from '../spec-common/dockerPathArgs';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
@@ -47,6 +48,27 @@ describe('Docker utils', function () {
 		assert.strictEqual(qualifyImageName('docker.io/ubuntu'), 'docker.io/library/ubuntu');
 		assert.strictEqual(qualifyImageName('random/image'), 'docker.io/random/image');
 		assert.strictEqual(qualifyImageName('foo/random/image'), 'foo/random/image');
+	});
+
+	it('prepends Docker path arguments', async () => {
+		const params = await createCLIParams(__dirname);
+		params.dockerPathArgs = ['--session', 'MyApp'];
+
+		assert.deepStrictEqual(toExecParameters(params).args, ['--session', 'MyApp']);
+		assert.deepStrictEqual(
+			toExecParameters(params, { cmd: params.dockerCLI, args: ['compose'], version: '2' }).args,
+			['--session', 'MyApp', 'compose']);
+		assert.deepStrictEqual(
+			toExecParameters(params, { cmd: 'docker-compose', args: [], version: '1' }).args,
+			[]);
+	});
+
+	it('parses Docker path arguments', () => {
+		assert.deepStrictEqual(parseDockerPathArgs('["--session","MyApp"]'), ['--session', 'MyApp']);
+		assert.strictEqual(parseDockerPathArgs(undefined), undefined);
+		assert.throws(() => parseDockerPathArgs('{'), /JSON array of strings/);
+		assert.throws(() => parseDockerPathArgs('{}'), /JSON array of strings/);
+		assert.throws(() => parseDockerPathArgs('["--session",1]'), /JSON array of strings/);
 	});
 
 	it('protects against concurrent removal', async () => {

@@ -331,7 +331,7 @@ export interface ImageBuildInfo {
 }
 
 export async function getImageBuildInfo(params: DockerResolverParameters | DockerCLIParameters, configWithRaw: SubstitutedConfig<DevContainerConfig>): Promise<ImageBuildInfo> {
-	const { dockerCLI, dockerComposeCLI } = params;
+	const { dockerCLI, dockerPathArgs, dockerComposeCLI } = params;
 	const { cliHost, output } = 'cliHost' in params ? params : params.common;
 
 	const { config } = configWithRaw;
@@ -350,7 +350,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 		const cwdEnvFile = cliHost.path.join(cliHost.cwd, '.env');
 		const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 		const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, cliHost.cwd);
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env: cliHost.env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerPathArgs, dockerComposeCLI, env: cliHost.env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 
 		const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 		const services = Object.keys(composeConfig.services || {});

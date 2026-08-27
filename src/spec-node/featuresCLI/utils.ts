@@ -30,6 +30,7 @@ export const staticProvisionParams = {
 export const staticExecParams = {
     'user-data-folder': undefined,
     'docker-path': undefined,
+    'docker-path-args': undefined,
     'docker-compose-path': undefined,
     'container-data-folder': undefined,
     'container-system-data-folder': undefined,

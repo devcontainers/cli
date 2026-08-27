@@ -43,6 +43,7 @@ import { featuresUpgradeHandler, featuresUpgradeOptions } from './upgradeCommand
 import { readFeaturesConfig } from './featureUtils';
 import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './featuresCLI/generateDocs';
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
+import { parseDockerPathArgs } from '../spec-common/dockerPathArgs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
 import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
 
@@ -100,6 +101,7 @@ export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
 function provisionOptions(y: Argv) {
 	return y.options({
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
@@ -185,6 +187,7 @@ function provisionHandler(args: ProvisionArgs) {
 async function provision({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'docker-compose-path': dockerComposePath,
 	'container-data-folder': containerDataFolder,
 	'container-system-data-folder': containerSystemDataFolder,
@@ -246,6 +249,7 @@ async function provision({
 
 	const options: ProvisionOptions = {
 		dockerPath,
+		dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 		dockerComposePath,
 		containerDataFolder,
 		containerSystemDataFolder,
@@ -354,6 +358,7 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 function setUpOptions(y: Argv) {
 	return y.options({
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
 		'container-id': { type: 'string', required: true, description: 'Id of the container.' },
@@ -402,6 +407,7 @@ async function setUp(args: SetUpArgs) {
 async function doSetUp({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'container-data-folder': containerDataFolder,
 	'container-system-data-folder': containerSystemDataFolder,
 	'container-id': containerId,
@@ -431,6 +437,7 @@ async function doSetUp({
 		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const params = await createDockerParams({
 			dockerPath,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposePath: undefined,
 			containerSessionDataFolder,
 			containerDataFolder,
@@ -524,6 +531,7 @@ function buildOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If not provided, defaults to the current directory.' },
 		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
@@ -580,6 +588,7 @@ async function build(args: BuildArgs) {
 async function doBuild({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
 	config: configParam,
@@ -618,6 +627,7 @@ async function doBuild({
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};
 		const params = await createDockerParams({
 			dockerPath,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposePath,
 			containerDataFolder: undefined,
 			containerSystemDataFolder: undefined,
@@ -676,7 +686,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerPathArgs: params.dockerPathArgs, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -787,6 +797,7 @@ function runUserCommandsOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
@@ -848,6 +859,7 @@ async function runUserCommands(args: RunUserCommandsArgs) {
 async function doRunUserCommands({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'docker-compose-path': dockerComposePath,
 	'container-data-folder': containerDataFolder,
 	'container-system-data-folder': containerSystemDataFolder,
@@ -892,6 +904,7 @@ async function doRunUserCommands({
 
 		const params = await createDockerParams({
 			dockerPath,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposePath,
 			containerDataFolder,
 			containerSystemDataFolder,
@@ -994,6 +1007,7 @@ function readConfigurationOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
 		'mount-workspace-git-root': { type: 'boolean', default: true, description: 'Mount the workspace using its Git root.' },
@@ -1032,6 +1046,7 @@ function readConfigurationHandler(args: ReadConfigurationArgs) {
 async function readConfiguration({
 	// 'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'docker-compose-path': dockerComposePath,
 	'workspace-folder': workspaceFolderArg,
 	'mount-workspace-git-root': mountWorkspaceGitRoot,
@@ -1090,6 +1105,7 @@ async function readConfiguration({
 		const dockerCLI = dockerPath || 'docker';
 		const dockerComposeCLI = dockerComposeCLIConfig({
 			exec: cliHost.exec,
+			args: parseDockerPathArgs(dockerPathArgs),
 			env: cliHost.env,
 			output,
 		}, dockerCLI, dockerComposePath || 'docker-compose');
@@ -1100,6 +1116,7 @@ async function readConfiguration({
 		const params: DockerCLIParameters = {
 			cliHost,
 			dockerCLI,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
@@ -1251,6 +1268,7 @@ function execOptions(y: Argv) {
 	return y.options({
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
 		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
 		'container-data-folder': { type: 'string', description: 'Container data folder where user data inside the container will be stored.' },
 		'container-system-data-folder': { type: 'string', description: 'Container system data folder where system data inside the container will be stored.' },
@@ -1313,6 +1331,7 @@ async function exec(args: ExecArgs) {
 export async function doExec({
 	'user-data-folder': persistedFolder,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	'docker-compose-path': dockerComposePath,
 	'container-data-folder': containerDataFolder,
 	'container-system-data-folder': containerSystemDataFolder,
@@ -1346,6 +1365,7 @@ export async function doExec({
 		const overrideConfigFile = overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : undefined;
 		const params = await createDockerParams({
 			dockerPath,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposePath,
 			containerDataFolder,
 			containerSystemDataFolder,

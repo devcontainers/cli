@@ -19,12 +19,14 @@ import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { parseDockerPathArgs } from '../spec-common/dockerPathArgs';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
 		.options({
 			'workspace-folder': { type: 'string', description: 'Workspace folder. If --workspace-folder is not provided defaults to the current directory.' },
 			'docker-path': { type: 'string', description: 'Path to docker executable.', default: 'docker' },
+			'docker-path-args': { type: 'string', hidden: true, description: 'JSON array of arguments inserted after the Docker CLI path.' },
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
@@ -56,6 +58,7 @@ export function featuresUpgradeHandler(args: FeaturesUpgradeArgs) {
 async function featuresUpgrade({
 	'workspace-folder': workspaceFolderArg,
 	'docker-path': dockerPath,
+	'docker-path-args': dockerPathArgs,
 	config: configArg,
 	'docker-compose-path': dockerComposePath,
 	'log-level': inputLogLevel,
@@ -83,6 +86,7 @@ async function featuresUpgrade({
 		}, pkg, sessionStart, disposables);
 		const dockerComposeCLI = dockerComposeCLIConfig({
 			exec: cliHost.exec,
+			args: parseDockerPathArgs(dockerPathArgs),
 			env: cliHost.env,
 			output,
 		}, dockerPath, dockerComposePath);
@@ -93,6 +97,7 @@ async function featuresUpgrade({
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,
+			dockerPathArgs: parseDockerPathArgs(dockerPathArgs),
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,
