@@ -255,7 +255,7 @@ reportResults
 
 ## dev-container-features-test-lib
 
-The `dev-container-features-test-lib` is convenience helper [defined in the CLI](https://github.com/devcontainers/cli/blob/1910ca41015c627b884ddd69ebc52d1e8cdd8cf0/src/spec-node/featuresCLI/utils.ts#L59) that adds several bash functions to organize test asserts. Note that using this libary **is not required**.
+The `dev-container-features-test-lib` is convenience helper [defined in the CLI](https://github.com/devcontainers/cli/blob/1910ca41015c627b884ddd69ebc52d1e8cdd8cf0/src/spec-node/featuresCLI/utils.ts#L59) that adds several bash functions to organize test asserts. Note that using this library **is not required**.
 
 #### `check <LABEL> <cmd> [args...]`
 Description: Executes `cmd` and prints success/failed depending on exit code (0 === success) of `cmd`.

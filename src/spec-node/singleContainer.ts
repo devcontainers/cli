@@ -134,11 +134,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
 	if (config.build?.target) {
-		// Explictly set build target for the dev container build features on that
+		// Explicitly set build target for the dev container build features on that
 		baseName = config.build.target;
 	} else {
 		// Use the last stage in the Dockerfile
-		// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+		// Find the last line that starts with "FROM" (possibly preceded by white-space)
 		const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(dockerfile, baseName);
 		baseName = lastStageName;
 		if (modifiedDockerfile) {
@@ -189,7 +189,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)

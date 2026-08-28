@@ -160,7 +160,7 @@ describe('Dev Containers CLI', function () {
 			const nonCachedImageWithoutBaseImageLayers = nonCachedImageLayers.slice(baseImageLayers.length);
 
 			assert.deepEqual(originalImageWithoutBaseImageLayers, cachedImageWithoutBaseImageLayers, 'because they are the same image built sequentially therefore the second should have used caching');
-			assert.equal(haveCommonEntries(cachedImageWithoutBaseImageLayers, nonCachedImageWithoutBaseImageLayers), false, 'because we passed the --no-cache argument which disables the use of the cache, therefore the non-base image layers should have nothin in common');
+			assert.equal(haveCommonEntries(cachedImageWithoutBaseImageLayers, nonCachedImageWithoutBaseImageLayers), false, 'because we passed the --no-cache argument which disables the use of the cache, therefore the non-base image layers should have nothing in common');
 		});
 
 		it('should fail with "not found" error when config is not found', async () => {

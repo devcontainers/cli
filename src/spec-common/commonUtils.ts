@@ -481,8 +481,8 @@ async function findLocalWindowsExecutable(command: string, cwd = process.cwd(), 
 		}
 	}
 	// Not found in PATH. Bail out.
-	output.write(`findLocalWindowsExecutable: Exectuable '${command}' not found on PATH '${pathValue}'.`);
-	const err = new Error(`Exectuable '${command}' not found on PATH '${pathValue}'.`);
+	output.write(`findLocalWindowsExecutable: Executable '${command}' not found on PATH '${pathValue}'.`);
+	const err = new Error(`Executable '${command}' not found on PATH '${pathValue}'.`);
 	(err as any).code = 'ENOENT';
 	throw err;
 }

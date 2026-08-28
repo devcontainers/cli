@@ -308,7 +308,7 @@ describe('template metadata', async function () {
 		await shellExec(`npm --prefix ${tmp} install devcontainers-cli-${pkg.version}.tgz`);
 	});
 
-	it('successfully fetches metdata off a published Template', async function () {
+	it('successfully fetches metadata off a published Template', async function () {
 		let success = false;
 		let result: ExecResult | undefined = undefined;
 		try {

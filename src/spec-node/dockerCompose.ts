@@ -170,11 +170,11 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 		dockerfile = originalDockerfile;
 		if (target) {
-			// Explictly set build target for the dev container build features on that
+			// Explicitly set build target for the dev container build features on that
 			baseName = target;
 		} else {
 			// Use the last stage in the Dockerfile
-			// Find the last line that starts with "FROM" (possibly preceeded by white-space)
+			// Find the last line that starts with "FROM" (possibly preceded by white-space)
 			const { lastStageName, modifiedDockerfile } = ensureDockerfileHasFinalStageName(originalDockerfile, baseName);
 			baseName = lastStageName;
 			if (modifiedDockerfile) {

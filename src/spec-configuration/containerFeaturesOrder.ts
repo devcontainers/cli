@@ -24,7 +24,7 @@ interface FNode {
 	// FeatureSet contains 'sourceInformation', useful for:
 	//      Providing information on if Feature is an OCI Feature, Direct HTTPS Feature, or Local Feature.
 	//      Additionally, contains 'ref' and 'manifestDigest' for OCI Features - useful for sorting.
-	// Property set programatically when discovering all the nodes in the graph.
+	// Property set programmatically when discovering all the nodes in the graph.
 	featureSet?: FeatureSet;
 
 	// Graph directed adjacency lists.
@@ -71,7 +71,7 @@ function satisfiesSoftDependency(params: CommonParams, node: FNode, softDep: FNo
 	let softDepSourceInfo = softDep.featureSet?.sourceInformation; // Mutable only for type-casting.
 
 	if (!nodeSourceInfo || !softDepSourceInfo) {
-		output.write(`Missing sourceInfo: satisifiesSoftDependency(${nodeSourceInfo?.userFeatureId}, ${softDepSourceInfo?.userFeatureId})`, LogLevel.Trace);
+		output.write(`Missing sourceInfo: satisfiesSoftDependency(${nodeSourceInfo?.userFeatureId}, ${softDepSourceInfo?.userFeatureId})`, LogLevel.Trace);
 		throw new Error('ERR: Failure resolving Features.');
 	}
 
@@ -624,7 +624,7 @@ export async function computeDependsOnInstallationOrder(
 		const round = worklist.filter(node =>
 			// If the node has no hard/soft dependencies, the node can always be installed.
 			(node.dependsOn.length === 0 && node.installsAfter.length === 0)
-			// OR, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satified in prior rounds
+			// OR, every hard-dependency (dependsOn) AND soft-dependency (installsAfter) has been satisfied in prior rounds
 			|| node.dependsOn.every(dep =>
 				installationOrder.some(installed => equals(params, installed, dep)))
 			&& node.installsAfter.every(dep =>

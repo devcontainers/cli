@@ -231,7 +231,7 @@ describe('Feature Dependencies', function () {
 
             assert.deepStrictEqual(actual.length, 6);
 
-            // Despite having different options, these two Features should have the same canconical ID (same exact contents, just run with a different set of options)
+            // Despite having different options, these two Features should have the same canonical ID (same exact contents, just run with a different set of options)
             const firstA = actual[2];
             const secondA = actual[3];
             assert.strictEqual(firstA.canonicalId, secondA.canonicalId);

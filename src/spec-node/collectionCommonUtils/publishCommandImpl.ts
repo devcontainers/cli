@@ -29,7 +29,7 @@ export function getSemanticTags(version: string, tags: string[], output: Log) {
 
 	semanticVersions = [];
 
-	// Adds semantic versions depending upon the existings (published) versions
+	// Adds semantic versions depending upon the existing (published) versions
 	// eg. 1.2.3 --> [1, 1.2, 1.2.3, latest]
 	updateSemanticTagsList(tags, version, `${parsedVersion.major}.x.x`, `${parsedVersion.major}`);
 	updateSemanticTagsList(tags, version, `${parsedVersion.major}.${parsedVersion.minor}.x`, `${parsedVersion.major}.${parsedVersion.minor}`);

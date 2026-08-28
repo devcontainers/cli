@@ -5,15 +5,15 @@ export interface Template {
 	description?: string;
 	documentationURL?: string;
 	licenseURL?: string;
-	type?: string;             // Added programatically during packaging
-	fileCount?: number;        // Added programatically during packaging
+	type?: string;             // Added programmatically during packaging
+	fileCount?: number;        // Added programmatically during packaging
 	featureIds?: string[];
 	options?: Record<string, TemplateOption>;
 	platforms?: string[];
 	publisher?: string;
 	keywords?: string[];
 	optionalPaths?: string[];
-	files: string[];           // Added programatically during packaging
+	files: string[];           // Added programmatically during packaging
 }
 
 export type TemplateOption = {

@@ -118,7 +118,7 @@ describe('Feature lifecycle hooks', function () {
 				await shellExec(`rm -f ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
 			});
 
-			it('secrets should be availale to the lifecycle hooks during up command', async () => {
+			it('secrets should be available to the lifecycle hooks during up command', async () => {
 				{
 					const res = await shellExec(`${cli} exec --workspace-folder ${testFolder} ls -altr`);
 					assert.strictEqual(res.error, null);
@@ -215,7 +215,7 @@ describe('Feature lifecycle hooks', function () {
 				await shellExec(`rm -f ${testFolder}/test-secrets-temp.json`, undefined, undefined, true);
 			});
 
-			it('secrets should be availale to the lifecycle hooks during run-user-commands command', async () => {
+			it('secrets should be available to the lifecycle hooks during run-user-commands command', async () => {
 				{
 					const expectedTestMarkerFiles = [
 						'0.panda.onCreateCommand.testMarker',
