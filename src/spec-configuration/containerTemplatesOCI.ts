@@ -91,8 +91,11 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 		const filePath = path.join(templateDestPath, f);
 		if (await isLocalFile(filePath)) {
 			const fileContents = await readLocalFile(filePath);
-			const fileContentsReplaced = replaceTemplatedValues(output, fileContents.toString(), userSelectedOptions);
-			await writeLocalFile(filePath, Buffer.from(fileContentsReplaced));
+			const originalContent = fileContents.toString();
+			const fileContentsReplaced = replaceTemplatedValues(output, originalContent, userSelectedOptions);
+			if (fileContentsReplaced !== originalContent) {
+				await writeLocalFile(filePath, Buffer.from(fileContentsReplaced));
+			}
 		} else {
 			output.write(`Could not find templated file '${f}'.`, LogLevel.Error);
 		}
