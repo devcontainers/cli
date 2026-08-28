@@ -60,7 +60,7 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 
 	const { dockerCLI, dockerComposeCLI } = params;
 	const { env } = common;
-	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: common.ociAuthDiagnostics };
 	await ensureNoDisallowedFeatures(cliParams, config, additionalFeatures, idLabels);
 
 	await runInitializeCommand({ ...params, common: { ...common, output: common.lifecycleHook.output } }, config.initializeCommand, common.lifecycleHook.onDidInput);

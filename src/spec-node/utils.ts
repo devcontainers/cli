@@ -27,6 +27,7 @@ import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { PackageConfiguration } from '../spec-utils/product';
 import { ImageMetadataEntry, MergedDevContainerConfig } from './imageMetadata';
 import { getImageIndexEntryForPlatform, getManifest, getRef } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics, OCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { configFileLabel, findDevContainer, hostFolderLabel } from './singleContainer';
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
@@ -285,7 +286,10 @@ export async function inspectDockerImage(params: DockerResolverParameters | Dock
 			throw inspectErr;
 		}
 		try {
-			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName);
+			const allowedCrossOriginAuthHosts = 'cliHost' in params ? params.allowedCrossOriginAuthHosts : params.common.allowedCrossOriginAuthHosts;
+			const ociAuthHardening = 'cliHost' in params ? params.ociAuthHardening : params.common.ociAuthHardening;
+			const ociAuthDiagnostics = 'cliHost' in params ? params.ociAuthDiagnostics : params.common.ociAuthDiagnostics;
+			return await inspectImageInRegistry(output, params.targetPlatformInfo, imageName, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics);
 		} catch (inspectErr2) {
 			output.write(`Error fetching image details: ${inspectErr2?.message}`, LogLevel.Info);
 		}
@@ -317,16 +321,17 @@ function logErrorStdoutStderr(err: any, output: Log) {
 	}
 }
 
-export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string): Promise<ImageDetails> {
+export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string, allowedCrossOriginAuthHosts?: string[], ociAuthHardening?: boolean, ociAuthDiagnostics: OCIAuthDiagnostics = createOCIAuthDiagnostics()): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
-	const params = { output, env: process.env };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics };
 	const ref = getRef(output, resourceAndVersion);
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);
 	}
 
 	const registryServer = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry;
-	const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${ref.version}`;
+	const registryOrigin = `${ref.scheme}://${registryServer}`;
+	const manifestUrl = `${registryOrigin}/v2/${ref.path}/manifests/${ref.version}`;
 	output.write(`manifest url: ${manifestUrl}`, LogLevel.Trace);
 
 	let targetDigest: string | undefined = undefined;
@@ -338,7 +343,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 		// Spec: https://github.com/opencontainers/image-spec/blob/main/image-index.md
 		const imageIndexEntry = await getImageIndexEntryForPlatform(params, manifestUrl, ref, platformInfo);
 		if (imageIndexEntry) {
-			const manifestUrl = `https://${registryServer}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
+			const manifestUrl = `${registryOrigin}/v2/${ref.path}/manifests/${imageIndexEntry.digest}`;
 			const a = await getManifest(params, manifestUrl, ref);
 			if (a) {
 				targetDigest = a.manifestObj.config.digest;
@@ -350,7 +355,7 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 		throw new Error(`No manifest found for ${resourceAndVersion}.`);
 	}
 
-	const blobUrl = `https://${registryServer}/v2/${ref.path}/blobs/${targetDigest}`;
+	const blobUrl = `${registryOrigin}/v2/${ref.path}/blobs/${targetDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const httpOptions = {

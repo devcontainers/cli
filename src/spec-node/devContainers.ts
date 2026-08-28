@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { DockerResolverParameters, DevContainerAuthority, UpdateRemoteUserUIDDefault, BindMountConsistency, getCacheFolder, GPUAvailability } from './utils';
 import { createNullLifecycleHook, finishBackgroundTasks, ResolverParameters, UserEnvProbe } from '../spec-common/injectHeadless';
 import { GoARCH, GoOS, getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
@@ -74,6 +75,8 @@ export interface ProvisionOptions {
 	omitSyntaxDirective?: boolean;
 	includeConfig?: boolean;
 	includeMergedConfig?: boolean;
+	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
 }
 
 export async function launch(options: ProvisionOptions, providedIdLabels: string[] | undefined, disposables: (() => Promise<unknown> | undefined)[]) {
@@ -92,6 +95,7 @@ export async function launch(options: ProvisionOptions, providedIdLabels: string
 		remoteWorkspaceFolder: result.properties.remoteWorkspaceFolder,
 		configuration: options.includeConfig ? result.config : undefined,
 		mergedConfiguration: options.includeMergedConfig ? result.mergedConfig : undefined,
+		ociAuthDiagnostics: params.common.ociAuthDiagnostics,
 		finishBackgroundTasks: async () => {
 			try {
 				await finishBackgroundTasks(result.params.backgroundTasks);
@@ -162,6 +166,9 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 			targetPath: options.dotfiles.targetPath || '~/dotfiles',
 		},
 		omitSyntaxDirective: options.omitSyntaxDirective,
+		allowedCrossOriginAuthHosts: options.allowedCrossOriginAuthHosts,
+		ociAuthHardening: options.ociAuthHardening,
+		ociAuthDiagnostics: createOCIAuthDiagnostics(),
 	};
 
 	const dockerPath = options.dockerPath || 'docker';
@@ -210,7 +217,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output,
 		buildPlatformInfo,
-		targetPlatformInfo
+		targetPlatformInfo,
+		ociAuthDiagnostics: common.ociAuthDiagnostics,
 	}));
 
 	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output });
@@ -222,7 +230,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		env: cliHost.env,
 		output,
 		buildPlatformInfo,
-		targetPlatformInfo
+		targetPlatformInfo,
+		ociAuthDiagnostics: common.ociAuthDiagnostics,
 	}, { useSimpleVersion: cliVariant === CLIVariant.Wslc });	
 
 	return {

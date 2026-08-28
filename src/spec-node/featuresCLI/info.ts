@@ -1,13 +1,14 @@
 import { Argv } from 'yargs';
-import { OCIManifest, OCIRef, fetchOCIManifestIfExists, getPublishedTags, getRef } from '../../spec-configuration/containerCollectionsOCI';
-import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
+import { CommonParams, OCIManifest, OCIRef, fetchOCIManifestIfExists, getPublishedTags, getRef } from '../../spec-configuration/containerCollectionsOCI';
+import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { buildDependencyGraph, generateMermaidDiagram } from '../../spec-configuration/containerFeaturesOrder';
 import { DevContainerFeature } from '../../spec-configuration/configuration';
 import { processFeatureIdentifier } from '../../spec-configuration/containerFeaturesConfiguration';
 import { runAsyncHandler } from '../utils';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 export function featuresInfoOptions(y: Argv) {
 	return y
@@ -19,7 +20,7 @@ export function featuresInfoOptions(y: Argv) {
 		.positional('feature', { type: 'string', demandOption: true, description: 'Feature Identifier' });
 }
 
-export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>>;
+export type FeaturesInfoArgs = UnpackArgv<ReturnType<typeof featuresInfoOptions>> & OciAuthArgs;
 
 export function featuresInfoHandler(args: FeaturesInfoArgs) {
 	runAsyncHandler(featuresInfo.bind(null, args));
@@ -36,6 +37,8 @@ async function featuresInfo({
 	'feature': featureId,
 	'log-level': inputLogLevel,
 	'output-format': outputFormat,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: FeaturesInfoArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -51,7 +54,7 @@ async function featuresInfo({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const params = { output, env: process.env, outputFormat };
+	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
 
 	const jsonOutput: InfoJsonOutput = {};
 
@@ -129,7 +132,7 @@ async function featuresInfo({
 }
 
 
-async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; outputFormat: string }, featureRef: OCIRef) {
+async function getManifest(params: CommonParams & { outputFormat: string }, featureRef: OCIRef) {
 	const { outputFormat } = params;
 
 	const manifestContainer = await fetchOCIManifestIfExists(params, featureRef, undefined);
@@ -144,7 +147,7 @@ async function getManifest(params: { output: Log; env: NodeJS.ProcessEnv; output
 	return manifestContainer;
 }
 
-async function getTags(params: { output: Log; env: NodeJS.ProcessEnv; outputFormat: string }, featureRef: OCIRef) {
+async function getTags(params: CommonParams & { outputFormat: string }, featureRef: OCIRef) {
 	const { outputFormat } = params;
 	const publishedTags = await getPublishedTags(params, featureRef);
 	if (!publishedTags || publishedTags.length === 0) {

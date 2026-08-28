@@ -9,7 +9,7 @@ import { mkdirpLocal, readLocalFile } from '../../spec-utils/pfs';
 import { DevContainerConfig } from '../../spec-configuration/configuration';
 import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
-import { findFromArgsWithoutDefault, shellExec } from '../testUtils';
+import { createTestCommonParams, findFromArgsWithoutDefault, shellExec } from '../testUtils';
 import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -21,7 +21,7 @@ describe('validate generateFeaturesConfig()', function () {
     const env = { 'SOME_KEY': 'SOME_VAL' };
     const platform = process.platform;
 	const cacheFolder = path.join(os.tmpdir(), `devcontainercli-test-${crypto.randomUUID()}`);
-    const params = { extensionPath: '', cwd: '', output, env, cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform, noLockfile: true };
+    const params = { ...createTestCommonParams(output, env), extensionPath: '', cwd: '', cacheFolder, persistedFolder: '', skipFeatureAutoMapping: false, platform, noLockfile: true };
 
     it('should correctly return a featuresConfig with v2 local features', async function () {
         const version = 'unittest';

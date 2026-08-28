@@ -61,7 +61,7 @@ export async function fetchOCIFeature(params: CommonParams, featureSet: FeatureS
 	const { featureRef } = featureSet.sourceInformation;
 
 	const layerDigest = featureSet.sourceInformation.manifest?.layers[0].digest;
-	const blobUrl = `https://${featureSet.sourceInformation.featureRef.registry}/v2/${featureSet.sourceInformation.featureRef.path}/blobs/${layerDigest}`;
+	const blobUrl = `${featureRef.scheme}://${featureRef.registry}/v2/${featureRef.path}/blobs/${layerDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const blobResult = await getBlob(params, blobUrl, ociCacheDir, featCachePath, featureRef, layerDigest, undefined, metadataFile);

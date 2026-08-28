@@ -568,6 +568,7 @@ function getFeaturesConfig(features: Feature[]): FeaturesConfig {
 				userFeatureId: `ghcr.io/my-org/my-repo/${feature.id}:1`,
 				userFeatureIdWithoutVersion: `ghcr.io/my-org/my-repo/${feature.id}`,
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',

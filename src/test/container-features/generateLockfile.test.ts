@@ -22,6 +22,7 @@ function makeOciFeatureSet(userFeatureId: string, version: string, digest: strin
 		manifestDigest: digest,
 		manifest: {} as any,
 		featureRef: {
+			scheme: 'https',
 			registry: 'ghcr.io',
 			owner: 'devcontainers',
 			namespace: 'devcontainers/features',

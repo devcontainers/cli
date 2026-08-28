@@ -5,9 +5,11 @@ import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 import { fetchTemplate, SelectedTemplate } from '../../spec-configuration/containerTemplatesOCI';
 import { readLocalFile } from '../../spec-utils/pfs';
+import { createTestCommonParams } from '../testUtils';
 
 describe('fetchTemplate', async function () {
 	this.timeout('120s');
+	const params = createTestCommonParams(output);
 
 	it('template apply docker-from-docker without features and with user options', async () => {
 
@@ -20,7 +22,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp1'));
-		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
+		const files = await fetchTemplate(params, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -50,7 +52,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp2'));
-		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
+		const files = await fetchTemplate(params, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -80,7 +82,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp3'));
-		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
+		const files = await fetchTemplate(params, selectedTemplate, dest);
 		assert.ok(files);
 		// Should only container 1 file '.devcontainer.json'.  The other 3 in this repo should be ignored.
 		assert.strictEqual(files.length, 1);
@@ -113,7 +115,7 @@ describe('fetchTemplate', async function () {
 		};
 
 		const dest = path.relative(process.cwd(), path.join(__dirname, 'tmp4'));
-		const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, dest);
+		const files = await fetchTemplate(params, selectedTemplate, dest);
 		assert.ok(files);
 		// Expected:
 		// ./environment.yml, ./.devcontainer/.env, ./.devcontainer/Dockerfile, ./.devcontainer/devcontainer.json, ./.devcontainer/docker-compose.yml, ./.devcontainer/noop.txt, ./.github/dependabot.yml
@@ -161,7 +163,7 @@ describe('fetchTemplate', async function () {
 			};
 
 			const files = await fetchTemplate(
-				{ output, env: process.env },
+				params,
 				selectedTemplate,
 				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
 			);
@@ -182,7 +184,7 @@ describe('fetchTemplate', async function () {
 			};
 
 			const files = await fetchTemplate(
-				{ output, env: process.env },
+				params,
 				selectedTemplate,
 				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
 			);
@@ -209,7 +211,7 @@ describe('fetchTemplate', async function () {
 			};
 
 			const files = await fetchTemplate(
-				{ output, env: process.env },
+				params,
 				selectedTemplate,
 				path.join(os.tmpdir(), 'vsch-test-template-temp', `${Date.now()}`)
 			);
@@ -232,5 +234,3 @@ describe('fetchTemplate', async function () {
 
 
 });
-
-
