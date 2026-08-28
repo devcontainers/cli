@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import { assert } from 'chai';
 
 import { OCICollectionRef } from '../spec-configuration/containerCollectionsOCI';
-import { isAllowedTokenServiceRealm, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
+import { isAllowedTokenServiceRealm, isOCIRegistryOrigin, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { nullLog } from '../spec-utils/log';
 import { createTestCommonParams } from './testUtils';
 
@@ -110,6 +110,138 @@ describe('OCI registry authentication', () => {
 			it(`rejects malformed mapping '${entry}'`, () => {
 				assert.throws(() => parseCrossOriginAuthHosts([entry]));
 			});
+		}
+	});
+
+	describe('isOCIRegistryOrigin', () => {
+		const ociRef: OCICollectionRef = {
+			scheme: 'https',
+			registry: 'registry.example',
+			path: 'test/features',
+			resource: 'registry.example/test/features',
+			tag: 'latest',
+			version: 'latest',
+		};
+
+		it('accepts the reference registry origin', () => {
+			assert.isTrue(isOCIRegistryOrigin(new URL('https://registry.example/v2/'), ociRef));
+		});
+
+		it('rejects a different origin', () => {
+			assert.isFalse(isOCIRegistryOrigin(new URL('https://uploads.example/v2/'), ociRef));
+		});
+
+		it('rejects a protocol downgrade on the reference authority', () => {
+			assert.isFalse(isOCIRegistryOrigin(new URL('http://registry.example/v2/'), ociRef));
+		});
+
+		it('accepts Docker Hub distribution aliases', () => {
+			assert.isTrue(isOCIRegistryOrigin(new URL('https://registry-1.docker.io/v2/'), {
+				...ociRef,
+				registry: 'docker.io',
+			}));
+		});
+	});
+
+	it('does not forward registry credentials to a cross-origin upload URL', async () => {
+		const registry = 'registry.example';
+		const originalAuthorization = 'Bearer original-registry-token';
+		const uploadToken = 'upload-token';
+		let uploadRequests = 0;
+		let tokenRequests = 0;
+		const uploadServer = http.createServer((request, response) => {
+			if (request.url?.startsWith('/token')) {
+				tokenRequests++;
+				assert.equal(request.method, 'GET');
+				assert.isUndefined(request.headers.authorization);
+				response.end(JSON.stringify({ token: uploadToken }));
+				return;
+			}
+
+			uploadRequests++;
+			if (request.headers.authorization === `Bearer ${uploadToken}`) {
+				response.writeHead(201);
+				response.end();
+				return;
+			}
+			assert.isUndefined(request.headers.authorization);
+			const uploadPort = (uploadServer.address() as AddressInfo).port;
+			response.writeHead(401, {
+				'WWW-Authenticate': `Bearer realm="http://localhost:${uploadPort}/token",service="uploads.example",scope="repository:test:push"`,
+			});
+			response.end();
+		});
+		const uploadPort = await listen(uploadServer);
+		const cachedAuthHeader = { [registry]: originalAuthorization };
+		const params = {
+			...createTestCommonParams(nullLog, { DEVCONTAINERS_OCI_AUTH: `${registry}|user|secret` }),
+			cachedAuthHeader,
+			ociAuthHardening: true,
+		};
+		const ociRef: OCICollectionRef = {
+			scheme: 'https',
+			registry,
+			path: 'test/features',
+			resource: `${registry}/test/features`,
+			tag: 'latest',
+			version: 'latest',
+		};
+
+		try {
+			const result = await requestEnsureAuthenticated(params, {
+				type: 'PUT',
+				url: `http://localhost:${uploadPort}/upload`,
+				headers: { authorization: originalAuthorization },
+				data: Buffer.from('blob'),
+			}, ociRef);
+
+			assert.equal(result?.statusCode, 201);
+			assert.equal(uploadRequests, 2);
+			assert.equal(tokenRequests, 1);
+			assert.equal(cachedAuthHeader[registry], originalAuthorization);
+			assert.isTrue(params.ociAuthDiagnostics.registryRedirectWouldPreventCredentialForwarding);
+		} finally {
+			await close(uploadServer);
+		}
+	});
+
+	it('does not answer a cross-origin Basic challenge with registry credentials', async () => {
+		const registry = 'registry.example';
+		let uploadRequests = 0;
+		const uploadServer = http.createServer((request, response) => {
+			uploadRequests++;
+			assert.isUndefined(request.headers.authorization);
+			response.writeHead(401, {
+				'WWW-Authenticate': 'Basic realm="uploads.example"',
+			});
+			response.end();
+		});
+		const uploadPort = await listen(uploadServer);
+		const params = {
+			...createTestCommonParams(nullLog, { DEVCONTAINERS_OCI_AUTH: `${registry}|user|secret` }),
+			ociAuthHardening: true,
+		};
+		const ociRef: OCICollectionRef = {
+			scheme: 'https',
+			registry,
+			path: 'test/features',
+			resource: `${registry}/test/features`,
+			tag: 'latest',
+			version: 'latest',
+		};
+
+		try {
+			const result = await requestEnsureAuthenticated(params, {
+				type: 'PUT',
+				url: `http://localhost:${uploadPort}/upload`,
+				headers: {},
+			}, ociRef);
+
+			assert.isUndefined(result);
+			assert.equal(uploadRequests, 1);
+			assert.isTrue(params.ociAuthDiagnostics.registryRedirectWouldPreventCredentialForwarding);
+		} finally {
+			await close(uploadServer);
 		}
 	});
 
@@ -234,6 +366,72 @@ describe('OCI registry authentication', () => {
 			assert.lengthOf(logMessages.filter(message => message.includes('OCI auth diagnostics:')), 3);
 		} finally {
 			await Promise.all([close(registryServer), close(challengeRegistryServer), close(tokenServer), close(redirectTargetServer)]);
+		}
+	});
+
+	it('does not cache a token from a redirected authentication challenge under the original registry', async () => {
+		const token = 'redirect-target-token';
+		let challengeServerRequests = 0;
+		let uploadRequests = 0;
+		const challengeServer = http.createServer((request, response) => {
+			challengeServerRequests++;
+			const challengePort = (challengeServer.address() as AddressInfo).port;
+			if (request.url?.startsWith('/token')) {
+				response.end(JSON.stringify({ token }));
+				return;
+			}
+			uploadRequests++;
+			if (uploadRequests === 2) {
+				response.writeHead(200);
+				response.end();
+				return;
+			}
+			response.writeHead(401, {
+				'WWW-Authenticate': `Bearer realm="http://localhost:${challengePort}/token",service="uploads.example",scope="repository:test:push"`,
+			});
+			response.end();
+		});
+		const challengePort = await listen(challengeServer);
+
+		let registryRequests = 0;
+		const registryServer = http.createServer((request, response) => {
+			registryRequests++;
+			response.writeHead(307, {
+				location: `http://localhost:${challengePort}${request.url}`,
+			});
+			response.end();
+		});
+		const registryPort = await listen(registryServer);
+		const registry = `localhost:${registryPort}`;
+		const cachedAuthHeader: Record<string, string> = {};
+		const params = {
+			...createTestCommonParams(nullLog, {}),
+			cachedAuthHeader,
+			ociAuthHardening: true,
+		};
+		const ociRef: OCICollectionRef = {
+			scheme: 'http',
+			registry,
+			path: 'test/features',
+			resource: `${registry}/test/features`,
+			tag: 'latest',
+			version: 'latest',
+		};
+
+		try {
+			const result = await requestEnsureAuthenticated(params, {
+				type: 'PUT',
+				url: `http://${registry}/upload`,
+				headers: {},
+			}, ociRef);
+
+			assert.equal(result?.statusCode, 200);
+			assert.equal(registryRequests, 2);
+			assert.equal(challengeServerRequests, 3);
+			assert.notProperty(cachedAuthHeader, registry);
+			assert.isTrue(params.ociAuthDiagnostics.registryRedirectWouldPreventCredentialForwarding);
+		} finally {
+			await Promise.all([close(registryServer), close(challengeServer)]);
 		}
 	});
 

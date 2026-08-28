@@ -44,6 +44,13 @@ const builtInCrossOriginAuthHosts = [
 	'registry.gitlab.com=gitlab.com',
 ];
 
+const dockerHubRegistryHosts = new Set([
+	'registry-1.docker.io',
+	'registry.docker.io',
+	'docker.io',
+	'index.docker.io',
+]);
+
 function normalizeHttpsAuthority(authority: string): string {
 	let parsed: URL;
 	try {
@@ -94,6 +101,18 @@ function isAllowedTokenServiceRealmForPolicy(realmUrl: URL, registryUrl: URL, cr
 		&& isConfiguredCrossOriginAuthHost(registryUrl, realmUrl, crossOriginAuthHosts);
 }
 
+export function isOCIRegistryOrigin(url: URL, ociRef: OCIRef | OCICollectionRef) {
+	const registryUrl = new URL(`${ociRef.scheme}://${ociRef.registry}`);
+	if (url.origin.toLowerCase() === registryUrl.origin.toLowerCase()) {
+		return true;
+	}
+	// Docker Hub references and distribution requests use several equivalent authorities.
+	return url.protocol === 'https:'
+		&& registryUrl.protocol === 'https:'
+		&& dockerHubRegistryHosts.has(url.host.toLowerCase())
+		&& dockerHubRegistryHosts.has(registryUrl.host.toLowerCase());
+}
+
 // Pin registry-directed token requests to the registry authority or an explicitly trusted auth host.
 export function isAllowedTokenServiceRealm(realm: string, registryUrl: string, configuredEntries: readonly string[] = []): boolean {
 	try {
@@ -142,17 +161,22 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 	// -- Update headers
 	httpOptions.headers['user-agent'] = 'devcontainer';
+	const requestedRegistryUrl = new URL(httpOptions.url);
+	const requestCanUseRegistryCredentials = isOCIRegistryOrigin(requestedRegistryUrl, ociRef);
+	if (params.ociAuthHardening && !requestCanUseRegistryCredentials) {
+		delete httpOptions.headers.authorization;
+	}
 	// If the user has a cached auth token, attempt to use that first.
-	const maybeCachedAuthHeader = cachedAuthHeader[ociRef.registry];
+	const maybeCachedAuthHeader = !params.ociAuthHardening || requestCanUseRegistryCredentials
+		? cachedAuthHeader[ociRef.registry]
+		: undefined;
 	if (maybeCachedAuthHeader) {
 		output.write(`[httpOci] Applying cachedAuthHeader for registry ${ociRef.registry}...`, LogLevel.Trace);
 		httpOptions.headers.authorization = maybeCachedAuthHeader;
 	}
-
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
-	const requestedRegistryUrl = new URL(httpOptions.url);
 	const registryUrl = new URL(initialAttemptRes.responseUrl);
-	const challengeFromRequestedRegistry = requestedRegistryUrl.host.toLowerCase() === registryUrl.host.toLowerCase();
+	const challengeFromRequestedRegistry = requestedRegistryUrl.origin.toLowerCase() === registryUrl.origin.toLowerCase();
 
 	// For anything except a 401 (invalid/no token) or 403 (insufficient scope)
 	// response simply return the original response to the caller.
@@ -162,8 +186,8 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	}
 
 	// -- 'responseAttempt' status code was 401 or 403 at this point.
-	if (!challengeFromRequestedRegistry) {
-		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Registry redirect from '${requestedRegistryUrl.host}' to '${registryUrl.host}' would prevent forwarding the requested registry's credentials with OCI auth hardening.`);
+	if (!requestCanUseRegistryCredentials || !challengeFromRequestedRegistry) {
+		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Request to '${requestedRegistryUrl.host}' with authentication challenge from '${registryUrl.host}' would prevent forwarding registry '${ociRef.registry}' credentials with OCI auth hardening.`);
 	}
 
 	// Attempt to authenticate via WWW-Authenticate Header.
@@ -180,6 +204,10 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 			output.write(`[httpOci] Attempting to authenticate via 'Basic' auth.`, LogLevel.Trace);
 
+			if (params.ociAuthHardening && (!requestCanUseRegistryCredentials || !challengeFromRequestedRegistry)) {
+				output.write(`[httpOci] ERR: Refusing to send registry '${ociRef.registry}' credentials to '${requestedRegistryUrl.host}'.`, LogLevel.Error);
+				return;
+			}
 			const credential = await getCredential(params, ociRef);
 			const basicAuthCredential = credential?.base64EncodedCredential;
 			if (!basicAuthCredential) {
@@ -230,7 +258,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				scope: scopeGroup ? scopeGroup[1] : '',
 			};
 
-			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening || challengeFromRequestedRegistry;
+			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromRequestedRegistry);
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, challengeCanUseRequestedRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
@@ -250,7 +278,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	output.write(`[httpOci] ${reattemptRes.statusCode} on reattempt after auth: ${httpOptions.url}`, LogLevel.Trace);
 
 	// Cache the auth header if the request did not result in an unauthorized response.
-	if (reattemptRes.statusCode !== 401) {
+	if (reattemptRes.statusCode !== 401 && (!params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromRequestedRegistry))) {
 		params.cachedAuthHeader[ociRef.registry] = httpOptions.headers.authorization;
 	}
 
