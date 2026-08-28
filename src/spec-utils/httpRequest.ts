@@ -25,6 +25,13 @@ export async function request(options: { type: string; url: string; headers: Rec
 			secureContext,
 		};
 
+		const offline_mode: boolean = (process.env.OFFLINE_MODE ?? 'false') === 'true';
+		if (offline_mode) {
+			// Use the exception handling as a signal to skip the request
+			const err = `Offline mode enabled. Aboring request.`;
+			throw new Error(err);
+		}
+		
 		const plainHTTP = parsed.protocol === 'http:' || parsed.hostname === 'localhost';
 		if (plainHTTP) {
 			output.write('Sending as plain HTTP request', LogLevel.Warning);
