@@ -135,11 +135,13 @@ describe('OCI registry authentication', () => {
 			assert.isFalse(isOCIRegistryOrigin(new URL('http://registry.example/v2/'), ociRef));
 		});
 
-		it('accepts Docker Hub distribution aliases', () => {
-			assert.isTrue(isOCIRegistryOrigin(new URL('https://registry-1.docker.io/v2/'), {
+		it('accepts both origins of a Docker Hub distribution alias redirect', () => {
+			const dockerHubRef = {
 				...ociRef,
 				registry: 'docker.io',
-			}));
+			};
+			assert.isTrue(isOCIRegistryOrigin(new URL('https://docker.io/v2/'), dockerHubRef));
+			assert.isTrue(isOCIRegistryOrigin(new URL('https://registry-1.docker.io/v2/'), dockerHubRef));
 		});
 	});
 

@@ -176,7 +176,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	}
 	const initialAttemptRes = await requestResolveHeaders(httpOptions, output);
 	const registryUrl = new URL(initialAttemptRes.responseUrl);
-	const challengeFromRequestedRegistry = requestedRegistryUrl.origin.toLowerCase() === registryUrl.origin.toLowerCase();
+	const challengeFromOCIRegistry = isOCIRegistryOrigin(registryUrl, ociRef);
 
 	// For anything except a 401 (invalid/no token) or 403 (insufficient scope)
 	// response simply return the original response to the caller.
@@ -186,7 +186,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	}
 
 	// -- 'responseAttempt' status code was 401 or 403 at this point.
-	if (!requestCanUseRegistryCredentials || !challengeFromRequestedRegistry) {
+	if (!requestCanUseRegistryCredentials || !challengeFromOCIRegistry) {
 		recordOCIAuthDiagnostic(params, 'registryRedirectWouldPreventCredentialForwarding', `Request to '${requestedRegistryUrl.host}' with authentication challenge from '${registryUrl.host}' would prevent forwarding registry '${ociRef.registry}' credentials with OCI auth hardening.`);
 	}
 
@@ -204,8 +204,8 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 
 			output.write(`[httpOci] Attempting to authenticate via 'Basic' auth.`, LogLevel.Trace);
 
-			if (params.ociAuthHardening && (!requestCanUseRegistryCredentials || !challengeFromRequestedRegistry)) {
-				output.write(`[httpOci] ERR: Refusing to send registry '${ociRef.registry}' credentials to '${requestedRegistryUrl.host}'.`, LogLevel.Error);
+			if (params.ociAuthHardening && (!requestCanUseRegistryCredentials || !challengeFromOCIRegistry)) {
+				output.write(`[httpOci] ERR: Refusing to send registry '${ociRef.registry}' credentials to '${registryUrl.host}'.`, LogLevel.Error);
 				return;
 			}
 			const credential = await getCredential(params, ociRef);
@@ -258,7 +258,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				scope: scopeGroup ? scopeGroup[1] : '',
 			};
 
-			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromRequestedRegistry);
+			const challengeCanUseRequestedRegistryCredentials = !params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromOCIRegistry);
 			const bearerToken = await fetchRegistryBearerToken(params, ociRef, challengeCanUseRequestedRegistryCredentials, wwwAuthenticateData);
 			if (!bearerToken) {
 				output.write(`[httpOci] ERR: Failed to fetch Bearer token from registry.`, LogLevel.Error);
@@ -278,7 +278,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 	output.write(`[httpOci] ${reattemptRes.statusCode} on reattempt after auth: ${httpOptions.url}`, LogLevel.Trace);
 
 	// Cache the auth header if the request did not result in an unauthorized response.
-	if (reattemptRes.statusCode !== 401 && (!params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromRequestedRegistry))) {
+	if (reattemptRes.statusCode !== 401 && (!params.ociAuthHardening || (requestCanUseRegistryCredentials && challengeFromOCIRegistry))) {
 		params.cachedAuthHeader[ociRef.registry] = httpOptions.headers.authorization;
 	}
 

@@ -3,7 +3,7 @@ import { CLIHost, getCLIHost } from '../../spec-common/cliHost';
 import { loadNativeModule } from '../../spec-common/commonUtils';
 import { LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig, PackageConfiguration } from '../../spec-utils/product';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { doFeaturesTestCommand } from './testCommandImpl';
 import { runAsyncHandler } from '../utils';
 
@@ -47,7 +47,7 @@ export function featuresTestOptions(y: Argv) {
 		});
 }
 
-export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>>;
+export type FeaturesTestArgs = UnpackArgv<ReturnType<typeof featuresTestOptions>> & OciAuthArgs;
 export interface FeaturesTestCommandInput {
 	cliHost: CLIHost;
 	pkg: PackageConfiguration;
@@ -64,6 +64,8 @@ export interface FeaturesTestCommandInput {
 	logLevel: LogLevel;
 	preserveTestContainers: boolean;
 	quiet: boolean;
+	allowedCrossOriginAuthHosts: string[];
+	ociAuthHardening: boolean;
 	disposables: (() => Promise<unknown> | undefined)[];
 }
 
@@ -86,6 +88,8 @@ async function featuresTest({
 	'log-level': inputLogLevel,
 	'preserve-test-containers': preserveTestContainers,
 	quiet,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts = [],
+	'oci-auth-hardening': ociAuthHardening = false,
 }: FeaturesTestArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -117,6 +121,8 @@ async function featuresTest({
 		permitRandomization,
 		remoteUser,
 		preserveTestContainers,
+		allowedCrossOriginAuthHosts,
+		ociAuthHardening,
 		disposables
 	};
 
