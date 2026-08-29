@@ -76,6 +76,10 @@ RUN chmod -R 0755 /tmp/dev-container-features/color_0 \\
 && chmod +x ./devcontainer-features-install.sh \\
 && ./devcontainer-features-install.sh
 
+RUN \\
+echo "_CONTAINER_USER_HOME=$(${getEntPasswdShellCommand('testContainerUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && \\
+echo "_REMOTE_USER_HOME=$(${getEntPasswdShellCommand('testRemoteUser')} | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
+
 
 COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/hello_1 /tmp/dev-container-features/hello_1
 RUN chmod -R 0755 /tmp/dev-container-features/hello_1 \\
