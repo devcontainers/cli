@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as semver from 'semver';
+import { ExecFunction, runCommandNoPty } from '../spec-common/commonUtils';
+import { Log } from '../spec-utils/log';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 
 
@@ -258,6 +260,36 @@ export function ensureDockerfileHasFinalStageName(dockerfile: string, defaultLas
 	modifiedDockerfile += dockerfile.slice(lastLineEndIndex - remainingFromLineLength);
 
 	return { lastStageName: defaultLastStageName, modifiedDockerfile: modifiedDockerfile };
+}
+
+/**
+ * Preprocess a Dockerfile.in file using the host cpp tool.
+ * This is needed when using Podman, which supports cpp preprocessing of .in files natively.
+ * Throws a clear error if cpp is not available on the host.
+ */
+export async function preprocessDockerfileIn(dockerfilePath: string, exec: ExecFunction, output: Log): Promise<string> {
+	let result: { stdout: Buffer; stderr: Buffer };
+	try {
+		result = await runCommandNoPty({
+			exec,
+			cmd: 'cpp',
+			// -undef:               do not predefine platform/compiler macros
+			// -w:                   suppress warnings
+			// -P:                   suppress linemarker output lines
+			args: ['-P', dockerfilePath],
+			output,
+		});
+	} catch (err: any) {
+		if (err?.code === 'ENOENT' || err?.message?.includes('ENOENT')) {
+			throw new Error(
+				`Preprocessing '${dockerfilePath}' requires 'cpp', but it was not found on the host. ` +
+				`Please install cpp (e.g. "sudo apt-get install cpp") to use Dockerfile.in files with devcontainers.`
+			);
+		}
+		const stderrText = err?.stderr ? `\n${(err.stderr as Buffer).toString()}` : '';
+		throw new Error(`Failed to preprocess '${dockerfilePath}' using cpp: ${err?.message || String(err)}${stderrText}`);
+	}
+	return result.stdout.toString();
 }
 
 export function supportsBuildContexts(dockerfile: Dockerfile) {
