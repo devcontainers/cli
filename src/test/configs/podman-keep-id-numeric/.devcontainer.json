@@ -1,0 +1,7 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"remoteUser": "1234",
+	"updateRemoteUserUID": false
+}
