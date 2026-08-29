@@ -1,0 +1,6 @@
+#define BASE_IMAGE debian:bookworm-slim
+
+FROM BASE_IMAGE
+
+#include "common.Dockerfile"
+#include "tools.Dockerfile"
