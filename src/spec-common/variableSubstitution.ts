@@ -83,9 +83,14 @@ function evaluateSingleVariable(replace: Replace, match: string, variable: strin
 	// try to separate variable arguments from variable name
 	let args: string[] = [];
 	const parts = variable.split(':');
-	if (parts.length > 1) {
-		variable = parts[0];
-		args = parts.slice(1);
+	const limitedParts = [
+		...parts.slice(0, 2),
+		parts.slice(2).join(':')
+	];
+	const parts = variable.split(':', 3);
+	if (limitedParts.length > 1) {
+		variable = limitedParts[0];
+		args = limitedParts.slice(1);
 	}
 
 	return replace(match, variable, args);
