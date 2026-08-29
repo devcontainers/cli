@@ -238,7 +238,7 @@ if [ -z "${VERSION__DEFAULT}" ]; then
 fi
 
 if [ -z "${INSTALLUSINGAPT__DEFAULT}" ]; then
-	echo "oolean to install using apt from default Feature not set!"
+	echo "Boolean to install using apt from default Feature not set!"
 	exit 1
 fi
 
