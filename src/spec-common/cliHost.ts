@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as net from 'net';
 import * as os from 'os';
 
-import { readLocalFile, writeLocalFile, mkdirpLocal, isLocalFile, renameLocal, readLocalDir, isLocalFolder } from '../spec-utils/pfs';
+import { readLocalFile, writeLocalFile, mkdirpLocal, isLocalFile, renameLocal, readLocalDir, isLocalFolder, rmLocal, cpLocal } from '../spec-utils/pfs';
 import { URI } from 'vscode-uri';
 import { ExecFunction, getLocalUsername, plainExec, plainPtyExec, PtyExecFunction } from './commonUtils';
 import { Abort, Duplex, Sink, Source, SourceCallback } from 'pull-stream';
@@ -32,7 +32,9 @@ export interface CLIHost {
 	isFolder(filepath: string): Promise<boolean>;
 	readFile(filepath: string): Promise<Buffer>;
 	writeFile(filepath: string, content: Buffer): Promise<void>;
+	copyFile(oldPath: string, newPath: string): Promise<void>;
 	rename(oldPath: string, newPath: string): Promise<void>;
+	remove(filepath: string): Promise<void>;
 	mkdirp(dirpath: string): Promise<void>;
 	readDir(dirpath: string): Promise<string[]>;
 	readDirWithTypes?(dirpath: string): Promise<[string, FileTypeBitmask][]>;
@@ -76,7 +78,9 @@ function createLocalCLIHostFromExecFunctions(localCwd: string, exec: ExecFunctio
 		isFolder: isLocalFolder,
 		readFile: readLocalFile,
 		writeFile: writeLocalFile,
+		copyFile: cpLocal,
 		rename: renameLocal,
+		remove: async (filepath) => rmLocal(filepath, { force: true }),
 		mkdirp: async (dirpath) => {
 			await mkdirpLocal(dirpath);
 		},

@@ -35,7 +35,9 @@ function createMockCLIHost(options: {
 			throw new Error(`File not found: ${filepath}`);
 		},
 		writeFile: async () => { },
+		copyFile: async () => { },
 		rename: async () => { },
+		remove: async () => { },
 		mkdirp: async () => { },
 		readDir: async () => [],
 		getUsername: async () => 'test',

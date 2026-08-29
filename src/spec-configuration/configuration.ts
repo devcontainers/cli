@@ -38,6 +38,12 @@ export interface DevContainerFeature {
 	options: boolean | string | Record<string, boolean | string | undefined>;
 }
 
+export interface DockerfilePreprocessor {
+	tool?: string;
+	args?: string[];
+	generatedDockerfilePath?: string;
+}
+
 export interface DevContainerFromImageConfig {
 	configFilePath?: URI;
 	image?: string; // Only optional when setting up an existing container as a dev container.
@@ -111,6 +117,7 @@ export type DevContainerFromDockerfileConfig = {
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 	customizations?: Record<string, any>;
+	dockerfilePreprocessor?: DockerfilePreprocessor;
 } & (
 		{
 			dockerFile: string;
@@ -169,6 +176,7 @@ export interface DevContainerFromDockerComposeConfig {
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
 	customizations?: Record<string, any>;
+	dockerfilePreprocessor?: DockerfilePreprocessor;
 }
 
 interface DevContainerVSCodeConfig {

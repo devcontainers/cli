@@ -1,0 +1,20 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"dockerfilePreprocessor": {
+		"tool": "cmake",
+		"args": [
+			"-S",
+			".",
+			"-B",
+			"build"
+		],
+		"generatedDockerfilePath": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}

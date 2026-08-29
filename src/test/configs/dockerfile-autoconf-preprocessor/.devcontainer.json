@@ -1,0 +1,18 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile.in"
+	},
+	"dockerfilePreprocessor": {
+		"tool": "sh",
+		"args": [
+			"-c",
+			"autoconf && ./configure"
+		],
+		"generatedDockerfilePath": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
+	}
+}
