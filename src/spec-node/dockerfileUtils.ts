@@ -11,7 +11,7 @@ const findFromLines = new RegExp(/^(?<line>\s*FROM.*)/, 'gmi');
 const parseFromLine = /FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+AS\s+(?<label>[^\s]+))?/i;
 
 const fromStatement = /^\s*FROM\s+(?<platform>--platform=\S+\s+)?(?<image>"?[^\s]+"?)(\s+AS\s+(?<label>[^\s]+))?/mi;
-const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<name>[^\s=]+)([ =]+("(?<value1>\S+)"|(?<value2>\S+)))?/gmi;
+const argEnvUserStatements = /^\s*(?<instruction>ARG|ENV|USER)\s+(?<arguments>[^\r\n]*)/gmi;
 const directives = /^\s*#\s*(?<name>\S+)\s*=\s*(?<value>.+)/;
 
 const argumentExpression = /\$\{?(?<variable>[a-zA-Z0-9_]+)(?<isVarExp>:(?<option>-|\+)(?<word>[^\}]+))?\}?/g;
@@ -135,15 +135,28 @@ function extractDirectives(preambleStr: string) {
 }
 
 function extractInstructions(stageStr: string) {
-	return [...stageStr.matchAll(argEnvUserStatements)]
-		.map(match => {
-			const groups = match.groups!;
-			return {
-				instruction: groups.instruction.toUpperCase(),
-				name: groups.name,
-				value: groups.value1 || groups.value2,
-			};
-		});
+	// Docker joins lines ending in a continuation escape before parsing an instruction.
+	const normalizedStageStr = stageStr.replace(/\\[ \t]*(?:\r?\n|\r)/g, ' ');
+	return [...normalizedStageStr.matchAll(argEnvUserStatements)].flatMap(match => {
+		const groups = match.groups!;
+		const instruction = groups.instruction.toUpperCase();
+		const declarations = groups.arguments.matchAll(/([^\s=]+)(?:[ =]+("\S+"|\S+))?/g);
+		const parsed = [];
+		for (const declaration of declarations) {
+			if (declaration[1].startsWith('#')) {
+				break;
+			}
+			parsed.push({
+				instruction,
+				name: declaration[1],
+				value: declaration[2]?.replace(/^"|"$/g, ''),
+			});
+			if (instruction !== 'ARG' && parsed.length === 1) {
+				break;
+			}
+		}
+		return parsed;
+	});
 }
 
 function getExpressionValue(option: string, isSet: boolean, word: string, value: string) {
