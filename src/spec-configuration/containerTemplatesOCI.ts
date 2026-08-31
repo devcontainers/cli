@@ -43,7 +43,7 @@ export async function fetchTemplate(params: CommonParams, selectedTemplate: Sele
 		return;
 	}
 
-	const blobUrl = `https://${templateRef.registry}/v2/${templateRef.path}/blobs/${blobDigest}`;
+	const blobUrl = `${templateRef.scheme}://${templateRef.registry}/v2/${templateRef.path}/blobs/${blobDigest}`;
 	output.write(`blob url: ${blobUrl}`, LogLevel.Trace);
 
 	const tmpDir = userProvidedTmpDir || path.join(os.tmpdir(), 'vsch-template-temp', `${Date.now()}`);

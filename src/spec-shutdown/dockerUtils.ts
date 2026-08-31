@@ -10,6 +10,7 @@ import { Log, makeLog } from '../spec-utils/log';
 import { Event } from '../spec-utils/event';
 import { escapeRegExCharacters } from '../spec-utils/strings';
 import { delay } from '../spec-common/async';
+import { OCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export interface ContainerDetails {
 	Id: string;
@@ -54,6 +55,9 @@ export interface DockerCLIParameters {
 	output: Log;
 	buildPlatformInfo: PlatformInfo;
 	targetPlatformInfo: PlatformInfo;
+	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
+	ociAuthDiagnostics: OCIAuthDiagnostics;
 }
 
 export interface PartialExecParameters {

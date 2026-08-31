@@ -6,10 +6,11 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import { getCLIHost, loadNativeModule, plainExec, plainPtyExec, runCommand, runCommandNoPty } from '../spec-common/commonUtils';
 import { SubstituteConfig } from '../spec-node/utils';
-import { LogLevel, createPlainLog, makeLog, nullLog } from '../spec-utils/log';
+import { Log, LogLevel, createPlainLog, makeLog, nullLog } from '../spec-utils/log';
 import { dockerComposeCLIConfig } from '../spec-node/dockerCompose';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
-import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { CommonParams, mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export interface BuildKitOption {
     text: string;
@@ -177,6 +178,14 @@ export const testSubstitute: SubstituteConfig = value => {
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
+export function createTestCommonParams(output: Log, env: NodeJS.ProcessEnv = process.env): CommonParams {
+	return {
+		output,
+		env,
+		ociAuthDiagnostics: createOCIAuthDiagnostics(),
+	};
+}
+
 export async function createCLIParams(hostPath: string) {
 	const cliHost = await getCLIHost(hostPath, loadNativeModule, true);
 	const dockerComposeCLI = dockerComposeCLIConfig({
@@ -189,13 +198,12 @@ export async function createCLIParams(hostPath: string) {
 		arch: mapNodeArchitectureToGOARCH(cliHost.arch),
 	};
 	const cliParams: DockerCLIParameters = {
+		...createTestCommonParams(output, {}),
 		cliHost,
 		dockerCLI: 'docker',
 		dockerComposeCLI,
-		env: {},
-		output,
 		buildPlatformInfo,
 		targetPlatformInfo: buildPlatformInfo,
-};
+	};
 	return cliParams;
 }

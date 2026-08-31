@@ -9,5 +9,17 @@ export async function readFeaturesConfig(params: DockerCLIParameters, pkg: Packa
 	const { cwd, env, platform } = cliHost;
 	const featuresTmpFolder = await createFeaturesTempFolder({ cliHost, package: pkg });
 	const cacheFolder = await getCacheFolder(cliHost);
-	return generateFeaturesConfig({ extensionPath, cacheFolder, cwd, output, env, skipFeatureAutoMapping, platform, noLockfile: true }, featuresTmpFolder, config, additionalFeatures);
+	return generateFeaturesConfig({
+		extensionPath,
+		cacheFolder,
+		cwd,
+		output,
+		env,
+		skipFeatureAutoMapping,
+		platform,
+		noLockfile: true,
+		allowedCrossOriginAuthHosts: params.allowedCrossOriginAuthHosts,
+		ociAuthHardening: params.ociAuthHardening,
+		ociAuthDiagnostics: params.ociAuthDiagnostics,
+	}, featuresTmpFolder, config, additionalFeatures);
 }

@@ -4,8 +4,9 @@ import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import { fetchOCIManifestIfExists, getRef } from '../../spec-configuration/containerCollectionsOCI';
 
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { runAsyncHandler } from '../utils';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 export function templateMetadataOptions(y: Argv) {
 	return y
@@ -15,7 +16,7 @@ export function templateMetadataOptions(y: Argv) {
 		.positional('templateId', { type: 'string', demandOption: true, description: 'Template Identifier' });
 }
 
-export type TemplateMetadataArgs = UnpackArgv<ReturnType<typeof templateMetadataOptions>>;
+export type TemplateMetadataArgs = UnpackArgv<ReturnType<typeof templateMetadataOptions>> & OciAuthArgs;
 
 export function templateMetadataHandler(args: TemplateMetadataArgs) {
 	runAsyncHandler(templateMetadata.bind(null, args));
@@ -24,6 +25,8 @@ export function templateMetadataHandler(args: TemplateMetadataArgs) {
 async function templateMetadata({
 	'log-level': inputLogLevel,
 	'templateId': templateId,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: TemplateMetadataArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -39,7 +42,7 @@ async function templateMetadata({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-	const params = { output, env: process.env };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
 	output.write(`Fetching metadata for ${templateId}`, LogLevel.Trace);
 
 	const templateRef = getRef(output, templateId);

@@ -44,7 +44,9 @@ import { readFeaturesConfig } from './featureUtils';
 import { featuresGenerateDocsHandler, featuresGenerateDocsOptions } from './featuresCLI/generateDocs';
 import { templatesGenerateDocsHandler, templatesGenerateDocsOptions } from './templatesCLI/generateDocs';
 import { mapNodeOSToGOOS, mapNodeArchitectureToGOARCH } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI/metadata';
+import { parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
 
@@ -66,6 +68,28 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 		.scriptName('devcontainer')
 		.version(version)
 		.demandCommand()
+		.option('oci-auth-hardening', {
+			type: 'boolean',
+			default: false,
+			global: true,
+			description: 'Restrict OCI bearer authentication realms, registry credential forwarding, and token redirects.',
+		})
+		.option('allow-cross-origin-auth-host', {
+			type: 'string',
+			array: true,
+			nargs: 1,
+			global: true,
+			description: 'Allow an OCI registry to use a cross-origin HTTPS authentication host. Format: <registry-host>=<auth-host>. May be repeated.',
+		})
+		.check(args => {
+			const ociAuthArgs = args as OciAuthArgs;
+			const allowedCrossOriginAuthHosts = getAllowedCrossOriginAuthHosts(ociAuthArgs);
+			if (allowedCrossOriginAuthHosts.length && !ociAuthArgs['oci-auth-hardening']) {
+				throw new Error('--allow-cross-origin-auth-host requires --oci-auth-hardening.');
+			}
+			parseCrossOriginAuthHosts(allowedCrossOriginAuthHosts);
+			return true;
+		})
 		.strict();
 	y.wrap(Math.min(120, y.terminalWidth()));
 	y.command('up', 'Create and run dev container', provisionOptions, provisionHandler);
@@ -96,6 +120,14 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 })().catch(console.error);
 
 export type UnpackArgv<T> = T extends Argv<infer U> ? U : T;
+export type OciAuthArgs = {
+	'allow-cross-origin-auth-host'?: string[];
+	'oci-auth-hardening'?: boolean;
+};
+
+export function getAllowedCrossOriginAuthHosts(args: OciAuthArgs) {
+	return args['allow-cross-origin-auth-host'] || [];
+}
 
 function provisionOptions(y: Argv) {
 	return y.options({
@@ -176,7 +208,7 @@ function provisionOptions(y: Argv) {
 		});
 }
 
-type ProvisionArgs = UnpackArgv<ReturnType<typeof provisionOptions>>;
+type ProvisionArgs = UnpackArgv<ReturnType<typeof provisionOptions>> & OciAuthArgs;
 
 function provisionHandler(args: ProvisionArgs) {
 	runAsyncHandler(provision.bind(null, args));
@@ -229,6 +261,8 @@ async function provision({
 	'omit-syntax-directive': omitSyntaxDirective,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: ProvisionArgs) {
 
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
@@ -303,6 +337,8 @@ async function provision({
 		omitSyntaxDirective,
 		includeConfig,
 		includeMergedConfig,
+		allowedCrossOriginAuthHosts,
+		ociAuthHardening,
 	};
 
 	const result = await doProvision(options, providedIdLabels);
@@ -383,7 +419,7 @@ function setUpOptions(y: Argv) {
 		});
 }
 
-type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>>;
+type SetUpArgs = UnpackArgv<ReturnType<typeof setUpOptions>> & OciAuthArgs;
 
 function setUpHandler(args: SetUpArgs) {
 	runAsyncHandler(setUp.bind(null, args));
@@ -420,6 +456,8 @@ async function doSetUp({
 	'container-session-data-folder': containerSessionDataFolder,
 	'include-configuration': includeConfig,
 	'include-merged-configuration': includeMergedConfig,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: SetUpArgs) {
 
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
@@ -470,6 +508,8 @@ async function doSetUp({
 				installCommand: dotfilesInstallCommand,
 				targetPath: dotfilesTargetPath,
 			},
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		}, disposables);
 
 		const { common } = params;
@@ -561,7 +601,7 @@ function buildOptions(y: Argv) {
 		});
 }
 
-type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>>;
+type BuildArgs = UnpackArgv<ReturnType<typeof buildOptions>> & OciAuthArgs;
 
 function buildHandler(args: BuildArgs) {
 	runAsyncHandler(build.bind(null, args));
@@ -602,6 +642,8 @@ async function doBuild({
 	'no-lockfile': noLockfile,
 	'frozen-lockfile': frozenLockfile,
 	'omit-syntax-directive': omitSyntaxDirective,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: BuildArgs) {
 	warnDeprecatedLockfileFlags(experimentalLockfile, experimentalFrozenLockfile);
 	const effectiveFrozenLockfile = frozenLockfile || experimentalFrozenLockfile;
@@ -655,6 +697,8 @@ async function doBuild({
 			noLockfile,
 			frozenLockfile: effectiveFrozenLockfile,
 			omitSyntaxDirective,
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
 		}, disposables);
 
 		const { common, dockerComposeCLI } = params;
@@ -676,7 +720,7 @@ async function doBuild({
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
 		}
 
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI: params.dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: params.common.ociAuthDiagnostics };
 		await ensureNoDisallowedFeatures(buildParams, config, additionalFeatures, undefined);
 
 		// Support multiple use of `--image-name`
@@ -763,6 +807,7 @@ async function doBuild({
 		return {
 			outcome: 'success' as 'success',
 			imageName: imageNameResult,
+			ociAuthDiagnostics: params.common.ociAuthDiagnostics,
 			dispose,
 		};
 	} catch (originalError) {
@@ -830,7 +875,7 @@ function runUserCommandsOptions(y: Argv) {
 		});
 }
 
-type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>>;
+type RunUserCommandsArgs = UnpackArgv<ReturnType<typeof runUserCommandsOptions>> & OciAuthArgs;
 
 function runUserCommandsHandler(args: RunUserCommandsArgs) {
 	runAsyncHandler(runUserCommands.bind(null, args));
@@ -1023,7 +1068,7 @@ function readConfigurationOptions(y: Argv) {
 		});
 }
 
-type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>>;
+type ReadConfigurationArgs = UnpackArgv<ReturnType<typeof readConfigurationOptions>> & OciAuthArgs;
 
 function readConfigurationHandler(args: ReadConfigurationArgs) {
 	runAsyncHandler(readConfiguration.bind(null, args));
@@ -1048,6 +1093,8 @@ async function readConfiguration({
 	'include-merged-configuration': includeMergedConfig,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: ReadConfigurationArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1104,7 +1151,10 @@ async function readConfiguration({
 			env: cliHost.env,
 			output,
 			buildPlatformInfo,
-			targetPlatformInfo: buildPlatformInfo
+			targetPlatformInfo: buildPlatformInfo,
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
 		};
 		const { container, idLabels } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
 		if (container) {
@@ -1134,6 +1184,7 @@ async function readConfiguration({
 				workspace: configs?.workspaceConfig,
 				featuresConfiguration,
 				mergedConfiguration: mergedConfig,
+				ociAuthDiagnostics: params.ociAuthDiagnostics,
 			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
@@ -1162,7 +1213,7 @@ function outdatedOptions(y: Argv) {
 	});
 }
 
-type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>>;
+type OutdatedArgs = UnpackArgv<ReturnType<typeof outdatedOptions>> & OciAuthArgs;
 
 function outdatedHandler(args: OutdatedArgs) {
 	runAsyncHandler(outdated.bind(null, args));
@@ -1177,6 +1228,8 @@ async function outdated({
 	'log-format': logFormat,
 	'terminal-rows': terminalRows,
 	'terminal-columns': terminalColumns,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: OutdatedArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -1213,6 +1266,9 @@ async function outdated({
 			env: cliHost.env,
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
 		};
 
 		const outdated = await loadVersionInfo(params, configs.config.config);

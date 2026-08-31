@@ -13,6 +13,7 @@ import { launch, ShellServer } from './shellServer';
 import { ExecFunction, CLIHost, PtyExecFunction, isFile, Exec, PtyExec, getEntPasswdShellCommand } from './commonUtils';
 import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
+import { OCIAuthDiagnostics } from './ociAuth';
 import { URI } from 'vscode-uri';
 import { containerSubstitute } from './variableSubstitution';
 import { delay } from './async';
@@ -69,6 +70,9 @@ export interface ResolverParameters {
 	omitConfigRemotEnvFromMetadata?: boolean;
 	secretsP?: Promise<Record<string, string>>;
 	omitSyntaxDirective?: boolean;
+	allowedCrossOriginAuthHosts?: string[];
+	ociAuthHardening?: boolean;
+	ociAuthDiagnostics: OCIAuthDiagnostics;
 }
 
 export interface LifecycleHook {

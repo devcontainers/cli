@@ -1,5 +1,5 @@
 import { Argv } from 'yargs';
-import { UnpackArgv } from './devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from './devContainersSpecCLI';
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Log, LogLevel, mapLogLevel } from '../spec-utils/log';
 import { createLog } from './devContainers';
@@ -19,6 +19,7 @@ import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { mapNodeArchitectureToGOARCH, mapNodeOSToGOOS } from '../spec-configuration/containerCollectionsOCI';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 
 export function featuresUpgradeOptions(y: Argv) {
 	return y
@@ -47,7 +48,7 @@ export function featuresUpgradeOptions(y: Argv) {
 		});
 }
 
-export type FeaturesUpgradeArgs = UnpackArgv<ReturnType<typeof featuresUpgradeOptions>>;
+export type FeaturesUpgradeArgs = UnpackArgv<ReturnType<typeof featuresUpgradeOptions>> & OciAuthArgs;
 
 export function featuresUpgradeHandler(args: FeaturesUpgradeArgs) {
 	runAsyncHandler(featuresUpgrade.bind(null, args));
@@ -62,6 +63,8 @@ async function featuresUpgrade({
 	'dry-run': dryRun,
 	feature: feature,
 	'target-version': targetVersion,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: FeaturesUpgradeArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -90,6 +93,7 @@ async function featuresUpgrade({
 			os: mapNodeOSToGOOS(cliHost.platform),
 			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
 		};
+		const ociAuthDiagnostics = createOCIAuthDiagnostics();
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,
@@ -98,6 +102,9 @@ async function featuresUpgrade({
 			output,
 			buildPlatformInfo,
 			targetPlatformInfo: buildPlatformInfo,
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
+			ociAuthDiagnostics,
 		};
 
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
@@ -112,6 +119,9 @@ async function featuresUpgrade({
 			env: cliHost.env,
 			skipFeatureAutoMapping: false,
 			platform: cliHost.platform,
+			allowedCrossOriginAuthHosts,
+			ociAuthHardening,
+			ociAuthDiagnostics,
 		};
 
 		if (feature && targetVersion) {

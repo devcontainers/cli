@@ -559,6 +559,8 @@ async function launchProject(params: DockerResolverParameters, workspaceFolder: 
 		skipFeatureAutoMapping: common.skipFeatureAutoMapping,
 		skipPersistingCustomizationsFromFeatures: common.skipPersistingCustomizationsFromFeatures,
 		omitConfigRemotEnvFromMetadata: common.omitConfigRemotEnvFromMetadata,
+		allowedCrossOriginAuthHosts: common.allowedCrossOriginAuthHosts,
+		ociAuthHardening: common.ociAuthHardening,
 		log: text => quiet ? null : process.stderr.write(text),
 		dotfiles: {}
 	};
@@ -625,7 +627,7 @@ async function exec(cmd: string, args: string[], workspaceFolder: string, inject
 }
 
 async function generateDockerParams(workspaceFolder: string, args: FeaturesTestCommandInput): Promise<DockerResolverParameters> {
-	const { logLevel, quiet, disposables } = args;
+	const { logLevel, quiet, allowedCrossOriginAuthHosts, ociAuthHardening, disposables } = args;
 	return await createDockerParams({
 		workspaceFolder,
 		additionalLabels: [],
@@ -662,6 +664,8 @@ async function generateDockerParams(workspaceFolder: string, args: FeaturesTestC
 		skipFeatureAutoMapping: false,
 		skipPostAttach: false,
 		skipPersistingCustomizationsFromFeatures: false,
+		allowedCrossOriginAuthHosts,
+		ociAuthHardening,
 		dotfiles: {}
 	}, disposables);
 }

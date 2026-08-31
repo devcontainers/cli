@@ -7,10 +7,11 @@ import { getSafeId, findContainerUsers } from '../../spec-node/containerFeatures
 import { ImageMetadataEntry } from '../../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../../spec-node/utils';
 import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
+import { createTestCommonParams } from '../testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-const params = { output, env: process.env };
+const params = createTestCommonParams(output);
 
 describe('getIdSafe should return safe environment variable name', function () {
 
@@ -205,6 +206,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',
@@ -241,6 +243,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'devcontainers',
 				namespace: 'devcontainers/features',
@@ -277,6 +280,7 @@ describe('validate processFeatureIdentifier', async function () {
 			assert.exists(featureSet);
 
 			const expectedFeatureRef: OCIRef = {
+				scheme: 'https',
 				id: 'ruby',
 				owner: 'codspace',
 				namespace: 'codspace/features',
@@ -630,6 +634,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',
@@ -714,6 +719,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',
@@ -801,6 +807,7 @@ chmod +x ./install.sh
 				userFeatureId: 'ghcr.io/my-org/my-repo/test:1',
 				userFeatureIdWithoutVersion: 'ghcr.io/my-org/my-repo/test',
 				featureRef: {
+					scheme: 'https',
 					registry: 'ghcr.io',
 					owner: 'my-org',
 					namespace: 'my-org/my-repo',

@@ -3,10 +3,11 @@ import { Log, LogLevel, mapLogLevel } from '../../spec-utils/log';
 import { getPackageConfig } from '../../spec-utils/product';
 import { createLog } from '../devContainers';
 import * as jsonc from 'jsonc-parser';
-import { UnpackArgv } from '../devContainersSpecCLI';
+import { OciAuthArgs, UnpackArgv } from '../devContainersSpecCLI';
 import { fetchTemplate, SelectedTemplate, TemplateFeatureOption, TemplateOptions } from '../../spec-configuration/containerTemplatesOCI';
 import { runAsyncHandler } from '../utils';
 import path from 'path';
+import { createOCIAuthDiagnostics } from '../../spec-common/ociAuth';
 
 export function templateApplyOptions(y: Argv) {
 	return y
@@ -24,7 +25,7 @@ export function templateApplyOptions(y: Argv) {
 		});
 }
 
-export type TemplateApplyArgs = UnpackArgv<ReturnType<typeof templateApplyOptions>>;
+export type TemplateApplyArgs = UnpackArgv<ReturnType<typeof templateApplyOptions>> & OciAuthArgs;
 
 export function templateApplyHandler(args: TemplateApplyArgs) {
 	runAsyncHandler(templateApply.bind(null, args));
@@ -38,6 +39,8 @@ async function templateApply({
 	'log-level': inputLogLevel,
 	'tmp-dir': userProvidedTmpDir,
 	'omit-paths': omitPathsArg,
+	'allow-cross-origin-auth-host': allowedCrossOriginAuthHosts,
+	'oci-auth-hardening': ociAuthHardening,
 }: TemplateApplyArgs) {
 	const disposables: (() => Promise<unknown> | undefined)[] = [];
 	const dispose = async () => {
@@ -87,7 +90,7 @@ async function templateApply({
 		omitPaths,
 	};
 
-	const files = await fetchTemplate({ output, env: process.env }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
+	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {
 		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
 		process.exit(1);
@@ -152,4 +155,3 @@ function hasJsonParseError(output: Log, errors: jsonc.ParseError[]) {
 	}
 	return errors.length > 0;
 }
-
