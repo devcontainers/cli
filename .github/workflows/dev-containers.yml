@@ -110,6 +110,7 @@ jobs:
         docker rm "${container_id}"
         sudo install -m 0755 podman /usr/local/bin/podman
         sudo install -m 0755 crun /usr/local/bin/crun
+        sudo install -m 0755 crun /usr/bin/crun
         podman --version
         crun --version
     - name: Tools Info
