@@ -107,8 +107,8 @@ jobs:
       run: |
         docker info
         docker buildx version
-        podman info
-        podman buildx version
+        podman info || true
+        podman buildx version || true
     - name: Install Dependencies
       run: |
         yarn install --frozen-lockfile
