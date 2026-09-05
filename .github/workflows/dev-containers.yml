@@ -98,11 +98,20 @@ jobs:
           --target podman \
           --tag podman-5.5.2-builder \
           'https://github.com/mgoltzsche/podman-static.git#9ccf992536ecf0a4a3b82ac27fc708f00ab141ab'
+        docker build \
+          --target crun \
+          --tag crun-builder \
+          'https://github.com/mgoltzsche/podman-static.git#9ccf992536ecf0a4a3b82ac27fc708f00ab141ab'
         container_id=$(docker create podman-5.5.2-builder)
         docker cp "${container_id}:/usr/local/bin/podman" podman
         docker rm "${container_id}"
+        container_id=$(docker create crun-builder)
+        docker cp "${container_id}:/usr/local/bin/crun" crun
+        docker rm "${container_id}"
         sudo install -m 0755 podman /usr/local/bin/podman
+        sudo install -m 0755 crun /usr/local/bin/crun
         podman --version
+        crun --version
     - name: Tools Info
       run: |
         docker info
