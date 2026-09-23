@@ -223,7 +223,7 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 	const registry = splitOnSlash[0];
 	const namespace = splitOnSlash.slice(1, -1).join('/');
 
-	const path = namespace ? `${namespace}/${id}` : id;
+	const path = splitOnSlash.length < 2 ? `/${id}` : (namespace ? `${namespace}/${id}` : id);
 
 	if (!regexForPath.exec(path)) {
 		output.write(`Path '${path}' for input '${input}' failed validation.  Expected path to match regex '${regexForPath}'.`, LogLevel.Error);
