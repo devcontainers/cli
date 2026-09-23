@@ -11,7 +11,7 @@ import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
 import { includeAllConfiguredFeatures } from '../spec-utils/product';
-import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, SubstitutedConfig, isBuildxCacheToInline } from './utils';
+import { createFeaturesTempFolder, DockerResolverParameters, getCacheFolder, getFolderImageName, getEmptyContextFolder, hasRegistryHost, SubstitutedConfig, isBuildxCacheToInline } from './utils';
 import { isEarlierVersion, parseVersion, runCommandNoPty } from '../spec-common/commonUtils';
 import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageBuildInfoFromImage, ImageBuildInfo, ImageMetadataEntry, imageMetadataLabel, MergedDevContainerConfig } from './imageMetadata';
 import { supportsBuildContexts } from './dockerfileUtils';
@@ -467,7 +467,7 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		'-f', destDockerfile,
 		'-t', fixedImageName,
 		...(platform ? ['--platform', platform] : []),
-		'--build-arg', `BASE_IMAGE=${params.cliVariant === CLIVariant.Podman && !hasRegistryHostname(imageName) ? 'localhost/' : ''}${imageName}`, // Podman: https://github.com/microsoft/vscode-remote-release/issues/9748
+		'--build-arg', `BASE_IMAGE=${params.cliVariant === CLIVariant.Podman && !hasRegistryHost(imageName) ? 'localhost/' : ''}${imageName}`, // Podman: https://github.com/microsoft/vscode-remote-release/issues/9748
 		'--build-arg', `REMOTE_USER=${remoteUser}`,
 		'--build-arg', `NEW_UID=${await cliHost.getuid!()}`,
 		'--build-arg', `NEW_GID=${await cliHost.getgid!()}`,
@@ -480,13 +480,4 @@ export async function updateRemoteUserUID(params: DockerResolverParameters, merg
 		await dockerCLI(params, ...args);
 	}
 	return fixedImageName;
-}
-
-function hasRegistryHostname(imageName: string) {
-	if (imageName.startsWith('localhost/')) {
-		return true;
-	}
-	const dot = imageName.indexOf('.');
-	const slash = imageName.indexOf('/');
-	return dot !== -1 && slash !== -1 && dot < slash;
 }
