@@ -90,28 +90,38 @@ jobs:
         fi
         cat "$DAEMON_JSON"
         sudo systemctl restart docker
-    - name: Install Podman 6.1.2
+    - name: Install Podman 5.5.2
       if: matrix.mocha-args == 'src/test/cli.podman.test.ts'
-      run: |
-        archive="${RUNNER_TEMP}/podman-linux-amd64.tar.gz"
-        curl -fsSL \
-          "https://github.com/mgoltzsche/podman-static/releases/download/v6.1.2/podman-linux-amd64.tar.gz" \
-          -o "${archive}"
-        echo "481b6f5a57919aea837b54df1eaa6a5b968df505eedbdd78356e80306af676f1  ${archive}" | sha256sum --check
-        sudo tar -xzf "${archive}" \
-          --directory / \
-          --strip-components=1 \
-          --exclude='podman-linux-amd64/usr/local/bin/runc' \
-          --exclude='podman-linux-amd64/README.md'
-        # Use Ubuntu's existing AppArmor profile paths without modifying the profiles.
-        sudo install -m 0755 /usr/local/bin/podman /usr/bin/podman
-        sudo install -m 0755 /usr/local/bin/crun /usr/bin/crun
-        sudo rm /usr/local/bin/podman /usr/local/bin/crun
-        test "$(command -v podman)" = /usr/bin/podman
-        test "$(command -v crun)" = /usr/bin/crun
-        echo "BUILDAH_ISOLATION=chroot" >> "${GITHUB_ENV}"
-        podman --version
-        sudo crun --version
+        run: |
+          echo "Installing Podman dependencies..."
+          sudo apt-get update && sudo apt-get install -y \
+            uidmap \
+            slirp4netns \
+            fuse-overlayfs \
+            iptables \
+            crun
+
+          curl -fsSL -o podman-linux-amd64.tar.gz \
+            https://github.com/containers/podman/releases/download/v5.5.2/podman-5.5.2-linux-amd64.tar.gz
+          tar -xzf podman-linux-amd64.tar.gz
+
+          sudo cp -r podman-linux-amd64/usr/* /usr/
+          sudo cp -r podman-linux-amd64/etc/* /etc/
+
+          mkdir -p ~/.config/containers
+
+          cat <<EOF > ~/.config/containers/containers.conf
+          [engine]
+          runtime = "crun"
+          EOF
+
+          cat <<EOF > ~/.config/containers/storage.conf
+          [storage]
+          driver = "overlay"
+          EOF
+          
+          podman --version
+
     - name: Tools Info
       run: |
         docker info
