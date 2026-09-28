@@ -102,6 +102,11 @@ jobs:
         docker cp "${container_id}:/usr/local/bin/podman" podman
         docker rm "${container_id}"
         sudo install -m 0755 podman /usr/local/bin/podman
+        # Ubuntu's Podman profile does not include the static binary's installation path.
+        if [ -f /etc/apparmor.d/podman ]; then
+          sudo sed -Ei 's!^profile podman /usr/bin/podman !profile podman /usr/{bin,local/bin}/podman !' /etc/apparmor.d/podman
+          sudo apparmor_parser -r /etc/apparmor.d/podman
+        fi
         podman --version
     - name: Tools Info
       run: |
