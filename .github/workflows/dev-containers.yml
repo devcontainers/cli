@@ -101,6 +101,7 @@ jobs:
             iptables \
             crun
 
+          echo "Installing Podman..."
           curl -fsSL -o podman-linux-amd64.tar.gz \
             https://github.com/containers/podman/releases/download/v5.5.2/podman-5.5.2-linux-amd64.tar.gz
           tar -xzf podman-linux-amd64.tar.gz
@@ -119,7 +120,7 @@ jobs:
           [storage]
           driver = "overlay"
           EOF
-          
+
           podman --version
 
     - name: Tools Info
