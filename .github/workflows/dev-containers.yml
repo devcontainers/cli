@@ -109,6 +109,7 @@ jobs:
         sudo rm /usr/local/bin/podman /usr/local/bin/crun
         test "$(command -v podman)" = /usr/bin/podman
         test "$(command -v crun)" = /usr/bin/crun
+        echo "BUILDAH_ISOLATION=chroot" >> "${GITHUB_ENV}"
         podman --version
         sudo crun --version
     - name: Tools Info
