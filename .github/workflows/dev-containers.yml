@@ -106,6 +106,9 @@ jobs:
         # Use Ubuntu's existing AppArmor profile paths without modifying the profiles.
         sudo install -m 0755 /usr/local/bin/podman /usr/bin/podman
         sudo install -m 0755 /usr/local/bin/crun /usr/bin/crun
+        sudo rm /usr/local/bin/podman /usr/local/bin/crun
+        test "$(command -v podman)" = /usr/bin/podman
+        test "$(command -v crun)" = /usr/bin/crun
         podman --version
         sudo crun --version
     - name: Tools Info
