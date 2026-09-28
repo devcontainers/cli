@@ -111,6 +111,40 @@ describe('getRef()', async function () {
         assert.equal(feat.digest, feat.version);
     });
 
+    it('valid getRef() with a tag and digest', async () => {
+        const feat = getRef(output, 'mcr.microsoft.com/devcontainers/go:2.3.1-1.27-bookworm@sha256:adc326255c019241228f9da4a1cb5d6a89abaaa0eb8d926a355b00af7daafd00');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'go');
+        assert.equal(feat.namespace, 'devcontainers');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'mcr.microsoft.com');
+        assert.equal(feat.resource, 'mcr.microsoft.com/devcontainers/go');
+        assert.equal(feat.path, 'devcontainers/go');
+        assert.equal(feat.tag, '2.3.1-1.27-bookworm');
+        assert.equal(feat.digest, 'sha256:adc326255c019241228f9da4a1cb5d6a89abaaa0eb8d926a355b00af7daafd00');
+        assert.equal(feat.digest, feat.version);
+    });
+
+    it('valid getRef() with a registry port, tag, and digest', async () => {
+        const feat = getRef(output, 'docker.io:8001/devcontainers/templates/docker-from-docker:1.3.4@sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a');
+        if (!feat) {
+            assert.fail('featureRef should not be undefined');
+        }
+        assert.ok(feat);
+        assert.equal(feat.id, 'docker-from-docker');
+        assert.equal(feat.namespace, 'devcontainers/templates');
+        assert.equal(feat.owner, 'devcontainers');
+        assert.equal(feat.registry, 'docker.io:8001');
+        assert.equal(feat.resource, 'docker.io:8001/devcontainers/templates/docker-from-docker');
+        assert.equal(feat.path, 'devcontainers/templates/docker-from-docker');
+        assert.equal(feat.tag, '1.3.4');
+        assert.equal(feat.digest, 'sha256:4ef08c9c3b708f3c2faecc5a898b39736423dd639f09f2a9f8bf9b0b9252ef0a');
+        assert.equal(feat.digest, feat.version);
+    });
+
     it('valid getRef() without a version tag', async () => {
         const feat = getRef(output, 'ghcr.io/devcontainers/templates/docker-from-docker');
         if (!feat) {

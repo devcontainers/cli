@@ -172,6 +172,11 @@ export function getRef(output: Log, input: string): OCIRef | undefined {
 		// The version is specified by digest
 		// eg: ghcr.io/codspace/features/ruby@sha256:abcdefgh
 		resource = input.substring(0, indexOfLastAtCharacter);
+		const indexOfTagSeparator = resource.lastIndexOf(':');
+		if (indexOfTagSeparator > resource.lastIndexOf('/')) {
+			tag = resource.substring(indexOfTagSeparator + 1);
+			resource = resource.substring(0, indexOfTagSeparator);
+		}
 		const digestWithHashingAlgorithm = input.substring(indexOfLastAtCharacter + 1);
 		const splitOnColon = digestWithHashingAlgorithm.split(':');
 		if (splitOnColon.length !== 2) {
