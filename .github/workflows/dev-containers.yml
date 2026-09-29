@@ -103,7 +103,7 @@ jobs:
 
         echo "Installing Podman..."
         curl -fsSL -o podman-linux-amd64.tar.gz \
-          https://github.com/containers/podman/releases/download/v5.5.2/podman-5.5.2-linux-amd64.tar.gz
+          https://github.com/mgoltzsche/podman-static/releases/download/v5.5.2/podman-linux-amd64.tar.gz
         tar -xzf podman-linux-amd64.tar.gz
 
         sudo cp -r podman-linux-amd64/usr/* /usr/
