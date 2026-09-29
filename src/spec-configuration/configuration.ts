@@ -21,6 +21,8 @@ export type UserEnvProbe = 'none' | 'loginInteractiveShell' | 'interactiveShell'
 
 export type DevContainerConfigCommand = 'initializeCommand' | 'onCreateCommand' | 'updateContentCommand' | 'postCreateCommand' | 'postStartCommand' | 'postAttachCommand';
 
+export type DevContainerExtendsMergeMode = 'combine' | 'override';
+
 export interface HostGPURequirements {
 	cores?: number;
 	memory?: string;
@@ -73,6 +75,8 @@ export interface DevContainerFromImageConfig {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
+	extendsMergeMode?: DevContainerExtendsMergeMode;
 	customizations?: Record<string, any>;
 }
 
@@ -110,6 +114,8 @@ export type DevContainerFromDockerfileConfig = {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
+	extendsMergeMode?: DevContainerExtendsMergeMode;
 	customizations?: Record<string, any>;
 } & (
 		{
@@ -168,6 +174,8 @@ export interface DevContainerFromDockerComposeConfig {
 	features?: Record<string, string | boolean | Record<string, string | boolean>>;
 	overrideFeatureInstallOrder?: string[];
 	hostRequirements?: HostRequirements;
+	extends?: string;
+	extendsMergeMode?: DevContainerExtendsMergeMode;
 	customizations?: Record<string, any>;
 }
 

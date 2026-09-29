@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { DevContainerConfig, HostGPURequirements } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFromImageConfig, HostGPURequirements } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, FeatureSet, Mount } from '../spec-configuration/containerFeaturesConfiguration';
-import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, ImageMetadataEntry, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration } from '../spec-node/imageMetadata';
+import { getDevcontainerMetadata, getDevcontainerMetadataLabel, getImageMetadata, getImageMetadataFromContainer, ImageMetadataEntry, imageMetadataLabel, internalGetImageMetadata0, mergeConfiguration, mergeDevContainerConfigs } from '../spec-node/imageMetadata';
 import { SubstitutedConfig } from '../spec-node/utils';
 import { ContainerDetails, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
@@ -556,6 +556,71 @@ describe('Image Metadata', function () {
 		const gpuRequirement = merged.hostRequirements?.gpu as HostGPURequirements;
 		assert.strictEqual(gpuRequirement?.cores, 4);
 		assert.strictEqual(gpuRequirement?.memory, '8589934592');
+	});
+});
+
+describe('mergeDevContainerConfigs', function () {
+	it('should combine configs using image metadata merge logic', function () {
+		const base: DevContainerConfig = {
+			image: 'ubuntu:latest',
+			init: false,
+			privileged: true,
+			forwardPorts: [80],
+			hostRequirements: {
+				cpus: 4,
+				memory: '4gb',
+			},
+			remoteUser: 'vscode',
+			onCreateCommand: 'echo base',
+		};
+		const overlay: DevContainerConfig = {
+			image: 'ubuntu:latest',
+			init: true,
+			forwardPorts: [443],
+			hostRequirements: {
+				cpus: 2,
+				memory: '8gb',
+			},
+			onCreateCommand: 'echo overlay',
+		};
+
+		const merged = mergeDevContainerConfigs(base, overlay);
+		assert.strictEqual((merged as DevContainerFromImageConfig).image, 'ubuntu:latest');
+		assert.strictEqual(merged.init, true);
+		assert.strictEqual(merged.privileged, true);
+		assert.deepStrictEqual(merged.forwardPorts, [80, 443]);
+		assert.strictEqual(merged.hostRequirements?.cpus, 4);
+		assert.strictEqual(merged.hostRequirements?.memory, `${8 * 2 ** 30}`);
+		assert.strictEqual(merged.remoteUser, 'vscode');
+		assert.strictEqual(merged.onCreateCommand, 'echo overlay');
+	});
+
+	it('should override configs when merge mode is override', function () {
+		const base: DevContainerConfig = {
+			image: 'ubuntu:latest',
+			init: true,
+			privileged: true,
+			forwardPorts: [80],
+			hostRequirements: {
+				cpus: 4,
+				memory: '8gb',
+				storage: '32gb',
+			},
+		};
+		const overlay: DevContainerConfig = {
+			image: 'ubuntu:latest',
+			init: false,
+			forwardPorts: [443],
+			hostRequirements: {
+				memory: '4gb',
+			},
+		};
+
+		const merged = mergeDevContainerConfigs(base, overlay, 'override');
+		assert.strictEqual(merged.init, false);
+		assert.strictEqual(merged.privileged, true);
+		assert.deepStrictEqual(merged.forwardPorts, [443]);
+		assert.deepStrictEqual(merged.hostRequirements, { memory: '4gb' });
 	});
 });
 

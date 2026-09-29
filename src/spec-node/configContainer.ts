@@ -17,10 +17,11 @@ import { URI } from 'vscode-uri';
 import { CLIHost } from '../spec-common/commonUtils';
 import { Log } from '../spec-utils/log';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn } from '../spec-configuration/configurationCommonUtils';
-import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, updateFromOldProperties } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, resolveConfigFilePath, updateFromOldProperties } from '../spec-configuration/configuration';
 import { ensureNoDisallowedFeatures } from './disallowedFeatures';
 import { DockerCLIParameters } from '../spec-shutdown/dockerUtils';
 import { createDocuments } from '../spec-configuration/editableFiles';
+import { mergeDevContainerConfigs } from './imageMetadata';
 
 
 export async function resolve(params: DockerResolverParameters, configFile: URI | undefined, overrideConfigFile: URI | undefined, providedIdLabels: string[] | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
@@ -79,16 +80,53 @@ async function resolveWithLocalFolder(params: DockerResolverParameters, parsedAu
 	return result;
 }
 
-export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+async function readDevContainerConfigObject(cliHost: CLIHost, configUri: URI, seen: Set<string>): Promise<DevContainerConfig | undefined> {
+	const configKey = configUri.toString();
+	if (seen.has(configKey)) {
+		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configUri, cliHost.platform)}) has a cyclic "extends" reference.` });
+	}
+	seen.add(configKey);
+
 	const documents = createDocuments(cliHost);
-	const content = await documents.readDocument(overrideConfigFile ?? configFile);
+	const content = await documents.readDocument(configUri);
 	if (!content) {
 		return undefined;
 	}
 	const raw = jsonc.parse(content) as DevContainerConfig | undefined;
 	const updated = raw && updateFromOldProperties(raw);
 	if (!updated || typeof updated !== 'object' || Array.isArray(updated)) {
-		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configFile, cliHost.platform)}) must contain a JSON object literal.` });
+		throw new ContainerError({ description: `Dev container config (${uriToFsPath(configUri, cliHost.platform)}) must contain a JSON object literal.` });
+	}
+
+	const extendsPath = updated.extends;
+	const extendsMergeMode = updated.extendsMergeMode ?? 'combine';
+	delete updated.extends;
+	delete updated.extendsMergeMode;
+	if (!extendsPath) {
+		return updated;
+	}
+	if (typeof extendsPath !== 'string' || !extendsPath.trim()) {
+		throw new ContainerError({ description: `"extends" in (${uriToFsPath(configUri, cliHost.platform)}) must be a relative path to a JSON or JSONC file.` });
+	}
+	if (extendsMergeMode !== 'combine' && extendsMergeMode !== 'override') {
+		throw new ContainerError({ description: `"extendsMergeMode" in (${uriToFsPath(configUri, cliHost.platform)}) must be "combine" or "override".` });
+	}
+	if (cliHost.path.isAbsolute(extendsPath) || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(extendsPath)) {
+		throw new ContainerError({ description: `"extends" in (${uriToFsPath(configUri, cliHost.platform)}) must be a relative path within the same repository.` });
+	}
+
+	const parentUri = resolveConfigFilePath(cliHost, configUri, extendsPath);
+	const parent = await readDevContainerConfigObject(cliHost, parentUri, new Set(seen));
+	if (!parent) {
+		throw new ContainerError({ description: `Dev container config extended from (${uriToFsPath(configUri, cliHost.platform)}) was not found: ${uriToFsPath(parentUri, cliHost.platform)}.` });
+	}
+	return mergeDevContainerConfigs(parent, updated, extendsMergeMode);
+}
+
+export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
+	const updated = await readDevContainerConfigObject(cliHost, overrideConfigFile ?? configFile, new Set());
+	if (!updated) {
+		return undefined;
 	}
 	const workspaceConfig = await getWorkspaceConfiguration(cliHost, workspace, updated, mountWorkspaceGitRoot, mountGitWorktreeCommonDir, output, consistency);
 	const substitute0: SubstituteConfig = value => substitute({
