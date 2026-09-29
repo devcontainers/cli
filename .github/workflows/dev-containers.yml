@@ -92,36 +92,36 @@ jobs:
         sudo systemctl restart docker
     - name: Install Podman 5.5.2
       if: matrix.mocha-args == 'src/test/cli.podman.test.ts'
-        run: |
-          echo "Installing Podman dependencies..."
-          sudo apt-get update && sudo apt-get install -y \
-            uidmap \
-            slirp4netns \
-            fuse-overlayfs \
-            iptables \
-            crun
+      run: |
+        echo "Installing Podman dependencies..."
+        sudo apt-get update && sudo apt-get install -y \
+          uidmap \
+          slirp4netns \
+          fuse-overlayfs \
+          iptables \
+          crun
 
-          echo "Installing Podman..."
-          curl -fsSL -o podman-linux-amd64.tar.gz \
-            https://github.com/containers/podman/releases/download/v5.5.2/podman-5.5.2-linux-amd64.tar.gz
-          tar -xzf podman-linux-amd64.tar.gz
+        echo "Installing Podman..."
+        curl -fsSL -o podman-linux-amd64.tar.gz \
+          https://github.com/containers/podman/releases/download/v5.5.2/podman-5.5.2-linux-amd64.tar.gz
+        tar -xzf podman-linux-amd64.tar.gz
 
-          sudo cp -r podman-linux-amd64/usr/* /usr/
-          sudo cp -r podman-linux-amd64/etc/* /etc/
+        sudo cp -r podman-linux-amd64/usr/* /usr/
+        sudo cp -r podman-linux-amd64/etc/* /etc/
 
-          mkdir -p ~/.config/containers
+        mkdir -p ~/.config/containers
 
-          cat <<EOF > ~/.config/containers/containers.conf
-          [engine]
-          runtime = "crun"
-          EOF
+        cat <<EOF > ~/.config/containers/containers.conf
+        [engine]
+        runtime = "crun"
+        EOF
 
-          cat <<EOF > ~/.config/containers/storage.conf
-          [storage]
-          driver = "overlay"
-          EOF
+        cat <<EOF > ~/.config/containers/storage.conf
+        [storage]
+        driver = "overlay"
+        EOF
 
-          podman --version
+        podman --version
 
     - name: Tools Info
       run: |
