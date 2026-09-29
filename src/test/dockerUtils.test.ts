@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createPlainLog, LogLevel, makeLog } from '../spec-utils/log';
-import { inspectImageInRegistry, qualifyImageName } from '../spec-node/utils';
+import { getRef } from '../spec-configuration/containerCollectionsOCI';
+import { hasRegistryHost, inspectImageInRegistry, qualifyImageName } from '../spec-node/utils';
 import assert from 'assert';
 import { dockerCLI, listContainers, PartialExecParameters, removeContainer, toExecParameters } from '../spec-shutdown/dockerUtils';
 import { createCLIParams } from './testUtils';
@@ -42,11 +43,36 @@ describe('Docker utils', function () {
 		assert.ok(config.Config.Cmd);
 	});
 
+	it('detects a registry host', () => {
+		assert.strictEqual(hasRegistryHost('myregistry:5000/image'), true);
+		assert.strictEqual(hasRegistryHost('random/image'), false);
+	});
+
 	it('qualifies docker.io shorthands', async () => {
 		assert.strictEqual(qualifyImageName('ubuntu'), 'docker.io/library/ubuntu');
 		assert.strictEqual(qualifyImageName('docker.io/ubuntu'), 'docker.io/library/ubuntu');
 		assert.strictEqual(qualifyImageName('random/image'), 'docker.io/random/image');
-		assert.strictEqual(qualifyImageName('foo/random/image'), 'foo/random/image');
+		assert.strictEqual(qualifyImageName('foo/random/image'), 'docker.io/foo/random/image');
+	});
+
+	it('keeps an uppercase registry host', () => {
+		assert.strictEqual(qualifyImageName('Registry/image'), 'Registry/image');
+	});
+
+	it('keeps a localhost registry host', () => {
+		assert.strictEqual(qualifyImageName('localhost/image'), 'localhost/image');
+		assert.strictEqual(qualifyImageName('localhost:5000/ns/image'), 'localhost:5000/ns/image');
+	});
+
+	it('keeps a registry host with a dot', () => {
+		assert.strictEqual(qualifyImageName('registry.example.com/image'), 'registry.example.com/image');
+	});
+
+	it('resolves a registry host with a port', () => {
+		const ref = getRef(output, qualifyImageName('registry.example.com:5000/image:tag'));
+		assert.strictEqual(ref?.registry, 'registry.example.com:5000');
+		assert.strictEqual(ref?.path, 'image');
+		assert.strictEqual(ref?.version, 'tag');
 	});
 
 	it('protects against concurrent removal', async () => {
