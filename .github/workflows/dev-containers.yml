@@ -102,7 +102,7 @@ jobs:
         docker cp "${container_id}:/usr/local/bin/podman" podman
         docker rm "${container_id}"
         sudo install -m 0755 podman /usr/local/bin/podman
-        podman --version        
+        podman --version
     - name: Tools Info
       run: |
         docker info
