@@ -450,7 +450,8 @@ async function getPodmanArgs(params: DockerResolverParameters, config: DevContai
 	return [];
 }
 
-// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,readonly") to -v syntax for wslc.
+// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached,readonly")
+// to -v syntax for wslc. Options other than source/target/readonly are dropped.
 export function convertMountToVolume(mountStr: string): string[] {
 	const parts = new Map(mountStr.split(',').map(p => {
 		const eq = p.indexOf('=');
