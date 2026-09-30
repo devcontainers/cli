@@ -145,8 +145,20 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 			context: (composeBuild.context as string | undefined) ?? cliHostPath.dirname(localComposeFiles[0]),
 			target: composeBuild.target as string | undefined,
 			args: composeBuild.args as Record<string, string> | undefined,
+			additionalContexts: toAdditionalContextsMap(composeBuild.additional_contexts),
 		}
 	};
+}
+
+// Compose accepts both a mapping and a list of 'name=value' entries.
+function toAdditionalContextsMap(additionalContexts: Record<string, string> | string[] | undefined) {
+	if (!Array.isArray(additionalContexts)) {
+		return additionalContexts;
+	}
+	return Object.fromEntries(additionalContexts.map(entry => {
+		const i = entry.indexOf('=');
+		return i === -1 ? [entry, ''] : [entry.slice(0, i), entry.slice(i + 1)];
+	}));
 }
 
 export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean) {
@@ -181,7 +193,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 				dockerfile = modifiedDockerfile;
 			}
 		}
-		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute);
+		imageBuildInfo = await getImageBuildInfoFromDockerfile(params, originalDockerfile, serviceInfo.build?.args || {}, serviceInfo.build?.target, configWithRaw.substitute, Object.keys(serviceInfo.build.additionalContexts || {}));
 	} else {
 		imageBuildInfo = await getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
 	}
