@@ -7,6 +7,7 @@ import * as path from 'path';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters, CLIVariant } from '../spec-shutdown/dockerUtils';
+import { CLIHost } from '../spec-common/cliHost';
 import { LogLevel, makeLog } from '../spec-utils/log';
 import { FeaturesConfig, getContainerFeaturesBaseDockerFile, getFeatureInstallWrapperScript, getFeatureLayers, getFeatureMainValue, getFeatureValueObject, generateFeaturesConfig, Feature, generateContainerEnvs } from '../spec-configuration/containerFeaturesConfiguration';
 import { readLocalFile } from '../spec-utils/pfs';
@@ -422,7 +423,11 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 	const { common } = params;
 	const { cliHost } = common;
 	const { updateRemoteUserUID } = mergedConfig;
-	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof updateRemoteUserUID === 'boolean' ? updateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
+	// Under rootless podman with a non-bakeable host UID/GID, fall back to disabling the
+	// build-time bake and relying on the runtime --userns=keep-id mapping instead. This
+	// only applies when the user has not explicitly configured updateRemoteUserUID.
+	const effectiveUpdateRemoteUserUID = await resolveUpdateRemoteUserUID(params, mergedConfig, cliHost) ?? updateRemoteUserUID;
+	if (params.updateRemoteUserUIDDefault === 'never' || !(typeof effectiveUpdateRemoteUserUID === 'boolean' ? effectiveUpdateRemoteUserUID : params.updateRemoteUserUIDDefault === 'on') || !(cliHost.platform === 'linux' || params.updateRemoteUserUIDOnMacOS && cliHost.platform === 'darwin')) {
 		return null;
 	}
 	const details = await imageDetails();
@@ -440,6 +445,55 @@ export async function getRemoteUserUIDUpdateDetails(params: DockerResolverParame
 		imageUser,
 		platform: [details.Os, details.Architecture, details.Variant].filter(Boolean).join('/')
 	};
+}
+
+// The default subuid/subgid range size that rootless podman grants to a user. A host
+// UID/GID at or below this value can be baked into the image at build time; anything
+// above it cannot be owned by the container under rootless podman.
+const DEFAULT_SUBID_RANGE = 65536;
+
+// Returns true when the given host UID/GID can be baked into the image at build time
+// under rootless podman. Rootless podman can only own files at UIDs within the user's
+// subuid range (0..65536 by default). When the host UID is above that range, the
+// build-time chown/usermod fails with EINVAL, so the CLI must fall back to the runtime
+// --userns=keep-id mapping instead.
+export function isBakeableUidGid(uid: number, gid: number): boolean {
+	return uid <= DEFAULT_SUBID_RANGE && gid <= DEFAULT_SUBID_RANGE;
+}
+
+// Determines whether the CLI should fall back to updateRemoteUserUID: false under
+// rootless podman. This only applies when the user has NOT explicitly configured
+// updateRemoteUserUID (i.e. it is at its default), and the host UID/GID is not bakeable.
+// A user-supplied setting is always respected.
+export async function shouldFallbackToKeepId(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, cliHost: CLIHost): Promise<boolean> {
+	if (params.cliVariant !== CLIVariant.Podman || cliHost.platform !== 'linux') {
+		return false;
+	}
+	// Never override a user-supplied setting.
+	if (typeof mergedConfig.updateRemoteUserUID === 'boolean') {
+		return false;
+	}
+	// Only fall back when the default would otherwise trigger the bake.
+	if (params.updateRemoteUserUIDDefault !== 'on') {
+		return false;
+	}
+	if (!cliHost.getuid || !cliHost.getgid) {
+		return false;
+	}
+	return !isBakeableUidGid(await cliHost.getuid(), await cliHost.getgid());
+}
+
+// Applies the rootless-podman fallback: when the host UID/GID is not bakeable and the
+// user has not explicitly configured updateRemoteUserUID, disable the build-time bake
+// and rely on the runtime --userns=keep-id mapping instead. Returns the effective
+// updateRemoteUserUID value (a boolean when the fallback applies, otherwise undefined
+// to keep the default behavior).
+export async function resolveUpdateRemoteUserUID(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, cliHost: CLIHost): Promise<boolean | undefined> {
+	if (await shouldFallbackToKeepId(params, mergedConfig, cliHost)) {
+		params.common.output.write('Host UID/GID is outside the rootless podman subuid range; disabling updateRemoteUserUID and relying on --userns=keep-id.', LogLevel.Warning);
+		return false;
+	}
+	return undefined;
 }
 
 export async function updateRemoteUserUID(params: DockerResolverParameters, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>, runArgsUser: string | undefined) {
