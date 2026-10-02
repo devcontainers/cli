@@ -578,6 +578,7 @@ function buildOptions(y: Argv) {
 		'push': { type: 'boolean', default: false, description: 'Push to a container registry.' },
 		'label': { type: 'string', description: 'Provide key and value configuration that adds metadata to an image' },
 		'output': { type: 'string', description: 'Overrides the default behavior to load built images into the local docker registry. Valid options are the same ones provided to the --output option of docker buildx build.' },
+		'build-output-folder': { type: 'string', description: 'Prepare the Dockerfile, Features, and build metadata in this empty folder without building the image.' },
 		'additional-features': { type: 'string', description: 'Additional features to apply to the dev container (JSON as per "features" section in devcontainer.json)' },
 		'skip-feature-auto-mapping': { type: 'boolean', default: false, hidden: true, description: 'Temporary option for testing.' },
 		'skip-persisting-customizations-from-features': { type: 'boolean', default: false, hidden: true, description: 'Do not save customizations from referenced Features as image metadata' },
@@ -588,6 +589,9 @@ function buildOptions(y: Argv) {
 		'omit-syntax-directive': { type: 'boolean', default: false, hidden: true, description: 'Omit Dockerfile syntax directives' },
 	})
 		.check(argv => {
+			if (argv['build-output-folder'] && (argv.push || argv.output)) {
+				throw new Error('--build-output-folder cannot be used with --push or --output.');
+			}
 			if (argv['no-lockfile'] && argv['frozen-lockfile']) {
 				throw new Error('--no-lockfile and --frozen-lockfile are mutually exclusive.');
 			}
@@ -633,6 +637,7 @@ async function doBuild({
 	'push': buildxPush,
 	'label': buildxLabel,
 	'output': buildxOutput,
+	'build-output-folder': buildOutputFolderArg,
 	'cache-to': buildxCacheTo,
 	'additional-features': additionalFeaturesJson,
 	'skip-feature-auto-mapping': skipFeatureAutoMapping,
@@ -654,6 +659,7 @@ async function doBuild({
 	};
 	try {
 		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : process.cwd();
+		const buildOutputFolder = buildOutputFolderArg ? path.resolve(process.cwd(), buildOutputFolderArg) : undefined;
 		const configFile: URI | undefined = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
 		const overrideConfigFile: URI | undefined = /* overrideConfig ? URI.file(path.resolve(process.cwd(), overrideConfig)) : */ undefined;
 		const addCacheFroms = addCacheFrom ? (Array.isArray(addCacheFrom) ? addCacheFrom as string[] : [addCacheFrom]) : [];
@@ -703,6 +709,12 @@ async function doBuild({
 
 		const { common, dockerComposeCLI } = params;
 		const { cliHost, env, output } = common;
+		if (buildOutputFolder) {
+			if (await cliHost.isFolder(buildOutputFolder) && (await cliHost.readDir(buildOutputFolder)).length) {
+				throw new ContainerError({ description: `Build output folder (${buildOutputFolder}) must be empty.` });
+			}
+			await cliHost.mkdirp(buildOutputFolder);
+		}
 		const workspace = workspaceFromPath(cliHost.path, workspaceFolder);
 		const configPath = configFile ? configFile : workspace
 			? (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath)
@@ -715,6 +727,7 @@ async function doBuild({
 		const configWithRaw = configs.config;
 		const { config } = configWithRaw;
 		let imageNameResult: string[] = [''];
+		let preparedBuild;
 
 		if (buildxOutput && buildxPush) {
 			throw new ContainerError({ description: '--push true cannot be used with --output.' });
@@ -732,7 +745,9 @@ async function doBuild({
 		if (isDockerFileConfig(config)) {
 
 			// Build the base image and extend with features etc.
-			let { updatedImageName } = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames);
+			const buildResult = await buildNamedImageAndExtend(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, additionalFeatures, false, imageNames, buildOutputFolder);
+			const { updatedImageName } = buildResult;
+			preparedBuild = buildResult.preparedBuild;
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -762,7 +777,7 @@ async function doBuild({
 			if (envFile) {
 				composeGlobalArgs.push('--env-file', envFile);
 			}
-			
+
 			const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 			const projectName = await getProjectName(params, workspace, composeFiles, composeConfig);
 			const services = Object.keys(composeConfig.services || {});
@@ -772,14 +787,21 @@ async function doBuild({
 
 			const versionPrefix = await readVersionPrefix(cliHost, composeFiles);
 			const infoParams = { ...params, common: { ...params.common, output: makeLog(buildParams.output, LogLevel.Info) } };
-			const { overrideImageName } = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, false, addCacheFroms);
+			const buildResult = await buildAndExtendDockerCompose(configWithRaw as SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName, infoParams, composeFiles, envFile, composeGlobalArgs, [config.service], params.buildNoCache || false, buildOutputFolder || params.common.persistedFolder, 'docker-compose.devcontainer.build', versionPrefix, additionalFeatures, false, addCacheFroms, !!buildOutputFolder, buildOutputFolder);
+			const { overrideImageName } = buildResult;
+			preparedBuild = buildResult.preparedBuild;
+			if (preparedBuild && imageNames) {
+				preparedBuild.imageNames = imageNames;
+			}
 
 			const service = composeConfig.services[config.service];
 			const originalImageName = overrideImageName || service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
 
 			if (imageNames) {
 				// Future improvement: Compose 2.6.0 (released 2022-05-30) added `tags` to the compose file.
-				if (params.isTTY) {
+				if (buildOutputFolder) {
+					// The requested names are recorded in build-output.json for the external builder.
+				} else if (params.isTTY) {
 					await Promise.all(imageNames.map(imageName => dockerPtyCLI(params, 'tag', originalImageName, imageName)));
 				} else {
 					await Promise.all(imageNames.map(imageName => dockerCLI(params, 'tag', originalImageName, imageName)));
@@ -795,7 +817,9 @@ async function doBuild({
 			}
 
 			await inspectDockerImage(params, config.image, true);
-			const { updatedImageName } = await extendImage(params, configWithRaw, config.image, imageNames || [], additionalFeatures, false);
+			const buildResult = await extendImage(params, configWithRaw, config.image, imageNames || [], additionalFeatures, false, buildOutputFolder);
+			const { updatedImageName } = buildResult;
+			preparedBuild = buildResult.preparedBuild;
 
 			if (imageNames) {
 				imageNameResult = imageNames;
@@ -804,9 +828,17 @@ async function doBuild({
 			}
 		}
 
+		if (buildOutputFolder) {
+			if (!preparedBuild) {
+				throw new ContainerError({ description: 'Failed to prepare build output.' });
+			}
+			await cliHost.writeFile(cliHost.path.join(buildOutputFolder, 'build-output.json'), Buffer.from(JSON.stringify(preparedBuild, undefined, 2) + '\n'));
+		}
+
 		return {
 			outcome: 'success' as 'success',
 			imageName: imageNameResult,
+			buildOutputFolder,
 			ociAuthDiagnostics: params.common.ociAuthDiagnostics,
 			dispose,
 		};

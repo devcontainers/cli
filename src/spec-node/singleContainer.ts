@@ -10,7 +10,7 @@ import { ContainerError, toErrorText } from '../spec-common/errors';
 import { ContainerDetails, listContainers, DockerCLIParameters, inspectContainers, dockerCLI, dockerPtyCLI, toPtyExecParameters, ImageDetails, toExecParameters, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
-import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
+import { extendImage, getExtendImageBuildInfo, PreparedBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
 
@@ -110,18 +110,18 @@ async function setupContainer(container: ContainerDetails, params: DockerResolve
 function getDefaultName(config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, params: DockerResolverParameters) {
 	return 'image' in config && config.image ? config.image : getFolderImageName(params.common);
 }
-export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[]): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string> }> {
+export async function buildNamedImageAndExtend(params: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig | DevContainerFromImageConfig>, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, argImageNames?: string[], buildOutputFolder?: string): Promise<{ updatedImageName: string[]; imageMetadata: SubstitutedConfig<ImageMetadataEntry[]>; imageDetails: () => Promise<ImageDetails>; labels?: Record<string, string>; preparedBuild?: PreparedBuildInfo }> {
 	const { config } = configWithRaw;
 	const imageNames = argImageNames ?? [getDefaultName(config, params)];
 	params.common.progress(ResolverProgress.BuildingImage);
 	if (isDockerFileConfig(config)) {
-		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false, additionalFeatures);
+		return await buildAndExtendImage(params, configWithRaw as SubstitutedConfig<DevContainerFromDockerfileConfig>, imageNames, params.buildNoCache ?? false, additionalFeatures, buildOutputFolder);
 	}
 	// image-based dev container - extend
-	return await extendImage(params, configWithRaw, imageNames[0], argImageNames || [], additionalFeatures, canAddLabelsToContainer);
+	return await extendImage(params, configWithRaw, imageNames[0], argImageNames || [], additionalFeatures, canAddLabelsToContainer, buildOutputFolder);
 }
 
-async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>) {
+async function buildAndExtendImage(buildParams: DockerResolverParameters, configWithRaw: SubstitutedConfig<DevContainerFromDockerfileConfig>, baseImageNames: string[], noCache: boolean, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, buildOutputFolder?: string) {
 	const { cliHost, output } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
@@ -147,7 +147,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	const imageBuildInfo = await getImageBuildInfoFromDockerfile(buildParams, originalDockerfile, config.build?.args || {}, config.build?.target, configWithRaw.substitute);
-	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(buildParams, configWithRaw, baseName, imageBuildInfo, undefined, additionalFeatures, false, buildOutputFolder);
 
 	let finalDockerfilePath = dockerfilePath;
 	const additionalBuildArgs: string[] = [];
@@ -159,7 +159,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 			dockerfile = dockerfile.slice(syntaxMatch[0].length);
 		}
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo.dockerfileContent}`;
-		finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
+		finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, buildOutputFolder ? 'Dockerfile' : 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
 
 		// track additional build args to include below
@@ -189,7 +189,7 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		if (buildParams.buildxPush) {
 			args.push('--push');
 		} else {
-			if (buildParams.buildxOutput) { 
+			if (buildParams.buildxOutput) {
 				args.push('--output', buildParams.buildxOutput);
 			} else {
 				args.push('--load'); // (short for --output=docker, i.e. load into normal 'docker images' collection)
@@ -246,7 +246,27 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 		args.push(...buildOptions);
 	}
 	args.push(...additionalBuildArgs);
-	args.push(await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost));
+	const context = await uriToWSLFsPath(getDockerContextPath(cliHost, config), cliHost);
+	args.push(context);
+	if (buildOutputFolder) {
+		return {
+			updatedImageName: baseImageNames,
+			imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, configWithRaw, extendImageBuildInfo?.featuresConfig),
+			imageDetails: () => inspectDockerImage(buildParams, baseImageNames[0], false),
+			preparedBuild: {
+				dockerfile: finalDockerfilePath,
+				context,
+				target,
+				buildArgs: {
+					...(config.build?.args || {}),
+					...(extendImageBuildInfo?.featureBuildInfo?.buildArgs || {}),
+				},
+				buildContexts: extendImageBuildInfo?.featureBuildInfo?.buildKitContexts || {},
+				securityOpts: extendImageBuildInfo?.featureBuildInfo?.securityOpts || [],
+				imageNames: baseImageNames,
+			} satisfies PreparedBuildInfo,
+		};
+	}
 	try {
 		if (buildParams.isTTY) {
 			const infoParams = { ...toPtyExecParameters(buildParams), output: makeLog(output, LogLevel.Info) };
