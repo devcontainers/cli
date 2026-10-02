@@ -245,8 +245,22 @@ FROM base-\${TARGETARCH}
 });
 
 describe('findBaseImage', () => {
+	it('resolves ARG declarations split across continuation lines', () => {
+		const dockerfile = [
+			'ARG VERSION_UNUSED=x \\',
+			'    VERSION_BASE=latest',
+			'FROM alpine:${VERSION_BASE}',
+		].join('\n');
+		const extracted = extractDockerfile(dockerfile);
+		assert.deepEqual(extracted.preamble.instructions, [
+			{ instruction: 'ARG', name: 'VERSION_UNUSED', value: 'x' },
+			{ instruction: 'ARG', name: 'VERSION_BASE', value: 'latest' },
+		]);
+		assert.strictEqual(findBaseImage(extracted, {}, undefined), 'alpine:latest');
+		assert.strictEqual(findBaseImage(extracted, { VERSION_BASE: '3.20' }, undefined), 'alpine:3.20');
+	});
 
-    it('simple FROM', async () => {
+	it('simple FROM', async () => {
         const dockerfile = `FROM image1
 USER user1
 `;
