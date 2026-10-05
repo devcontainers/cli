@@ -379,19 +379,28 @@ export async function inspectImageInRegistry(output: Log, platformInfo: Platform
 	};
 }
 
+// Same rule as Docker's splitDockerDomain: https://github.com/distribution/reference
+export function hasRegistryHost(name: string): boolean {
+	const slash = name.indexOf('/');
+	if (slash <= 0) {
+		return false;
+	}
+	const registry = name.substring(0, slash);
+	return registry.includes('.') || registry.includes(':') || registry === 'localhost' || registry !== registry.toLowerCase();
+}
+
 export function qualifyImageName(name: string) {
 	const segments = name.split('/');
 	if (segments.length === 1) {
 		return `docker.io/library/${name}`;
-	} else if (segments.length === 2) {
-		if (name.startsWith('docker.io/')) {
-			return `docker.io/library/${segments[1]}`;
-		} else {
-			return `docker.io/${name}`;
-		}
-	} else {
+	}
+	if (segments[0] === 'docker.io') {
+		return segments.length === 2 ? `docker.io/library/${segments[1]}` : name;
+	}
+	if (hasRegistryHost(name)) {
 		return name;
 	}
+	return `docker.io/${name}`;
 }
 
 export interface DevContainerAuthority {
