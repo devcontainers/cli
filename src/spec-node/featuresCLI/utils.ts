@@ -44,6 +44,12 @@ export const staticExecParams = {
     'log-level': 'info' as 'info',
     'log-format': 'text' as 'text',
     'default-user-env-probe': 'loginInteractiveShell' as 'loginInteractiveShell',
+    'kubectl-path': 'kubectl',
+    'k8s-context': undefined,
+    'k8s-kubeconfig': undefined,
+    'k8s-namespace': undefined,
+    'k8s-pod': undefined,
+    'k8s-container': undefined,
 };
 
 export interface LaunchResult {
