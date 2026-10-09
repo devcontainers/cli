@@ -25,6 +25,46 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command up', () => {
+		for (const [kind, folder] of [['image', 'container-name'], ['compose', 'compose-container-name']]) {
+			it(`resolves the primary ${kind} container's runtime name after creation and on reuse`, async () => {
+				const workspace = `${__dirname}/configs/${folder}`;
+				let upResult: UpResult | undefined;
+				try {
+					if (kind === 'image') {
+						const beforeCreate = JSON.parse((await shellExec(`${cli} read-configuration --workspace-folder ${workspace}`)).stdout);
+						assert.strictEqual(beforeCreate.configuration.remoteEnv.RUNTIME_NAME, '${containerName}');
+					}
+					upResult = await devContainerUp(cli, workspace);
+					const name = (await shellExec(`docker inspect --format '{{.Name}}' ${upResult.containerId}`)).stdout.trim().replace(/^\//, '');
+					assert.notStrictEqual(name, 'Display name, not the runtime name');
+					assert.strictEqual((await shellExec(`${cli} exec --workspace-folder ${workspace} --container-id ${upResult.containerId} printenv RUNTIME_NAME`)).stdout.trim(), name);
+					assert.strictEqual((await shellExec(`docker exec ${upResult.containerId} cat /tmp/devcontainer-runtime-name`)).stdout.trim(), name);
+					if (kind === 'image') {
+						for (const hook of ['on-create', 'update-content', 'post-start', 'post-attach']) {
+							assert.strictEqual((await shellExec(`docker exec ${upResult.containerId} cat /tmp/devcontainer-${hook}-name`)).stdout.trim(), name);
+						}
+					}
+					const readConfig = JSON.parse((await shellExec(`${cli} read-configuration --workspace-folder ${workspace} --container-id ${upResult.containerId} --include-merged-configuration`)).stdout);
+					assert.strictEqual(readConfig.configuration.remoteEnv.RUNTIME_NAME, name);
+					assert.strictEqual(readConfig.mergedConfiguration.remoteEnv.RUNTIME_NAME, name);
+					if (kind === 'image') {
+						assert.strictEqual(readConfig.configuration.containerEnv.CREATION_TIME_NAME, '${containerName}');
+						assert.strictEqual(readConfig.configuration.onCreateCommand, `echo ${name} > /tmp/devcontainer-on-create-name`);
+						assert.deepStrictEqual(readConfig.configuration.updateContentCommand, ['sh', '-c', `echo ${name} > /tmp/devcontainer-update-content-name`]);
+						assert.strictEqual(readConfig.configuration.postCreateCommand, `echo ${name} > /tmp/devcontainer-runtime-name`);
+						assert.strictEqual(readConfig.configuration.postStartCommand, `echo ${name} > /tmp/devcontainer-post-start-name`);
+						assert.strictEqual(readConfig.configuration.postAttachCommand, `echo ${name} > /tmp/devcontainer-post-attach-name`);
+					}
+					const reused = await devContainerUp(cli, workspace);
+					assert.strictEqual(reused.containerId, upResult.containerId);
+					assert.strictEqual((await shellExec(`${cli} exec --workspace-folder ${workspace} --container-id ${upResult.containerId} printenv RUNTIME_NAME`)).stdout.trim(), name);
+				} finally {
+					if (upResult) {
+						await devContainerDown({ containerId: upResult.containerId, composeProjectName: upResult.composeProjectName });
+					}
+				}
+			});
+		}
 
 		it('should execute successfully with valid config', async () => {
 			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --include-configuration --include-merged-configuration`);

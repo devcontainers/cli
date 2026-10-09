@@ -28,7 +28,7 @@ import { loadVersionInfo } from '../spec-configuration/containerFeaturesConfigur
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
-import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerNameConfigSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { getPackageConfig, } from '../spec-utils/product';
 import { getDevcontainerMetadata, getImageBuildInfo, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { templatesPublishHandler, templatesPublishOptions } from './templatesCLI/publish';
@@ -1160,6 +1160,7 @@ async function readConfiguration({
 		if (container) {
 			configuration = addSubstitution(configuration, config => beforeContainerSubstitute(envListToObj(idLabels), config));
 			configuration = addSubstitution(configuration, config => containerSubstitute(cliHost.platform, configuration.config.configFilePath, envListToObj(container.Config.Env), config));
+			configuration = addSubstitution(configuration, config => containerNameConfigSubstitute(container.Name.replace(/^\//, ''), config));
 		}
 
 		const additionalFeatures = additionalFeaturesJson ? jsonc.parse(additionalFeaturesJson) as Record<string, string | boolean | Record<string, string | boolean>> : {};

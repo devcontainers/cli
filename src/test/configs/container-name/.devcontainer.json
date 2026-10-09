@@ -1,0 +1,15 @@
+{
+	"name": "Display name, not the runtime name",
+	"image": "ubuntu:latest",
+	"containerEnv": {
+		"CREATION_TIME_NAME": "${containerName}"
+	},
+	"remoteEnv": {
+		"RUNTIME_NAME": "${containerName}"
+	},
+	"onCreateCommand": "echo ${containerName} > /tmp/devcontainer-on-create-name",
+	"updateContentCommand": ["sh", "-c", "echo ${containerName} > /tmp/devcontainer-update-content-name"],
+	"postCreateCommand": "echo ${containerName} > /tmp/devcontainer-runtime-name",
+	"postStartCommand": "echo ${containerName} > /tmp/devcontainer-post-start-name",
+	"postAttachCommand": "echo ${containerName} > /tmp/devcontainer-post-attach-name"
+}
