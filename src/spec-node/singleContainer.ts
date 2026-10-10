@@ -13,6 +13,7 @@ import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
+import { preprocessDockerExtensionFile } from './dockerfilePreprocessor';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -125,8 +126,11 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	const { cliHost, output } = buildParams.common;
 	const { config } = configWithRaw;
 	const dockerfileUri = getDockerfilePath(cliHost, config);
-	const dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
-	if (!cliHost.isFile(dockerfilePath)) {
+	let dockerfilePath = await uriToWSLFsPath(dockerfileUri, cliHost);
+	if (dockerfilePath.toLowerCase().endsWith('.in')) {
+		dockerfilePath = await preprocessDockerExtensionFile(buildParams.common, config, dockerfilePath);
+	}
+	if (!await cliHost.isFile(dockerfilePath)) {
 		throw new ContainerError({ description: `Dockerfile (${dockerfilePath}) not found.` });
 	}
 
