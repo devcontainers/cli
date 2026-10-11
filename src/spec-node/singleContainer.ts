@@ -12,7 +12,7 @@ import { DevContainerConfig, DevContainerFromDockerfileConfig, DevContainerFromI
 import { LogLevel, Log, makeLog } from '../spec-utils/log';
 import { extendImage, getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageMetadataFromContainer, ImageMetadataEntry, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
-import { ensureDockerfileHasFinalStageName, generateMountCommand } from './dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, generateMountCommand, preprocessDockerfileIn } from './dockerfileUtils';
 
 export const hostFolderLabel = 'devcontainer.local_folder'; // used to label containers created from a workspace/folder
 export const configFileLabel = 'devcontainer.config_file';
@@ -131,6 +131,9 @@ async function buildAndExtendImage(buildParams: DockerResolverParameters, config
 	}
 
 	let dockerfile = (await cliHost.readFile(dockerfilePath)).toString();
+	if (dockerfilePath.endsWith('.in')) {
+		dockerfile = await preprocessDockerfileIn(dockerfilePath, cliHost.exec, output);
+	}
 	const originalDockerfile = dockerfile;
 	let baseName = 'dev_container_auto_added_stage_label';
 	if (config.build?.target) {
