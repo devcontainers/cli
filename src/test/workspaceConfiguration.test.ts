@@ -328,6 +328,53 @@ describe('getWorkspaceConfiguration', function () {
 					assert.strictEqual(result.additionalMountString, `type=bind,source=${p.repoGitPath},target=/workspaces/repos/main/.git${p.consistency}`);
 				});
 
+				it('should preserve custom workspaceMount target when adding worktree common dir mount', async () => {
+					const p = {
+						linux: {
+							worktreePath: '/home/user/worktrees/feature',
+							gitFile: '/home/user/worktrees/feature/.git',
+							gitdir: 'gitdir: ../../repo/.git/worktrees/feature',
+							repoGitPath: '/home/user/repo/.git',
+							consistency: ''
+						},
+						darwin: {
+							worktreePath: '/Users/user/worktrees/feature',
+							gitFile: '/Users/user/worktrees/feature/.git',
+							gitdir: 'gitdir: ../../repo/.git/worktrees/feature',
+							repoGitPath: '/Users/user/repo/.git',
+							consistency: ',consistency=consistent'
+						},
+						win32: {
+							worktreePath: 'C:\\Users\\user\\worktrees\\feature',
+							gitFile: 'C:\\Users\\user\\worktrees\\feature\\.git',
+							gitdir: 'gitdir: ../../repo/.git/worktrees/feature',
+							repoGitPath: 'C:\\Users\\user\\repo\\.git',
+							consistency: ',consistency=consistent'
+						},
+					}[platform];
+
+					const cliHost = createMockCLIHost({
+						platform,
+						files: {
+							[p.gitFile]: p.gitdir
+						}
+					});
+					const workspace = createWorkspace(p.worktreePath);
+
+					const result = await getWorkspaceConfiguration(
+						cliHost,
+						workspace,
+						{ workspaceMount: 'type=bind,source=${localWorkspaceFolder},target=/testworkspace' },
+						true,
+						true,
+						nullLog
+					);
+
+					assert.strictEqual(result.workspaceFolder, '/testworkspace');
+					assert.strictEqual(result.workspaceMount, 'type=bind,source=${localWorkspaceFolder},target=/testworkspace');
+					assert.strictEqual(result.additionalMountString, `type=bind,source=${p.repoGitPath},target=/repo/.git${p.consistency}`);
+				});
+
 			});
 
 			describe('git root in parent folder', function () {
