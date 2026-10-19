@@ -2,7 +2,7 @@ name: Docker v29 Tests
 
 on:
   push:
-    branches: ['main', 'docker-v29-issue-old']
+    branches: ['main', 'docker-v29-issue-old', 'ci/pr1329-buildx-0.37.1']
   pull_request:
     branches: ['main']
 
@@ -29,6 +29,17 @@ jobs:
         sudo VERSION=29.0.0 sh get-docker.sh
         sudo systemctl restart docker
     
+    - name: Pin Buildx for diagnostic run
+      # Temporary comparison for https://github.com/devcontainers/cli/issues/1320.
+      run: |
+        curl -fsSL https://github.com/docker/buildx/releases/download/v0.37.1/buildx-v0.37.1.linux-amd64 \
+          -o "$RUNNER_TEMP/buildx-v0.37.1.linux-amd64"
+        curl -fsSL https://github.com/docker/buildx/releases/download/v0.37.1/checksums.txt \
+          | grep ' buildx-v0.37.1.linux-amd64$' \
+          | (cd "$RUNNER_TEMP" && sha256sum -c -)
+        install -D -m 755 "$RUNNER_TEMP/buildx-v0.37.1.linux-amd64" "$HOME/.docker/cli-plugins/docker-buildx"
+        docker buildx version | grep -F 'v0.37.1 '
+
     - name: Verify Docker version, Install and Test
       run: |
         # Verify
@@ -44,4 +55,3 @@ jobs:
         yarn test-matrix --forbid-only src/test/cli.up.test.ts
       env:
         CI: true
-
