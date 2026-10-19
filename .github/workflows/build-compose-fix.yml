@@ -1,0 +1,43 @@
+name: Build Compose fix for diagnostic run
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: docker/compose
+        # Merged fix for https://github.com/docker/compose/pull/14325.
+        ref: 1e1c577eab08ceb5ff0fcf4d8e3cbbc08a34ef35
+        persist-credentials: false
+    - uses: actions/setup-go@v6
+      with:
+        go-version-file: go.mod
+    - name: Build fixed Compose
+      shell: bash
+      env:
+        CGO_ENABLED: '0'
+      run: |
+        test "$(git rev-parse HEAD)" = 1e1c577eab08ceb5ff0fcf4d8e3cbbc08a34ef35
+        # Preserve the CLI's Compose version gates when testing an unreleased commit.
+        go build -trimpath \
+          -ldflags "-s -w -X github.com/docker/compose/v5/internal.Version=v5.6.0-dev.1e1c577" \
+          -o "$RUNNER_TEMP/docker-compose" ./cmd
+        "$RUNNER_TEMP/docker-compose" version
+        go version -m "$RUNNER_TEMP/docker-compose"
+        cd "$RUNNER_TEMP"
+        sha256sum docker-compose > docker-compose.sha256
+    - uses: actions/upload-artifact@v7
+      with:
+        name: compose-fix
+        path: |
+          ${{ runner.temp }}/docker-compose
+          ${{ runner.temp }}/docker-compose.sha256
+        retention-days: 7

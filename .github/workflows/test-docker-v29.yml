@@ -2,16 +2,20 @@ name: Docker v29 Tests
 
 on:
   push:
-    branches: ['main', 'docker-v29-issue-old']
+    branches: ['main', 'docker-v29-issue-old', 'ci/pr1329-compose-fix']
   pull_request:
     branches: ['main']
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
+  compose-fix:
+    uses: ./.github/workflows/build-compose-fix.yml
   test-docker-v29:
     name: Docker v29.0.0 Compatibility
+    needs: compose-fix
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -29,6 +33,18 @@ jobs:
         sudo VERSION=29.0.0 sh get-docker.sh
         sudo systemctl restart docker
     
+    - name: Install fixed Compose for diagnostic run
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          --name compose-fix --dir "$RUNNER_TEMP/compose-fix"
+        (cd "$RUNNER_TEMP/compose-fix" && sha256sum -c docker-compose.sha256)
+        install -D -m 755 "$RUNNER_TEMP/compose-fix/docker-compose" "$HOME/.docker/cli-plugins/docker-compose"
+        docker compose version --short | grep -E '^v?5\.6\.0-dev\.1e1c577$'
+        docker buildx version | grep -F 'v0.38.0 '
+
     - name: Verify Docker version, Install and Test
       run: |
         # Verify
@@ -44,4 +60,3 @@ jobs:
         yarn test-matrix --forbid-only src/test/cli.up.test.ts
       env:
         CI: true
-

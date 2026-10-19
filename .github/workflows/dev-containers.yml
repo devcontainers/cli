@@ -9,6 +9,7 @@ on:
       - '**'
 
 permissions:
+  actions: read
   contents: read
   packages: read
 
@@ -42,8 +43,11 @@ jobs:
       with:
         name: ${{ env.TGZ_UPLOAD }}
         path: ${{ env.TGZ }}
+  compose-fix:
+    uses: ./.github/workflows/build-compose-fix.yml
   tests-matrix:
     name: Tests Matrix
+    needs: compose-fix
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -90,6 +94,17 @@ jobs:
         fi
         cat "$DAEMON_JSON"
         sudo systemctl restart docker
+    - name: Install fixed Compose for diagnostic run
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          --name compose-fix --dir "$RUNNER_TEMP/compose-fix"
+        (cd "$RUNNER_TEMP/compose-fix" && sha256sum -c docker-compose.sha256)
+        install -D -m 755 "$RUNNER_TEMP/compose-fix/docker-compose" "$HOME/.docker/cli-plugins/docker-compose"
+        docker compose version --short | grep -E '^v?5\.6\.0-dev\.1e1c577$'
+        docker buildx version | grep -F 'v0.38.0 '
     - name: Tools Info
       run: |
         docker info
