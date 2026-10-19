@@ -31,11 +31,12 @@ jobs:
     
     - name: Pin Buildx for diagnostic run
       # Temporary comparison for https://github.com/devcontainers/cli/issues/1320.
+      shell: bash
       run: |
         curl -fsSL https://github.com/docker/buildx/releases/download/v0.37.1/buildx-v0.37.1.linux-amd64 \
           -o "$RUNNER_TEMP/buildx-v0.37.1.linux-amd64"
         curl -fsSL https://github.com/docker/buildx/releases/download/v0.37.1/checksums.txt \
-          | grep ' buildx-v0.37.1.linux-amd64$' \
+          | grep ' \*buildx-v0\.37\.1\.linux-amd64$' \
           | (cd "$RUNNER_TEMP" && sha256sum -c -)
         install -D -m 755 "$RUNNER_TEMP/buildx-v0.37.1.linux-amd64" "$HOME/.docker/cli-plugins/docker-buildx"
         docker buildx version | grep -F 'v0.37.1 '
