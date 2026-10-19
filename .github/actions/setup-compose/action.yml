@@ -1,50 +1,51 @@
 name: Set up Compose with build input permissions
-description: Build Compose from source only when the installed version does not contain the fix for external Dockerfiles.
+description: Build Compose from source only when a probe reproduces the external-Dockerfile permission error.
 
 runs:
   using: composite
   steps:
-  - name: Check installed Compose
+  - name: Probe installed Compose
     id: check
     shell: bash
     env:
-      GH_TOKEN: ${{ github.token }}
       # https://github.com/docker/compose/pull/14325 fixes https://github.com/devcontainers/cli/issues/1320.
       FIX_COMMIT: 1e1c577eab08ceb5ff0fcf4d8e3cbbc08a34ef35
       FIX_VERSION: 5.6.0-dev.1e1c577
     run: |
-      version=$(docker compose version --short)
-      version=${version#v}
-      echo "Installed Compose: $version"
       echo "ref=$FIX_COMMIT" >> "$GITHUB_OUTPUT"
       echo "version=$FIX_VERSION" >> "$GITHUB_OUTPUT"
-      if [[ "$version" == "$FIX_VERSION" ]]; then
-        echo "Compose already has the source fix; keeping it."
-        echo "install=false" >> "$GITHUB_OUTPUT"
-        exit 0
-      fi
+      docker compose version
+      probe_dir=$(mktemp -d "$RUNNER_TEMP/compose-probe.XXXXXX")
+      echo "probe=$probe_dir" >> "$GITHUB_OUTPUT"
+      image="devcontainers-compose-probe:${probe_dir##*/}"
+      echo "image=$image" >> "$GITHUB_OUTPUT"
+      mkdir "$probe_dir/context"
+      printf 'FROM scratch\nLABEL devcontainers.compose-probe=true\n' > "$probe_dir/Dockerfile"
+      cat > "$probe_dir/compose.yaml" <<EOF
+      services:
+        probe:
+          image: $image
+          build:
+            context: ./context
+            dockerfile: ../Dockerfile
+      EOF
 
-      # No release contains the fix yet. Check tag ancestry instead of guessing a minimum version.
-      if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[[:alnum:].-]+)?$ ]]; then
-        status=$(gh api "repos/docker/compose/compare/$FIX_COMMIT...v$version" --jq .status)
-        case "$status" in
-          ahead|identical)
-            echo "Compose v$version contains the fix; keeping it."
-            echo "install=false" >> "$GITHUB_OUTPUT"
-            exit 0
-            ;;
-          behind|diverged)
-            echo "Compose v$version does not contain the fix commit; building it from source."
-            ;;
-          *)
-            echo "::error::Unexpected Compose comparison status: $status"
-            exit 1
-            ;;
-        esac
+      if docker compose --project-name compose-probe -f "$probe_dir/compose.yaml" build > "$probe_dir/build.log" 2>&1; then
+        cat "$probe_dir/build.log"
+        echo "image-created=true" >> "$GITHUB_OUTPUT"
+        echo "Compose can build with an external Dockerfile; keeping it."
+        echo "install=false" >> "$GITHUB_OUTPUT"
       else
-        echo "::notice::Cannot verify Compose development version '$version'; building the pinned source fix."
+        status=$?
+        cat "$probe_dir/build.log"
+        if grep -Fq "additional privileges requested: pass \"--allow=fs.read=$probe_dir/Dockerfile\"" "$probe_dir/build.log"; then
+          echo "Compose lacks the external-Dockerfile permission fix; building it from source."
+          echo "install=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::Compose probe failed for a reason other than the external-Dockerfile permission error."
+          exit "$status"
+        fi
       fi
-      echo "install=true" >> "$GITHUB_OUTPUT"
 
   - name: Fetch fixed Compose source
     if: steps.check.outputs.install == 'true'
@@ -68,11 +69,13 @@ runs:
 
   - name: Build and install fixed Compose
     if: steps.check.outputs.install == 'true'
+    id: install
     shell: bash
     env:
       CGO_ENABLED: '0'
       SOURCE_DIR: ${{ steps.source.outputs.path }}
       FIX_VERSION: ${{ steps.check.outputs.version }}
+      PROBE_DIR: ${{ steps.check.outputs.probe }}
     run: |
       cd "$SOURCE_DIR"
       # Preserve the CLI's Compose version gates for this unreleased source build.
@@ -86,3 +89,22 @@ runs:
         exit 1
       fi
       docker compose version
+      docker compose --project-name compose-probe -f "$PROBE_DIR/compose.yaml" build
+      echo "image-created=true" >> "$GITHUB_OUTPUT"
+
+  - name: Clean up Compose probe
+    if: always() && steps.check.outputs.probe != ''
+    shell: bash
+    env:
+      PROBE_DIR: ${{ steps.check.outputs.probe }}
+      PROBE_IMAGE: ${{ steps.check.outputs.image }}
+      IMAGE_CREATED: ${{ steps.check.outputs.image-created == 'true' || steps.install.outputs.image-created == 'true' }}
+    run: |
+      rm -f -- "$PROBE_DIR/Dockerfile" "$PROBE_DIR/compose.yaml" "$PROBE_DIR/build.log"
+      if [[ -d "$PROBE_DIR/context" ]]; then
+        rmdir -- "$PROBE_DIR/context"
+      fi
+      rmdir -- "$PROBE_DIR"
+      if [[ "$IMAGE_CREATED" == 'true' ]]; then
+        docker image rm "$PROBE_IMAGE"
+      fi
