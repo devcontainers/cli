@@ -1,0 +1,88 @@
+name: Set up Compose with build input permissions
+description: Build Compose from source only when the installed version does not contain the fix for external Dockerfiles.
+
+runs:
+  using: composite
+  steps:
+  - name: Check installed Compose
+    id: check
+    shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # https://github.com/docker/compose/pull/14325 fixes https://github.com/devcontainers/cli/issues/1320.
+      FIX_COMMIT: 1e1c577eab08ceb5ff0fcf4d8e3cbbc08a34ef35
+      FIX_VERSION: 5.6.0-dev.1e1c577
+    run: |
+      version=$(docker compose version --short)
+      version=${version#v}
+      echo "Installed Compose: $version"
+      echo "ref=$FIX_COMMIT" >> "$GITHUB_OUTPUT"
+      echo "version=$FIX_VERSION" >> "$GITHUB_OUTPUT"
+      if [[ "$version" == "$FIX_VERSION" ]]; then
+        echo "Compose already has the source fix; keeping it."
+        echo "install=false" >> "$GITHUB_OUTPUT"
+        exit 0
+      fi
+
+      # No release contains the fix yet. Check tag ancestry instead of guessing a minimum version.
+      if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[[:alnum:].-]+)?$ ]]; then
+        status=$(gh api "repos/docker/compose/compare/$FIX_COMMIT...v$version" --jq .status)
+        case "$status" in
+          ahead|identical)
+            echo "Compose v$version contains the fix; keeping it."
+            echo "install=false" >> "$GITHUB_OUTPUT"
+            exit 0
+            ;;
+          behind|diverged)
+            echo "Compose v$version does not contain the fix commit; building it from source."
+            ;;
+          *)
+            echo "::error::Unexpected Compose comparison status: $status"
+            exit 1
+            ;;
+        esac
+      else
+        echo "::notice::Cannot verify Compose development version '$version'; building the pinned source fix."
+      fi
+      echo "install=true" >> "$GITHUB_OUTPUT"
+
+  - name: Fetch fixed Compose source
+    if: steps.check.outputs.install == 'true'
+    id: source
+    shell: bash
+    env:
+      FIX_COMMIT: ${{ steps.check.outputs.ref }}
+    run: |
+      source_dir=$(mktemp -d "$RUNNER_TEMP/compose-source.XXXXXX")
+      git -C "$source_dir" init
+      git -C "$source_dir" fetch --depth=1 https://github.com/docker/compose.git "$FIX_COMMIT"
+      git -C "$source_dir" checkout --detach FETCH_HEAD
+      test "$(git -C "$source_dir" rev-parse HEAD)" = "$FIX_COMMIT"
+      echo "path=$source_dir" >> "$GITHUB_OUTPUT"
+
+  - uses: actions/setup-go@v6
+    if: steps.check.outputs.install == 'true'
+    with:
+      go-version-file: ${{ steps.source.outputs.path }}/go.mod
+      cache: false
+
+  - name: Build and install fixed Compose
+    if: steps.check.outputs.install == 'true'
+    shell: bash
+    env:
+      CGO_ENABLED: '0'
+      SOURCE_DIR: ${{ steps.source.outputs.path }}
+      FIX_VERSION: ${{ steps.check.outputs.version }}
+    run: |
+      cd "$SOURCE_DIR"
+      # Preserve the CLI's Compose version gates for this unreleased source build.
+      go build -trimpath \
+        -ldflags "-s -w -X github.com/docker/compose/v5/internal.Version=v$FIX_VERSION" \
+        -o docker-compose ./cmd
+      install -D -m 755 docker-compose "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/docker-compose"
+      version=$(docker compose version --short)
+      if [[ "${version#v}" != "$FIX_VERSION" ]]; then
+        echo "::error::Expected Compose $FIX_VERSION after installation, got $version"
+        exit 1
+      fi
+      docker compose version

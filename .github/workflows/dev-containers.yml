@@ -90,6 +90,7 @@ jobs:
         fi
         cat "$DAEMON_JSON"
         sudo systemctl restart docker
+    - uses: ./.github/actions/setup-compose
     - name: Tools Info
       run: |
         docker info
