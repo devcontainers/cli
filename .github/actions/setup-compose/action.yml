@@ -1,0 +1,89 @@
+name: Set up Compose with a compatible Buildx
+description: Downgrade Buildx only when a probe reproduces the external-Dockerfile permission error.
+
+runs:
+  using: composite
+  steps:
+  - name: Probe installed Compose
+    id: check
+    shell: bash
+    run: |
+      docker compose version
+      docker buildx version
+      probe_dir=$(mktemp -d "$RUNNER_TEMP/compose-probe.XXXXXX")
+      echo "probe=$probe_dir" >> "$GITHUB_OUTPUT"
+      image="devcontainers-compose-probe:${probe_dir##*/}"
+      echo "image=$image" >> "$GITHUB_OUTPUT"
+      mkdir "$probe_dir/context"
+      printf 'FROM scratch\nLABEL devcontainers.compose-probe=true\n' > "$probe_dir/Dockerfile"
+      cat > "$probe_dir/compose.yaml" <<EOF
+      services:
+        probe:
+          image: $image
+          build:
+            context: ./context
+            dockerfile: ../Dockerfile
+      EOF
+
+      if docker compose --project-name compose-probe -f "$probe_dir/compose.yaml" build > "$probe_dir/build.log" 2>&1; then
+        cat "$probe_dir/build.log"
+        echo "image-created=true" >> "$GITHUB_OUTPUT"
+        echo "Compose can build with an external Dockerfile; keeping the installed tools."
+        echo "install=false" >> "$GITHUB_OUTPUT"
+      else
+        status=$?
+        cat "$probe_dir/build.log"
+        if grep -Fq "additional privileges requested: pass \"--allow=fs.read=$probe_dir/Dockerfile\"" "$probe_dir/build.log"; then
+          echo "Compose lacks the external-Dockerfile permission fix; downgrading Buildx for comparison."
+          echo "install=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::Compose probe failed for a reason other than the external-Dockerfile permission error."
+          exit "$status"
+        fi
+      fi
+
+  - name: Install Buildx 0.37.1
+    if: steps.check.outputs.install == 'true'
+    id: install
+    shell: bash
+    env:
+      BUILDX_VERSION: 0.37.1
+      BUILDX_SHA256: 9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b
+      PROBE_DIR: ${{ steps.check.outputs.probe }}
+    run: |
+      if [[ "$RUNNER_OS/$RUNNER_ARCH" != 'Linux/X64' ]]; then
+        echo "::error::The pinned Buildx binary requires a Linux x64 runner."
+        exit 1
+      fi
+      # Comparison only: 0.37.1 predates GHSA-gwr2-q96m-6682 and GHSA-p54p-jq4x-rc28 fixes.
+      echo "::warning::Downgrading Buildx to $BUILDX_VERSION omits the security fixes in 0.37.2."
+      curl -fsSL "https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/buildx-v$BUILDX_VERSION.linux-amd64" \
+        -o "$PROBE_DIR/docker-buildx"
+      echo "$BUILDX_SHA256  $PROBE_DIR/docker-buildx" | sha256sum --check --strict
+      install -D -m 755 "$PROBE_DIR/docker-buildx" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/docker-buildx"
+      version=$(docker buildx version)
+      if [[ "$version" != "github.com/docker/buildx v$BUILDX_VERSION "* ]]; then
+        echo "::error::Expected Buildx $BUILDX_VERSION after installation, got $version"
+        exit 1
+      fi
+      echo "$version"
+      docker compose version
+      docker compose --project-name compose-probe -f "$PROBE_DIR/compose.yaml" build
+      echo "image-created=true" >> "$GITHUB_OUTPUT"
+
+  - name: Clean up Compose probe
+    if: always() && steps.check.outputs.probe != ''
+    shell: bash
+    env:
+      PROBE_DIR: ${{ steps.check.outputs.probe }}
+      PROBE_IMAGE: ${{ steps.check.outputs.image }}
+      IMAGE_CREATED: ${{ steps.check.outputs.image-created == 'true' || steps.install.outputs.image-created == 'true' }}
+    run: |
+      rm -f -- "$PROBE_DIR/Dockerfile" "$PROBE_DIR/compose.yaml" "$PROBE_DIR/build.log" "$PROBE_DIR/docker-buildx"
+      if [[ -d "$PROBE_DIR/context" ]]; then
+        rmdir -- "$PROBE_DIR/context"
+      fi
+      rmdir -- "$PROBE_DIR"
+      if [[ "$IMAGE_CREATED" == 'true' ]]; then
+        docker image rm "$PROBE_IMAGE"
+      fi
