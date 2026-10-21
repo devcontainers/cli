@@ -1,6 +1,6 @@
 import { assert, expect } from 'chai';
 import { imageMetadataLabel, internalGetImageBuildInfoFromDockerfile } from '../spec-node/imageMetadata';
-import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement, supportsBuildContexts } from '../spec-node/dockerfileUtils';
+import { ensureDockerfileHasFinalStageName, extractDockerfile, findBaseImage, findUserStatement, isNamedBuildContext, supportsBuildContexts } from '../spec-node/dockerfileUtils';
 import { ImageDetails } from '../spec-shutdown/dockerUtils';
 import { nullLog } from '../spec-utils/log';
 import { testSubstitute } from './testUtils';
@@ -241,6 +241,59 @@ FROM base-\${TARGETARCH}
         assert.strictEqual(info.user, 'amd64_user');
         assert.strictEqual(info.metadata.config.length, 0);
         assert.strictEqual(info.metadata.raw.length, 0);
+    });
+
+    it('for a base image provided by a named build context', async () => {
+        const dockerfile = `FROM local-base
+USER dockerfileUser
+`;
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.fail(`Unexpected inspection of ${imageName}`);
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'amd64' }, { os: 'linux', arch: 'amd64' }, ['local-base']);
+        assert.strictEqual(info.user, 'dockerfileUser');
+        assert.strictEqual(info.metadata.config.length, 0);
+        assert.strictEqual(info.metadata.raw.length, 0);
+    });
+
+    it('for a base image not provided by the named build contexts', async () => {
+        const dockerfile = `FROM ubuntu:latest
+`;
+        const details: ImageDetails = {
+            Id: '123',
+            Config: {
+                User: 'imageUser',
+                Env: null,
+                Labels: null,
+                Entrypoint: null,
+                Cmd: null
+            },
+            Os: 'linux',
+            Architecture: 'amd64'
+        };
+        const info = await internalGetImageBuildInfoFromDockerfile(async (imageName) => {
+            assert.strictEqual(imageName, 'ubuntu:latest');
+            return details;
+        }, dockerfile, {}, undefined, testSubstitute, nullLog, false, { os: 'linux', arch: 'amd64' }, { os: 'linux', arch: 'amd64' }, ['local-base']);
+        assert.strictEqual(info.user, 'imageUser');
+    });
+});
+
+describe('isNamedBuildContext', () => {
+
+    it('matches the familiar reference form BuildKit uses', () => {
+        assert.isTrue(isNamedBuildContext('local-base', ['local-base']));
+        assert.isTrue(isNamedBuildContext('local-base:latest', ['local-base']));
+        assert.isTrue(isNamedBuildContext('docker.io/library/alpine', ['alpine']));
+        assert.isTrue(isNamedBuildContext('library/alpine:latest', ['alpine']));
+        assert.isTrue(isNamedBuildContext('docker.io/org/image:1.0', ['org/image:1.0']));
+        assert.isTrue(isNamedBuildContext('ghcr.io/org/image', ['ghcr.io/org/image']));
+    });
+
+    it('does not match other references', () => {
+        assert.isFalse(isNamedBuildContext('local-base:1.0', ['local-base']));
+        assert.isFalse(isNamedBuildContext('ghcr.io/org/image', ['org/image']));
+        assert.isFalse(isNamedBuildContext('library/org/image', ['org/image']));
+        assert.isFalse(isNamedBuildContext('local-base', []));
     });
 });
 
