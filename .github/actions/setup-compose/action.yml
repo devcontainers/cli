@@ -1,0 +1,18 @@
+name: Set up Compose build workaround
+description: Disable Bake filesystem entitlement checks for the affected runner Compose versions.
+
+runs:
+  using: composite
+  steps:
+  - name: Check Compose version
+    shell: bash
+    run: |
+      version=$(docker compose version --short)
+      echo "Compose version: $version"
+      # Temporary workaround for https://github.com/devcontainers/cli/issues/1320.
+      case "${version#v}" in
+        2.38.2|5.6.0)
+          echo "::warning::Disabling Bake filesystem and default SSH-agent consent checks for Compose $version."
+          echo "BUILDX_BAKE_ENTITLEMENTS_FS=0" >> "$GITHUB_ENV"
+          ;;
+      esac
