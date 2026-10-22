@@ -16,7 +16,7 @@ import { ContainerError } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
-import { dockerCLI, DockerCLIParameters, dockerPtyCLI, inspectContainer } from '../spec-shutdown/dockerUtils';
+import { dockerCLI, DockerCLIParameters, dockerComposeCLI, dockerPtyCLI, inspectContainer, removeContainer } from '../spec-shutdown/dockerUtils';
 import { buildAndExtendDockerCompose, dockerComposeCLIConfig, getDefaultImageName, getProjectName, readDockerComposeConfig, readVersionPrefix } from './dockerCompose';
 import { DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { workspaceFromPath } from '../spec-utils/workspaces';
@@ -97,6 +97,8 @@ const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,externa
 	y.command('build [path]', 'Build a dev container image', buildOptions, buildHandler);
 	y.command('run-user-commands', 'Run user commands', runUserCommandsOptions, runUserCommandsHandler);
 	y.command('read-configuration', 'Read configuration', readConfigurationOptions, readConfigurationHandler);
+	y.command('stop', 'Stop a running dev container', stopOptions, stopHandler);
+	y.command('down', 'Stop and remove a dev container', downOptions, downHandler);
 	y.command('outdated', 'Show current and available versions', outdatedOptions, outdatedHandler);
 	y.command('upgrade', 'Upgrade lockfile', featuresUpgradeOptions, featuresUpgradeHandler);
 	y.command('features', 'Features commands', (y: Argv) => {
@@ -1289,6 +1291,159 @@ async function outdated({
 				text = JSON.stringify(outdated, undefined, process.stdout.isTTY ? '  ' : undefined);
 			}
 			process.stdout.write(text + '\n', err => err ? reject(err) : resolve());
+		});
+	} catch (err) {
+		if (output) {
+			output.write(err && (err.stack || err.message) || String(err));
+		} else {
+			console.error(err);
+		}
+		await dispose();
+		process.exit(1);
+	}
+	await dispose();
+	process.exit(0);
+}
+
+function containerLifecycleOptions(y: Argv) {
+	return y.options({
+		'docker-path': { type: 'string', description: 'Docker CLI path.' },
+		'docker-compose-path': { type: 'string', description: 'Docker Compose CLI path.' },
+		'workspace-folder': { type: 'string', description: 'Workspace folder path. The devcontainer.json will be looked up relative to this path. If --container-id, --id-label, and --workspace-folder are not provided, this defaults to the current directory.' },
+		'container-id': { type: 'string', description: 'Id of the container.' },
+		'id-label': { type: 'string', description: 'Id label(s) of the format name=value. If no --container-id is given the id labels will be used to look up the container. If no --id-label is given, one will be inferred from the --workspace-folder path.' },
+		'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
+		'log-level': { choices: ['info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
+		'log-format': { choices: ['text' as 'text', 'json' as 'json'], default: 'text' as 'text', description: 'Log format.' },
+	})
+		.check(argv => {
+			const idLabels = (argv['id-label'] && (Array.isArray(argv['id-label']) ? argv['id-label'] : [argv['id-label']])) as string[] | undefined;
+			if (idLabels?.some(idLabel => !/.+=.+/.test(idLabel))) {
+				throw new Error('Unmatched argument format: id-label must match <name>=<value>');
+			}
+			if (!argv['container-id'] && !idLabels?.length && !argv['workspace-folder']) {
+				argv['workspace-folder'] = process.cwd();
+			}
+			return true;
+		});
+}
+
+function stopOptions(y: Argv) {
+	return containerLifecycleOptions(y);
+}
+
+function downOptions(y: Argv) {
+	return containerLifecycleOptions(y)
+		.options({
+			'remove-volumes': { type: 'boolean', default: false, description: 'Also remove anonymous volumes attached to the container. For Docker Compose configurations, named volumes declared in the Compose file are removed as well.' },
+		});
+}
+
+type StopArgs = UnpackArgv<ReturnType<typeof stopOptions>>;
+type DownArgs = UnpackArgv<ReturnType<typeof downOptions>>;
+
+function stopHandler(args: StopArgs) {
+	runAsyncHandler(stopOrDown.bind(null, args, false));
+}
+
+function downHandler(args: DownArgs) {
+	runAsyncHandler(stopOrDown.bind(null, args, true));
+}
+
+async function stopOrDown({
+	'docker-path': dockerPath,
+	'docker-compose-path': dockerComposePath,
+	'workspace-folder': workspaceFolderArg,
+	'container-id': containerId,
+	'id-label': idLabel,
+	config: configParam,
+	'log-level': logLevel,
+	'log-format': logFormat,
+	'remove-volumes': removeVolumes,
+}: StopArgs & { 'remove-volumes'?: boolean }, remove: boolean) {
+	const disposables: (() => Promise<unknown> | undefined)[] = [];
+	const dispose = async () => {
+		await Promise.all(disposables.map(d => d()));
+	};
+	let output: Log | undefined;
+	try {
+		const workspaceFolder = workspaceFolderArg ? path.resolve(process.cwd(), workspaceFolderArg) : undefined;
+		const providedIdLabels = idLabel ? Array.isArray(idLabel) ? idLabel as string[] : [idLabel] : undefined;
+		const configFile = configParam ? URI.file(path.resolve(process.cwd(), configParam)) : undefined;
+		const cliHost = await getCLIHost(workspaceFolder || process.cwd(), loadNativeModule, logFormat === 'text');
+		const sessionStart = new Date();
+		const pkg = getPackageConfig();
+		output = createLog({
+			logLevel: mapLogLevel(logLevel),
+			logFormat,
+			log: text => process.stderr.write(text),
+			terminalDimensions: undefined,
+		}, pkg, sessionStart, disposables);
+
+		const workspace = workspaceFolder ? workspaceFromPath(cliHost.path, workspaceFolder) : undefined;
+		const configPath = configFile || (workspace && (await getDevContainerConfigPathIn(cliHost, workspace.configFolderPath) || getDefaultDevContainerConfigPath(cliHost, workspace.configFolderPath)));
+
+		const dockerCLICmd = dockerPath || 'docker';
+		const buildPlatformInfo = {
+			os: mapNodeOSToGOOS(cliHost.platform),
+			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
+		};
+		const params: DockerCLIParameters = {
+			cliHost,
+			dockerCLI: dockerCLICmd,
+			dockerComposeCLI: dockerComposeCLIConfig({
+				exec: cliHost.exec,
+				env: cliHost.env,
+				output,
+			}, dockerCLICmd, dockerComposePath || 'docker-compose'),
+			env: cliHost.env,
+			output,
+			buildPlatformInfo,
+			targetPlatformInfo: buildPlatformInfo,
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
+		};
+
+		const { container } = await findContainerAndIdLabels(params, containerId, providedIdLabels, workspaceFolder, configPath?.fsPath);
+		const composeProjectName = container?.Config.Labels?.['com.docker.compose.project'];
+		if (!container) {
+			output.write('Dev container not found.');
+		} else if (composeProjectName) {
+			// Compose v2 resolves the project from its labels. Compose v1 still needs the Compose files.
+			const composeCLI = await params.dockerComposeCLI();
+			const composeFileArgs: string[] = [];
+			if (!composeCLI.args.includes('compose')) {
+				const configFiles = container.Config.Labels?.['com.docker.compose.project.config_files']?.split(',') ?? [];
+				for (const file of configFiles) {
+					if (await cliHost.isFile(file)) {
+						composeFileArgs.push('-f', file);
+					}
+				}
+			}
+			const composeArgs = ['-p', composeProjectName, remove ? 'down' : 'stop'];
+			if (remove && removeVolumes) {
+				composeArgs.push('-v');
+			}
+			const text = `Running ${remove ? 'down' : 'stop'} for Compose project ${composeProjectName}`;
+			const start = output.start(text);
+			await dockerComposeCLI(params, ...composeFileArgs, ...composeArgs);
+			output.stop(text, start);
+		} else if (remove) {
+			const text = 'Removing container';
+			const start = output.start(text);
+			await removeContainer(params, container.Id, removeVolumes);
+			output.stop(text, start);
+		} else {
+			const text = 'Stopping container';
+			const start = output.start(text);
+			await dockerCLI(params, 'stop', container.Id);
+			output.stop(text, start);
+		}
+		await new Promise<void>((resolve, reject) => {
+			process.stdout.write(JSON.stringify({
+				outcome: 'success',
+				containerId: container?.Id,
+				composeProjectName,
+			}) + '\n', err => err ? reject(err) : resolve());
 		});
 	} catch (err) {
 		if (output) {
