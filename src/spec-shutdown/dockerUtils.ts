@@ -174,14 +174,14 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.filter(s => !!s);
 }
 
-export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string) {
+export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string, removeVolumes = false) {
 	const useEvents = !('cliVariant' in params && params.cliVariant === CLIVariant.Wslc);
 	let eventsProcess: Exec | undefined;
 	let removedSeenP: Promise<void> | undefined;
 	try {
 		for (let i = 0, n = 7; i < n; i++) {
 			try {
-				await dockerCLI(params, 'rm', '-f', nameOrId);
+				await dockerCLI(params, 'rm', '-f', ...(removeVolumes ? ['-v'] : []), nameOrId);
 				return;
 			} catch (err) {
 				// https://github.com/microsoft/vscode-remote-release/issues/6509
