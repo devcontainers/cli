@@ -1,0 +1,4 @@
+{
+	"extends": "./.devcontainer.cycle-b.json",
+	"image": "mcr.microsoft.com/devcontainers/base:latest"
+}

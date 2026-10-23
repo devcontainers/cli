@@ -1,0 +1,5 @@
+{
+	"extends": "./.devcontainer.json",
+	"name": "Nested",
+	"forwardPorts": [2222]
+}

@@ -1,0 +1,12 @@
+{
+	"extends": "./.devcontainer.base.json",
+	"name": "Overrides",
+	"forwardPorts": [443],
+	"capAdd": ["NET_ADMIN"],
+	"hostRequirements": {
+		"memory": "4gb"
+	},
+	"remoteEnv": {
+		"OVERRIDE_ME": "child"
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"image": "ubuntu:latest",
+	"forwardPorts": [80],
+	"capAdd": ["SYS_PTRACE"],
+	"hostRequirements": {
+		"cpus": 2,
+		"memory": "8gb"
+	},
+	"remoteEnv": {
+		"FROM_BASE": "base",
+		"OVERRIDE_ME": "base"
+	}
+}

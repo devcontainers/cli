@@ -1,0 +1,4 @@
+{
+	"extends": "./does-not-exist.json",
+	"image": "mcr.microsoft.com/devcontainers/base:latest"
+}
