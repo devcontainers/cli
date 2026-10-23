@@ -14,7 +14,7 @@ import { equalPaths, parseVersion, isEarlierVersion, CLIHost } from '../spec-com
 import { ContainerDetails, inspectContainer, listContainers, DockerCLIParameters, dockerComposeCLI, dockerComposePtyCLI, PartialExecParameters, DockerComposeCLI, ImageDetails, toExecParameters, toPtyExecParameters, removeContainer, CLIVariant } from '../spec-shutdown/dockerUtils';
 import { DevContainerFromDockerComposeConfig, getDockerComposeFilePaths } from '../spec-configuration/configuration';
 import { Log, LogLevel, makeLog, terminalEscapeSequences } from '../spec-utils/log';
-import { getExtendImageBuildInfo, updateRemoteUserUID } from './containerFeatures';
+import { getExtendImageBuildInfo, PreparedBuildInfo, updateRemoteUserUID } from './containerFeatures';
 import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfiguration';
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
@@ -149,7 +149,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 	};
 }
 
-export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean) {
+export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConfig<DevContainerFromDockerComposeConfig>, projectName: string, params: DockerResolverParameters, localComposeFiles: string[], envFile: string | undefined, composeGlobalArgs: string[], runServices: string[], noCache: boolean, overrideFilePath: string, overrideFilePrefix: string, versionPrefix: string, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, additionalCacheFroms?: string[], noBuild?: boolean, buildOutputFolder?: string) {
 
 	const { common, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc } = params;
 	const { cliHost, env, output } = common;
@@ -190,10 +190,11 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const version = parseVersion((await params.dockerComposeCLI()).version);
 	const supportsAdditionalBuildContexts = params.cliVariant === CLIVariant.Docker && version && !isEarlierVersion(version, [2, 17, 0]);
 	const optionalBuildKitParams = supportsAdditionalBuildContexts ? params : { ...params, buildKitVersion: undefined };
-	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer);
+	const extendImageBuildInfo = await getExtendImageBuildInfo(optionalBuildKitParams, configWithRaw, baseName, imageBuildInfo, composeService.user, additionalFeatures, canAddLabelsToContainer, buildOutputFolder);
 
 	let overrideImageName: string | undefined;
 	let buildOverrideContent = '';
+	let preparedBuild: PreparedBuildInfo | undefined;
 	if (extendImageBuildInfo?.featureBuildInfo) {
 		// Avoid retagging a previously pulled image.
 		if (!serviceInfo.build) {
@@ -212,8 +213,22 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 			dockerfile = dockerfile.slice(syntaxMatch[0].length);
 		}
 		let finalDockerfileContent = `${featureBuildInfo.dockerfilePrefixContent}${dockerfile}\n${featureBuildInfo.dockerfileContent}`;
-		const finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, 'Dockerfile-with-features');
+		const finalDockerfilePath = cliHost.path.join(featureBuildInfo?.dstFolder, buildOutputFolder ? 'Dockerfile' : 'Dockerfile-with-features');
 		await cliHost.writeFile(finalDockerfilePath, Buffer.from(finalDockerfileContent));
+		if (buildOutputFolder) {
+			preparedBuild = {
+				dockerfile: finalDockerfilePath,
+				context: serviceInfo.build?.context || buildOutputFolder,
+				target: featureBuildInfo.overrideTarget,
+				buildArgs: {
+					...(serviceInfo.build?.args || {}),
+					...featureBuildInfo.buildArgs,
+				},
+				buildContexts: featureBuildInfo.buildKitContexts,
+				securityOpts: featureBuildInfo.securityOpts,
+				imageNames: overrideImageName ? [overrideImageName] : serviceInfo.image ? [serviceInfo.image] : [],
+			};
+		}
 		buildOverrideContent += `      dockerfile: ${finalDockerfilePath}\n`;
 		if (serviceInfo.build?.target) {
 			// Replace target. (Only when set because it is only supported with Docker Compose file version 3.4 and later.)
@@ -301,6 +316,7 @@ ${cacheFromOverrideContent}
 		additionalComposeOverrideFiles,
 		overrideImageName,
 		labels: extendImageBuildInfo?.labels,
+		preparedBuild,
 	};
 }
 
