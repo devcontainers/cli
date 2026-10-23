@@ -1,0 +1,7 @@
+{
+	"name": "Podman Preprocess Compose Test",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspace",
+	"remoteUser": "root"
+}
