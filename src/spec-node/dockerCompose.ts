@@ -6,7 +6,7 @@
 import * as yaml from 'js-yaml';
 import * as shellQuote from 'shell-quote';
 
-import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError } from './utils';
+import { createContainerProperties, startEventSeen, ResolverResult, getTunnelInformation, DockerResolverParameters, inspectDockerImage, getEmptyContextFolder, getFolderImageName, SubstitutedConfig, checkDockerSupportForGPU, isBuildKitImagePolicyError, envListToObj } from './utils';
 import { ContainerProperties, setupInContainer, ResolverProgress } from '../spec-common/injectHeadless';
 import { ContainerError } from '../spec-common/errors';
 import { Workspace } from '../spec-utils/workspaces';
@@ -144,7 +144,7 @@ export function getBuildInfoForService(composeService: any, cliHostPath: typeof 
 			dockerfilePath: (composeBuild.dockerfile as string | undefined) ?? 'Dockerfile',
 			context: (composeBuild.context as string | undefined) ?? cliHostPath.dirname(localComposeFiles[0]),
 			target: composeBuild.target as string | undefined,
-			args: composeBuild.args as Record<string, string> | undefined,
+			args: Array.isArray(composeBuild.args) ? envListToObj(composeBuild.args) : composeBuild.args as Record<string, string> | undefined,
 		}
 	};
 }
