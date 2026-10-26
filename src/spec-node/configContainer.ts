@@ -97,6 +97,7 @@ export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Wo
 		containerWorkspaceFolder: workspaceConfig.workspaceFolder,
 		configFile,
 		env: cliHost.env,
+		remoteUser: updated.remoteUser
 	}, value);
 	const config: DevContainerConfig = substitute0(updated);
 	if (typeof config.workspaceFolder === 'string') {

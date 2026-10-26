@@ -371,6 +371,55 @@ describe('Feature lifecycle hooks', function () {
 		});
 	});
 
+	describe('lifecycle-hooks-with-variable-substitution', () => {
+		describe('devcontainer up', () => {
+			let containerId: string | null = null;
+			let containerUpStandardError: string;
+			const testFolder = `${__dirname}/configs/image-with-local-feature`;
+
+			before(async () => {
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+				const res = await devContainerUp(cli, testFolder, { 'logLevel': 'trace' });
+				containerId = res.containerId;
+				containerUpStandardError = res.stderr;
+			});
+
+			after(async () => {
+				await devContainerDown({ containerId });
+				await shellExec(`rm -f ${testFolder}/*.testMarker`, undefined, undefined, true);
+			});
+
+			it('executes lifecycle hooks with variable substitution', async () => {
+				// substitution in feature
+				const res1 = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/feature.variable-substitution.testMarker`);
+				assert.strictEqual(res1.error, null);
+
+				const outputOfExecCommand1 = res1.stdout;
+				console.log(outputOfExecCommand1);
+
+				assert.strictEqual(outputOfExecCommand1, 'vscode\n');
+				assert.match(containerUpStandardError, /Running the postCreateCommand from Feature '.\/test-feature/);
+
+				// substitution in main devcontainer.json
+				const res2 = await shellExec(`${cli} exec --workspace-folder ${testFolder} cat /tmp/container.variable-substitution.testMarker`);
+				assert.strictEqual(res2.error, null);
+
+				const outputOfExecCommand2 = res2.stdout;
+				console.log(outputOfExecCommand2);
+
+				assert.strictEqual(outputOfExecCommand2, 'vscode\n');
+				assert.match(containerUpStandardError, /Running the postCreateCommand from devcontainer.json/);
+
+				// Check if substituted mount path is in use
+				const res3 = await shellExec(`docker inspect ${containerId} --format '{{json .Mounts}}'`);
+				assert.strictEqual(res3.error, null);
+
+				const mounts = JSON.parse(res3.stdout);
+				assert.exists(mounts.find((item: { Type: string; Destination: string }) => item.Type === 'volume' && item.Destination === '/home/vscode'));
+			});
+		});
+	});
+
 	describe('lifecycle-hooks-advanced', () => {
 
 		describe(`devcontainer up`, () => {

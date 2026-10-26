@@ -1,0 +1,15 @@
+{
+	"$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainerFeature.schema.json",
+	"id": "test-feature",
+	"name": "test-feature",
+	"version": "0.0.1",
+	"description": "Testing a feature",
+	"mounts": [
+		{
+			"source": "test-${devcontainerId}",
+			"target": "/home/${remoteUser}",
+			"type": "volume"
+		}
+	],
+	"postCreateCommand": "/usr/bin/whoami && echo ${remoteUser} > /tmp/feature.variable-substitution.testMarker"
+}

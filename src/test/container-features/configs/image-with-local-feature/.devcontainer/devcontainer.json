@@ -1,0 +1,9 @@
+{
+	"name": "Demo container",
+	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
+	"features": {
+		"./test-feature": {}
+	},
+	"remoteUser": "vscode",
+	"postCreateCommand": "echo ${remoteUser} > /tmp/container.variable-substitution.testMarker"
+}
