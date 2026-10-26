@@ -19,6 +19,7 @@ import { Mount, parseMount } from '../spec-configuration/containerFeaturesConfig
 import path from 'path';
 import { getDevcontainerMetadata, getImageBuildInfoFromDockerfile, getImageBuildInfoFromImage, getImageMetadataFromContainer, ImageBuildInfo, lifecycleCommandOriginMapFromMetadata, mergeConfiguration, MergedDevContainerConfig } from './imageMetadata';
 import { ensureDockerfileHasFinalStageName } from './dockerfileUtils';
+import { preprocessDockerExtensionFile } from './dockerfilePreprocessor';
 import { randomUUID } from 'crypto';
 
 const projectLabel = 'com.docker.compose.project';
@@ -166,7 +167,10 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const serviceInfo = getBuildInfoForService(composeService, cliHost.path, localComposeFiles);
 	if (serviceInfo.build) {
 		const { context, dockerfilePath, target } = serviceInfo.build;
-		const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
+		let resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : path.resolve(context, dockerfilePath);
+		if (resolvedDockerfilePath.toLowerCase().endsWith('.in')) {
+			resolvedDockerfilePath = await preprocessDockerExtensionFile(common, config, resolvedDockerfilePath);
+		}
 		const originalDockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
 		dockerfile = originalDockerfile;
 		if (target) {
