@@ -511,6 +511,7 @@ export async function createContainerProperties(params: DockerResolverParameters
 	const remoteExecAsRoot = dockerExecFunction(params, containerId, 'root');
 	return getContainerProperties({
 		params: common,
+		containerName: containerInfo.Name.replace(/^\//, ''),
 		createdAt: containerInfo.Created,
 		startedAt: containerInfo.State.StartedAt,
 		remoteWorkspaceFolder,
