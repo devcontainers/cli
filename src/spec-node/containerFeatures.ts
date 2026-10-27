@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as shellQuote from 'shell-quote';
 
 import { DevContainerConfig } from '../spec-configuration/configuration';
 import { dockerCLI, dockerPtyCLI, ImageDetails, toExecParameters, toPtyExecParameters, CLIVariant } from '../spec-shutdown/dockerUtils';
@@ -23,10 +24,14 @@ import { ContainerError } from '../spec-common/errors';
 //      - alpha-numeric values, or
 //      - the '_' character, and
 //      - a number cannot be the first character
+//
+// Important: Nothing "safe" about this function. `PS1` would execute arbitrary code in bash. `IFS`
+// would blow up escaping. And so on.
 export const getSafeId = (str: string) => str
 	.replace(/[^\w_]/g, '_')
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
+const quote1 = (value: unknown) => shellQuote.quote([String(value)]);
 
 export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
 	const { common } = params;
@@ -252,8 +257,8 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	const imageMetadata = getDevcontainerMetadata(imageBuildInfo.metadata, devContainerConfig, featuresConfig, omitPropertyOverride, getOmitDevcontainerPropertyOverride(params.common));
 	const { containerUser, remoteUser } = findContainerUsers(imageMetadata, composeServiceUser, imageBuildInfo.user);
 	const builtinVariables = [
-		`_CONTAINER_USER=${containerUser}`,
-		`_REMOTE_USER=${remoteUser}`,
+		`_CONTAINER_USER=${quote1(containerUser)}`,
+		`_REMOTE_USER=${quote1(remoteUser)}`,
 	];
 	const envPath = cliHost.path.join(dstFolder, 'devcontainer-features.builtin.env');
 	await cliHost.writeFile(envPath, Buffer.from(builtinVariables.join('\n') + '\n'));
@@ -312,7 +317,7 @@ ARG _DEV_CONTAINERS_BASE_IMAGE=scratch
 					}
 					const featuresEnv = [
 						...getFeatureEnvVariables(f),
-						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${path.posix.join('/usr/local/devcontainer-features', consecutiveId)}`
+						`_BUILD_ARG_${getSafeId(f.id)}_TARGETPATH=${quote1(path.posix.join('/usr/local/devcontainer-features', consecutiveId))}`
 					]
 						.join('\n');
 					const envPath = cliHost.path.join(dstFolder, consecutiveId, 'devcontainer-features.env'); // next to bin/acquire
@@ -378,7 +383,7 @@ async function isUsingSELinuxLabels(params: DockerResolverParameters): Promise<b
 	} catch {
 		// If we can't run the commands, assume SELinux is not enabled.
 		return false;
-		
+
 	}
 }
 
@@ -399,20 +404,20 @@ function getFeatureEnvVariables(f: Feature) {
 	{
 		if (values) {
 			variables.push(...Object.keys(values)
-				.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}="${values[name]}"`));
+				.map(name => `_BUILD_ARG_${idSafe}_${getSafeId(name)}=${quote1(values[name])}`));
 			variables.push(`_BUILD_ARG_${idSafe}=true`);
 		}
 		if (f.buildArg) {
-			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+			variables.push(`${f.buildArg}=${quote1(getFeatureMainValue(f))}`);
 		}
 		return variables;
 	} else {
 		if (values) {
 			variables.push(...Object.keys(values)
-				.map(name => `${getSafeId(name)}="${values[name]}"`));
+				.map(name => `${getSafeId(name)}=${quote1(values[name])}`));
 		}
 		if (f.buildArg) {
-			variables.push(`${f.buildArg}=${getFeatureMainValue(f)}`);
+			variables.push(`${f.buildArg}=${quote1(getFeatureMainValue(f))}`);
 		}
 		return variables;
 	}
