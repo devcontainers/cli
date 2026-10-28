@@ -8,7 +8,7 @@ Notable changes.
 - Fix registry inspection for valid `tag@digest` image references. (https://github.com/devcontainers/cli/pull/1311)
 - Fix relative symlink resolution in the install script. (https://github.com/devcontainers/cli/pull/1244)
 - Dependency updates:
-  - Bump basic-ftp from 5.3.1 to 6.2.3 (via resolution, get-uri still requires 5.x). (PR_PLACEHOLDER)
+  - Bump basic-ftp from 5.3.1 to 6.2.3 (via resolution, get-uri still requires 5.x). (https://github.com/devcontainers/cli/pull/1345)
   - Bump shell-quote from 1.9.0 to 1.11.0. (https://github.com/devcontainers/cli/pull/1337)
   - Bump follow-redirects from 1.16.0 to 1.16.1. (https://github.com/devcontainers/cli/pull/1336)
   - Bump ip-address from 10.5.0 to 10.7.5. (https://github.com/devcontainers/cli/pull/1343)
