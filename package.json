@@ -1,7 +1,7 @@
 {
 	"name": "@devcontainers/cli",
 	"description": "Dev Containers CLI",
-	"version": "0.89.0",
+	"version": "0.89.1",
 	"bin": {
 		"devcontainer": "devcontainer.js"
 	},
@@ -104,6 +104,7 @@
 		"yargs": "~17.7.2"
 	},
 	"resolutions": {
-		"serialize-javascript": "^7.0.5"
+		"basic-ftp": "^6.2.3",
+		"serialize-javascript": "^7.1.3"
 	}
 }
