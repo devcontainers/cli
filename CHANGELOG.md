@@ -4,7 +4,7 @@ Notable changes.
 
 ## October 2026
 
-### [0.89.1]
+### [0.90.0]
 - Fix registry inspection for valid `tag@digest` image references. (https://github.com/devcontainers/cli/pull/1311)
 - Fix relative symlink resolution in the install script. (https://github.com/devcontainers/cli/pull/1244)
 - Dependency updates:
