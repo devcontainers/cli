@@ -351,7 +351,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 		const envFile = Array.isArray(config.dockerComposeFile) && config.dockerComposeFile.length === 0 && await cliHost.isFile(cwdEnvFile) ? cwdEnvFile : undefined;
 		const composeFiles = await getDockerComposeFilePaths(cliHost, config, cliHost.env, cliHost.cwd);
 		const ociAuthDiagnostics = 'cliHost' in params ? params.ociAuthDiagnostics : params.common.ociAuthDiagnostics;
-		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env: cliHost.env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics };
+		const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerArgs: params.dockerArgs, dockerComposeCLI, env: cliHost.env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics };
 
 		const composeConfig = await readDockerComposeConfig(buildParams, composeFiles, envFile);
 		const services = Object.keys(composeConfig.services || {});

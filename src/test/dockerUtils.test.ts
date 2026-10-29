@@ -14,6 +14,7 @@ import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { createDockerParams } from '../spec-node/devContainers';
 import { staticProvisionParams } from '../spec-node/featuresCLI/utils';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { createCLIParams } from './testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
@@ -115,7 +116,7 @@ describe('Container inspect', () => {
 	});
 });
 
-describe('Runtime argument prefixes', () => {
+describe('Docker argument prefixes', () => {
 	const prefix = ['--context', 'context with spaces', '001', 'a=b', '"literal quotes"', ''];
 
 	function recordingHost(response = '[]') {
@@ -145,14 +146,15 @@ describe('Runtime argument prefixes', () => {
 		};
 		const cliHost = { exec, ptyExec } as CLIHost;
 		const params: DockerCLIParameters = {
-			cliHost, dockerCLI: 'docker', runtimeArgs: prefix,
+			cliHost, dockerCLI: 'docker', dockerArgs: prefix,
 			dockerComposeCLI: dockerComposeCLIConfig({ exec, env: {}, output: nullLog }, 'docker', 'docker-compose'),
 			env: {}, output: nullLog,
 			buildPlatformInfo: { os: 'linux', arch: 'amd64' },
 			targetPlatformInfo: { os: 'linux', arch: 'amd64' },
+			ociAuthDiagnostics: createOCIAuthDiagnostics(),
 		};
 		const resolver = {
-			dockerCLI: params.dockerCLI, runtimeArgs: prefix, cliVariant: CLIVariant.Docker,
+			dockerCLI: params.dockerCLI, dockerArgs: prefix, cliVariant: CLIVariant.Docker,
 			dockerComposeCLI: params.dockerComposeCLI, dockerEnv: params.env,
 			common: { cliHost, output: nullLog },
 		};
@@ -168,8 +170,8 @@ describe('Runtime argument prefixes', () => {
 			const pty = { ...toPtyExecParameters(input), args: [...prefix, 'existing'] };
 			assert.deepStrictEqual(toExecParameters(exec), exec);
 			assert.deepStrictEqual(toPtyExecParameters(pty), pty);
-			assert.deepStrictEqual(toExecParameters({ ...input, runtimeArgs: undefined }).args, []);
-			assert.deepStrictEqual(toPtyExecParameters({ ...input, runtimeArgs: [] }).args, []);
+			assert.deepStrictEqual(toExecParameters({ ...input, dockerArgs: undefined }).args, []);
+			assert.deepStrictEqual(toPtyExecParameters({ ...input, dockerArgs: [] }).args, []);
 		}
 	});
 
@@ -219,15 +221,50 @@ describe('Runtime argument prefixes', () => {
 		]);
 	});
 
+	it('prefixes the Docker Compose plugin but not a standalone Docker Compose executable', async () => {
+		function composeHost(v2: boolean) {
+			const calls: ExecParameters[] = [];
+			const exec: ExecFunction = async params => {
+				calls.push(params);
+				const stdout = new PassThrough();
+				const stderr = new PassThrough();
+				const code = params.cmd === 'docker' && !v2 ? 1 : 0;
+				return {
+					stdin: new PassThrough(), stdout, stderr,
+					exit: new Promise(resolve => setImmediate(() => {
+						stdout.end(Buffer.from(code ? '' : '2.0.0'));
+						stderr.end();
+						resolve({ code, signal: null });
+					})),
+					terminate: async () => {},
+				};
+			};
+			return { calls, compose: dockerComposeCLIConfig({ exec, env: {}, output: nullLog }, 'docker', 'docker-compose', prefix) };
+		}
+
+		const plugin = composeHost(true);
+		assert.deepStrictEqual(await plugin.compose(), { version: '2.0.0', cmd: 'docker', args: [...prefix, 'compose'] });
+		assert.deepStrictEqual(plugin.calls.map(call => [call.cmd, ...call.args || []]), [
+			['docker', ...prefix, 'compose', 'version', '--short'],
+		]);
+
+		const standalone = composeHost(false);
+		assert.deepStrictEqual(await standalone.compose(), { version: '2.0.0', cmd: 'docker-compose', args: [] });
+		assert.deepStrictEqual(standalone.calls.map(call => [call.cmd, ...call.args || []]), [
+			['docker', ...prefix, 'compose', 'version', '--short'],
+			['docker-compose', 'version', '--short'],
+		]);
+	});
+
 	it('propagates ProvisionOptions through createDockerParams and its probes', async function () {
 		this.timeout(20000);
 		// Node stands in for Docker; its inline script reports the exact received arguments.
-		const runtimeArgs = ['-e', 'process.stdout.write("podman " + JSON.stringify(process.argv.slice(1)))', '--', 'prefix value'];
+		const dockerArgs = ['-e', 'process.stdout.write("podman " + JSON.stringify(process.argv.slice(1)))', '--', 'prefix value'];
 		const disposables: (() => Promise<unknown> | undefined)[] = [];
 		try {
 			const params = await createDockerParams({
 				...staticProvisionParams,
-				dockerPath: process.execPath, runtimeArgs,
+				dockerPath: process.execPath, dockerArgs,
 				workspaceFolder: __dirname, persistedFolder: __dirname,
 				mountWorkspaceGitRoot: false, mountGitWorktreeCommonDir: false,
 				log: () => {}, logLevel: LogLevel.Error,
@@ -235,7 +272,7 @@ describe('Runtime argument prefixes', () => {
 				skipFeatureAutoMapping: false, skipPersistingCustomizationsFromFeatures: false,
 				dotfiles: {},
 			}, disposables);
-			assert.deepStrictEqual(params.runtimeArgs, runtimeArgs);
+			assert.deepStrictEqual(params.dockerArgs, dockerArgs);
 			assert.strictEqual(params.cliVariant, CLIVariant.Podman);
 			assert.strictEqual(params.buildKitVersion?.versionString, 'podman ["prefix value","buildx","version"]');
 			assert.strictEqual(params.dockerEngineVersion?.versionString, 'podman ["prefix value","version","--format","{{.Server.Version}}"]');
@@ -248,7 +285,7 @@ describe('Runtime argument prefixes', () => {
 });
 
 // Use the real CLI parser in a child process, replacing only command handlers so no Docker is needed.
-describe('Runtime argument parsing', function () {
+describe('Docker argument parsing', function () {
 	this.timeout(30000);
 	const cli = path.resolve(__dirname, '../spec-node/devContainersSpecCLI.ts');
 	const project = path.resolve(__dirname, 'tsconfig.json');
@@ -274,38 +311,34 @@ describe('Runtime argument parsing', function () {
 		return JSON.parse(execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', stdio: 'pipe' }));
 	}
 
-	for (const command of ['set-up', 'run-user-commands']) {
-		const args = [command, '--docker-path', 'custom-docker', '--container-id', 'container'];
+	const commandArgs: Record<string, string[]> = {
+		'up': ['up', '--docker-path', 'custom-docker', '--workspace-folder', __dirname],
+		'set-up': ['set-up', '--docker-path', 'custom-docker', '--container-id', 'container'],
+		'build': ['build', '--docker-path', 'custom-docker', '--workspace-folder', __dirname],
+		'run-user-commands': ['run-user-commands', '--docker-path', 'custom-docker', '--container-id', 'container'],
+		'read-configuration': ['read-configuration', '--docker-path', 'custom-docker', '--container-id', 'container'],
+		'exec': ['exec', '--docker-path', 'custom-docker', '--container-id', 'container'],
+		'upgrade': ['upgrade', '--docker-path', 'custom-docker', '--workspace-folder', __dirname],
+	};
+
+	for (const [command, args] of Object.entries(commandArgs)) {
+		const withChildCommand = (dockerArgs: string[]) => command === 'exec' ? [...args, ...dockerArgs, 'printf', 'a b'] : [...args, ...dockerArgs];
+
 		it(`preserves repeated exact strings for ${command}`, () => {
 			const values = ['--session', 'a b', '001', 'a=b', '"quoted"', "'quoted'", '', '--', 'a\\b', ''];
-			assert.deepStrictEqual(parse([...args, ...values.map(value => `--runtime-arg=${value}`)])['runtime-arg'], values);
+			assert.deepStrictEqual(parse(withChildCommand(values.map(value => `--docker-arg=${value}`)))['docker-arg'], values);
 		});
 
 		it(`normalizes a single empty argument and leaves an omitted option undefined for ${command}`, () => {
-			assert.deepStrictEqual(parse([...args, '--runtime-arg='])['runtime-arg'], ['']);
-			assert.strictEqual(parse(args)['runtime-arg'], undefined);
+			assert.deepStrictEqual(parse(withChildCommand(['--docker-arg=']))['docker-arg'], ['']);
+			assert.strictEqual(parse(withChildCommand([]))['docker-arg'], undefined);
 		});
 	}
 
-	for (const command of ['up', 'build', 'read-configuration', 'exec', 'upgrade']) {
-		it(`rejects unsupported runtime arguments before the command handler for ${command}`, () => {
-			const args = [command, '--runtime-arg=--session'];
-			if (command === 'exec') {
-				args.push('printf', 'a b');
-			}
-			assert.throws(() => parse(args), (error: { status: number; stdout: string; stderr: string }) => {
-				assert.strictEqual(error.status, 1);
-				assert.strictEqual(error.stdout, '');
-				assert.match(error.stderr, /Unknown arguments?: runtime-arg/);
-				return true;
-			});
-		});
-	}
-
-	it('preserves literal runtime-arg arguments after the public exec child command', () => {
-		const command = ['printf', '--runtime-arg=container-argument', '--runtime-arg', 'a b', ''];
+	it('preserves literal docker-arg arguments after the public exec child command', () => {
+		const command = ['printf', '--docker-arg=container-argument', '--docker-arg', 'a b', ''];
 		const parsed = parse(['exec', '--container-id', 'container', ...command]);
-		assert.strictEqual(parsed['runtime-arg'], undefined);
+		assert.strictEqual(parsed['docker-arg'], undefined);
 		assert.deepStrictEqual(parsed._, command);
 	});
 });
