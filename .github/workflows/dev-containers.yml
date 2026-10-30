@@ -104,6 +104,7 @@ jobs:
       run: yarn type-check
     - name: Package
       run: yarn package
+    - uses: ./.github/actions/setup-compose
     - name: Run Tests
       run: yarn test-matrix --forbid-only ${{ matrix.mocha-args }}
       env:
