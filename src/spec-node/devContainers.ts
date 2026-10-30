@@ -24,6 +24,7 @@ import { Event } from '../spec-utils/event';
 
 export interface ProvisionOptions {
 	dockerPath: string | undefined;
+	dockerArgs?: string[];
 	dockerComposePath: string | undefined;
 	containerDataFolder: string | undefined;
 	containerSystemDataFolder: string | undefined;
@@ -177,7 +178,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		exec: cliHost.exec,
 		env: cliHost.env,
 		output: common.output,
-	}, dockerPath, dockerComposePath);
+	}, dockerPath, dockerComposePath, options.dockerArgs);
 
 	const buildPlatformInfo = {
 		os: mapNodeOSToGOOS(cliHost.platform),
@@ -213,6 +214,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	const buildKitVersion = options.useBuildKit === 'never' ? undefined : (await dockerBuildKitVersion({
 		cliHost,
 		dockerCLI: dockerPath,
+		dockerArgs: options.dockerArgs,
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
@@ -221,11 +223,12 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		ociAuthDiagnostics: common.ociAuthDiagnostics,
 	}));
 
-	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, env: cliHost.env, output });
+	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, args: options.dockerArgs, env: cliHost.env, output });
 
 	const dockerEngineVer = await dockerEngineVersion({
 		cliHost,
 		dockerCLI: dockerPath,
+		dockerArgs: options.dockerArgs,
 		dockerComposeCLI,
 		env: cliHost.env,
 		output,
@@ -238,6 +241,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		common,
 		parsedAuthority,
 		dockerCLI: dockerPath,
+		dockerArgs: options.dockerArgs,
 		cliVariant,
 		dockerComposeCLI: dockerComposeCLI,
 		dockerEnv: cliHost.env,
