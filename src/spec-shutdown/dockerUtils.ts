@@ -357,7 +357,7 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 			args: (args || []).concat(execArgs),
 			env,
 			stdio: execParams.stdio,
-			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
+			output: replacingDockerExecLog(execParams.output, cmd, (args || []).concat(argsPrefix)),
 		});
 	};
 }
@@ -376,7 +376,7 @@ export async function dockerPtyExecFunction(params: PartialPtyExecParameters | D
 			cmd,
 			args: (args || []).concat(execArgs),
 			env,
-			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
+			output: replacingDockerExecLog(execParams.output, cmd, (args || []).concat(argsPrefix)),
 		});
 	};
 }

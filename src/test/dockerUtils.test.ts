@@ -209,6 +209,16 @@ describe('Docker argument prefixes', () => {
 		]);
 	});
 
+	it('shortens the container exec log line including the prefix', async () => {
+		const { calls, params } = recordingHost();
+		const lines: string[] = [];
+		const log = makeLog(createPlainLog(text => lines.push(text), () => LogLevel.Trace));
+		await (await dockerExecFunction(params, 'container', 'user')({ cmd: 'printf', args: ['a b'], output: log })).exit;
+		calls[0].output.write(`Run: ${calls[0].cmd} ${calls[0].args!.join(' ')}`);
+		assert.strictEqual(lines.length, 1);
+		assert.match(lines[0], /Run in container: printf a b\s*$/);
+	});
+
 	it('prefixes all Docker version probes', async () => {
 		const { calls, params } = recordingHost('Docker 28.0.0');
 		assert.strictEqual((await dockerBuildKitVersion(params))?.versionMatch, '28.0.0');
