@@ -169,17 +169,17 @@ async function _generateDocumentation(
 
                 let newReadme = readmeTemplate
                     // Templates & Features
-                    .replace('#{Id}', parsedJson.id)
-                    .replace('#{Name}', parsedJson.name ? `${parsedJson.name} (${parsedJson.id})` : `${parsedJson.id}`)
-                    .replace('#{Description}', parsedJson.description ?? '')
-                    .replace('#{OptionsTable}', generateOptionsMarkdown())
-                    .replace('#{Notes}', generateNotesMarkdown())
-                    .replace('#{RepoUrl}', urlToConfig)
+                    .replace('#{Id}', () => parsedJson.id)
+                    .replace('#{Name}', () => parsedJson.name ? `${parsedJson.name} (${parsedJson.id})` : `${parsedJson.id}`)
+                    .replace('#{Description}', () => parsedJson.description ?? '')
+                    .replace('#{OptionsTable}', () => generateOptionsMarkdown())
+                    .replace('#{Notes}', () => generateNotesMarkdown())
+                    .replace('#{RepoUrl}', () => urlToConfig)
                     // Features Only
-                    .replace('#{Registry}', ociRegistry)
-                    .replace('#{Namespace}', namespace)
-                    .replace('#{Version}', version)
-                    .replace('#{Customizations}', extensions);
+                    .replace('#{Registry}', () => ociRegistry)
+                    .replace('#{Namespace}', () => namespace)
+                    .replace('#{Version}', () => version)
+                    .replace('#{Customizations}', () => extensions);
 
                 if (header) {
                     newReadme = header + newReadme;
