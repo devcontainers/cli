@@ -410,7 +410,7 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 		...getLabels(labels),
 		...containerEnv,
 		...containerUserArgs,
-		...await getPodmanArgs(params, config, mergedConfig, imageDetails),
+		...await getPodmanArgs(params, config, mergedConfig, imageName, imageDetails),
 		...(config.runArgs || []),
 		...(await extraRunArgs(common, params, config) || []),
 		...featureArgs,
@@ -435,19 +435,63 @@ while sleep 1 & wait $!; do :; done`, '-']; // `wait $!` allows for the `trap` t
 	common.output.stop(text, start);
 }
 
-async function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageDetails: () => Promise<ImageDetails>): Promise<string[]> {
+async function getPodmanArgs(params: DockerResolverParameters, config: DevContainerFromDockerfileConfig | DevContainerFromImageConfig, mergedConfig: MergedDevContainerConfig, imageName: string, imageDetails: () => Promise<ImageDetails>): Promise<string[]> {
 	if (params.cliVariant === CLIVariant.Podman && params.common.cliHost.platform === 'linux') {
 		const args = ['--security-opt', 'label=disable'];
 		const hasIdMapping = (config.runArgs || []).some(arg => /--[ug]idmap(=|$)/.test(arg));
 		if (!hasIdMapping) {
 			const remoteUser = mergedConfig.remoteUser || findUserArg(config.runArgs) || (await imageDetails()).Config.User || 'root';
 			if (remoteUser !== 'root' && remoteUser !== '0') {
-				args.push('--userns=keep-id');
+				// Prefer parsing a numeric user spec directly from config; only fall back to
+				// running a throwaway container when the user is a name that must be resolved
+				// from the image's /etc/passwd and /etc/group.
+				const uidGid = parseNumericUidGid(remoteUser) ?? await resolveRemoteUserUidGid(params, imageName, remoteUser);
+				args.push(...getKeepIdArgs(uidGid));
 			}
 		}
 		return args;
 	}
 	return [];
+}
+
+// Parses a user spec (e.g. "1000", "1000:1000", "vscode", "vscode:1000") and returns
+// numeric uid/gid only when both parts are numeric. When no group is given, the gid
+// defaults to the uid. Returns undefined when the user is a name, in which case the
+// caller must resolve the mapping from the image (e.g. via a throwaway container).
+export function parseNumericUidGid(remoteUser: string): { uid: string; gid: string } | undefined {
+	const [user, group] = remoteUser.split(':');
+	if (!user || !/^\d+$/.test(user)) {
+		return undefined;
+	}
+	const gid = group ?? user;
+	if (!/^\d+$/.test(gid)) {
+		return undefined;
+	}
+	return { uid: user, gid };
+}
+
+// Resolves the remote user's UID and GID inside the image by running a throwaway container.
+// Returns undefined if the resolution fails, in which case the caller falls back to plain --userns=keep-id.
+export async function resolveRemoteUserUidGid(params: DockerResolverParameters, imageName: string, remoteUser: string): Promise<{ uid: string; gid: string } | undefined> {
+	try {
+		const infoParams = { ...toExecParameters(params), output: makeLog(params.common.output, LogLevel.Info) };
+		const result = await dockerCLI(infoParams, 'run', '--rm', '--entrypoint', '/bin/sh', imageName, '-c', `id -u ${remoteUser}; id -g ${remoteUser}`);
+		const [uid, gid] = result.stdout.toString().trim().split(/\r?\n/);
+		if (uid && gid && /^\d+$/.test(uid) && /^\d+$/.test(gid)) {
+			return { uid, gid };
+		}
+	} catch {
+		// Fall through to plain --userns=keep-id.
+	}
+	return undefined;
+}
+
+// Builds the --userns=keep-id argument, using the explicit uid/gid mapping when available.
+export function getKeepIdArgs(uidGid: { uid: string; gid: string } | undefined): string[] {
+	if (uidGid) {
+		return [`--userns=keep-id:uid=${uidGid.uid},gid=${uidGid.gid}`];
+	}
+	return ['--userns=keep-id'];
 }
 
 // Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached") to -v syntax for wslc.
