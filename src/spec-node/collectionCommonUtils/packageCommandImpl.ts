@@ -220,17 +220,27 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 			// Validate minimal folder structure
 			const devcontainerJsonName = `devcontainer-${collectionType}.json`;
 
+			// Be tolerant of other folders that may not contain Feature source code
 			if (!(await isLocalFile(path.join(folder, devcontainerJsonName)))) {
-				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping... `, LogLevel.Warning);
+				output.write(`(!) WARNING: ${collectionType} '${c}' is missing a ${devcontainerJsonName}. Skipping...`, LogLevel.Warning);
 				continue;
 			}
 
 			const tmpSrcDir = path.join(os.tmpdir(), `/templates-src-output-${Date.now()}`);
 			await cpDirectoryLocal(folder, tmpSrcDir);
-
-			const archiveName = getArchiveName(c, collectionType);
-
 			const jsonPath = path.join(tmpSrcDir, devcontainerJsonName);
+			const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
+
+			if (!metadata.id || !metadata.version || !metadata.name) {
+				output.write(`ERROR: ${collectionType} '${c}' is missing one of the following required properties in its ${devcontainerJsonName}: 'id', 'version', 'name'.`, LogLevel.Error);
+				return;
+			}
+
+			// Validate that the 'id' field in the metadata property matches the folder name
+			if (c !== metadata.id) {
+				output.write(`ERROR: ${collectionType} id '${metadata.id}' does not match its containing folder name '${c}'.`, LogLevel.Error);
+				return;
+			}
 
 			if (collectionType === 'feature') {
 				const installShPath = path.join(tmpSrcDir, 'install.sh');
@@ -238,7 +248,6 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 					output.write(`Feature '${c}' is missing an install.sh`, LogLevel.Error);
 					return;
 				}
-
 				await addsAdditionalFeatureProps(jsonPath, output);
 			} else if (collectionType === 'template') {
 				if (!(await addsAdditionalTemplateProps(tmpSrcDir, jsonPath, output))) {
@@ -246,13 +255,9 @@ export async function packageCollection(args: PackageCommandInput, collectionTyp
 				}
 			}
 
+			const archiveName = getArchiveName(c, collectionType);
 			await tarDirectory(tmpSrcDir, archiveName, outputDir);
 
-			const metadata = jsonc.parse(await readLocalFile(jsonPath, 'utf-8'));
-			if (!metadata.id || !metadata.version || !metadata.name) {
-				output.write(`${collectionType} '${c}' is missing one of the following required properties in its ${devcontainerJsonName}: 'id', 'version', 'name'.`, LogLevel.Error);
-				return;
-			}
 			metadatas.push(metadata);
 			await rmLocal(tmpSrcDir, { recursive: true, force: true });
 		}

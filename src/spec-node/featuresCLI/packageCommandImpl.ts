@@ -23,15 +23,15 @@ export async function doFeaturesPackageCommand(args: PackageCommandInput): Promi
 	let metadataOutput: Feature[] | undefined = [];
 	if (isSingleFeature) {
 		// Package individual features
-		output.write('Packaging single feature...', LogLevel.Info);
+		output.write('Packaging single Feature...', LogLevel.Info);
 		metadataOutput = await packageSingleFeature(args);
 	} else {
-		output.write('Packaging feature collection...', LogLevel.Info);
+		output.write('Packaging Feature collection...', LogLevel.Info);
 		metadataOutput = await packageFeatureCollection(args);
 	}
 
 	if (!metadataOutput) {
-		output.write('Failed to package features', LogLevel.Error);
+		output.write('Failed to package Features', LogLevel.Error);
 		return undefined;
 	}
 
