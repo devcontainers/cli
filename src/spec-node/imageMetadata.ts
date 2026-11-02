@@ -6,7 +6,7 @@
 import { ContainerError } from '../spec-common/errors';
 import { PlatformInfo } from '../spec-common/commonUtils';
 import { LifecycleCommand, LifecycleHooksInstallMap } from '../spec-common/injectHeadless';
-import { DevContainerConfig, DevContainerConfigCommand, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
+import { DevContainerConfig, DevContainerConfigCommand, DevContainerExtendsMergeMode, DevContainerFromDockerComposeConfig, DevContainerFromDockerfileConfig, DevContainerFromImageConfig, getDockerComposeFilePaths, getDockerfilePath, HostGPURequirements, HostRequirements, isDockerFileConfig, PortAttributes, UserEnvProbe } from '../spec-configuration/configuration';
 import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks } from '../spec-configuration/containerFeaturesConfiguration';
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log, LogLevel } from '../spec-utils/log';
@@ -197,6 +197,100 @@ export function mergeConfiguration(config: DevContainerConfig, imageMetadata: Im
 		hostRequirements: mergeHostRequirements(imageMetadata),
 	};
 	return merged;
+}
+
+/**
+ * Merge a base `devcontainer.json` with an overlay using the image metadata merge logic
+ * (https://containers.dev/implementors/spec/#merge-logic) so `extends` behaves the same as
+ * combining a prebuilt image's metadata with a project's config.
+ */
+export function mergeDevContainerConfigs(base: DevContainerConfig, overlay: DevContainerConfig, extendsMergeMode: DevContainerExtendsMergeMode = 'combine'): DevContainerConfig {
+	if (extendsMergeMode === 'override') {
+		return mergeDevContainerConfigsOverride(base, overlay);
+	}
+
+	const metadata: ImageMetadataEntry[] = [base, overlay];
+	const merged = {
+		...base,
+		...overlay,
+	} as DevContainerConfig;
+	delete merged.extends;
+	delete merged.extendsMergeMode;
+
+	if (base.init || overlay.init) {
+		merged.init = true;
+	} else if (base.init === false || overlay.init === false) {
+		merged.init = false;
+	}
+
+	if (base.privileged || overlay.privileged) {
+		merged.privileged = true;
+	} else if (base.privileged === false || overlay.privileged === false) {
+		merged.privileged = false;
+	}
+
+	assignOrDelete(merged, 'capAdd', unionOrUndefined([base.capAdd, overlay.capAdd]));
+	assignOrDelete(merged, 'securityOpt', unionOrUndefined([base.securityOpt, overlay.securityOpt]));
+	assignOrDelete(merged, 'mounts', mergeMounts(metadata));
+	assignOrDelete(merged, 'forwardPorts', mergeForwardPorts(metadata));
+	assignOrDelete(merged, 'hostRequirements', mergeHostRequirements(metadata));
+
+	const remoteEnv = Object.assign({}, base.remoteEnv, overlay.remoteEnv);
+	assignOrDelete(merged, 'remoteEnv', Object.keys(remoteEnv).length ? remoteEnv : undefined);
+	const containerEnv = Object.assign({}, base.containerEnv, overlay.containerEnv);
+	assignOrDelete(merged, 'containerEnv', Object.keys(containerEnv).length ? containerEnv : undefined);
+	const portsAttributes = Object.assign({}, base.portsAttributes, overlay.portsAttributes);
+	assignOrDelete(merged, 'portsAttributes', Object.keys(portsAttributes).length ? portsAttributes : undefined);
+	const features = Object.assign({}, base.features, overlay.features);
+	assignOrDelete(merged, 'features', Object.keys(features).length ? features : undefined);
+	const customizations = Object.assign({}, base.customizations, overlay.customizations);
+	assignOrDelete(merged, 'customizations', Object.keys(customizations).length ? customizations : undefined);
+
+	const runArgs = unionOrUndefined([
+		'runArgs' in base ? base.runArgs : undefined,
+		'runArgs' in overlay ? overlay.runArgs : undefined,
+	]);
+	if ('runArgs' in merged || runArgs) {
+		(merged as DevContainerFromImageConfig).runArgs = runArgs;
+		if (!runArgs) {
+			delete (merged as DevContainerFromImageConfig).runArgs;
+		}
+	}
+
+	const runServices = unionOrUndefined([
+		'dockerComposeFile' in base ? base.runServices : undefined,
+		'dockerComposeFile' in overlay ? overlay.runServices : undefined,
+	]);
+	if ('runServices' in merged || runServices) {
+		(merged as DevContainerFromDockerComposeConfig).runServices = runServices;
+		if (!runServices) {
+			delete (merged as DevContainerFromDockerComposeConfig).runServices;
+		}
+	}
+
+	return merged;
+}
+
+/**
+ * Overlay-style merge: each top-level property from the overlay replaces the base value when set;
+ * omitted overlay keys keep the inherited base value ({ ...base, ...overlay }).
+ */
+function mergeDevContainerConfigsOverride(base: DevContainerConfig, overlay: DevContainerConfig): DevContainerConfig {
+	const merged = {
+		...base,
+		...overlay,
+	} as DevContainerConfig;
+	delete merged.extends;
+	delete merged.extendsMergeMode;
+	return merged;
+}
+
+function assignOrDelete<K extends keyof DevContainerConfig>(target: DevContainerConfig, key: K, value: DevContainerConfig[K] | undefined) {
+	if (value !== undefined) {
+		target[key] = value;
+	} else {
+		delete target[key];
+	}
 }
 
 function mergeForwardPorts(imageMetadata: ImageMetadataEntry[]): (number | string)[] | undefined {

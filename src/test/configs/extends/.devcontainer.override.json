@@ -1,0 +1,13 @@
+{
+	"extends": "./.devcontainer.base.json",
+	"extendsMergeMode": "override",
+	"name": "Override merge",
+	"forwardPorts": [443],
+	"hostRequirements": {
+		"memory": "4gb"
+	},
+	"remoteEnv": {
+		"OVERRIDE_ME": "child"
+	},
+	"init": false
+}
