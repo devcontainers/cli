@@ -13,7 +13,7 @@ import { Workspace, workspaceFromPath } from '../spec-utils/workspaces';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { readDevContainerConfigFile } from './configContainer';
 import { ContainerError } from '../spec-common/errors';
-import { getCacheFolder, runAsyncHandler } from './utils';
+import { dockerArgOption, getCacheFolder, runAsyncHandler } from './utils';
 import { Lockfile, generateLockfile, getLockfilePath, writeLockfile } from '../spec-configuration/lockfile';
 import { isLocalFile, readLocalFile, writeLocalFile } from '../spec-utils/pfs';
 import { readFeaturesConfig } from './featureUtils';
@@ -26,6 +26,7 @@ export function featuresUpgradeOptions(y: Argv) {
 		.options({
 			'workspace-folder': { type: 'string', description: 'Workspace folder. If --workspace-folder is not provided defaults to the current directory.' },
 			'docker-path': { type: 'string', description: 'Path to docker executable.', default: 'docker' },
+			'docker-arg': dockerArgOption,
 			'docker-compose-path': { type: 'string', description: 'Path to docker-compose executable.', default: 'docker-compose' },
 			'config': { type: 'string', description: 'devcontainer.json path. The default is to use .devcontainer/devcontainer.json or, if that does not exist, .devcontainer.json in the workspace folder.' },
 			'log-level': { choices: ['error' as 'error', 'info' as 'info', 'debug' as 'debug', 'trace' as 'trace'], default: 'info' as 'info', description: 'Log level.' },
@@ -57,6 +58,7 @@ export function featuresUpgradeHandler(args: FeaturesUpgradeArgs) {
 async function featuresUpgrade({
 	'workspace-folder': workspaceFolderArg,
 	'docker-path': dockerPath,
+	'docker-arg': dockerArgs,
 	config: configArg,
 	'docker-compose-path': dockerComposePath,
 	'log-level': inputLogLevel,
@@ -88,7 +90,7 @@ async function featuresUpgrade({
 			exec: cliHost.exec,
 			env: cliHost.env,
 			output,
-		}, dockerPath, dockerComposePath);
+		}, dockerPath, dockerComposePath, dockerArgs);
 		const buildPlatformInfo = {
 			os: mapNodeOSToGOOS(cliHost.platform),
 			arch: mapNodeArchitectureToGOARCH(cliHost.arch),
@@ -97,6 +99,7 @@ async function featuresUpgrade({
 		const dockerParams: DockerCLIParameters = {
 			cliHost,
 			dockerCLI: dockerPath,
+			dockerArgs,
 			dockerComposeCLI,
 			env: cliHost.env,
 			output,

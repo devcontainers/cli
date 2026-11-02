@@ -27,7 +27,7 @@ const serviceLabel = 'com.docker.compose.service';
 export async function openDockerComposeDevContainer(params: DockerResolverParameters, workspace: Workspace, config: SubstitutedConfig<DevContainerFromDockerComposeConfig>, idLabels: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>): Promise<ResolverResult> {
 	const { common, dockerCLI, dockerComposeCLI } = params;
 	const { cliHost, env, output } = common;
-	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: common.ociAuthDiagnostics };
+	const buildParams: DockerCLIParameters = { cliHost, dockerCLI, dockerArgs: params.dockerArgs, dockerComposeCLI, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: common.ociAuthDiagnostics };
 	return _openDockerComposeDevContainer(params, buildParams, workspace, config, getRemoteWorkspaceFolder(config.config), idLabels, additionalFeatures);
 }
 
@@ -155,7 +155,7 @@ export async function buildAndExtendDockerCompose(configWithRaw: SubstitutedConf
 	const { cliHost, env, output } = common;
 	const { config } = configWithRaw;
 
-	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerComposeCLI: dockerComposeCLIFunc, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: common.ociAuthDiagnostics };
+	const cliParams: DockerCLIParameters = { cliHost, dockerCLI, dockerArgs: params.dockerArgs, dockerComposeCLI: dockerComposeCLIFunc, env, output, buildPlatformInfo: params.buildPlatformInfo, targetPlatformInfo: params.targetPlatformInfo, ociAuthDiagnostics: common.ociAuthDiagnostics };
 	const composeConfig = await readDockerComposeConfig(cliParams, localComposeFiles, envFile);
 	const composeService = composeConfig.services[config.service];
 
@@ -701,7 +701,7 @@ async function useNewProjectName(params: DockerCLIParameters | DockerResolverPar
 	}
 }
 
-export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'>, dockerCLICmd: string, dockerComposeCLICmd: string) {
+export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd' | 'args'>, dockerCLICmd: string, dockerComposeCLICmd: string, dockerArgs: string[] = []) {
 	let result: Promise<DockerComposeCLI>;
 	return () => {
 		return result || (result = (async () => {
@@ -711,6 +711,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 				stdout = (await dockerComposeCLI({
 					...params,
 					cmd: dockerCLICmd,
+					args: dockerArgs,
 				}, 'compose', 'version', '--short')).stdout;
 			} catch (err) {
 				stdout = (await dockerComposeCLI({
@@ -724,7 +725,7 @@ export function dockerComposeCLIConfig(params: Omit<PartialExecParameters, 'cmd'
 			return {
 				version,
 				cmd: v2 ? dockerCLICmd : dockerComposeCLICmd,
-				args: v2 ? ['compose'] : [],
+				args: v2 ? [...dockerArgs, 'compose'] : [],
 			};
 		})());
 	};
