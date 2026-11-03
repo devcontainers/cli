@@ -88,7 +88,7 @@
 	"dependencies": {
 		"chalk": "^5.6.2",
 		"follow-redirects": "^1.15.11",
-		"js-yaml": "^4.1.1",
+		"js-yaml": "^4.3.2",
 		"jsonc-parser": "^3.3.1",
 		"ncp": "^2.0.0",
 		"node-pty": "~1.0.0",
@@ -96,9 +96,9 @@
 		"pull-stream": "^3.7.0",
 		"recursive-readdir": "^2.2.3",
 		"semver": "^7.7.4",
-		"shell-quote": "^1.8.3",
+		"shell-quote": "^1.11.0",
 		"stream-to-pull-stream": "^1.7.3",
-		"tar": "^7.5.10",
+		"tar": "^7.5.21",
 		"text-table": "^0.2.0",
 		"vscode-uri": "^3.1.0",
 		"yargs": "~17.7.2"
