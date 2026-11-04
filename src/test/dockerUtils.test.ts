@@ -6,7 +6,7 @@
 import { createPlainLog, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { inspectImageInRegistry, qualifyImageName } from '../spec-node/utils';
 import assert from 'assert';
-import { CLIVariant, DockerCLIParameters, dockerBuildKitVersion, dockerCLI, dockerEngineVersion, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, getEvents, inspectContainer, inspectImage, listContainers, lookupCLIVariant, PartialExecParameters, removeContainer, toExecParameters, toPtyExecParameters } from '../spec-shutdown/dockerUtils';
+import { CLIVariant, DockerCLIParameters, dockerBuildKitVersion, dockerCLI, dockerEngineVersion, dockerExecFunction, dockerPtyCLI, dockerPtyExecFunction, getEvents, inspectContainer, inspectImage, listContainers, lookupCLIVariant, PartialExecParameters, removeContainer, toExecParameters, toPtyExecParameters, useFeatureCopyFallback } from '../spec-shutdown/dockerUtils';
 import { CLIHost, ExecFunction, ExecParameters, PtyExecFunction } from '../spec-common/commonUtils';
 import { PassThrough } from 'stream';
 import { dockerComposeCLIConfig } from '../spec-node/dockerCompose';
@@ -18,6 +18,74 @@ import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { createCLIParams } from './testUtils';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+describe('Podman Feature cache compatibility', () => {
+	function probe(response: string, fail = false) {
+		const calls: ExecParameters[] = [];
+		const lines: string[] = [];
+		const params: PartialExecParameters = {
+			cmd: '/selected/podman', args: ['--connection', 'remote'], env: { CONTAINER_HOST: 'test' },
+			output: makeLog(createPlainLog(text => lines.push(text), () => LogLevel.Trace)),
+			exec: async params => {
+				calls.push(params);
+				if (fail) {
+					throw new Error('builder unavailable');
+				}
+				const stdout = new PassThrough();
+				const stderr = new PassThrough();
+				return {
+					stdin: new PassThrough(), stdout, stderr,
+					exit: new Promise(resolve => setImmediate(() => {
+						stdout.end(response);
+						stderr.end();
+						resolve({ code: 0, signal: null });
+					})),
+					terminate: async () => { },
+				};
+			},
+		};
+		return { params, calls, lines };
+	}
+
+	for (const version of ['1.33.7', '1.39.0', '1.41.0', '1.41.0-1ubuntu0.2', '1.41.1-rc.1', '1.42.0-dev', '', 'unknown']) {
+		it(`uses COPY with affected or unknown Buildah ${JSON.stringify(version)}`, async () => {
+			const { params, lines } = probe(version);
+			assert.strictEqual(await useFeatureCopyFallback(params, CLIVariant.Podman), true);
+			assert.match(lines.join(''), /Using COPY-based Feature installation for Podman/);
+		});
+	}
+
+	for (const version of ['1.41.1', '1.42.0', '1.43.5', '1.41.1-1ubuntu0.2', '1.43.5+vendor.1', '1.43.5-2.fc44', ' 1.43.5\n']) {
+		it(`retains mounts with fixed Buildah ${JSON.stringify(version)}`, async () => {
+			const { params, lines } = probe(version);
+			assert.strictEqual(await useFeatureCopyFallback(params, CLIVariant.Podman), false);
+			assert.doesNotMatch(lines.join(''), /Using COPY-based/);
+		});
+	}
+
+	it('preserves selected executable, command prefix, environment and output', async () => {
+		const { params, calls } = probe('1.39.0');
+		await useFeatureCopyFallback(params, CLIVariant.Podman);
+		assert.strictEqual(calls[0].cmd, params.cmd);
+		assert.deepStrictEqual(calls[0].args, [...params.args!, 'info', '--format', '{{.Host.BuildahVersion}}']);
+		assert.strictEqual(calls[0].env, params.env);
+		assert.strictEqual(calls[0].output, params.output);
+	});
+
+	it('reports query failures and conservatively falls back', async () => {
+		const { params, lines } = probe('', true);
+		assert.strictEqual(await useFeatureCopyFallback(params, CLIVariant.Podman), true);
+		assert.match(lines.join(''), /Buildah version detection failed:.*builder unavailable/s);
+	});
+
+	it('does not query Docker or other CLI variants', async () => {
+		const { params, calls } = probe('');
+		for (const variant of [CLIVariant.Docker, CLIVariant.Wslc]) {
+			assert.strictEqual(await useFeatureCopyFallback(params, variant), false);
+		}
+		assert.strictEqual(calls.length, 0);
+	});
+});
 
 describe('Docker utils', function () {
 	this.timeout(20 * 1000);
