@@ -241,7 +241,8 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// TODO generate an image name that is specific to this dev container?
 	const buildKitVersionParsed = params.buildKitVersion?.versionMatch ? parseVersion(params.buildKitVersion.versionMatch) : undefined;
 	const minRequiredVersion = [0, 8, 0];
-	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
+	// Keep BuildKit enabled globally while using COPY for Features on affected Podman builders.
+	const useBuildKitBuildContexts = !params.useFeatureCopyFallback && (buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false);
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
     // Access Docker engine version

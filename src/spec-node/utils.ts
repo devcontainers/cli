@@ -136,6 +136,8 @@ export interface DockerResolverParameters {
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;
+	// Limit the Podman compatibility fallback to Feature content transport.
+	useFeatureCopyFallback?: boolean;
 	dockerEngineVersion: { versionString: string; versionMatch?: string } | undefined;
 	isTTY: boolean;
 	noLockfile?: boolean;

@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 import { generateFeaturesConfig, getFeatureLayers, getContainerFeaturesBaseDockerFile, FeatureSet } from '../../spec-configuration/containerFeaturesConfiguration';
-import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
+import { createPlainLog, LogLevel, makeLog, nullLog } from '../../spec-utils/log';
 import * as path from 'path';
 import * as process from 'process';
 import * as os from 'os';
@@ -11,8 +11,105 @@ import { URI } from 'vscode-uri';
 import { getLocalCacheFolder } from '../../spec-node/utils';
 import { createTestCommonParams, findFromArgsWithoutDefault, shellExec } from '../testUtils';
 import { getEntPasswdShellCommand } from '../../spec-common/commonUtils';
+import { createDockerParams } from '../../spec-node/devContainers';
+import { staticProvisionParams } from '../../spec-node/featuresCLI/utils';
+import { getExtendImageBuildInfo } from '../../spec-node/containerFeatures';
+import { CLIVariant } from '../../spec-shutdown/dockerUtils';
+import { PassThrough } from 'stream';
+import * as fs from 'fs/promises';
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
+
+describe('Feature content transport', function () {
+    this.timeout(20000);
+
+    for (const mode of ['copy', 'mount', 'no-buildkit'] as const) {
+        it(`keeps content images, contexts and installer paths consistent in ${mode} mode`, async () => {
+            const disposables: (() => Promise<unknown> | undefined)[] = [];
+            let workspaceFolder: string | undefined;
+            try {
+                workspaceFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'feature-transport-'));
+                await fs.cp(path.resolve(__dirname, 'example-v2-features-sets/simple/src'), path.join(workspaceFolder, '.devcontainer'), { recursive: true });
+                const params = await createDockerParams({
+                    ...staticProvisionParams,
+                    dockerPath: process.execPath,
+                    dockerArgs: ['-e', 'process.stdout.write("Docker 28.0.0")', '--'],
+                    workspaceFolder, persistedFolder: os.tmpdir(),
+                    mountWorkspaceGitRoot: false, mountGitWorktreeCommonDir: false,
+                    log: () => { }, logLevel: LogLevel.Error,
+                    remoteEnv: {}, additionalLabels: [], dotfiles: {},
+                    skipFeatureAutoMapping: false, skipPersistingCustomizationsFromFeatures: false,
+                }, disposables);
+                params.isTTY = false;
+                const calls: string[][] = [];
+                const hostExec = params.common.cliHost.exec;
+                params.common.cliHost = {
+                    ...params.common.cliHost,
+                    exec: async options => {
+                        if (options.cmd !== 'selected-engine' && options.cmd !== 'getenforce') {
+                            return hostExec(options);
+                        }
+                        calls.push([options.cmd, ...options.args || []]);
+                        const stdout = new PassThrough();
+                        const stderr = new PassThrough();
+                        return {
+                            stdin: new PassThrough(), stdout, stderr,
+                            exit: new Promise(resolve => setImmediate(() => {
+                                stdout.end('Disabled');
+                                stderr.end();
+                                resolve({ code: 0, signal: null });
+                            })),
+                            terminate: async () => { },
+                        };
+                    },
+                };
+                params.common.output = nullLog;
+                params.noLockfile = true;
+                params.dockerCLI = 'selected-engine';
+                params.dockerArgs = ['--connection', 'test'];
+                params.cliVariant = CLIVariant.Podman;
+                params.useFeatureCopyFallback = mode === 'copy';
+                params.buildKitVersion = mode === 'no-buildkit' ? undefined : { versionString: '0.12.0', versionMatch: '0.12.0' };
+                const config: DevContainerConfig = {
+                    configFilePath: URI.file(path.join(workspaceFolder, '.devcontainer/devcontainer.json')),
+                    image: 'debian:bookworm-slim',
+                    features: { './color': { favorite: 'green' }, './hello': { greeting: 'hello' } },
+                };
+                const result = await getExtendImageBuildInfo(params, { config, raw: config, substitute: value => value }, 'debian:bookworm-slim', {
+                    user: 'root', metadata: { config: [], raw: [], substitute: value => value },
+                }, undefined, {}, false);
+                const build = result?.featureBuildInfo;
+                assert.exists(build);
+                const contentBuilds = calls.filter(call => call.includes('build'));
+                if (mode === 'mount') {
+                    assert.deepEqual(build!.buildKitContexts, { dev_containers_feature_content_source: build!.dstFolder });
+                    assert.lengthOf(contentBuilds, 0);
+                    assert.include(build!.dockerfileContent, 'RUN --mount=type=bind,from=dev_containers_feature_content_source,source=color_0,');
+                    assert.notInclude(build!.dockerfileContent, 'FROM dev_container_feature_content_temp');
+                } else {
+                    assert.deepEqual(build!.buildKitContexts, {});
+                    assert.lengthOf(contentBuilds, 1);
+                    assert.deepEqual(contentBuilds[0], ['selected-engine', '--connection', 'test', 'build', '-t', 'dev_container_feature_content_temp', '-f', path.join(build!.dstFolder, 'Dockerfile.buildContent'), build!.dstFolder]);
+                    assert.include(build!.dockerfileContent, 'FROM dev_container_feature_content_temp as dev_containers_feature_content_source');
+                    assert.include(build!.dockerfileContent, 'COPY --chown=root:root --from=dev_containers_feature_content_source /tmp/build-features/color_0');
+                    assert.notInclude(build!.dockerfileContent, 'RUN --mount');
+                }
+                assert.include(build!.dockerfileContent, 'hello_1');
+                assert.strictEqual((build!.dockerfileContent.match(/&&? \.\/devcontainer-features-install.sh/g) || []).length, 2);
+                assert.isBelow(build!.dockerfileContent.indexOf('color_0'), build!.dockerfileContent.indexOf('hello_1'));
+                assert.strictEqual(params.buildKitVersion?.versionMatch, mode === 'no-buildkit' ? undefined : '0.12.0');
+            } finally {
+                try {
+                    await Promise.all(disposables.map(dispose => dispose()));
+                } finally {
+                    if (workspaceFolder) {
+                        await fs.rm(workspaceFolder, { recursive: true, force: true });
+                    }
+                }
+            }
+        });
+    }
+});
 
 // Testing fetching/generating the devcontainer-features.json config
 describe('validate generateFeaturesConfig()', function () {

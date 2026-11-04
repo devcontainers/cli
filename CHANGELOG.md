@@ -2,6 +2,10 @@
 
 Notable changes.
 
+## Unreleased
+
+- Use COPY-based Feature installation for Podman with bundled Buildah older than 1.41.1, or when its version cannot be confirmed, to avoid named-context Feature cache misses. (https://github.com/devcontainers/cli/issues/1262)
+
 ## October 2026
 
 ### [0.90.0]

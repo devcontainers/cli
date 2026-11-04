@@ -18,7 +18,7 @@ import { LogLevel, LogDimensions, toErrorText, createCombinedLog, createTerminal
 import { dockerComposeCLIConfig } from './dockerCompose';
 import { Mount } from '../spec-configuration/containerFeaturesConfiguration';
 import { getPackageConfig, PackageConfiguration } from '../spec-utils/product';
-import { dockerBuildKitVersion, dockerEngineVersion, lookupCLIVariant, CLIVariant } from '../spec-shutdown/dockerUtils';
+import { dockerBuildKitVersion, dockerEngineVersion, lookupCLIVariant, CLIVariant, useFeatureCopyFallback } from '../spec-shutdown/dockerUtils';
 import { Event } from '../spec-utils/event';
 
 
@@ -224,6 +224,8 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 	}));
 
 	const cliVariant = await lookupCLIVariant({ exec: cliHost.exec, cmd: dockerPath, args: options.dockerArgs, env: cliHost.env, output });
+	// The explicit non-BuildKit path already uses COPY, so no compatibility probe is needed.
+	const featureCopyFallback = options.useBuildKit !== 'never' && await useFeatureCopyFallback({ exec: cliHost.exec, cmd: dockerPath, args: options.dockerArgs, env: cliHost.env, output }, cliVariant);
 
 	const dockerEngineVer = await dockerEngineVersion({
 		cliHost,
@@ -259,6 +261,7 @@ export async function createDockerParams(options: ProvisionOptions, disposables:
 		updateRemoteUserUIDDefault,
 		additionalCacheFroms: options.additionalCacheFroms,
 		buildKitVersion,
+		useFeatureCopyFallback: featureCopyFallback,
 		dockerEngineVersion: dockerEngineVer,
 		isTTY: process.stdout.isTTY || options.logFormat === 'json',
 		noLockfile,

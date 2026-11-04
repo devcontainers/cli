@@ -6,6 +6,7 @@
 import { CLIHost, runCommand, runCommandNoPty, ExecFunction, ExecParameters, Exec, PtyExecFunction, PtyExec, PtyExecParameters, plainExecAsPtyExec, PlatformInfo } from '../spec-common/commonUtils';
 import { toErrorText } from '../spec-common/errors';
 import * as ptyType from 'node-pty';
+import * as semver from 'semver';
 import { Log, makeLog } from '../spec-utils/log';
 import { Event } from '../spec-utils/event';
 import { escapeRegExCharacters } from '../spec-utils/strings';
@@ -304,6 +305,33 @@ export enum CLIVariant {
 	Docker = 'docker',
 	Podman = 'podman',
 	Wslc = 'wslc',
+}
+
+// Older bundled Buildah versions can miss cache for Feature named-context mounts.
+export async function useFeatureCopyFallback(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, cliVariant: CLIVariant): Promise<boolean> {
+	if (cliVariant !== CLIVariant.Podman) {
+		return false;
+	}
+	const { output } = toExecParameters(params);
+	let reason: string;
+	try {
+		const result = await dockerCLI(params, 'info', '--format', '{{.Host.BuildahVersion}}');
+		const versionString = result.stdout.toString().trim();
+		const version = semver.parse(versionString);
+		const distributionSuffix = /^\d*\.?(?:ubuntu|deb|fc|el)[0-9.]*$/i;
+		if (version && (!version.prerelease.length || distributionSuffix.test(version.prerelease.join('.')))) {
+			if (semver.gte(`${version.major}.${version.minor}.${version.patch}`, '1.41.1')) {
+				return false;
+			}
+			reason = `Buildah ${versionString} lacks the named-context build cache fixes`;
+		} else {
+			reason = `Buildah version detection returned an unrecognized or prerelease version: ${JSON.stringify(versionString)}`;
+		}
+	} catch (err) {
+		reason = `Buildah version detection failed: ${err instanceof Error ? err.message : String(err)}`;
+	}
+	output.write(`Using COPY-based Feature installation for Podman: ${reason}. Feature source files may increase image size.`);
+	return true;
 }
 
 export async function lookupCLIVariant(params: PartialExecParameters): Promise<CLIVariant> {
