@@ -24,7 +24,7 @@ import { readDevContainerConfigFile } from './configContainer';
 import { getDefaultDevContainerConfigPath, getDevContainerConfigPathIn, uriToFsPath } from '../spec-configuration/configurationCommonUtils';
 import { CLIHost, getCLIHost } from '../spec-common/cliHost';
 import { loadNativeModule, processSignals } from '../spec-common/commonUtils';
-import { loadVersionInfo } from '../spec-configuration/containerFeaturesConfiguration';
+import { loadVersionInfo, parseMountArg } from '../spec-configuration/containerFeaturesConfiguration';
 import { featuresTestOptions, featuresTestHandler } from './featuresCLI/test';
 import { featuresPackageHandler, featuresPackageOptions } from './featuresCLI/package';
 import { featuresPublishHandler, featuresPublishOptions } from './featuresCLI/publish';
@@ -49,8 +49,6 @@ import { templateMetadataHandler, templateMetadataOptions } from './templatesCLI
 import { parseCrossOriginAuthHosts } from '../spec-configuration/httpOCIRegistry';
 
 const defaultDefaultUserEnvProbe: UserEnvProbe = 'loginInteractiveShell';
-
-const mountRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
 
 (async () => {
 
@@ -157,7 +155,7 @@ function provisionOptions(y: Argv) {
 		'skip-non-blocking-commands': { type: 'boolean', default: false, description: 'Stop running user commands after running the command configured with waitFor or the updateContentCommand by default.' },
 		prebuild: { type: 'boolean', default: false, description: 'Stop after onCreateCommand and updateContentCommand, rerunning updateContentCommand if it has run before.' },
 		'user-data-folder': { type: 'string', description: 'Host path to a directory that is intended to be persisted and share state between sessions.' },
-		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]' },
+		'mount': { type: 'string', description: 'Additional mount point(s). Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]. Any other value is passed as is to the --mount option of the container runtime (not supported with Docker Compose configurations).' },
 		'remote-env': { type: 'string', description: 'Remote environment variables of the format name=value. These will be added when executing the user commands.' },
 		'cache-from': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
 		'cache-to': { type: 'string', description: 'Additional image to use as potential layer cache during image building' },
@@ -187,10 +185,6 @@ function provisionOptions(y: Argv) {
 			// Default workspace-folder to current directory if not provided and no id-label or override-config
 			if (!argv['workspace-folder'] && !argv['id-label'] && !argv['override-config']) {
 				argv['workspace-folder'] = process.cwd();
-			}
-			const mounts = (argv.mount && (Array.isArray(argv.mount) ? argv.mount : [argv.mount])) as string[] | undefined;
-			if (mounts?.some(mount => !mountRegex.test(mount))) {
-				throw new Error('Unmatched argument format: mount must match type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]');
 			}
 			const remoteEnvs = (argv['remote-env'] && (Array.isArray(argv['remote-env']) ? argv['remote-env'] : [argv['remote-env']])) as string[] | undefined;
 			if (remoteEnvs?.some(remoteEnv => !/.+=.*/.test(remoteEnv))) {
@@ -305,15 +299,7 @@ async function provision({
 		skipNonBlocking,
 		prebuild,
 		persistedFolder,
-		additionalMounts: mount ? (Array.isArray(mount) ? mount : [mount]).map(mount => {
-			const [, type, source, target, external] = mountRegex.exec(mount)!;
-			return {
-				type: type as 'bind' | 'volume',
-				source,
-				target,
-				external: external === 'true'
-			};
-		}) : [],
+		additionalMounts: mount ? (Array.isArray(mount) ? mount : [mount]).map(parseMountArg) : [],
 		dotfiles: {
 			repository: dotfilesRepository,
 			installCommand: dotfilesInstallCommand,
