@@ -132,7 +132,7 @@ export interface DockerResolverParameters {
 	buildNoCache?: boolean;
 	expectExistingContainer?: boolean;
 	userRepositoryConfigurationPaths: string[];
-	additionalMounts: Mount[];
+	additionalMounts: (Mount | string)[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	additionalCacheFroms: string[];
 	buildKitVersion: { versionString: string; versionMatch?: string } | undefined;

@@ -48,7 +48,7 @@ export interface ProvisionOptions {
 	skipNonBlocking: boolean;
 	prebuild: boolean;
 	persistedFolder: string | undefined;
-	additionalMounts: Mount[];
+	additionalMounts: (Mount | string)[];
 	updateRemoteUserUIDDefault: UpdateRemoteUserUIDDefault;
 	remoteEnv: Record<string, string>;
 	additionalCacheFroms: string[];
