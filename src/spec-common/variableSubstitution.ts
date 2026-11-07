@@ -43,6 +43,32 @@ export function containerSubstitute<T extends object>(platform: NodeJS.Platform,
 	return substitute0(replaceContainerEnv.bind(undefined, isWindows, configFile, normalizeEnv(isWindows, containerEnv)), value);
 }
 
+// The runtime name is only available after container creation.
+export function containerNameSubstitute<T>(containerName: string | undefined, value: T): T {
+	if (!containerName) {
+		return value;
+	}
+	return substitute0((match, variable) => variable === 'containerName' ? containerName : match, value);
+}
+
+const postCreationProperties = [
+	'remoteEnv', 'onCreateCommand', 'updateContentCommand', 'postCreateCommand', 'postStartCommand', 'postAttachCommand',
+	'onCreateCommands', 'updateContentCommands', 'postCreateCommands', 'postStartCommands', 'postAttachCommands',
+] as const;
+
+export function containerNameConfigSubstitute<T extends object>(containerName: string | undefined, config: T): T {
+	if (!containerName) {
+		return config;
+	}
+	const updated = { ...config };
+	for (const key of postCreationProperties) {
+		if (key in config) {
+			Object.assign(updated, { [key]: containerNameSubstitute(containerName, (config as Record<string, unknown>)[key]) });
+		}
+	}
+	return updated;
+}
+
 type Replace = (match: string, variable: string, args: string[]) => string;
 
 function substitute0(replace: Replace, value: any): any {

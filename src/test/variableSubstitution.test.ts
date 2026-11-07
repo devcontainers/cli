@@ -4,7 +4,7 @@
 
 import * as assert from 'assert';
 
-import { beforeContainerSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
+import { beforeContainerSubstitute, containerNameConfigSubstitute, containerNameSubstitute, containerSubstitute, substitute } from '../spec-common/variableSubstitution';
 import { URI } from 'vscode-uri';
 
 describe('Variable substitution', function () {
@@ -140,6 +140,36 @@ describe('Variable substitution', function () {
 		};
 		const result = containerSubstitute('linux', URI.file('/foo/bar/baz.json'), {}, raw);
 		assert.strictEqual(result.foo, 'bardefaultbar');
+	});
+
+	it('resolves the runtime name in post-creation properties only', () => {
+		const config = {
+			name: 'Display name',
+			containerEnv: { NAME: '${containerName}' },
+			runArgs: ['--name', '${containerName}'],
+			initializeCommand: 'echo ${containerName}',
+			remoteEnv: { NAME: 'prefix-${containerName}-suffix', OTHER: '${containerEnv:PATH}', OLD: '${containerName}', NULL: null },
+			onCreateCommand: 'echo ${containerName}',
+			updateContentCommand: ['echo', '${containerName}'],
+			postCreateCommand: { feature: 'echo ${containerName}' },
+			postStartCommands: ['echo ${containerName}'],
+			postAttachCommand: 'echo ${containerName}',
+		};
+		const resolved = containerNameConfigSubstitute('actual-runtime-name', config);
+		assert.strictEqual(resolved.remoteEnv.NAME, 'prefix-actual-runtime-name-suffix');
+		assert.strictEqual(resolved.remoteEnv.OTHER, '${containerEnv:PATH}');
+		assert.strictEqual(resolved.remoteEnv.OLD, 'actual-runtime-name');
+		assert.strictEqual(resolved.remoteEnv.NULL, null);
+		assert.strictEqual(resolved.onCreateCommand, 'echo actual-runtime-name');
+		assert.deepStrictEqual(resolved.updateContentCommand, ['echo', 'actual-runtime-name']);
+		assert.strictEqual(resolved.postCreateCommand.feature, 'echo actual-runtime-name');
+		assert.deepStrictEqual(resolved.postStartCommands, ['echo actual-runtime-name']);
+		assert.strictEqual(resolved.postAttachCommand, 'echo actual-runtime-name');
+		assert.strictEqual(resolved.containerEnv.NAME, '${containerName}');
+		assert.strictEqual(resolved.runArgs[1], '${containerName}');
+		assert.strictEqual(resolved.initializeCommand, 'echo ${containerName}');
+		assert.strictEqual(containerNameConfigSubstitute(undefined, config), config);
+		assert.strictEqual(containerNameSubstitute('actual-runtime-name', { command: ['echo', '${containerName}'] }).command[1], 'actual-runtime-name');
 	});
 
 	it(`replaces devcontainerId`, async () => {

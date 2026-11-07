@@ -15,7 +15,7 @@ import { Disposable, Event, NodeEventEmitter } from '../spec-utils/event';
 import { PackageConfiguration } from '../spec-utils/product';
 import { OCIAuthDiagnostics } from './ociAuth';
 import { URI } from 'vscode-uri';
-import { containerSubstitute } from './variableSubstitution';
+import { containerNameConfigSubstitute, containerNameSubstitute, containerSubstitute } from './variableSubstitution';
 import { delay } from './async';
 import { Log, LogEvent, LogLevel, makeLog, nullLog } from '../spec-utils/log';
 import { buildProcessTrees, findProcesses, Process, processTreeToString } from './proc';
@@ -189,6 +189,7 @@ export interface OSRelease {
 }
 
 export interface ContainerProperties {
+	containerName?: string;
 	createdAt: string | undefined;
 	startedAt: string | undefined;
 	osRelease: OSRelease;
@@ -214,6 +215,7 @@ export interface DotfilesConfiguration {
 
 export async function getContainerProperties(options: {
 	params: ResolverParameters;
+	containerName?: string;
 	createdAt: string | undefined;
 	startedAt: string | undefined;
 	remoteWorkspaceFolder: string | undefined;
@@ -225,7 +227,7 @@ export async function getContainerProperties(options: {
 	remoteExecAsRoot: ExecFunction | undefined;
 	rootShellServer: ShellServer | undefined;
 }) {
-	let { params, createdAt, startedAt, remoteWorkspaceFolder, containerUser, containerGroup, containerEnv, remoteExec, remotePtyExec, remoteExecAsRoot, rootShellServer } = options;
+	let { params, containerName, createdAt, startedAt, remoteWorkspaceFolder, containerUser, containerGroup, containerEnv, remoteExec, remotePtyExec, remoteExecAsRoot, rootShellServer } = options;
 	let shellServer: ShellServer;
 	if (rootShellServer && containerUser === 'root') {
 		shellServer = rootShellServer;
@@ -257,6 +259,7 @@ export async function getContainerProperties(options: {
 		rootShellServerP = Promise.resolve(shellServer);
 	}
 	const containerProperties: ContainerProperties = {
+		containerName,
 		createdAt,
 		startedAt,
 		osRelease,
@@ -342,8 +345,8 @@ export async function setupInContainer(params: ResolverParameters, containerProp
 	await patchEtcEnvironment(params, containerProperties);
 	await patchEtcProfile(params, containerProperties);
 	const computeRemoteEnv = params.computeExtensionHostEnv || params.lifecycleHook.enabled;
-	const updatedConfig = containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config);
-	const updatedMergedConfig = containerSubstitute(params.cliHost.platform, mergedConfig.configFilePath, containerProperties.env, mergedConfig);
+	const updatedConfig = containerNameConfigSubstitute(containerProperties.containerName, containerSubstitute(params.cliHost.platform, config.configFilePath, containerProperties.env, config));
+	const updatedMergedConfig = containerNameConfigSubstitute(containerProperties.containerName, containerSubstitute(params.cliHost.platform, mergedConfig.configFilePath, containerProperties.env, mergedConfig));
 	const remoteEnv = computeRemoteEnv ? probeRemoteEnv(params, containerProperties, updatedMergedConfig) : Promise.resolve({});
 	const secretsP = params.secretsP || Promise.resolve({});
 	if (params.lifecycleHook.enabled) {
@@ -361,7 +364,7 @@ export function probeRemoteEnv(params: ResolverParameters, containerProperties: 
 		.then<Record<string, string>>(shellEnv => ({
 			...shellEnv,
 			...params.remoteEnv,
-			...config.remoteEnv,
+			...containerNameConfigSubstitute(containerProperties.containerName, config).remoteEnv,
 		} as Record<string, string>));
 }
 
@@ -462,7 +465,7 @@ async function runLifecycleCommands(params: ResolverParameters, lifecycleCommand
 
 	for (const { command, origin } of commandsForHook) {
 		const displayOrigin = origin ? (origin === 'devcontainer.json' ? origin : `Feature '${origin}'`) : '???'; /// '???' should never happen.
-		await runLifecycleCommand(params, containerProperties, command, displayOrigin, lifecycleHookName, remoteEnv, secrets, doRun);
+		await runLifecycleCommand(params, containerProperties, containerNameSubstitute(containerProperties.containerName, command), displayOrigin, lifecycleHookName, remoteEnv, secrets, doRun);
 	}
 }
 
