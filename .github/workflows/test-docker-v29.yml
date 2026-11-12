@@ -29,6 +29,8 @@ jobs:
         sudo VERSION=29.0.0 sh get-docker.sh
         sudo systemctl restart docker
     
+    - uses: ./.github/actions/setup-compose
+
     - name: Verify Docker version, Install and Test
       run: |
         # Verify

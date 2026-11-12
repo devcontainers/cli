@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
+import type { Options } from 'yargs';
 
 import { ContainerError, toErrorText } from '../spec-common/errors';
 import { CLIHost, runCommandNoPty, runCommand, getLocalUsername, PlatformInfo } from '../spec-common/commonUtils';
@@ -33,6 +34,13 @@ import { configFileLabel, findDevContainer, hostFolderLabel } from './singleCont
 export { getConfigFilePath, getDockerfilePath, isDockerFileConfig } from '../spec-configuration/configuration';
 export { uriToFsPath, parentURI } from '../spec-configuration/configurationCommonUtils';
 
+
+export const dockerArgOption = {
+	type: 'string',
+	nargs: 1,
+	coerce: (arg: string | string[]) => Array.isArray(arg) ? arg : [arg],
+	description: 'Global argument for the Docker CLI, inserted before the subcommand of every Docker CLI invocation (including the Docker Compose plugin, but not a separate --docker-compose-path executable). Repeat --docker-arg=VALUE for each argument.',
+} satisfies Options;
 
 export type BindMountConsistency = 'consistent' | 'cached' | 'delegated' | undefined;
 
@@ -110,6 +118,7 @@ export interface DockerResolverParameters {
 	common: ResolverParameters;
 	parsedAuthority: ParsedAuthority | undefined;
 	dockerCLI: string;
+	dockerArgs?: string[];
 	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
