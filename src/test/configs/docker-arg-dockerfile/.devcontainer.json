@@ -1,0 +1,9 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"postCreateCommand": "echo post-create > /tmp/docker-arg-marker",
+	"remoteEnv": {
+		"FROM_CONTAINER": "${containerEnv:DOCKER_ARG_TEST}"
+	}
+}

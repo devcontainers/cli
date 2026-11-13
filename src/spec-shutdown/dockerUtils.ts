@@ -50,6 +50,7 @@ export interface ContainerDetails {
 export interface DockerCLIParameters {
 	cliHost: CLIHost;
 	dockerCLI: string;
+	dockerArgs?: string[];
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	env: NodeJS.ProcessEnv;
 	output: Log;
@@ -81,6 +82,7 @@ export interface PartialPtyExecParameters {
 
 interface DockerResolverParameters {
 	dockerCLI: string;
+	dockerArgs?: string[];
 	cliVariant: CLIVariant;
 	dockerComposeCLI: () => Promise<DockerComposeCLI>;
 	dockerEnv: NodeJS.ProcessEnv;
@@ -355,7 +357,7 @@ export function dockerExecFunction(params: DockerCLIParameters | PartialExecPara
 			args: (args || []).concat(execArgs),
 			env,
 			stdio: execParams.stdio,
-			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
+			output: replacingDockerExecLog(execParams.output, cmd, (args || []).concat(argsPrefix)),
 		});
 	};
 }
@@ -374,7 +376,7 @@ export async function dockerPtyExecFunction(params: PartialPtyExecParameters | D
 			cmd,
 			args: (args || []).concat(execArgs),
 			env,
-			output: replacingDockerExecLog(execParams.output, cmd, argsPrefix),
+			output: replacingDockerExecLog(execParams.output, cmd, (args || []).concat(argsPrefix)),
 		});
 	};
 }
@@ -427,13 +429,13 @@ export function toExecParameters(params: DockerCLIParameters | PartialExecParame
 	return 'dockerEnv' in params ? {
 		exec: params.common.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
-		args: compose ? compose.args : [],
+		args: compose ? compose.args : params.dockerArgs || [],
 		env: params.dockerEnv,
 		output: params.common.output,
 	} : 'cliHost' in params ? {
 		exec: params.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
-		args: compose ? compose.args : [],
+		args: compose ? compose.args : params.dockerArgs || [],
 		env: params.env,
 		output: params.output,
 	} : {
@@ -447,14 +449,14 @@ export function toPtyExecParameters(params: DockerCLIParameters | PartialPtyExec
 		ptyExec: params.common.cliHost.ptyExec,
 		exec: params.common.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
-		args: compose ? compose.args : [],
+		args: compose ? compose.args : params.dockerArgs || [],
 		env: params.dockerEnv,
 		output: params.common.output,
 	} : 'cliHost' in params ? {
 		ptyExec: params.cliHost.ptyExec,
 		exec: params.cliHost.exec,
 		cmd: compose ? compose.cmd : params.dockerCLI,
-		args: compose ? compose.args : [],
+		args: compose ? compose.args : params.dockerArgs || [],
 		env: params.env,
 		output: params.output,
 	} : {
