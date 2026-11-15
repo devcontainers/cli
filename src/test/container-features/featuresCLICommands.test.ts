@@ -1,6 +1,7 @@
 import { assert } from 'chai';
 import path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
+import os from 'os';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { createTestCommonParams, ExecResult, shellExec } from '../testUtils';
@@ -813,5 +814,31 @@ describe('tests generateFeaturesDocumentation()', async function () {
 
 		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-feature/README.md`);
 		assert.isFalse(invalidDocsExists);
+	});
+
+	it('keeps `$` replacement patterns in NOTES.md and metadata literal', async function () {
+		const tmp = mkdtempSync(path.join(os.tmpdir(), 'generate-docs-'));
+		try {
+			const featureDir = path.join(tmp, 'dollar');
+			mkdirSync(featureDir);
+			const patterns = ['$$', '$&', '$`', "$'"];
+			const description = `Costs ${patterns.join(' ')} each`;
+			writeFileSync(path.join(featureDir, 'devcontainer-feature.json'), JSON.stringify({
+				id: 'dollar',
+				version: '1.0.0',
+				name: 'Dollar',
+				description
+			}));
+			const notes = `Notes with ${patterns.join(' ')} inside.\n`;
+			writeFileSync(path.join(featureDir, 'NOTES.md'), notes);
+
+			await generateFeaturesDocumentation(tmp, 'ghcr.io', 'devcontainers/cli', 'devcontainers', 'cli', output);
+
+			const readme = readFileSync(path.join(featureDir, 'README.md'), 'utf8');
+			assert.include(readme, notes);
+			assert.include(readme, description);
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
+		}
 	});
 });
