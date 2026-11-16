@@ -116,6 +116,37 @@ describe('Container inspect', () => {
 	});
 });
 
+describe('Container removal', function () {
+	this.timeout(20 * 1000);
+
+	it('waits for a removal in progress beyond seven attempts', async () => {
+		const conflicts = 8;
+		const calls: string[][] = [];
+		const lines: string[] = [];
+		const params: PartialExecParameters = {
+			cmd: 'docker', env: {}, output: makeLog(createPlainLog(text => lines.push(text), () => LogLevel.Trace)),
+			exec: async ({ args = [] }) => {
+				calls.push(args);
+				const stdout = new PassThrough();
+				const stderr = new PassThrough();
+				const failed = args[0] === 'rm' && calls.filter(call => call[0] === 'rm').length <= conflicts;
+				return {
+					stdin: new PassThrough(), stdout, stderr,
+					exit: args[0] === 'events' ? new Promise(() => {}) : new Promise(resolve => setImmediate(() => {
+						stdout.end();
+						stderr.end(failed ? 'Error response from daemon: removal of container x is already in progress' : '');
+						resolve({ code: failed ? 1 : 0, signal: null });
+					})),
+					terminate: async () => {},
+				};
+			},
+		};
+		await removeContainer(params, 'x');
+		assert.strictEqual(calls.filter(call => call[0] === 'rm').length, conflicts + 1);
+		assert.strictEqual(lines.filter(line => line.includes('Waiting for the removal of container x to finish.')).length, 1);
+	});
+});
+
 describe('Docker argument prefixes', () => {
 	const prefix = ['--context', 'context with spaces', '001', 'a=b', '"literal quotes"', ''];
 

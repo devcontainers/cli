@@ -51,8 +51,10 @@ async function _openDockerComposeDevContainer(params: DockerResolverParameters, 
 		}
 		container = containerId ? await inspectContainer(params, containerId) : undefined;
 
-		if (container && (params.removeOnStartup === true || params.removeOnStartup === container.Id)) {
-			const text = 'Removing existing container.';
+		// A container that is already being removed cannot be started and keeps its name until removed. https://github.com/microsoft/vscode-remote-release/issues/11967
+		const isRemoving = container?.State.Status === 'removing';
+		if (container && (params.removeOnStartup === true || params.removeOnStartup === container.Id || isRemoving)) {
+			const text = isRemoving ? 'Waiting for existing container to be removed.' : 'Removing existing container.';
 			const start = common.output.start(text);
 			await removeContainer(params, container.Id);
 			common.output.stop(text, start);

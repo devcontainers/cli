@@ -176,20 +176,28 @@ export async function listContainers(params: DockerCLIParameters | PartialExecPa
 		.filter(s => !!s);
 }
 
+const removalInProgressTimeoutMs = 5 * 60 * 1000;
+
 export async function removeContainer(params: DockerCLIParameters | PartialExecParameters | DockerResolverParameters, nameOrId: string) {
 	const useEvents = !('cliVariant' in params && params.cliVariant === CLIVariant.Wslc);
 	let eventsProcess: Exec | undefined;
 	let removedSeenP: Promise<void> | undefined;
+	let deadline: number | undefined;
 	try {
-		for (let i = 0, n = 7; i < n; i++) {
+		while (true) {
 			try {
 				await dockerCLI(params, 'rm', '-f', nameOrId);
 				return;
 			} catch (err) {
 				// https://github.com/microsoft/vscode-remote-release/issues/6509
 				const stderr: string = err?.stderr?.toString().toLowerCase() || '';
-				if (i === n - 1 || !stderr.includes('already in progress')) {
+				if (!stderr.includes('already in progress') || (deadline !== undefined && Date.now() >= deadline)) {
 					throw err;
+				}
+				if (deadline === undefined) {
+					// Removing large containers can take a while. https://github.com/microsoft/vscode-remote-release/issues/11967
+					deadline = Date.now() + removalInProgressTimeoutMs;
+					toExecParameters(params).output.write(`Waiting for the removal of container ${nameOrId} to finish.`);
 				}
 				if (useEvents && !removedSeenP) {
 					eventsProcess = await getEvents(params, {
