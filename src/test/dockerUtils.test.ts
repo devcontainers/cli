@@ -119,17 +119,20 @@ describe('Container inspect', () => {
 describe('Container removal', function () {
 	this.timeout(20 * 1000);
 
-	it('waits for a removal in progress beyond seven attempts', async () => {
-		const conflicts = 8;
-		const calls: string[][] = [];
+	function fakeRemoval(conflicts: number, onRemove?: (attempt: number) => void) {
+		let removals = 0;
 		const lines: string[] = [];
 		const params: PartialExecParameters = {
 			cmd: 'docker', env: {}, output: makeLog(createPlainLog(text => lines.push(text), () => LogLevel.Trace)),
 			exec: async ({ args = [] }) => {
-				calls.push(args);
 				const stdout = new PassThrough();
 				const stderr = new PassThrough();
-				const failed = args[0] === 'rm' && calls.filter(call => call[0] === 'rm').length <= conflicts;
+				const remove = args[0] === 'rm';
+				if (remove) {
+					removals++;
+					onRemove?.(removals);
+				}
+				const failed = remove && removals <= conflicts;
 				return {
 					stdin: new PassThrough(), stdout, stderr,
 					exit: args[0] === 'events' ? new Promise(() => {}) : new Promise(resolve => setImmediate(() => {
@@ -141,9 +144,31 @@ describe('Container removal', function () {
 				};
 			},
 		};
+		return { params, lines, removals: () => removals };
+	}
+
+	it('waits for a removal in progress beyond seven attempts', async () => {
+		const { params, lines, removals } = fakeRemoval(8);
 		await removeContainer(params, 'x');
-		assert.strictEqual(calls.filter(call => call[0] === 'rm').length, conflicts + 1);
+		assert.strictEqual(removals(), 9);
 		assert.strictEqual(lines.filter(line => line.includes('Waiting for the removal of container x to finish.')).length, 1);
+	});
+
+	it('stops waiting for a removal in progress after five minutes', async () => {
+		const now = Date.now;
+		let offset = 0;
+		Date.now = () => now() + offset;
+		try {
+			const { params, removals } = fakeRemoval(Infinity, attempt => {
+				if (attempt === 2) {
+					offset = 5 * 60 * 1000;
+				}
+			});
+			await assert.rejects(removeContainer(params, 'x'), (err: any) => String(err?.stderr).includes('already in progress'));
+			assert.strictEqual(removals(), 2);
+		} finally {
+			Date.now = now;
+		}
 	});
 });
 
