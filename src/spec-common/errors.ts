@@ -61,3 +61,27 @@ export class ContainerError extends Error implements ContainerErrorInfo {
 		}
 	}
 }
+
+const maxErrorOutputLines = 20;
+const maxErrorOutputLength = 2000;
+
+/**
+ * Returns the end of the output of the failed command that caused an error, without terminal control sequences.
+ * That is the combined output for commands run in a terminal and the standard error for other commands.
+ */
+export function getErrorOutput(err: any): string | undefined {
+	for (let cause = err, depth = 0; cause && typeof cause === 'object' && depth < 10; cause = cause.originalError, depth++) {
+		const output = typeof cause.cmdOutput === 'string' ? cause.cmdOutput : cause.stderr;
+		if (output?.length) {
+			const lines = String(output)
+				.replace(/\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]/g, '')
+				.split(/\r?\n/)
+				// Progress output rewrites the line after a carriage return.
+				.map(line => line.replace(/\r+$/, '').split('\r').pop()!.trimEnd())
+				.filter(line => line.trim());
+			const text = lines.slice(-maxErrorOutputLines).join('\n');
+			return text.length > maxErrorOutputLength ? text.substring(text.length - maxErrorOutputLength) : text || undefined;
+		}
+	}
+	return undefined;
+}
