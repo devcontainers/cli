@@ -79,6 +79,7 @@ async function featuresResolveDependencies({
 		allowedCrossOriginAuthHosts,
 		ociAuthHardening,
 		ociAuthDiagnostics: createOCIAuthDiagnostics(),
+		ociAuthLookupKind: 'feature' as 'feature',
 	};
 
 	const cwd = workspaceFolder || process.cwd();

@@ -2,6 +2,12 @@
 
 Notable changes.
 
+## November 2026
+
+### [0.91.0]
+- Add `--docker-arg` option for global Docker CLI arguments. (https://github.com/devcontainers/cli/pull/1304)
+- Report the lookup kinds and reasons for blocked OCI authentication lookups in diagnostics, and include the diagnostics in failed `up` results. (https://github.com/devcontainers/cli/pull/1361)
+
 ## October 2026
 
 ### [0.90.0]

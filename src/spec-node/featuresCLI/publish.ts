@@ -52,7 +52,7 @@ async function featuresPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics(), ociAuthLookupKind: 'feature' as 'feature' };
 
     // Package features
     const outputDir = path.join(os.tmpdir(), `/features-output-${Date.now()}`);

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { createOCIAuthDiagnostics } from '../spec-common/ociAuth';
 import { devContainerDown, devContainerUp, shellExec, UpResult } from './testUtils';
 
 const pkg = require('../../package.json');
@@ -65,6 +66,7 @@ describe('Dev Containers CLI', function () {
 				const res = JSON.parse(error.stdout);
 				assert.equal(res.outcome, 'error');
 				assert.match(res.message, /Dev container config \(.*\) not found./);
+				assert.deepEqual(res.ociAuthDiagnostics, createOCIAuthDiagnostics());
 			}
 			assert.equal(success, false, 'expect non-successful call');
 		});
