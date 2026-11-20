@@ -178,7 +178,7 @@ export const testSubstitute: SubstituteConfig = value => {
 
 export const output = makeLog(createPlainLog(text => process.stdout.write(text), () => LogLevel.Trace));
 
-export function createTestCommonParams(output: Log, env: NodeJS.ProcessEnv = process.env): CommonParams {
+export function createTestCommonParams(output: Log, env: NodeJS.ProcessEnv = process.env): CommonParams & { ociAuthLookupKind: 'feature' } {
 	return {
 		output,
 		env,
