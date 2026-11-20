@@ -148,7 +148,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 
 	const cacheFolder = await getCacheFolder(params.common.cliHost);
 	const { noLockfile, frozenLockfile } = params;
-	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, noLockfile, frozenLockfile }, dstFolder, config.config, additionalFeatures);
+	const featuresConfig = await generateFeaturesConfig({ ...params.common, platform, cacheFolder, noLockfile, frozenLockfile, ociAuthLookupKind: 'feature' }, dstFolder, config.config, additionalFeatures);
 	if (!featuresConfig) {
 		if (canAddLabelsToContainer && !imageBuildInfo.dockerfile) {
 			return {

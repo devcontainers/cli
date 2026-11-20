@@ -90,7 +90,7 @@ async function templateApply({
 		omitPaths,
 	};
 
-	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
+	const files = await fetchTemplate({ output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics(), ociAuthLookupKind: 'template' }, selectedTemplate, workspaceFolder, userProvidedTmpDir);
 	if (!files) {
 		output.write(`Failed to fetch template '${id}'.`, LogLevel.Error);
 		process.exit(1);

@@ -125,6 +125,7 @@ async function featuresUpgrade({
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
 			ociAuthDiagnostics,
+			ociAuthLookupKind: 'feature' as 'feature',
 		};
 
 		if (feature && targetVersion) {

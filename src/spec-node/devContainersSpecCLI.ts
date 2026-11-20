@@ -361,8 +361,9 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 	const dispose = async () => {
 		await Promise.all(disposables.map(d => d()));
 	};
+	const ociAuthDiagnostics = options.ociAuthDiagnostics || createOCIAuthDiagnostics();
 	try {
-		const result = await launch(options, providedIdLabels, disposables);
+		const result = await launch({ ...options, ociAuthDiagnostics }, providedIdLabels, disposables);
 		return {
 			outcome: 'success' as 'success',
 			dispose,
@@ -385,6 +386,7 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 			disallowedFeatureId: err.data.disallowedFeatureId,
 			didStopContainer: err.data.didStopContainer,
 			learnMoreUrl: err.data.learnMoreUrl,
+			ociAuthDiagnostics,
 			dispose,
 		};
 	}
@@ -1284,6 +1286,7 @@ async function outdated({
 			allowedCrossOriginAuthHosts,
 			ociAuthHardening,
 			ociAuthDiagnostics: createOCIAuthDiagnostics(),
+			ociAuthLookupKind: 'feature' as 'feature',
 		};
 
 		const outdated = await loadVersionInfo(params, configs.config.config);

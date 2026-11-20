@@ -183,6 +183,7 @@ export function createTestCommonParams(output: Log, env: NodeJS.ProcessEnv = pro
 		output,
 		env,
 		ociAuthDiagnostics: createOCIAuthDiagnostics(),
+		ociAuthLookupKind: 'feature',
 	};
 }
 

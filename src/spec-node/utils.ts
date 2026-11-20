@@ -332,7 +332,7 @@ function logErrorStdoutStderr(err: any, output: Log) {
 
 export async function inspectImageInRegistry(output: Log, platformInfo: PlatformInfo, name: string, allowedCrossOriginAuthHosts?: string[], ociAuthHardening?: boolean, ociAuthDiagnostics: OCIAuthDiagnostics = createOCIAuthDiagnostics()): Promise<ImageDetails> {
 	const resourceAndVersion = qualifyImageName(name);
-	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics, ociAuthLookupKind: 'image' as 'image' };
 	const ref = getRef(output, resourceAndVersion);
 	if (!ref) {
 		throw new Error(`Could not parse image name '${name}'`);

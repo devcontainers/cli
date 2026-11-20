@@ -53,7 +53,7 @@ async function templatesPublish({
         terminalDimensions: undefined,
     }, pkg, new Date(), disposables);
 
-    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
+    const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics(), ociAuthLookupKind: 'template' as 'template' };
 
     // Package templates
     const outputDir = path.join(os.tmpdir(), `/templates-output-${Date.now()}`);

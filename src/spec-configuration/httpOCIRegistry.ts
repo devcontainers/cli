@@ -7,7 +7,7 @@ import { requestResolveHeaders, requestResolveHeadersNoRedirects } from '../spec
 import { LogLevel } from '../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../spec-utils/pfs';
 import { CommonParams, OCICollectionRef, OCIRef } from './containerCollectionsOCI';
-import { OCIAuthDiagnostics } from '../spec-common/ociAuth';
+import { OCIAuthLookupBlockedReason } from '../spec-common/ociAuth';
 
 export type HEADERS = { 'authorization'?: string; 'user-agent'?: string; 'content-type'?: string; 'Accept'?: string; 'content-length'?: string };
 
@@ -126,17 +126,58 @@ export function isAllowedTokenServiceRealm(realm: string, registryUrl: string, c
 	}
 }
 
-function recordOCIAuthDiagnostic(params: CommonParams, key: keyof OCIAuthDiagnostics, message: string) {
+function recordOCIAuthDiagnostic(params: CommonParams, key: 'registryRedirectWouldPreventCredentialForwarding' | 'authServerRedirect', message: string) {
 	if (!params.ociAuthDiagnostics[key]) {
 		params.ociAuthDiagnostics[key] = true;
 		params.output.write(`[httpOci] OCI auth diagnostics: ${message}`, LogLevel.Info);
 	}
 }
 
+export function getAuthLookupBlockedReason(registryUrl: URL, realmUrl: URL): OCIAuthLookupBlockedReason {
+	if (realmUrl.protocol !== 'https:') {
+		return 'httpRealm';
+	}
+	const registryHostname = registryUrl.hostname.toLowerCase();
+	const realmHostname = realmUrl.hostname.toLowerCase();
+	if (realmHostname === registryHostname) {
+		return 'differentPort';
+	}
+	if (registryHostname.endsWith(`.${realmHostname}`)) {
+		return 'parentDomain';
+	}
+	return 'differentHost';
+}
+
+function addSortedUnique<T extends string>(values: T[], value: T) {
+	if (values.includes(value)) {
+		return false;
+	}
+	values.push(value);
+	values.sort();
+	return true;
+}
+
+function recordAuthLookupWouldBeBlocked(params: CommonParams, registryUrl: URL, realmUrl: URL) {
+	const diagnostics = params.ociAuthDiagnostics;
+	const kind = params.ociAuthLookupKind;
+	const reason = getAuthLookupBlockedReason(registryUrl, realmUrl);
+	diagnostics.authLookupWouldBeBlocked = true;
+	const newKind = addSortedUnique(diagnostics.authLookupBlockedKinds, kind);
+	const newReason = addSortedUnique(diagnostics.authLookupBlockedReasons, reason);
+	if (newKind || newReason) {
+		params.output.write(`[httpOci] OCI auth diagnostics: Authentication lookup for ${kind} from registry '${registryUrl.host}' to realm origin '${realmUrl.origin}' would be blocked by OCI auth hardening (${reason}).`, LogLevel.Info);
+	}
+}
+
 function withOCIAuthDiagnostics<T extends object>(params: CommonParams, result: T) {
+	const diagnostics = params.ociAuthDiagnostics;
 	return {
 		...result,
-		ociAuthDiagnostics: { ...params.ociAuthDiagnostics },
+		ociAuthDiagnostics: {
+			...diagnostics,
+			authLookupBlockedKinds: [...diagnostics.authLookupBlockedKinds],
+			authLookupBlockedReasons: [...diagnostics.authLookupBlockedReasons],
+		},
 	};
 }
 
@@ -237,7 +278,7 @@ export async function requestEnsureAuthenticated(params: CommonParams, httpOptio
 				const crossOriginAuthHosts = parseCrossOriginAuthHosts([...builtInCrossOriginAuthHosts, ...(params.allowedCrossOriginAuthHosts || [])]);
 				const authLookupWouldBeBlocked = !isAllowedTokenServiceRealmForPolicy(realmUrl, registryUrl, crossOriginAuthHosts);
 				if (authLookupWouldBeBlocked) {
-					recordOCIAuthDiagnostic(params, 'authLookupWouldBeBlocked', `Authentication lookup from registry '${registryUrl.host}' to realm origin '${realmUrl.origin}' would be blocked by OCI auth hardening.`);
+					recordAuthLookupWouldBeBlocked(params, registryUrl, realmUrl);
 					if (params.ociAuthHardening) {
 						delete cachedAuthHeader[ociRef.registry];
 						const allowHint = realmUrl.protocol === 'https:'
