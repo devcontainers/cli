@@ -12,7 +12,7 @@ import * as jsonc from 'jsonc-parser';
 import { createDockerParams, createLog, launch, ProvisionOptions } from './devContainers';
 import { SubstitutedConfig, createContainerProperties, envListToObj, inspectDockerImage, isDockerFileConfig, SubstituteConfig, addSubstitution, findContainerAndIdLabels, getCacheFolder, runAsyncHandler, dockerArgOption } from './utils';
 import { URI } from 'vscode-uri';
-import { ContainerError } from '../spec-common/errors';
+import { ContainerError, getErrorOutput } from '../spec-common/errors';
 import { Log, LogDimensions, LogLevel, makeLog, mapLogLevel } from '../spec-utils/log';
 import { probeRemoteEnv, runLifecycleHooks, runRemoteCommand, UserEnvProbe, setupInContainer } from '../spec-common/injectHeadless';
 import { extendImage } from './containerFeatures';
@@ -382,6 +382,7 @@ async function doProvision(options: ProvisionOptions, providedIdLabels: string[]
 			outcome: 'error' as 'error',
 			message: err.message,
 			description: err.description,
+			errorOutput: getErrorOutput(err),
 			containerId: err.containerId,
 			disallowedFeatureId: err.data.disallowedFeatureId,
 			didStopContainer: err.data.didStopContainer,
@@ -563,6 +564,7 @@ async function doSetUp({
 			outcome: 'error' as 'error',
 			message: err.message,
 			description: err.description,
+			errorOutput: getErrorOutput(err),
 			dispose,
 		};
 	}
@@ -834,6 +836,7 @@ async function doBuild({
 			outcome: 'error' as 'error',
 			message: err.message,
 			description: err.description,
+			errorOutput: getErrorOutput(err),
 			dispose,
 		};
 	}
@@ -1043,6 +1046,7 @@ async function doRunUserCommands({
 			outcome: 'error' as 'error',
 			message: err.message,
 			description: err.description,
+			errorOutput: getErrorOutput(err),
 			dispose,
 		};
 	}
