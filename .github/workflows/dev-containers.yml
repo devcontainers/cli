@@ -44,7 +44,8 @@ jobs:
         path: ${{ env.TGZ }}
   tests-matrix:
     name: Tests Matrix
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04 (ubuntu-latest) breaks Compose builds (https://github.com/devcontainers/cli/issues/1320), the Docker-in-Docker Feature and Podman builds.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
