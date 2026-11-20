@@ -450,19 +450,22 @@ async function getPodmanArgs(params: DockerResolverParameters, config: DevContai
 	return [];
 }
 
-// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached") to -v syntax for wslc.
-function convertMountToVolume(mountStr: string): string[] {
+// Convert a --mount string (e.g., "type=bind,source=/a,target=/b,consistency=cached,readonly")
+// to -v syntax for wslc. Options other than source/target/readonly are dropped.
+export function convertMountToVolume(mountStr: string): string[] {
 	const parts = new Map(mountStr.split(',').map(p => {
 		const eq = p.indexOf('=');
 		return eq === -1 ? [p, ''] : [p.substring(0, eq), p.substring(eq + 1)];
 	}));
 	const source = parts.get('source') || parts.get('src') || '';
 	const target = parts.get('target') || parts.get('dst') || parts.get('destination') || '';
+	const readonlyValue = parts.has('readonly') ? parts.get('readonly') : parts.get('ro');
+	const readonlySuffix = readonlyValue !== undefined && !/^(false|0)$/i.test(readonlyValue) ? ':ro' : '';
 	if (source && target) {
-		return ['-v', `${source}:${target}`];
+		return ['-v', `${source}:${target}${readonlySuffix}`];
 	}
 	if (target) {
-		return ['-v', target];
+		return ['-v', `${target}${readonlySuffix}`];
 	}
 	// Fallback: pass as --mount and let the runtime handle it.
 	return ['--mount', mountStr];
