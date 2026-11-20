@@ -116,6 +116,62 @@ describe('Container inspect', () => {
 	});
 });
 
+describe('Container removal', function () {
+	this.timeout(20 * 1000);
+
+	function fakeRemoval(conflicts: number, onRemove?: (attempt: number) => void) {
+		let removals = 0;
+		const lines: string[] = [];
+		const params: PartialExecParameters = {
+			cmd: 'docker', env: {}, output: makeLog(createPlainLog(text => lines.push(text), () => LogLevel.Trace)),
+			exec: async ({ args = [] }) => {
+				const stdout = new PassThrough();
+				const stderr = new PassThrough();
+				const remove = args[0] === 'rm';
+				if (remove) {
+					removals++;
+					onRemove?.(removals);
+				}
+				const failed = remove && removals <= conflicts;
+				return {
+					stdin: new PassThrough(), stdout, stderr,
+					exit: args[0] === 'events' ? new Promise(() => {}) : new Promise(resolve => setImmediate(() => {
+						stdout.end();
+						stderr.end(failed ? 'Error response from daemon: removal of container x is already in progress' : '');
+						resolve({ code: failed ? 1 : 0, signal: null });
+					})),
+					terminate: async () => {},
+				};
+			},
+		};
+		return { params, lines, removals: () => removals };
+	}
+
+	it('waits for a removal in progress beyond seven attempts', async () => {
+		const { params, lines, removals } = fakeRemoval(8);
+		await removeContainer(params, 'x');
+		assert.strictEqual(removals(), 9);
+		assert.strictEqual(lines.filter(line => line.includes('Waiting for the removal of container x to finish.')).length, 1);
+	});
+
+	it('stops waiting for a removal in progress after five minutes', async () => {
+		const now = Date.now;
+		let offset = 0;
+		Date.now = () => now() + offset;
+		try {
+			const { params, removals } = fakeRemoval(Infinity, attempt => {
+				if (attempt === 2) {
+					offset = 5 * 60 * 1000;
+				}
+			});
+			await assert.rejects(removeContainer(params, 'x'), (err: any) => String(err?.stderr).includes('already in progress'));
+			assert.strictEqual(removals(), 2);
+		} finally {
+			Date.now = now;
+		}
+	});
+});
+
 describe('Docker argument prefixes', () => {
 	const prefix = ['--context', 'context with spaces', '001', 'a=b', '"literal quotes"', ''];
 
