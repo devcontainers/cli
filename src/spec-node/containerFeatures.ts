@@ -28,12 +28,22 @@ export const getSafeId = (str: string) => str
 	.replace(/^[\d_]+/g, '_')
 	.toUpperCase();
 
-export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean) {
+export interface PreparedBuildInfo {
+	dockerfile: string;
+	context: string;
+	target: string | undefined;
+	buildArgs: Record<string, string>;
+	buildContexts: Record<string, string>;
+	securityOpts: string[];
+	imageNames: string[];
+}
+
+export async function extendImage(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, imageName: string, additionalImageNames: string[], additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, buildOutputFolder?: string) {
 	const { common } = params;
 	const { cliHost, output } = common;
 
 	const imageBuildInfo = await getImageBuildInfoFromImage(params, imageName, config.substitute);
-	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer);
+	const extendImageDetails = await getExtendImageBuildInfo(params, config, imageName, imageBuildInfo, undefined, additionalFeatures, canAddLabelsToContainer, buildOutputFolder);
 	if (!extendImageDetails?.featureBuildInfo) {
 		// no feature extensions - return
 		if (additionalImageNames.length) {
@@ -53,10 +63,27 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 	const { featureBuildInfo, featuresConfig } = extendImageDetails;
 
 	// Got feature extensions -> build the image
-	const dockerfilePath = cliHost.path.join(featureBuildInfo.dstFolder, 'Dockerfile.extended');
+	const dockerfilePath = cliHost.path.join(featureBuildInfo.dstFolder, buildOutputFolder ? 'Dockerfile' : 'Dockerfile.extended');
 	await cliHost.writeFile(dockerfilePath, Buffer.from(featureBuildInfo.dockerfilePrefixContent + featureBuildInfo.dockerfileContent));
 	const folderImageName = getFolderImageName(common);
 	const updatedImageName = `${imageName.startsWith(folderImageName) ? imageName : folderImageName}-features`;
+	const outputImageNames = additionalImageNames.length > 0 ? additionalImageNames : [updatedImageName];
+	if (buildOutputFolder) {
+		return {
+			updatedImageName: outputImageNames,
+			imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
+			imageDetails: async () => imageBuildInfo.imageDetails,
+			preparedBuild: {
+				dockerfile: dockerfilePath,
+				context: buildOutputFolder,
+				target: featureBuildInfo.overrideTarget,
+				buildArgs: featureBuildInfo.buildArgs,
+				buildContexts: featureBuildInfo.buildKitContexts,
+				securityOpts: featureBuildInfo.securityOpts,
+				imageNames: outputImageNames,
+			} satisfies PreparedBuildInfo,
+		};
+	}
 
 	const args: string[] = [];
 	if (!params.buildKitVersion &&
@@ -132,16 +159,17 @@ export async function extendImage(params: DockerResolverParameters, config: Subs
 		await dockerCLI(infoParams, ...args);
 	}
 	return {
-		updatedImageName: additionalImageNames.length > 0 ? additionalImageNames : [updatedImageName],
+		updatedImageName: outputImageNames,
 		imageMetadata: getDevcontainerMetadata(imageBuildInfo.metadata, config, featuresConfig),
 		imageDetails: async () => imageBuildInfo.imageDetails,
 	};
 }
 
-export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean): Promise<{ featureBuildInfo?: ImageBuildOptions; featuresConfig?: FeaturesConfig; labels?: Record<string, string> } | undefined> {
+export async function getExtendImageBuildInfo(params: DockerResolverParameters, config: SubstitutedConfig<DevContainerConfig>, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, additionalFeatures: Record<string, string | boolean | Record<string, string | boolean>>, canAddLabelsToContainer: boolean, buildOutputFolder?: string): Promise<{ featureBuildInfo?: ImageBuildOptions; featuresConfig?: FeaturesConfig; labels?: Record<string, string> } | undefined> {
 
 	// Creates the folder where the working files will be setup.
-	const dstFolder = await createFeaturesTempFolder(params.common);
+	const dstFolder = buildOutputFolder || await createFeaturesTempFolder(params.common);
+	await params.common.cliHost.mkdirp(dstFolder);
 
 	// Processes the user's configuration.
 	const platform = params.common.cliHost.platform;
@@ -161,7 +189,7 @@ export async function getExtendImageBuildInfo(params: DockerResolverParameters, 
 	}
 
 	// Generates the end configuration.
-	const featureBuildInfo = await getFeaturesBuildOptions(params, config, featuresConfig, baseName, imageBuildInfo, composeServiceUser);
+	const featureBuildInfo = await getFeaturesBuildOptions(params, config, featuresConfig, baseName, imageBuildInfo, composeServiceUser, !!buildOutputFolder);
 	if (!featureBuildInfo) {
 		return undefined;
 	}
@@ -224,7 +252,7 @@ function getOmitDevcontainerPropertyOverride(resolverParams: { omitConfigRemotEn
 	return [];
 }
 
-async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined): Promise<ImageBuildOptions | undefined> {
+async function getFeaturesBuildOptions(params: DockerResolverParameters, devContainerConfig: SubstitutedConfig<DevContainerConfig>, featuresConfig: FeaturesConfig, baseName: string, imageBuildInfo: ImageBuildInfo, composeServiceUser: string | undefined, prepareOnly: boolean): Promise<ImageBuildOptions | undefined> {
 	const { common } = params;
 	const { cliHost, output } = common;
 	const { dstFolder } = featuresConfig;
@@ -241,7 +269,7 @@ async function getFeaturesBuildOptions(params: DockerResolverParameters, devCont
 	// TODO generate an image name that is specific to this dev container?
 	const buildKitVersionParsed = params.buildKitVersion?.versionMatch ? parseVersion(params.buildKitVersion.versionMatch) : undefined;
 	const minRequiredVersion = [0, 8, 0];
-	const useBuildKitBuildContexts = buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false;
+	const useBuildKitBuildContexts = prepareOnly || (buildKitVersionParsed ? !isEarlierVersion(buildKitVersionParsed, minRequiredVersion) : false);
 	const buildContentImageName = 'dev_container_feature_content_temp';
 	const disableSELinuxLabels = useBuildKitBuildContexts && await isUsingSELinuxLabels(params);
     // Access Docker engine version
@@ -378,7 +406,7 @@ async function isUsingSELinuxLabels(params: DockerResolverParameters): Promise<b
 	} catch {
 		// If we can't run the commands, assume SELinux is not enabled.
 		return false;
-		
+
 	}
 }
 

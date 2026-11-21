@@ -26,6 +26,26 @@ describe('Dev Containers CLI', function () {
 	});
 
 	describe('Command build', () => {
+		it('should prepare build output without building an image', async () => {
+			const testFolder = `${__dirname}/configs/dockerfile-with-features`;
+			const outputFolder = path.join(__dirname, 'tmp', 'build-output');
+			const imageName = 'devcontainer-build-output-test';
+			fs.rmSync(outputFolder, { recursive: true, force: true });
+			await shellExec(`docker rmi -f ${imageName} || true`);
+
+			const response = await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name ${imageName} --buildkit=never --build-output-folder ${outputFolder}`);
+			const result = JSON.parse(response.stdout);
+			const buildOutput = JSON.parse(fs.readFileSync(path.join(outputFolder, 'build-output.json'), 'utf8'));
+
+			assert.equal(result.outcome, 'success');
+			assert.equal(result.buildOutputFolder, outputFolder);
+			assert.equal(fs.existsSync(path.join(outputFolder, 'Dockerfile')), true);
+			assert.equal(buildOutput.dockerfile, path.join(outputFolder, 'Dockerfile'));
+			assert.equal(buildOutput.imageNames[0], imageName);
+			assert.equal(buildOutput.buildContexts.dev_containers_feature_content_source, outputFolder);
+			const images = await shellExec(`docker images -q ${imageName}`);
+			assert.equal(images.stdout.trim(), '');
+		});
 
 		it('should build successfully with valid image metadata --label property', async () => {
 			const testFolder = `${__dirname}/configs/example`;
@@ -53,7 +73,7 @@ describe('Dev Containers CLI', function () {
 				await shellExec(`${cli} build --workspace-folder ${testFolder} --image-name demo:v1`);
 				const tags = await shellExec(`docker images --format "{{.Tag}}" demo`);
 				const imageTags = tags.stdout.trim().split('\n').filter(tag => tag !== '<none>');
-				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1'); 
+				assert.equal(imageTags.length, 1, 'There should be only one tag for demo:v1');
 			} catch (error) {
 				assert.equal(error.code, 'ERR_ASSERTION', 'Should fail with ERR_ASSERTION');
 			}
