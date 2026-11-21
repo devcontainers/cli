@@ -15,6 +15,7 @@ export interface SubstitutionContext {
 	localWorkspaceFolder?: string;
 	containerWorkspaceFolder?: string;
 	env: NodeJS.ProcessEnv;
+	remoteUser?: string;
 }
 
 export function substitute<T extends object>(context: SubstitutionContext, value: T): T {
@@ -108,6 +109,9 @@ function replaceWithContext(isWindows: boolean, context: SubstitutionContext, ma
 
 		case 'containerWorkspaceFolderBasename':
 			return context.containerWorkspaceFolder !== undefined ? path.posix.basename(context.containerWorkspaceFolder) : match;
+
+		case 'remoteUser':
+			return context.remoteUser !== undefined ? context.remoteUser : match;
 
 		default:
 			return match;
