@@ -121,7 +121,7 @@ function optionsCompareTo(a: string | boolean | Record<string, string | boolean 
 		const aKeys = Object.keys(a);
 		const bKeys = Object.keys(b);
 		if (aKeys.length !== bKeys.length) {
-			return aKeys.length - bKeys.length;
+			return bKeys.length - aKeys.length;
 		}
 
 		aKeys.sort();

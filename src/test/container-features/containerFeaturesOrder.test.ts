@@ -156,35 +156,35 @@ describe('Feature Dependencies', function () {
                 [
                     {
                         userFeatureId: './b',
+                        options: {
+                            optA: 'a',
+                            optB: 'a'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'a',
+                            optB: 'b'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'b',
+                            optB: 'a'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
+                        options: {
+                            optA: 'b',
+                            optB: 'b'
+                        }
+                    },
+                    {
+                        userFeatureId: './b',
                         options: {}
-                    },
-                    {
-                        userFeatureId: './b',
-                        options: {
-                            optA: 'a',
-                            optB: 'a'
-                        }
-                    },
-                    {
-                        userFeatureId: './b',
-                        options: {
-                            optA: 'a',
-                            optB: 'b'
-                        }
-                    },
-                    {
-                        userFeatureId: './b',
-                        options: {
-                            optA: 'b',
-                            optB: 'a'
-                        }
-                    },
-                    {
-                        userFeatureId: './b',
-                        options: {
-                            optA: 'b',
-                            optB: 'b'
-                        }
                     },
                     {
                         userFeatureId: './d',
