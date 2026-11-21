@@ -1,0 +1,6 @@
+{
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspace",
+	"postCreateCommand": "echo post-create > /tmp/docker-arg-marker"
+}

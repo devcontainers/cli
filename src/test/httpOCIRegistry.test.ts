@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import { assert } from 'chai';
 
 import { OCICollectionRef } from '../spec-configuration/containerCollectionsOCI';
-import { isAllowedTokenServiceRealm, isOCIRegistryOrigin, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
+import { getAuthLookupBlockedReason, isAllowedTokenServiceRealm, isOCIRegistryOrigin, parseCrossOriginAuthHosts, requestEnsureAuthenticated } from '../spec-configuration/httpOCIRegistry';
 import { nullLog } from '../spec-utils/log';
 import { createTestCommonParams } from './testUtils';
 
@@ -91,6 +91,25 @@ describe('OCI registry authentication', () => {
 				['registry.example=auth.example'],
 			));
 		});
+	});
+
+	describe('getAuthLookupBlockedReason', () => {
+		const cases = [
+			{ realm: 'http://registry.example/token', registryUrl: 'https://registry.example/v2/', expected: 'httpRealm' },
+			{ realm: 'http://auth.example/token', registryUrl: 'https://registry.example/v2/', expected: 'httpRealm' },
+			{ realm: 'https://registry.example:8443/token', registryUrl: 'https://registry.example/v2/', expected: 'differentPort' },
+			{ realm: 'https://gitlab.example/jwt/auth', registryUrl: 'https://gitlab.example:5050/v2/', expected: 'differentPort' },
+			{ realm: 'https://gitlab.example/jwt/auth', registryUrl: 'https://registry.gitlab.example/v2/', expected: 'parentDomain' },
+			{ realm: 'https://gitlab.example/jwt/auth', registryUrl: 'https://notgitlab.example/v2/', expected: 'differentHost' },
+			{ realm: 'https://docker-auth.example/auth', registryUrl: 'https://docker.example/v2/', expected: 'differentHost' },
+			{ realm: 'https://registry.example.attacker.example/token', registryUrl: 'https://registry.example/v2/', expected: 'differentHost' },
+		];
+
+		for (const { realm, registryUrl, expected } of cases) {
+			it(`classifies '${realm}' for '${registryUrl}' as '${expected}'`, () => {
+				assert.equal(getAuthLookupBlockedReason(new URL(registryUrl), new URL(realm)), expected);
+			});
+		}
 	});
 
 	describe('parseCrossOriginAuthHosts', () => {
@@ -293,6 +312,63 @@ describe('OCI registry authentication', () => {
 		}
 	});
 
+	it('records the kinds and reasons of blocked authentication lookups', async () => {
+		let tokenRequests = 0;
+		const registryServer = http.createServer((request, response) => {
+			if (request.url?.startsWith('/token')) {
+				tokenRequests++;
+				response.end(JSON.stringify({ token: 'registry-token' }));
+				return;
+			}
+			const registryPort = (registryServer.address() as AddressInfo).port;
+			const realm = request.url?.startsWith('/v2/test/image/')
+				? 'https://127.0.0.1:1/token'
+				: `http://localhost:${registryPort}/token`;
+			response.writeHead(401, {
+				'WWW-Authenticate': `Bearer realm="${realm}",service="registry.example",scope="repository:test:pull"`,
+			});
+			response.end();
+		});
+		const registryPort = await listen(registryServer);
+		const registry = `127.0.0.1:${registryPort}`;
+		const logMessages: string[] = [];
+		const output = {
+			...nullLog,
+			write: (text: string) => logMessages.push(text),
+		};
+		const params = { ...createTestCommonParams(output, {}), ociAuthHardening: true };
+		const lookup = (path: string, ociAuthLookupKind: 'image' | 'feature') => requestEnsureAuthenticated({ ...params, ociAuthLookupKind }, {
+			type: 'GET',
+			url: `http://${registry}/v2/${path}/manifests/latest`,
+			headers: {},
+		}, {
+			scheme: 'http',
+			registry,
+			path,
+			resource: `${registry}/${path}`,
+			tag: 'latest',
+			version: 'latest',
+		});
+
+		try {
+			assert.isUndefined(await lookup('test/image', 'image'));
+			assert.isUndefined(await lookup('test/features', 'feature'));
+			assert.isUndefined(await lookup('test/image', 'feature'));
+
+			assert.equal(tokenRequests, 0);
+			assert.deepEqual(params.ociAuthDiagnostics, {
+				authLookupWouldBeBlocked: true,
+				authLookupBlockedKinds: ['feature', 'image'],
+				authLookupBlockedReasons: ['differentPort', 'httpRealm'],
+				registryRedirectWouldPreventCredentialForwarding: false,
+				authServerRedirect: false,
+			});
+			assert.lengthOf(logMessages.filter(message => message.includes('OCI auth diagnostics:')), 2);
+		} finally {
+			await close(registryServer);
+		}
+	});
+
 	it('surfaces shadow diagnostics when hardening is disabled', async () => {
 		const token = 'registry-token';
 		const bearerScheme = 'Bearer';
@@ -362,6 +438,8 @@ describe('OCI registry authentication', () => {
 			assert.equal(redirectTargetRequests, 1);
 			assert.deepEqual(result?.ociAuthDiagnostics, {
 				authLookupWouldBeBlocked: true,
+				authLookupBlockedKinds: ['feature'],
+				authLookupBlockedReasons: ['httpRealm'],
 				registryRedirectWouldPreventCredentialForwarding: true,
 				authServerRedirect: true,
 			});
@@ -547,6 +625,8 @@ describe('OCI registry authentication', () => {
 			assert.equal(tokenRequests, 1);
 			assert.deepEqual(result.ociAuthDiagnostics, {
 				authLookupWouldBeBlocked: false,
+				authLookupBlockedKinds: [],
+				authLookupBlockedReasons: [],
 				registryRedirectWouldPreventCredentialForwarding: false,
 				authServerRedirect: false,
 			});

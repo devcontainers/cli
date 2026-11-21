@@ -54,7 +54,7 @@ async function featuresInfo({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables, true);
 
-	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
+	const params = { output, env: process.env, outputFormat, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics(), ociAuthLookupKind: 'feature' as 'feature' };
 
 	const jsonOutput: InfoJsonOutput = {};
 

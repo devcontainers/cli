@@ -42,7 +42,7 @@ async function templateMetadata({
 		terminalDimensions: undefined,
 	}, pkg, new Date(), disposables);
 
-	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics() };
+	const params = { output, env: process.env, allowedCrossOriginAuthHosts, ociAuthHardening, ociAuthDiagnostics: createOCIAuthDiagnostics(), ociAuthLookupKind: 'template' as 'template' };
 	output.write(`Fetching metadata for ${templateId}`, LogLevel.Trace);
 
 	const templateRef = getRef(output, templateId);

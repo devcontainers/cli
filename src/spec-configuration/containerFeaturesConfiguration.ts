@@ -199,6 +199,7 @@ export interface ContainerFeatureInternalParams {
 	allowedCrossOriginAuthHosts?: string[];
 	ociAuthHardening?: boolean;
 	ociAuthDiagnostics: OCIAuthDiagnostics;
+	ociAuthLookupKind: 'feature';
 }
 
 // TODO: Move to node layer.
