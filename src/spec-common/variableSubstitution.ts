@@ -85,7 +85,8 @@ function evaluateSingleVariable(replace: Replace, match: string, variable: strin
 	const parts = variable.split(':');
 	if (parts.length > 1) {
 		variable = parts[0];
-		args = parts.slice(1);
+		// Preserve colons in the default value (e.g. `${localEnv:VAR:image:tag}`).
+		args = parts.length > 2 ? [parts[1], parts.slice(2).join(':')] : [parts[1]];
 	}
 
 	return replace(match, variable, args);
