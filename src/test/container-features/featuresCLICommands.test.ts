@@ -1,6 +1,7 @@
 import { assert } from 'chai';
 import path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import os from 'os';
 import { createPlainLog, LogLevel, makeLog } from '../../spec-utils/log';
 import { isLocalFile, readLocalFile } from '../../spec-utils/pfs';
 import { createTestCommonParams, ExecResult, shellExec } from '../testUtils';
@@ -813,5 +814,36 @@ describe('tests generateFeaturesDocumentation()', async function () {
 
 		const invalidDocsExists = await isLocalFile(`${projectFolder}/not-a-feature/README.md`);
 		assert.isFalse(invalidDocsExists);
+	});
+
+	it('preserves dollar sequences in generated feature documentation', async function () {
+		const basePath = mkdtempSync(path.join(os.tmpdir(), 'devcontainer-feature-docs-'));
+		const featurePath = path.join(basePath, 'dollar-content');
+		mkdirSync(featurePath);
+		writeFileSync(path.join(featurePath, 'devcontainer-feature.json'), JSON.stringify({
+			id: 'dollar-content',
+			version: '1.0.0',
+			name: 'Price $&',
+			description: 'Keep $\' literally',
+			options: {
+				example: {
+					type: 'string',
+					description: 'Keep $\' and $$ literally',
+				},
+			},
+		}));
+		writeFileSync(path.join(featurePath, 'NOTES.md'), 'Keep $` and $$ literally.');
+
+		try {
+			await generateFeaturesDocumentation(basePath, 'ghcr.io', 'devcontainers/cli', 'devcontainers', 'cli', output);
+			const readme = readFileSync(path.join(featurePath, 'README.md'), 'utf8');
+			assert.include(readme, '# Price $& (dollar-content)');
+			assert.include(readme, 'Keep $\' literally');
+			assert.include(readme, 'Keep $\' and $$ literally');
+			assert.include(readme, 'Keep $` and $$ literally.');
+			assert.strictEqual((readme.match(/## Example Usage/g) ?? []).length, 1);
+		} finally {
+			rmSync(basePath, { recursive: true, force: true });
+		}
 	});
 });
