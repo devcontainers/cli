@@ -119,6 +119,22 @@ export function parseMount(str: string): Mount {
 		.reduce((acc, [key, value]) => ({ ...acc, [(normalizedMountKeys[key] || key)]: value }), {}) as Mount;
 }
 
+const mountArgRegex = /^type=(bind|volume),source=([^,]+),target=([^,]+)(?:,external=(true|false))?$/;
+
+export function parseMountArg(str: string): Mount | string {
+	const match = mountArgRegex.exec(str);
+	if (!match) {
+		return str;
+	}
+	const [, type, source, target, external] = match;
+	return {
+		type: type as Mount['type'],
+		source,
+		target,
+		external: external === 'true',
+	};
+}
+
 export type SourceInformation = GithubSourceInformation | DirectTarballSourceInformation | FilePathSourceInformation | OCISourceInformation;
 
 interface BaseSourceInformation {

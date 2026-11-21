@@ -475,7 +475,7 @@ async function writeFeaturesComposeOverrideFile(
 	imageDetails: () => Promise<ImageDetails>,
 	service: any,
 	additionalLabels: string[],
-	additionalMounts: Mount[],
+	additionalMounts: (Mount | string)[],
 	overrideFilePath: string,
 	overrideFilePrefix: string,
 	buildCLIHost: CLIHost,
@@ -510,7 +510,7 @@ async function generateFeaturesComposeOverrideContent(
 	imageDetails: () => Promise<ImageDetails>,
 	service: any,
 	additionalLabels: string[],
-	additionalMounts: Mount[],
+	additionalMounts: (Mount | string)[],
 	params: DockerResolverParameters,
 ) {
 	const overrideImage = updatedImageName !== originalImageName;
@@ -519,6 +519,10 @@ async function generateFeaturesComposeOverrideContent(
 	const env = mergedConfig.containerEnv || {};
 	const capAdd = mergedConfig.capAdd || [];
 	const securityOpts = mergedConfig.securityOpt || [];
+	const unsupportedMount = additionalMounts.find(m => typeof m === 'string');
+	if (unsupportedMount) {
+		throw new ContainerError({ description: `--mount "${unsupportedMount}" is not supported with Docker Compose configurations. Use type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>].` });
+	}
 	const mounts = [
 		...mergedConfig.mounts || [],
 		...additionalMounts,
