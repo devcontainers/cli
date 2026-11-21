@@ -257,10 +257,25 @@ reportResults
 
 The `dev-container-features-test-lib` is convenience helper [defined in the CLI](https://github.com/devcontainers/cli/blob/1910ca41015c627b884ddd69ebc52d1e8cdd8cf0/src/spec-node/featuresCLI/utils.ts#L59) that adds several bash functions to organize test asserts. Note that using this libary **is not required**.
 
-#### `check <LABEL> <cmd> [args...]`
-Description: Executes `cmd` and prints success/failed depending on exit code (0 === success) of `cmd`.
-Note: Use quotes to include whitespace in the label or individual arguments for the command.
+### `check LABEL EXPRESSION`
+
+Executes `EXPRESSION` (command) and prints success/failed depending on the exit code (0 === success) of the command.
+
+Note:
+- Use quotes to include whitespace in the label or individual arguments for the command.
+
 Example: `check "python is available" python3 --version`
 
-##### reportResults
-Prints results of check and checkMultiple
+### `checkMultiple LABEL MINIMUM_NUMBER_OF_PASSED_EXPRESSIONS EXPRESSIONS...`
+
+Executes multiple `EXPRESSIONS` (commands) and prints success/failed depending on the number of successful executions. If the number of successful executions is equal to or higher than `MINIMUM_NUMBER_OF_PASSED_EXPRESSIONS`, the check is considered a success.
+
+Note:
+- `MINIMUM_NUMBER_OF_PASSED_EXPRESSIONS` should not be higher than the total number of `EXPRESSIONS`.
+- Commands passed as expressions must be enclosed in quotes.
+
+Example: `checkMultiple "python and node are available" 2 "python3 --version" "node --version"`
+
+### `reportResults`
+
+Prints results of `check` and `checkMultiple`
