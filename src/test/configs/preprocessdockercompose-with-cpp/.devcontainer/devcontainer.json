@@ -1,0 +1,6 @@
+{
+	"name": "Node.js & Mongo DB",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspace"
+}
