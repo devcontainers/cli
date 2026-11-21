@@ -88,6 +88,21 @@ describe('Variable substitution', function () {
 		assert.strictEqual(result.foo, 'bardefaultbar');
 	});
 
+	it(`environment variables with default value containing colon if they do not exist`, async () => {
+		const raw = {
+			foo: 'bar${localEnv:baz:de:fault}bar'
+		};
+		const result = substitute({
+			platform: 'linux',
+			localWorkspaceFolder: '/foo/bar',
+			containerWorkspaceFolder: '/baz/blue',
+			configFile: URI.file('/foo/bar/baz.json'),
+			env: {
+			},
+		}, raw);
+		assert.strictEqual(result.foo, 'barde:faultbar');
+	});
+
 	it(`environment variables without default value if they do not exist`, async () => {
 		const raw = {
 			foo: 'bar${localEnv:baz}bar'
