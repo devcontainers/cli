@@ -119,6 +119,15 @@ export function findBaseImage(dockerfile: Dockerfile, buildArgs: Record<string, 
 	return undefined;
 }
 
+// BuildKit looks up named build contexts by the familiar image reference without ':latest'.
+export function isNamedBuildContext(image: string, buildContextNames: string[]) {
+	const familiar = image
+		.replace(/^(?:index\.)?docker\.io\//, '')
+		.replace(/^library\/(?=[^/]+$)/, '')
+		.replace(/:latest$/, '');
+	return buildContextNames.includes(familiar);
+}
+
 function extractDirectives(preambleStr: string) {
 	const map: Record<string, string> = {};
 	for (const line of preambleStr.split(/\r?\n/)) {

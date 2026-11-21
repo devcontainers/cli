@@ -21,6 +21,8 @@ build:
   target: a-target
   args:
     arg1: value1
+  additional_contexts:
+    base: service:base
 `;
         const info = loadYamlAndGetBuildInfoForService(input);
         assert.deepEqual(info, {
@@ -32,7 +34,23 @@ build:
                 args: {
                     arg1: 'value1',
                 },
+                additionalContexts: {
+                    base: 'service:base',
+                },
             }
+        });
+    });
+
+    it('Parses additional_contexts in list form', () => {
+        const input = `
+build:
+  context: ./a-path
+  additional_contexts:
+    - base=docker-image://alpine:3.20
+`;
+        const info = loadYamlAndGetBuildInfoForService(input);
+        assert.deepEqual(info.build?.additionalContexts, {
+            base: 'docker-image://alpine:3.20',
         });
     });
 
@@ -74,6 +92,7 @@ build:
                 dockerfilePath: 'Dockerfile',
                 target: undefined,
                 args: undefined,
+                additionalContexts: undefined,
             }
         });
     });
@@ -91,6 +110,7 @@ build:
                 dockerfilePath: 'my-dockerfile',
                 target: undefined,
                 args: undefined,
+                additionalContexts: undefined,
             }
         });
     });

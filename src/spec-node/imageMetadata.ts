@@ -11,7 +11,7 @@ import { Feature, FeaturesConfig, Mount, parseMount, SchemaFeatureLifecycleHooks
 import { ContainerDetails, DockerCLIParameters, ImageDetails } from '../spec-shutdown/dockerUtils';
 import { Log, LogLevel } from '../spec-utils/log';
 import { getBuildInfoForService, readDockerComposeConfig } from './dockerCompose';
-import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement } from './dockerfileUtils';
+import { Dockerfile, extractDockerfile, findBaseImage, findUserStatement, isNamedBuildContext } from './dockerfileUtils';
 import { SubstituteConfig, SubstitutedConfig, DockerResolverParameters, inspectDockerImage, uriToWSLFsPath, envListToObj } from './utils';
 
 const pickConfigProperties: (keyof DevContainerConfig & keyof ImageMetadataEntry)[] = [
@@ -365,7 +365,7 @@ export async function getImageBuildInfo(params: DockerResolverParameters | Docke
 			const { context, dockerfilePath } = serviceInfo.build;
 			const resolvedDockerfilePath = cliHost.path.isAbsolute(dockerfilePath) ? dockerfilePath : cliHost.path.resolve(context, dockerfilePath);
 			const dockerfile = (await cliHost.readFile(resolvedDockerfilePath)).toString();
-			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute);
+			return getImageBuildInfoFromDockerfile(params, dockerfile, serviceInfo.build.args || {}, serviceInfo.build.target, configWithRaw.substitute, Object.keys(serviceInfo.build.additionalContexts || {}));
 		} else {
 			return getImageBuildInfoFromImage(params, composeService.image, configWithRaw.substitute);
 		}
@@ -393,13 +393,13 @@ export async function getImageBuildInfoFromImage(params: DockerResolverParameter
 	};
 }
 
-export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig) {
+export async function getImageBuildInfoFromDockerfile(params: DockerResolverParameters | DockerCLIParameters, dockerfile: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, buildContextNames: string[] = []) {
 	const { output } = 'output' in params ? params : params.common;
 	const omitSyntaxDirective = 'common' in params ? !!params.common.omitSyntaxDirective : false;
-	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective, params.buildPlatformInfo, params.targetPlatformInfo);
+	return internalGetImageBuildInfoFromDockerfile(imageName => inspectDockerImage(params, imageName, true), dockerfile, dockerBuildArgs, targetStage, substitute, output, omitSyntaxDirective, params.buildPlatformInfo, params.targetPlatformInfo, buildContextNames);
 }
 
-export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean, buildPlatform: PlatformInfo, targetPlatform: PlatformInfo): Promise<ImageBuildInfo> {
+export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage: (imageName: string) => Promise<ImageDetails>, dockerfileText: string, dockerBuildArgs: Record<string, string>, targetStage: string | undefined, substitute: SubstituteConfig, output: Log, omitSyntaxDirective: boolean, buildPlatform: PlatformInfo, targetPlatform: PlatformInfo, buildContextNames: string[] = []): Promise<ImageBuildInfo> {
 	const dockerfile = extractDockerfile(dockerfileText);
 	if (dockerfile.preamble.directives.syntax && omitSyntaxDirective) {
 		output.write(`Omitting syntax directive '${dockerfile.preamble.directives.syntax}' from Dockerfile.`, LogLevel.Trace);
@@ -425,7 +425,12 @@ export async function internalGetImageBuildInfoFromDockerfile(inspectDockerImage
 		TARGETVARIANT: targetPlatform.variant ?? "",
 	};
 	const baseImage = findBaseImage(dockerfile, dockerBuildArgs, targetStage, globalBuildxPlatformArgs);
-	const imageDetails = baseImage && await inspectDockerImage(baseImage) || undefined;
+	// A named build context replaces the image at build time, so the reference may not exist locally or in any registry.
+	const fromBuildContext = !!baseImage && isNamedBuildContext(baseImage, buildContextNames);
+	if (fromBuildContext) {
+		output.write(`Not inspecting base image '${baseImage}' because a named build context provides it.`);
+	}
+	const imageDetails = baseImage && !fromBuildContext && await inspectDockerImage(baseImage) || undefined;
 	const dockerfileUser = findUserStatement(dockerfile, dockerBuildArgs, envListToObj(imageDetails?.Config.Env), globalBuildxPlatformArgs, targetStage);
 	const user = dockerfileUser || imageDetails?.Config.User || 'root';
 	const metadata = imageDetails ? getImageMetadata(imageDetails, substitute, output) : { config: [], raw: [], substitute };
