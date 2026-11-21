@@ -1,0 +1,9 @@
+FROM @BASE_IMAGE@
+
+ARG APP_PORT=@APP_PORT@
+EXPOSE @APP_PORT@
+
+WORKDIR /workspace
+COPY . /workspace
+
+CMD ["npm", "start"]
