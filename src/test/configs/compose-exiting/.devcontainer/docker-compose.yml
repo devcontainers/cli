@@ -1,0 +1,5 @@
+services:
+  app:
+    image: ubuntu:latest
+    # Exits right after it started.
+    command: "true"

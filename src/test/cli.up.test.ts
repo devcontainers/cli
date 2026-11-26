@@ -56,6 +56,18 @@ describe('Dev Containers CLI', function () {
 			await shellExec(`docker rm -f ${containerId}`);
 		});
 
+		it('should recover a missing start event for an ID label value containing "="', async function () {
+			this.timeout(60 * 1000);
+			const dropEvents = path.join(__dirname, 'fixtures', 'drop-events.js');
+			const res = await shellExec(`${cli} up --workspace-folder ${__dirname}/configs/image --remove-existing-container --id-label demo.id=branch=topic --docker-path "${process.execPath}" --docker-arg="${dropEvents}"`);
+			const response = JSON.parse(res.stdout);
+			assert.ok(res.stderr.includes('Detected the container by polling'), 'The container was not detected by polling.');
+			assert.equal(response.outcome, 'success');
+			const containerId: string = response.containerId;
+			assert.ok(containerId, 'Container id not found.');
+			await shellExec(`docker rm -f ${containerId}`);
+		});
+
 		it('should fail with "not found" error when config is not found', async () => {
 			let success = false;
 			try {
@@ -174,6 +186,37 @@ describe('Dev Containers CLI', function () {
 			it('should succeed', () => {
 				assert.equal(upResult!.outcome, 'success');
 				assert.equal(upResult!.composeProjectName, 'compose-without-name_devcontainer');
+			});
+		});
+
+		describe('for docker-compose without a start event', () => {
+			let upResult: UpResult | null = null;
+			const testFolder = `${__dirname}/configs/compose-without-name`;
+			// Also removes what a hung `up` leaves behind.
+			after(async () => await devContainerDown({ composeProjectName: upResult?.composeProjectName || 'compose-without-name_devcontainer' }));
+			it('should execute successfully when the runtime reports no start event', async function () {
+				this.timeout(60 * 1000);
+				const dropEvents = path.join(__dirname, 'fixtures', 'drop-events.js');
+				upResult = await devContainerUp(cli, testFolder, { extraArgs: `--remove-existing-container --docker-path "${process.execPath}" --docker-arg="${dropEvents}"` });
+				assert.ok(upResult.stderr.includes('Detected the container by polling'), 'The container was not detected by polling.');
+			});
+		});
+
+		describe('for docker-compose without a start event and an exiting container', () => {
+			const testFolder = `${__dirname}/configs/compose-exiting`;
+			after(async () => await devContainerDown({ composeProjectName: 'compose-exiting_devcontainer' }));
+			it('should fail instead of hanging', async function () {
+				this.timeout(60 * 1000);
+				const dropEvents = path.join(__dirname, 'fixtures', 'drop-events.js');
+				let success = false;
+				try {
+					await shellExec(`${cli} up --workspace-folder ${testFolder} --docker-path "${process.execPath}" --docker-arg="${dropEvents}"`);
+					success = true;
+				} catch (error) {
+					assert.equal(JSON.parse(error.stdout).outcome, 'error');
+					assert.ok(error.stderr.includes('Detected the container by polling'), 'The container was not detected by polling.');
+				}
+				assert.equal(success, false, 'expect non-successful call');
 			});
 		});
 

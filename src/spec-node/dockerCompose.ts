@@ -356,7 +356,12 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 	let cancel: () => void;
 	const canceled = new Promise<void>((_, reject) => cancel = reject);
-	const { started } = await startEventSeen(params, { [projectLabel]: projectName, [serviceLabel]: config.service }, canceled, common.output, common.getLogLevel() === LogLevel.Trace); // await getEvents, but only assign started.
+	// Defer polling until we run `compose up -d` after the build.
+	let issueStart!: () => void;
+	const startIssued = new Promise<void>(resolve => { issueStart = resolve; });
+	let finishStart!: () => void;
+	const startFinished = new Promise<void>(resolve => { finishStart = resolve; });
+	const { started } = await startEventSeen(params, { [projectLabel]: projectName, [serviceLabel]: config.service }, canceled, common.output, common.getLogLevel() === LogLevel.Trace, startIssued, startFinished);
 
 	const service = composeConfig.services[config.service];
 	const originalImageName = service.image || getDefaultImageName(await buildParams.dockerComposeCLI(), projectName, config.service);
@@ -428,6 +433,7 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 			args.push(config.service);
 		}
 	}
+	issueStart();
 	try {
 		if (params.isTTY) {
 			await dockerComposePtyCLI({ ...buildParams, output: infoOutput }, ...args);
@@ -444,6 +450,8 @@ async function startContainer(params: DockerResolverParameters, buildParams: Doc
 
 		throw new ContainerError({ description, originalError: err, data: { fileWithError: composeFiles[0] } });
 	}
+	// Include stopped containers after `compose up -d` succeeds so an immediate exit surfaces as a setup error.
+	finishStart();
 
 	await started;
 	return {
