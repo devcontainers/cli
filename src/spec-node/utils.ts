@@ -180,20 +180,35 @@ export function addSubstitution<T extends DevContainerConfig | ImageMetadataEntr
 	};
 }
 
-export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
-	if (params.cliVariant === CLIVariant.Wslc) {
-		return startEventSeenPolling(params, labels, canceled, output, trace);
-	}
-	const eventsProcess = await getEvents(params, { event: ['start'] });
+// The `start` event can be missed, e.g. when Podman rotates its event log.
+// Wait this long for it before polling.
+const startEventPollingIntervalMs = 3000;
+
+export async function startEventSeen(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean, commandStarted: Promise<void> = Promise.resolve(), commandFinished?: Promise<void>) {
+	const labelFilters = Object.entries(labels).map(([k, v]) => `${k}=${v}`);
+	// wslc does not support `events` and is only detected by polling.
+	const useEvents = params.cliVariant !== CLIVariant.Wslc;
+	const eventsProcess = useEvents ? await getEvents(params, { event: ['start'] }) : undefined;
 	return {
 		started: new Promise<void>((resolve, reject) => {
+			let stopped = false;
+			let finished = false;
+			commandFinished?.then(() => { finished = true; });
+			const stop = () => {
+				stopped = true;
+				eventsProcess?.terminate();
+			};
+			const finish = () => {
+				stop();
+				resolve();
+			};
 			canceled.catch(err => {
-				eventsProcess.terminate();
+				stop();
 				reject(err);
 			});
 			const decoder = new StringDecoder('utf8');
 			let startPart = '';
-			eventsProcess.stdout.on('data', async chunk => {
+			eventsProcess?.stdout.on('data', async chunk => {
 				if (chunk) {
 					const part = decoder.write(chunk);
 					if (trace) {
@@ -207,8 +222,7 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 								const info = JSON.parse(line);
 								// Docker uses 'status', Podman 'Status'. Docker v29.0.0 onwards use 'Action' as 'status' is deprecated. 
 								if ((info.status || info.Status || info.Action) === 'start' && await hasLabels(params, info, labels)) {
-									eventsProcess.terminate();
-									resolve();
+									finish();
 								}
 							} catch (e) {
 								// Ignore invalid JSON.
@@ -219,38 +233,38 @@ export async function startEventSeen(params: DockerResolverParameters, labels: R
 					}
 				}
 			});
+			const [initialDelayMs, intervalMs] = useEvents ? [startEventPollingIntervalMs, startEventPollingIntervalMs] : [0, 500];
+			pollForContainer(params, labelFilters, () => stopped, () => finished, output, trace, initialDelayMs, intervalMs, commandStarted).then(found => {
+				if (found) {
+					if (useEvents) {
+						output.write('Detected the container by polling.', LogLevel.Info);
+					}
+					finish();
+				}
+			});
 		})
 	};
 }
 
-// Polling-based fallback for runtimes that don't support `events` (e.g., wslc).
-function startEventSeenPolling(params: DockerResolverParameters, labels: Record<string, string>, canceled: Promise<void>, output: Log, trace: boolean) {
-	let stopped = false;
-	canceled.catch(() => { stopped = true; });
-	const labelFilters = Object.entries(labels).map(([k, v]) => `${k}=${v}`);
-	return {
-		started: new Promise<void>((resolve, reject) => {
-			canceled.catch(reject);
-			const poll = async () => {
-				while (!stopped) {
-					try {
-						const containers = await listContainers(params, false, labelFilters);
-						if (trace) {
-							output.write(`Log: startEventSeenPolling found ${containers.length} container(s)\r\n`);
-						}
-						if (containers.length > 0) {
-							resolve();
-							return;
-						}
-					} catch (e) {
-						// Ignore transient errors during polling.
-					}
-					await delay(500);
-				}
-			};
-			poll();
-		})
-	};
+// Poll for a matching container once the start command is issued and the initial delay has elapsed.
+async function pollForContainer(params: DockerResolverParameters, labelFilters: string[], stopped: () => boolean, includeStopped: () => boolean, output: Log, trace: boolean, initialDelayMs: number, intervalMs: number, commandStarted: Promise<void>) {
+	await commandStarted;
+	await delay(initialDelayMs);
+	while (!stopped()) {
+		try {
+			const containers = await listContainers(params, includeStopped(), labelFilters);
+			if (trace) {
+				output.write(`Log: startEventSeen#poll found ${containers.length} container(s)\r\n`);
+			}
+			if (containers.length > 0) {
+				return !stopped();
+			}
+		} catch (e) {
+			// Ignore transient errors during polling.
+		}
+		await delay(intervalMs);
+	}
+	return false;
 }
 
 async function hasLabels(params: DockerResolverParameters, info: any, expectedLabels: Record<string, string>) {

@@ -485,8 +485,9 @@ function getLabels(labels: string[]): string[] {
 function getLabelsAsRecord(labels: string[]): Record<string, string> {
 	let result: Record<string, string> = {};
 	labels.forEach(each => {
-		let pair = each.split('=');
-		result[pair[0]] = pair[1];
+		// The value may contain '='.
+		const i = each.indexOf('=');
+		result[each.slice(0, i)] = each.slice(i + 1);
 	});
 	return result;
 }
